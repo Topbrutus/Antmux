@@ -5,7 +5,8 @@ param(
     [string]$WatchPath,
     [string]$ProjectId = "PROJECT-000000",
     [switch]$DryRun,
-    [switch]$Once
+    [switch]$Once,
+    [switch]$DisableChatGPTBridge
 )
 
 Set-StrictMode -Version Latest
@@ -62,6 +63,9 @@ if (-not (Test-Path -LiteralPath $publisher -PathType Leaf)) {
     throw "Jules publisher command not found: $publisher"
 }
 
+$bridge = Join-Path $root "modules\chatgpt-bridge\Send-AntmuxToChatGPT.ps1"
+$bridgeEnabled = (-not $DisableChatGPTBridge) -and (Test-Path -LiteralPath $bridge -PathType Leaf)
+
 $watcher = New-Object System.IO.FileSystemWatcher
 $watcher.Path = $WatchPath
 $watcher.Filter = "*.md"
@@ -76,6 +80,7 @@ Write-Host "JULES SUMMARY WATCHER ACTIVE" -ForegroundColor Green
 Write-Host "Folder    : $WatchPath"
 Write-Host "Project   : $ProjectId"
 Write-Host "Dry run   : $DryRun"
+Write-Host "ChatGPT   : $bridgeEnabled"
 Write-Host "Stop      : Ctrl+C"
 Write-Host ""
 
@@ -128,14 +133,22 @@ try {
 
             Write-Host "Detected  : $name" -ForegroundColor Cyan
             & $publisher @parameters
-            Write-Host ""
 
+            if ($bridgeEnabled -and (-not $DryRun)) {
+                Write-Host "ChatGPT   : handoff to screen 3" -ForegroundColor Magenta
+                & $bridge -SummaryPath $summaryPath
+            }
+            elseif ((-not $DisableChatGPTBridge) -and (-not $bridgeEnabled)) {
+                Write-Warning "ChatGPT bridge is not installed; GitHub publication completed without ChatGPT handoff."
+            }
+
+            Write-Host ""
             if ($Once) {
                 break
             }
         }
         catch {
-            Write-Warning ("Jules could not publish '{0}': {1}" -f $name, $_.Exception.Message)
+            Write-Warning ("Jules pipeline could not process '{0}': {1}" -f $name, $_.Exception.Message)
             Write-Host ""
             if ($Once) {
                 throw
