@@ -290,7 +290,6 @@ try {
     $npmRc = @"
 prefix=$npmRoot
 cache=$npmCache
-userconfig=$($NpmConfigPath.Replace("\", "/"))
 update-notifier=false
 audit=false
 fund=false
