@@ -16,6 +16,16 @@ startup_behavior:
   - return_final_result_to_brutus
   - do_not_insert_intermediate_router_without_explicit_approval
 
+extensions:
+  family: qwen
+  status: planned
+  relationship: internal_extensions
+  routed_by: reine-linuxia
+  direct_user_contact: false
+  variants: []
+  roles_status: pending_definition
+  authority: subordinate_to_reine_linuxia
+
 responsibilities:
   - receive_objectives
   - decompose_tasks
@@ -45,6 +55,6 @@ allowed_direct_actions:
 policy: >-
   Reine-Linuxia is the initial and default conversational entry point of Antmux.
   Brutus writes directly to her. She answers him, executes the principal work when
-  appropriate, or delegates it to other workers while retaining responsibility for
-  orchestration, verification, and the final result. No intermediary router is placed
-  between Brutus and Reine-Linuxia at startup unless Brutus explicitly changes this rule.
+  appropriate, or delegates it to Qwen-based internal extensions and other workers.
+  Qwen variants and specialized roles remain to be defined. Reine-Linuxia retains
+  authority over routing, execution, verification, and the final response.
