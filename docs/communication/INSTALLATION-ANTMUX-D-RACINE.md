@@ -13,7 +13,6 @@ Après exécution, les éléments principaux sont notamment :
 - `D:\node.exe`
 - `D:\npm.cmd`
 - `D:\antmux.cmd`
-- `D:\antmux.ps1`
 - `D:\node_modules\...`
 - `D:\.npm-cache\...`
 - `D:\ANTMUX-IDENTITY.md`
@@ -25,7 +24,7 @@ La commande publique est :
 antmux
 ```
 
-Les lanceurs publics `codex`, `codex.cmd` et `codex.ps1` sont supprimés après l’installation.
+Les lanceurs publics `codex`, `codex.cmd`, `codex.ps1` et tout ancien `antmux.ps1` sont supprimés après l’installation. Le lanceur conservé est `D:\antmux.cmd`, afin que la commande fonctionne dans PowerShell sans dépendre de la politique d’exécution des scripts `.ps1`.
 
 ## Prérequis protégés par le script
 
@@ -68,6 +67,8 @@ antmux
 
 Le produit amont d’OpenAI et son paquet npm conservent nécessairement le nom technique `@openai/codex` dans `D:\node_modules`. Le script ne modifie pas le code source d’OpenAI. Il supprime toutefois les lanceurs publics nommés `codex` et expose la commande `antmux`.
 
+Il n’existe aucun dossier principal `D:\Codex` ou `D:\Antmux`. Des répertoires techniques placés directement à la racine, notamment `D:\node_modules` et les caches cachés, restent nécessaires au fonctionnement.
+
 ## Script complet
 
 ```powershell
@@ -81,7 +82,7 @@ Installe l'environnement Antmux directement à la racine de D:\.
 - Installe une version portable de Node.js directement dans D:\.
 - Installe le paquet officiel @openai/codex avec le préfixe npm D:\.
 - Supprime les lanceurs publics nommés codex.
-- Crée D:\antmux.cmd et D:\antmux.ps1.
+- Crée D:\antmux.cmd comme commande publique.
 - Redirige les données, caches et fichiers temporaires d'Antmux vers D:\.
 - Ne crée aucun dossier principal D:\Codex ou D:\Antmux.
 
@@ -114,7 +115,7 @@ function Normalize-Root {
     $full = [System.IO.Path]::GetFullPath($Path)
     $root = [System.IO.Path]::GetPathRoot($full)
 
-    if ($full.TrimEnd("\") -ne $root.TrimEnd("\")) {
+    if ($full.TrimEnd([char]92) -ne $root.TrimEnd([char]92)) {
         throw "La cible doit être exactement la racine d'un disque. Reçu : $Path"
     }
 
@@ -131,11 +132,11 @@ function Add-UserPathEntry {
         $segments = @($current.Split(";", [System.StringSplitOptions]::RemoveEmptyEntries))
     }
 
-    $normalized = $Entry.TrimEnd("\")
+    $normalized = $Entry.TrimEnd([char]92)
     $exists = $false
 
     foreach ($segment in $segments) {
-        if ($segment.TrimEnd("\") -ieq $normalized) {
+        if ($segment.TrimEnd([char]92) -ieq $normalized) {
             $exists = $true
             break
         }
@@ -151,7 +152,7 @@ function Add-UserPathEntry {
     }
 
     if ($env:Path.Split(";", [System.StringSplitOptions]::RemoveEmptyEntries) |
-        Where-Object { $_.TrimEnd("\") -ieq $normalized }) {
+        Where-Object { $_.TrimEnd([char]92) -ieq $normalized }) {
         return
     }
 
@@ -210,7 +211,7 @@ if (-not $drive.IsReady) {
 }
 
 $systemRoot = [System.IO.Path]::GetPathRoot($env:SystemRoot)
-if ($Root.TrimEnd("\") -ieq $systemRoot.TrimEnd("\")) {
+if ($Root.TrimEnd([char]92) -ieq $systemRoot.TrimEnd([char]92)) {
     throw "Refus : $Root est le disque système Windows."
 }
 
@@ -228,10 +229,10 @@ $LocalDataDir  = Join-Path $Root ".antmux-localappdata"
 $LogPath       = Join-Path $Root "antmux-install.log"
 $NodeExe       = Join-Path $Root "node.exe"
 $NpmCmd        = Join-Path $Root "npm.cmd"
-$PackageEntry  = Join-Path $Root "node_modules\@openai\codex\bin\codex.js"
-$AntmuxCmd     = Join-Path $Root "antmux.cmd"
-$AntmuxPs1     = Join-Path $Root "antmux.ps1"
-$IdentityFile  = Join-Path $Root "ANTMUX-IDENTITY.md"
+$PackageDir     = Join-Path $Root "node_modules\@openai\codex"
+$PackageManifest = Join-Path $PackageDir "package.json"
+$AntmuxCmd      = Join-Path $Root "antmux.cmd"
+$IdentityFile   = Join-Path $Root "ANTMUX-IDENTITY.md"
 
 Set-HiddenDirectory -Path $TempDir
 Set-HiddenDirectory -Path $NpmCacheDir
@@ -367,6 +368,23 @@ fund=false
         throw "npm a retourné le code d'erreur $LASTEXITCODE."
     }
 
+    if (-not (Test-Path -LiteralPath $PackageManifest -PathType Leaf)) {
+        throw "Le manifeste du paquet officiel n'a pas été trouvé : $PackageManifest"
+    }
+
+    $manifest = Get-Content -LiteralPath $PackageManifest -Raw | ConvertFrom-Json
+    $binRelativePath = if ($manifest.bin -is [string]) {
+        [string]$manifest.bin
+    } else {
+        [string]$manifest.bin.codex
+    }
+
+    if ([string]::IsNullOrWhiteSpace($binRelativePath)) {
+        throw "Le manifeste @openai/codex ne déclare pas de commande codex."
+    }
+
+    $PackageEntry = Join-Path $PackageDir $binRelativePath
+
     if (-not (Test-Path -LiteralPath $PackageEntry -PathType Leaf)) {
         throw "Le point d'entrée officiel n'a pas été trouvé : $PackageEntry"
     }
@@ -376,7 +394,8 @@ fund=false
     foreach ($legacyLauncher in @(
         (Join-Path $Root "codex"),
         (Join-Path $Root "codex.cmd"),
-        (Join-Path $Root "codex.ps1")
+        (Join-Path $Root "codex.ps1"),
+        (Join-Path $Root "antmux.ps1")
     )) {
         if (Test-Path -LiteralPath $legacyLauncher) {
             Remove-Item -LiteralPath $legacyLauncher -Force
@@ -406,33 +425,13 @@ endlocal & exit /b %ANTMUX_EXIT%
 "@
     Set-Content -LiteralPath $AntmuxCmd -Value $cmdContent -Encoding ASCII
 
-    $psContent = @"
-`$env:ANTMUX_ROOT = '$Root'
-`$env:CODEX_HOME = '$Root'
-`$env:NPM_CONFIG_PREFIX = '$Root'
-`$env:NPM_CONFIG_CACHE = '$NpmCacheDir'
-`$env:HOME = '$Root'
-`$env:XDG_CONFIG_HOME = '$Root'
-`$env:XDG_CACHE_HOME = '$LocalDataDir'
-`$env:APPDATA = '$AppDataDir'
-`$env:LOCALAPPDATA = '$LocalDataDir'
-`$env:TEMP = '$TempDir'
-`$env:TMP = '$TempDir'
-`$env:Path = '$Root;' + `$env:Path
-
-& '$NodeExe' '$PackageEntry' @args
-exit `$LASTEXITCODE
-"@
-    Set-Content -LiteralPath $AntmuxPs1 -Value $psContent -Encoding UTF8
-
     $identityContent = @"
 # Antmux
 
 - Disque : $Root
 - Nom du volume exigé : Antmux
 - Commande publique : ``antmux``
-- Lanceur CMD : ``$AntmuxCmd``
-- Lanceur PowerShell : ``$AntmuxPs1``
+- Lanceur public : ``$AntmuxCmd``
 - Données et configuration : directement sur ``$Root``
 - Cache npm : ``$NpmCacheDir``
 - Première travailleuse déclarée : **Linuxia — Reine**
@@ -477,4 +476,5 @@ finally {
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
 ```
