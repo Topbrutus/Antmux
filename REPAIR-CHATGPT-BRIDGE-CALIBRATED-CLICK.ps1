@@ -50,7 +50,6 @@ $config | Add-Member -MemberType NoteProperty -Name composer_click_y -Value $Com
 $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $configPath -Encoding UTF8
 
 $content = Get-Content -LiteralPath $modulePath -Raw
-$original = $content
 
 $clickFunction = @'
 function Invoke-AntmuxCalibratedComposerClick {
@@ -146,9 +145,14 @@ $newPaste = @'
 '@
 
 if ([regex]::IsMatch($content, $pastePattern)) {
-    $content = [regex]::Replace($content, $pastePattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $newPaste }, 1)
+    $content = [regex]::Replace(
+        $content,
+        $pastePattern,
+        [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $newPaste },
+        1
+    )
 }
-elif ($content -notmatch 'Invoke-AntmuxCalibratedComposerClick') {
+elseif ($content -notmatch 'Invoke-AntmuxCalibratedComposerClick\s+`') {
     Copy-Item -LiteralPath $moduleBackup -Destination $modulePath -Force
     Copy-Item -LiteralPath $configBackup -Destination $configPath -Force
     throw "Could not find the ChatGPT paste block in $modulePath"
