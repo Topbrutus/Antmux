@@ -1,0 +1,11 @@
+{
+  "repository_url": "https://github.com/Topbrutus/Antmux.git",
+  "branch": "main",
+  "workspace_relative": ".antmux-git\\Antmux",
+  "destination_relative": "communication\\resumes",
+  "default_project_id": "PROJECT-000000",
+  "organize_by_project": true,
+  "commit_message_template": "docs(resume): publish {project_id} {job_id}",
+  "git_user_name": "Antmux Jules",
+  "git_user_email": "jules@antmux.local"
+}
