@@ -48,27 +48,42 @@ $downloads = @(
     [pscustomobject]@{
         Url = "$baseUrl/modules/chatgpt-bridge/ChatGPT.Bridge.psm1"
         Path = (Join-Path $bridgeDirectory "ChatGPT.Bridge.psm1")
+        PreserveExisting = $false
     },
     [pscustomobject]@{
         Url = "$baseUrl/modules/chatgpt-bridge/Send-AntmuxToChatGPT.ps1"
         Path = (Join-Path $bridgeDirectory "Send-AntmuxToChatGPT.ps1")
+        PreserveExisting = $false
     },
     [pscustomobject]@{
         Url = "$baseUrl/config/chatgpt-bridge.json"
         Path = (Join-Path $configDirectory "chatgpt-bridge.json")
+        PreserveExisting = $true
     },
     [pscustomobject]@{
         Url = "$baseUrl/modules/jules/Watch-AntmuxSummaries.ps1"
         Path = (Join-Path $julesDirectory "Watch-AntmuxSummaries.ps1")
+        PreserveExisting = $false
+    },
+    [pscustomobject]@{
+        Url = "$baseUrl/REPAIR-CHATGPT-BRIDGE-WINDOW-SIZE.ps1"
+        Path = (Join-Path $Root "REPAIR-CHATGPT-BRIDGE-WINDOW-SIZE.ps1")
+        PreserveExisting = $false
     }
 )
 
 foreach ($download in $downloads) {
-    if (Test-Path -LiteralPath $download.Path -PathType Leaf) {
+    $exists = Test-Path -LiteralPath $download.Path -PathType Leaf
+    if ($exists) {
         $leaf = [System.IO.Path]::GetFileName($download.Path)
         $backup = Join-Path ([System.IO.Path]::GetDirectoryName($download.Path)) "$leaf.backup.$backupStamp"
         Copy-Item -LiteralPath $download.Path -Destination $backup -Force
         Write-Host "Backup created: $backup"
+    }
+
+    if ($exists -and [bool]$download.PreserveExisting) {
+        Write-Host "Existing configuration preserved: $($download.Path)"
+        continue
     }
 
     $temporary = "$($download.Path).download"
@@ -76,13 +91,17 @@ foreach ($download in $downloads) {
     Move-Item -LiteralPath $temporary -Destination $download.Path -Force
 }
 
+$repairPath = Join-Path $Root "REPAIR-CHATGPT-BRIDGE-WINDOW-SIZE.ps1"
+& $repairPath -Root $Root
+
 $configPath = Join-Path $configDirectory "chatgpt-bridge.json"
 $null = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 
 foreach ($scriptPath in @(
     (Join-Path $bridgeDirectory "ChatGPT.Bridge.psm1"),
     (Join-Path $bridgeDirectory "Send-AntmuxToChatGPT.ps1"),
-    (Join-Path $julesDirectory "Watch-AntmuxSummaries.ps1")
+    (Join-Path $julesDirectory "Watch-AntmuxSummaries.ps1"),
+    $repairPath
 )) {
     $tokens = $null
     $errors = $null
