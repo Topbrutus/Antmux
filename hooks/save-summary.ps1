@@ -64,10 +64,10 @@ try {
         Write-HookResult
     }
 
-    # Match either accented or unaccented French markers without using
-    # non-ASCII characters in this PowerShell 5.1 source file.
-    $startMarker = 'D(?:E|\u00C9)BUT\s+DU\s+R(?:E|\u00C9)SUM(?:E|\u00C9)'
-    $endMarker = 'FIN\s+DU\s+(?:TERMINAL|R(?:E|\u00C9)SUM(?:E|\u00C9))'
+    # Match accented or unaccented French markers while keeping this
+    # PowerShell 5.1 source file ASCII-compatible.
+    $startMarker = '(?:\p{So}\s*)?D(?:E|\u00C9)BUT\s+DU\s+R(?:E|\u00C9)SUM(?:E|\u00C9)'
+    $endMarker = '(?:\p{So}\s*)?FIN\s+DU\s+(?:TERMINAL|R(?:E|\u00C9)SUM(?:E|\u00C9))'
     $summaryPattern = '(?is)' + $startMarker + '.*?' + $endMarker
     $summaryMatch = [regex]::Match($message, $summaryPattern)
 
