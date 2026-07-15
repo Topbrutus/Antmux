@@ -109,5 +109,6 @@ catch {
     Write-Host "The module is installed, but Git must be available before the first publication."
 }
 
+$latestSummary = Join-Path $Root "communication\resumes\LATEST.md"
 Write-Host "Manual dry run:"
-Write-Host "& `"$commandPath`" -SummaryPath `"$Root`communication\resumes\LATEST.md`" -ProjectId PROJECT-000000 -DryRun"
+Write-Host "& `"$commandPath`" -SummaryPath `"$latestSummary`" -ProjectId PROJECT-000000 -DryRun"
