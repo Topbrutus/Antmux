@@ -1,0 +1,12 @@
+{
+  "title_contains": "ChatGPT",
+  "display_device": "\\\\.\\DISPLAY3",
+  "activation_delay_ms": 800,
+  "paste_delay_ms": 800,
+  "enter_delay_ms": 3000,
+  "send_enter": true,
+  "message_prefix": "[ANTMUX — TRANSFERT AUTOMATIQUE]\r\nSource : {source}\r\n\r\n",
+  "message_suffix": "",
+  "log_relative": "communication\\chatgpt-bridge\\events.jsonl",
+  "state_relative": "communication\\chatgpt-bridge\\sent-hashes.txt"
+}
