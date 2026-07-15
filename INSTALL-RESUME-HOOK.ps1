@@ -37,10 +37,11 @@ Invoke-WebRequest -UseBasicParsing `
     -OutFile $hookScript
 
 $null = Get-Content -LiteralPath $hooksConfig -Raw | ConvertFrom-Json
+$parseTokens = $null
 $parseErrors = $null
 $null = [System.Management.Automation.Language.Parser]::ParseFile(
     $hookScript,
-    [ref]$null,
+    [ref]$parseTokens,
     [ref]$parseErrors
 )
 if ($parseErrors.Count -gt 0) {
