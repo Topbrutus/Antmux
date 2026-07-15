@@ -1,14 +1,14 @@
 #requires -Version 5.1
 <#+
 .SYNOPSIS
-Installe ou répare Antmux directement à la racine du disque D:\.
+Installe le binaire Windows officiel de Codex directement comme D:\antmux.exe.
 
 .DESCRIPTION
-- Vérifie que la cible est une racine de disque non système nommée Antmux.
-- Installe Node.js portable directement à la racine si nécessaire.
-- Installe @openai/codex en appelant npm-cli.js directement avec node.exe.
-- Conserve caches, configuration, données et temporaires sur le disque Antmux.
-- Crée uniquement la commande publique D:\antmux.cmd.
+Aucun Node.js. Aucun npm. Aucun lanceur .cmd.
+Le script télécharge la dernière version officielle depuis openai/codex,
+vérifie son SHA-256 lorsqu'il est publié par GitHub, extrait le binaire,
+le renomme antmux.exe, vérifie son fonctionnement, puis nettoie les restes
+de l'ancienne tentative Node/npm.
 #>
 
 [CmdletBinding()]
@@ -39,9 +39,9 @@ function Normalize-Root {
     return $driveRoot
 }
 
-function Get-NodeArchitecture {
+function Get-WindowsTarget {
     if (-not [Environment]::Is64BitOperatingSystem) {
-        throw "Antmux exige une version 64 bits de Windows."
+        throw "Antmux exige Windows 64 bits."
     }
 
     $architecture = $env:PROCESSOR_ARCHITEW6432
@@ -50,48 +50,9 @@ function Get-NodeArchitecture {
     }
 
     switch -Regex ([string]$architecture) {
-        '^(AMD64|x86_64)$' { return "x64" }
-        '^ARM64$'          { return "arm64" }
-    }
-
-    $reportedArchitecture = $null
-    try {
-        $reportedArchitecture = (Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).OSArchitecture
-    } catch {
-        try {
-            $reportedArchitecture = (Get-WmiObject -Class Win32_OperatingSystem -ErrorAction Stop).OSArchitecture
-        } catch {
-            $reportedArchitecture = $null
-        }
-    }
-
-    if ([string]$reportedArchitecture -match 'ARM') { return "arm64" }
-    if ([string]$reportedArchitecture -match '64')  { return "x64" }
-
-    throw "Architecture Windows non prise en charge ou indétectable : '$architecture'."
-}
-
-function Ensure-Directory {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
-        New-Item -ItemType Directory -Force -Path $Path | Out-Null
-    }
-}
-
-function Copy-DirectoryMerged {
-    param(
-        [Parameter(Mandatory = $true)][string]$Source,
-        [Parameter(Mandatory = $true)][string]$Destination
-    )
-
-    Ensure-Directory -Path $Destination
-    foreach ($child in Get-ChildItem -LiteralPath $Source -Force) {
-        $target = Join-Path $Destination $child.Name
-        if ($child.PSIsContainer) {
-            Copy-DirectoryMerged -Source $child.FullName -Destination $target
-        } else {
-            Copy-Item -LiteralPath $child.FullName -Destination $target -Force
-        }
+        '^(AMD64|x86_64)$' { return "x86_64-pc-windows-msvc" }
+        '^ARM64$'          { return "aarch64-pc-windows-msvc" }
+        default            { throw "Architecture Windows non prise en charge : '$architecture'." }
     }
 }
 
@@ -99,6 +60,7 @@ function Add-PathEntry {
     param([Parameter(Mandatory = $true)][string]$Entry)
 
     $normalized = $Entry.TrimEnd([char]92)
+
     $sessionEntries = @($env:Path.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries))
     if (-not ($sessionEntries | Where-Object { $_.TrimEnd([char]92) -ieq $normalized })) {
         $env:Path = "$Entry;$env:Path"
@@ -120,6 +82,39 @@ function Add-PathEntry {
     }
 }
 
+function Remove-OldNodeAttempt {
+    param([Parameter(Mandatory = $true)][string]$DriveRoot)
+
+    $oldItems = @(
+        "node.exe",
+        "npm",
+        "npm.cmd",
+        "npx",
+        "npx.cmd",
+        "corepack",
+        "corepack.cmd",
+        "node_modules",
+        ".npmrc",
+        ".npm-cache",
+        ".antmux-appdata",
+        ".antmux-localappdata",
+        "antmux-npm-install.log",
+        "REPAIR-ANTMUX-D.ps1",
+        "codex",
+        "codex.cmd",
+        "codex.ps1",
+        "antmux.cmd",
+        "antmux.ps1"
+    )
+
+    foreach ($relativePath in $oldItems) {
+        $path = Join-Path $DriveRoot $relativePath
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 $Root = Normalize-Root -Path $Root
 $drive = [System.IO.DriveInfo]::new($Root)
 if (-not $drive.IsReady) {
@@ -135,244 +130,149 @@ if (-not $SkipVolumeLabelCheck -and $drive.VolumeLabel -ine "Antmux") {
     throw "Le disque $Root doit porter le nom Antmux. Nom actuel : '$($drive.VolumeLabel)'."
 }
 
-$NodeExe = Join-Path $Root "node.exe"
-$NpmCli = Join-Path $Root "node_modules\npm\bin\npm-cli.js"
-$PackageDir = Join-Path $Root "node_modules\@openai\codex"
-$ManifestPath = Join-Path $PackageDir "package.json"
-$AntmuxCmd = Join-Path $Root "antmux.cmd"
-$IdentityFile = Join-Path $Root "ANTMUX-IDENTITY.md"
-$NpmConfig = Join-Path $Root ".npmrc"
-$NpmCache = Join-Path $Root ".npm-cache"
-$TempDir = Join-Path $Root ".antmux-temp"
-$AppDataDir = Join-Path $Root ".antmux-appdata"
-$LocalAppDataDir = Join-Path $Root ".antmux-localappdata"
-$NpmLog = Join-Path $Root "antmux-npm-install.log"
+$target = Get-WindowsTarget
+$AntmuxExe = Join-Path $Root "antmux.exe"
+$TempDir = Join-Path $Root ".antmux-install-temp"
+$ReleaseApi = "https://api.github.com/repos/openai/codex/releases/latest"
 
-foreach ($directory in @($NpmCache, $TempDir, $AppDataDir, $LocalAppDataDir)) {
-    Ensure-Directory -Path $directory
+if (Test-Path -LiteralPath $TempDir) {
+    Remove-Item -LiteralPath $TempDir -Recurse -Force
 }
+New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
-# Toutes les écritures de ce processus restent sur le disque Antmux.
-$env:ANTMUX_ROOT = $Root
-$env:CODEX_HOME = $Root
-$env:HOME = $Root
-$env:XDG_CONFIG_HOME = $Root
-$env:XDG_CACHE_HOME = $LocalAppDataDir
-$env:APPDATA = $AppDataDir
-$env:LOCALAPPDATA = $LocalAppDataDir
-$env:TEMP = $TempDir
-$env:TMP = $TempDir
-$env:NPM_CONFIG_PREFIX = $Root
-$env:NPM_CONFIG_CACHE = $NpmCache
-$env:NPM_CONFIG_USERCONFIG = $NpmConfig
-$env:Path = "$Root;$env:Path"
+try {
+    Write-Step "Recherche de la dernière version officielle OpenAI"
+    $release = Invoke-RestMethod -UseBasicParsing -Uri $ReleaseApi -Headers @{ "User-Agent" = "Antmux-Installer" }
+    Write-Host "Version officielle : $($release.tag_name)"
+    Write-Host "Architecture : $target"
 
-if (-not (Test-Path -LiteralPath $NodeExe -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $NpmCli -PathType Leaf)) {
+    $candidateAssets = @($release.assets | Where-Object {
+        $_.name -match [regex]::Escape($target) -and
+        $_.name -match '\.(exe|zip|tar\.gz)$' -and
+        $_.name -notmatch 'npm'
+    })
 
-    Write-Step "Détection de l'architecture Windows"
-    $nodeArch = Get-NodeArchitecture
-    Write-Host "Architecture Node.js sélectionnée : $nodeArch"
+    if ($candidateAssets.Count -eq 0) {
+        throw "Aucun binaire Windows officiel trouvé pour $target dans la version $($release.tag_name)."
+    }
 
-    Write-Step "Détection de la version LTS actuelle de Node.js"
-    $nodeIndex = Invoke-RestMethod -UseBasicParsing -Uri "https://nodejs.org/dist/index.json"
-    $fileKey = "win-$nodeArch-zip"
-    $nodeRelease = $nodeIndex |
-        Where-Object { $_.lts -and $_.files -and ($_.files -contains $fileKey) } |
+    $asset = $candidateAssets |
+        Sort-Object @{ Expression = {
+            if ($_.name -eq "codex-$target.exe") { 0 }
+            elseif ($_.name -eq "codex-$target.zip") { 1 }
+            elseif ($_.name -eq "codex-$target.tar.gz") { 2 }
+            elseif ($_.name -eq "codex-package-$target.tar.gz") { 3 }
+            else { 9 }
+        }} |
         Select-Object -First 1
 
-    if ($null -eq $nodeRelease) {
-        throw "Aucune version LTS de Node.js compatible avec Windows $nodeArch n'a été trouvée."
-    }
+    Write-Host "Fichier officiel sélectionné : $($asset.name)"
+    $downloadPath = Join-Path $TempDir $asset.name
 
-    $nodeVersion = [string]$nodeRelease.version
-    $zipName = "node-$nodeVersion-win-$nodeArch.zip"
-    $baseUrl = "https://nodejs.org/dist/$nodeVersion"
-    $zipPath = Join-Path $TempDir $zipName
-    $checksumsPath = Join-Path $TempDir "SHASUMS256.txt"
-    $extractPath = Join-Path $TempDir "node-extract"
+    Write-Step "Téléchargement du binaire officiel sur $Root"
+    Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $downloadPath
 
-    Write-Step "Téléchargement de Node.js $nodeVersion sur le disque Antmux"
-    Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/$zipName" -OutFile $zipPath
-    Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/SHASUMS256.txt" -OutFile $checksumsPath
-
-    $checksumLine = Get-Content -LiteralPath $checksumsPath |
-        Where-Object { $_ -match ("\s+" + [regex]::Escape($zipName) + "$") } |
-        Select-Object -First 1
-
-    if ([string]::IsNullOrWhiteSpace($checksumLine)) {
-        throw "Somme SHA-256 introuvable pour $zipName."
-    }
-
-    $expectedHash = ($checksumLine -split "\s+")[0].ToLowerInvariant()
-    $actualHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($actualHash -ne $expectedHash) {
-        throw "Échec de vérification SHA-256 de Node.js."
-    }
-
-    if (Test-Path -LiteralPath $extractPath) {
-        Remove-Item -LiteralPath $extractPath -Recurse -Force
-    }
-    Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
-
-    $extractedRoot = Get-ChildItem -LiteralPath $extractPath -Directory | Select-Object -First 1
-    if ($null -eq $extractedRoot) {
-        throw "Archive Node.js invalide : dossier racine introuvable."
-    }
-
-    Write-Step "Installation de Node.js directement à la racine de $Root"
-    $rootFilePattern = '^(node\.exe|npm|npm\.cmd|npx|npx\.cmd|corepack|corepack\.cmd)$'
-    foreach ($file in Get-ChildItem -LiteralPath $extractedRoot.FullName -File -Force) {
-        if ($file.Name -match $rootFilePattern) {
-            Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $Root $file.Name) -Force
+    $digestProperty = $asset.PSObject.Properties["digest"]
+    if ($null -ne $digestProperty -and -not [string]::IsNullOrWhiteSpace([string]$digestProperty.Value)) {
+        $digestText = [string]$digestProperty.Value
+        if ($digestText -match '^sha256:([0-9a-fA-F]{64})$') {
+            Write-Step "Vérification SHA-256"
+            $expectedHash = $matches[1].ToLowerInvariant()
+            $actualHash = (Get-FileHash -LiteralPath $downloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualHash -ne $expectedHash) {
+                throw "Le SHA-256 du téléchargement ne correspond pas au fichier officiel."
+            }
         }
     }
 
-    $sourceNodeModules = Join-Path $extractedRoot.FullName "node_modules"
-    if (-not (Test-Path -LiteralPath $sourceNodeModules -PathType Container)) {
-        throw "Le dossier node_modules de Node.js est introuvable dans l'archive."
+    $extractDir = Join-Path $TempDir "extract"
+    New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+
+    if ($asset.name -match '\.exe$') {
+        $sourceExe = $downloadPath
+    } elseif ($asset.name -match '\.zip$') {
+        Write-Step "Extraction de l'archive officielle"
+        Expand-Archive -LiteralPath $downloadPath -DestinationPath $extractDir -Force
+        $sourceExe = $null
+    } elseif ($asset.name -match '\.tar\.gz$') {
+        Write-Step "Extraction de l'archive officielle"
+        $tar = Get-Command tar.exe -ErrorAction Stop
+        & $tar.Source -xzf $downloadPath -C $extractDir
+        if ($LASTEXITCODE -ne 0) {
+            throw "L'extraction de l'archive officielle a échoué."
+        }
+        $sourceExe = $null
+    } else {
+        throw "Format officiel non pris en charge : $($asset.name)"
     }
-    Copy-DirectoryMerged -Source $sourceNodeModules -Destination (Join-Path $Root "node_modules")
+
+    if ($null -eq $sourceExe) {
+        $allExecutables = @(Get-ChildItem -LiteralPath $extractDir -Recurse -File -Filter "*.exe")
+        $sourceExe = $allExecutables | Where-Object { $_.Name -ieq "codex.exe" } | Select-Object -First 1
+
+        if ($null -eq $sourceExe) {
+            $sourceExe = $allExecutables |
+                Where-Object {
+                    $_.Name -match '^codex.*\.exe$' -and
+                    $_.Name -notmatch 'command-runner|sandbox|setup'
+                } |
+                Select-Object -First 1
+        }
+    }
+
+    if ($null -eq $sourceExe -or -not (Test-Path -LiteralPath $sourceExe.FullName -PathType Leaf)) {
+        throw "Le véritable exécutable Codex est introuvable dans le fichier officiel."
+    }
+
+    Write-Step "Installation directe comme $AntmuxExe"
+
+    if ($sourceExe -is [System.IO.FileInfo]) {
+        $sourceDirectory = $sourceExe.Directory.FullName
+        foreach ($item in Get-ChildItem -LiteralPath $sourceDirectory -Force) {
+            if ($item.FullName -eq $sourceExe.FullName) {
+                continue
+            }
+
+            $destination = Join-Path $Root $item.Name
+            Copy-Item -LiteralPath $item.FullName -Destination $destination -Recurse -Force
+        }
+        Copy-Item -LiteralPath $sourceExe.FullName -Destination $AntmuxExe -Force
+    } else {
+        Copy-Item -LiteralPath $sourceExe -Destination $AntmuxExe -Force
+    }
+
+    if (-not (Test-Path -LiteralPath $AntmuxExe -PathType Leaf)) {
+        throw "Le fichier $AntmuxExe n'a pas été créé."
+    }
+
+    $env:ANTMUX_ROOT = $Root
+    $env:CODEX_HOME = $Root
+    [Environment]::SetEnvironmentVariable("ANTMUX_ROOT", $Root, "User")
+    [Environment]::SetEnvironmentVariable("CODEX_HOME", $Root, "User")
+    Add-PathEntry -Entry $Root
+
+    Write-Step "Vérification réelle avant nettoyage"
+    & $AntmuxExe --version
+    if ($LASTEXITCODE -ne 0) {
+        throw "Le binaire officiel renommé Antmux ne démarre pas."
+    }
+
+    Write-Step "Nettoyage des anciennes tentatives Node/npm"
+    Remove-OldNodeAttempt -DriveRoot $Root
+
+    # Le nettoyage ne doit jamais supprimer le nouveau binaire.
+    if (-not (Test-Path -LiteralPath $AntmuxExe -PathType Leaf)) {
+        throw "Erreur interne : antmux.exe a disparu pendant le nettoyage."
+    }
+
+    Write-Host ""
+    Write-Host "INSTALLATION RÉUSSIE" -ForegroundColor Green
+    Write-Host "Binaire : $AntmuxExe"
+    Write-Host "Commande : antmux"
+    Write-Host "Version : $($release.tag_name)"
 }
-
-if (-not (Test-Path -LiteralPath $NodeExe -PathType Leaf)) {
-    throw "node.exe est absent après l'installation : $NodeExe"
-}
-if (-not (Test-Path -LiteralPath $NpmCli -PathType Leaf)) {
-    throw "npm-cli.js est absent après l'installation : $NpmCli"
-}
-
-Write-Host "Node.js : $((& $NodeExe --version).Trim())"
-
-$npmRootSlash = $Root.Replace('\', '/')
-$npmCacheSlash = $NpmCache.Replace('\', '/')
-$npmConfigText = @"
-prefix=$npmRootSlash
-cache=$npmCacheSlash
-update-notifier=false
-audit=false
-fund=false
-"@
-Set-Content -LiteralPath $NpmConfig -Value $npmConfigText -Encoding ASCII
-
-if ((Test-Path -LiteralPath $PackageDir -PathType Container) -and
-    -not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
-    Remove-Item -LiteralPath $PackageDir -Recurse -Force
-}
-
-Write-Step "Installation visible du paquet officiel OpenAI sur $Root"
-Write-Host "Journal npm : $NpmLog"
-
-$npmArguments = @(
-    $NpmCli,
-    "install",
-    "--global",
-    "@openai/codex@latest",
-    "--prefix=$npmRootSlash",
-    "--cache=$npmCacheSlash",
-    "--userconfig=$($NpmConfig.Replace('\', '/'))",
-    "--no-audit",
-    "--no-fund",
-    "--loglevel=verbose"
-)
-
-# Appel direct : ne dépend pas du comportement de npm.cmd dans Windows PowerShell 5.1.
-& $NodeExe @npmArguments 2>&1 | Tee-Object -FilePath $NpmLog
-$npmExitCode = $LASTEXITCODE
-if ($npmExitCode -ne 0) {
-    throw "L'installation npm a échoué avec le code $npmExitCode. Journal : $NpmLog"
-}
-
-if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
-    throw "npm a terminé sans créer le paquet attendu : $ManifestPath"
-}
-
-$manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
-$binRelativePath = if ($manifest.bin -is [string]) {
-    [string]$manifest.bin
-} else {
-    [string]$manifest.bin.codex
-}
-if ([string]::IsNullOrWhiteSpace($binRelativePath)) {
-    throw "Le manifeste @openai/codex ne déclare pas de commande codex."
-}
-
-$PackageEntry = Join-Path $PackageDir $binRelativePath
-if (-not (Test-Path -LiteralPath $PackageEntry -PathType Leaf)) {
-    throw "Le point d'entrée du paquet est absent : $PackageEntry"
-}
-
-foreach ($launcher in @(
-    (Join-Path $Root "codex"),
-    (Join-Path $Root "codex.cmd"),
-    (Join-Path $Root "codex.ps1"),
-    (Join-Path $Root "antmux.ps1")
-)) {
-    if (Test-Path -LiteralPath $launcher) {
-        Remove-Item -LiteralPath $launcher -Force
+finally {
+    if (Test-Path -LiteralPath $TempDir) {
+        Remove-Item -LiteralPath $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
-
-Write-Step "Création vérifiée de la commande publique antmux"
-$cmdContent = @"
-@echo off
-setlocal
-set "ANTMUX_ROOT=$Root"
-set "CODEX_HOME=$Root"
-set "NPM_CONFIG_PREFIX=$Root"
-set "NPM_CONFIG_CACHE=$NpmCache"
-set "NPM_CONFIG_USERCONFIG=$NpmConfig"
-set "HOME=$Root"
-set "XDG_CONFIG_HOME=$Root"
-set "XDG_CACHE_HOME=$LocalAppDataDir"
-set "APPDATA=$AppDataDir"
-set "LOCALAPPDATA=$LocalAppDataDir"
-set "TEMP=$TempDir"
-set "TMP=$TempDir"
-set "PATH=$Root;%PATH%"
-"$NodeExe" "$PackageEntry" %*
-set "ANTMUX_EXIT=%ERRORLEVEL%"
-endlocal & exit /b %ANTMUX_EXIT%
-"@
-Set-Content -LiteralPath $AntmuxCmd -Value $cmdContent -Encoding ASCII
-
-if (-not (Test-Path -LiteralPath $AntmuxCmd -PathType Leaf)) {
-    throw "Le lanceur n'a pas été créé : $AntmuxCmd"
-}
-
-$identityContent = @"
-# Antmux
-
-- Disque : $Root
-- Commande publique : ``antmux``
-- Lanceur : ``$AntmuxCmd``
-- Configuration et caches : sur ``$Root``
-- Première travailleuse : **Linuxia — Reine**
-- Paquet technique amont : ``@openai/codex``
-"@
-Set-Content -LiteralPath $IdentityFile -Value $identityContent -Encoding UTF8
-
-[Environment]::SetEnvironmentVariable("ANTMUX_ROOT", $Root, "User")
-[Environment]::SetEnvironmentVariable("CODEX_HOME", $Root, "User")
-[Environment]::SetEnvironmentVariable("NPM_CONFIG_PREFIX", $Root, "User")
-[Environment]::SetEnvironmentVariable("NPM_CONFIG_CACHE", $NpmCache, "User")
-[Environment]::SetEnvironmentVariable("NPM_CONFIG_USERCONFIG", $NpmConfig, "User")
-Add-PathEntry -Entry $Root
-
-Write-Step "Vérification finale"
-& $env:ComSpec /d /c "`"$AntmuxCmd`" --version"
-$verifyExitCode = $LASTEXITCODE
-if ($verifyExitCode -ne 0) {
-    throw "D:\antmux.cmd existe, mais sa vérification a échoué avec le code $verifyExitCode."
-}
-
-if (Test-Path -LiteralPath $TempDir) {
-    Get-ChildItem -LiteralPath $TempDir -Force -ErrorAction SilentlyContinue |
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-}
-
-Write-Host ""
-Write-Host "INSTALLATION TERMINÉE" -ForegroundColor Green
-Write-Host "Commande : antmux"
-Write-Host "Lanceur : $AntmuxCmd"
-Write-Host "Journal npm : $NpmLog"
