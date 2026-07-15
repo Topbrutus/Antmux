@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\\hooks\\save-summary.ps1\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\\hooks\\save-summary.ps1\"",
+            "timeout": 30,
+            "statusMessage": "Copie du resume Antmux"
+          }
+        ]
+      }
+    ]
+  }
+}
