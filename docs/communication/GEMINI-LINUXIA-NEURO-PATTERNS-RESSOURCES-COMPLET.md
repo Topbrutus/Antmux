@@ -721,4 +721,4 @@ Archive complète
 
 📦 Télécharger le dossier complet
 
-La prochaine session pourra reprendre directement avec l’audit des rapports 116 et 121, puis la construction du Reviewer strict des 23 patrons.
+La prochaine session pourra reprendre directement avec l’audit des rapports 116 et 121, puis la construction du Reviewer strict des 23 patrons. 
