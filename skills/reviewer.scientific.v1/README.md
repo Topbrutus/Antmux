@@ -25,6 +25,8 @@ Cette compétence examine des patrons extraits par un Worker, confronte chaque a
 - `schemas/input.schema.json` — contrat d’entrée;
 - `schemas/output.schema.json` — contrat de sortie;
 - `tests/*.tests.json` — cas de validation déclaratifs;
+- `tools/Test-ReviewerScientificSkill.ps1` — point d’entrée du validateur PowerShell 5.1 en lecture seule;
+- `tools/lib/*.ps1` — modules internes YAML, contrats, permissions et intégrité;
 - `checksums.sha256` — empreintes SHA-256 du paquet.
 
 ## Entrées attendues
@@ -44,9 +46,42 @@ Cette compétence examine des patrons extraits par un Worker, confronte chaque a
 - les preuves exactes utilisées;
 - la provenance et les empreintes des entrées.
 
+## Validation locale en lecture seule
+
+Depuis PowerShell 5.1 :
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+
+& ".\skills\reviewer.scientific.v1\tools\Test-ReviewerScientificSkill.ps1"
+```
+
+Le validateur :
+
+- ne lance aucun modèle Ollama;
+- ne crée, ne modifie et ne supprime aucun fichier;
+- n’effectue aucun appel réseau;
+- vérifie les fichiers requis et les références du manifeste;
+- parse les schémas et suites JSON;
+- simule les treize décisions de permissions;
+- exécute les quinze cas de contrats en mémoire;
+- recalcule toutes les empreintes SHA-256 du paquet.
+
+Résultat exigé :
+
+```text
+ALL_TESTS: PASS
+```
+
+Pour recevoir également un objet de résultat dans le pipeline PowerShell :
+
+```powershell
+& ".\skills\reviewer.scientific.v1\tools\Test-ReviewerScientificSkill.ps1" -PassThru
+```
+
 ## Limite de sécurité
 
-Ce paquet ne contient aucun moteur d’exécution. Il décrit un contrat vérifiable. Toute activation future devra démontrer :
+Ce paquet ne contient aucun moteur d’exécution. Le validateur contrôle uniquement les contrats et l’intégrité du paquet. Toute activation future de `local-reviewer` devra démontrer :
 
 ```text
 ALL_TESTS: PASS
