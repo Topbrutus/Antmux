@@ -1,0 +1,147 @@
+schema_version: antmux-agent-skill-v1
+
+skill_id: reviewer.scientific
+version: 1.0.0
+status: proposed
+
+identity:
+  title: Reviewer scientifique
+  description: >
+    Vérifie les patrons extraits d'une source scientifique, contrôle les
+    preuves exactes et empêche les analogies ou métadonnées locales de devenir
+    des faits attribués à la source.
+  owner: Antmux
+
+selection:
+  triggers:
+    - audit scientifique
+    - valider les preuves
+    - vérifier un rapport Worker
+    - reclasser des patrons
+  excludes:
+    - produire du code de production
+    - modifier une source analysée
+    - publier sur GitHub
+    - accéder à Internet
+  priority: 70
+
+loading:
+  mode: progressive
+  metadata_first: true
+  instructions:
+    - instructions.md
+  prompts:
+    - prompts/review-pattern.md
+  resources:
+    - resources/evidence-rules.md
+    - resources/decision-classes.md
+
+inputs:
+  schema: schemas/input.schema.json
+  required:
+    - worker_report
+    - worker_json
+    - numbered_source
+
+outputs:
+  schema: schemas/output.schema.json
+  artifacts:
+    - review_json
+    - review_report
+
+permissions:
+  default_deny: true
+  tools:
+    allow:
+      - source.read
+      - report.read
+      - review.write
+    deny:
+      - github.push
+      - github.write
+      - process.kill
+      - process.spawn
+      - filesystem.delete
+      - browser.send_message
+      - network.request
+  filesystem:
+    read:
+      - inputs/**
+      - analysis/worker/**
+    write:
+      - analysis/reviewer/**
+      - reports/**
+    deny:
+      - .git/**
+      - secrets/**
+      - credentials/**
+      - "**/../**"
+  network:
+    allowed: false
+    destinations: []
+  models:
+    allow:
+      - local-reviewer
+
+execution:
+  protocol_version: antmux-mcp-v1
+  transport:
+    allow:
+      - stdio
+  require_task_id: true
+  require_agent_id: true
+  require_run_id: true
+  require_correlation_id: true
+  timeout_seconds: 900
+  max_attempts: 2
+  parallelism: 1
+
+safety:
+  risk_level: medium
+  read_only: false
+  destructive: false
+  idempotent: true
+  open_world: false
+  mutation_allowed: false
+  human_approval:
+    before_start: false
+    before_external_write: true
+    before_destructive_action: true
+
+telemetry:
+  rent_enabled: true
+  record:
+    - messages_in
+    - messages_out
+    - bytes_read
+    - bytes_written
+    - resources_loaded
+    - tools_called
+    - prompt_chars
+    - response_chars
+    - wait_ms
+    - inference_ms
+    - retries
+    - denied_calls
+
+validation:
+  manifest_schema: antmux-agent-skill-v1
+  input_schema_required: true
+  output_schema_required: true
+  independent_reviewer: true
+  require_source_line_ids: true
+  require_checksums: true
+  pass_requires_all_tests: true
+
+lifecycle:
+  states:
+    - DISCOVERED
+    - SELECTED
+    - LOADED
+    - AUTHORIZED
+    - RUNNING
+    - UNDER_REVIEW
+    - VALIDATED
+    - REJECTED
+    - FAILED
+    - ROLLED_BACK
