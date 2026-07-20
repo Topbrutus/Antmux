@@ -58,7 +58,7 @@ function Get-YamlList {
 }
 
 function Test-Id { param([string]$Value,[string]$Pattern) return (-not [string]::IsNullOrWhiteSpace($Value) -and $Value -match $Pattern) }
-function Test-Sha256 { param([string]$Value) return (-not [string]::IsNullOrWhiteSpace($Value) -and $Value -match '^sha256:[0-9a-f]{64}$') }
+function Test-Sha256 { param([string]$Value) return (-not [string]::IsNullOrWhiteSpace($Value) -and $Value -cmatch '^sha256:[0-9a-f]{64}$') }
 
 function Test-SafePath {
     param([string]$Path)
