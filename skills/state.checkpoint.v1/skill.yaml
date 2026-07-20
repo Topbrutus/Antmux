@@ -1,0 +1,157 @@
+schema_version: antmux-agent-skill-v1
+
+skill_id: state.checkpoint
+version: 1.0.0
+status: proposed
+
+identity:
+  title: Checkpoint d'état immuable
+  description: >
+    Conserve, vérifie et embranche les états d'exécution Antmux sans réécrire
+    l'historique, avec SQLite, JSONL, artefacts immuables et SHA-256.
+  owner: Antmux
+
+selection:
+  triggers:
+    - créer un checkpoint
+    - reprendre une tâche
+    - vérifier une chaîne d'état
+    - préparer un rollback
+    - reconstruire le journal d'audit
+  excludes:
+    - exécuter un effet externe
+    - supprimer un checkpoint
+    - réécrire l'historique
+    - accéder à Internet
+  priority: 90
+
+loading:
+  mode: progressive
+  metadata_first: true
+  instructions:
+    - instructions.md
+  prompts:
+    - prompts/checkpoint-operation.md
+  resources:
+    - resources/checkpoint-rules.md
+    - resources/error-codes.md
+
+inputs:
+  schema: schemas/input.schema.json
+  required:
+    - operation
+    - task_id
+    - run_id
+    - correlation_id
+    - agent_id
+    - idempotency_key
+
+outputs:
+  schema: schemas/output.schema.json
+  artifacts:
+    - checkpoint_result
+
+permissions:
+  default_deny: true
+  tools:
+    allow:
+      - checkpoint.create
+      - checkpoint.verify
+      - checkpoint.list
+      - checkpoint.read
+      - checkpoint.fork
+      - checkpoint.restore_plan
+      - checkpoint.activate_branch
+      - checkpoint.rebuild_audit
+    deny:
+      - checkpoint.rewrite
+      - checkpoint.delete
+      - filesystem.delete
+      - github.push
+      - github.write
+      - process.kill
+      - process.spawn
+      - network.request
+  filesystem:
+    read:
+      - state/checkpoints/**
+      - state/events/**
+      - state/approvals/**
+      - artifacts/**
+    write:
+      - state/checkpoints/**
+      - state/events/**
+      - state/outbox/**
+    deny:
+      - .git/**
+      - secrets/**
+      - credentials/**
+      - "**/../**"
+  network:
+    allowed: false
+    destinations: []
+  models:
+    allow: []
+
+execution:
+  protocol_version: antmux-mcp-v1
+  transport:
+    allow:
+      - stdio
+  require_task_id: true
+  require_agent_id: true
+  require_run_id: true
+  require_correlation_id: true
+  timeout_seconds: 120
+  max_attempts: 2
+  parallelism: 1
+
+safety:
+  risk_level: medium
+  read_only: false
+  destructive: false
+  idempotent: true
+  open_world: false
+  mutation_allowed: true
+  mutation_scope: append_only_checkpoint_records
+  human_approval:
+    before_start: false
+    before_external_write: true
+    before_destructive_action: true
+    before_activate_branch_after_running: true
+
+telemetry:
+  rent_enabled: true
+  record:
+    - messages_in
+    - messages_out
+    - bytes_read
+    - bytes_written
+    - resources_loaded
+    - tools_called
+    - wait_ms
+    - retries
+    - denied_calls
+
+validation:
+  manifest_schema: antmux-agent-skill-v1
+  input_schema_required: true
+  output_schema_required: true
+  independent_reviewer: true
+  require_checksums: true
+  pass_requires_all_tests: true
+  require_immutable_history: true
+  require_idempotency_key: true
+
+lifecycle:
+  states:
+    - DISCOVERED
+    - SELECTED
+    - LOADED
+    - AUTHORIZED
+    - RUNNING
+    - UNDER_REVIEW
+    - VALIDATED
+    - REJECTED
+    - FAILED
+    - ROLLED_BACK

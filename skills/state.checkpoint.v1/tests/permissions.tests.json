@@ -1,0 +1,136 @@
+{
+  "suite_id": "state-checkpoint-permissions-v1",
+  "expected_count": 16,
+  "tests": [
+    {
+      "id": "PERM-001",
+      "tool": "checkpoint.create",
+      "mode": "write",
+      "path": "state/checkpoints/a.json",
+      "expected": "ALLOW",
+      "reason": ""
+    },
+    {
+      "id": "PERM-002",
+      "tool": "checkpoint.verify",
+      "mode": "read",
+      "path": "state/checkpoints/a.json",
+      "expected": "ALLOW",
+      "reason": ""
+    },
+    {
+      "id": "PERM-003",
+      "tool": "checkpoint.read",
+      "mode": "read",
+      "path": "artifacts/output/review.json",
+      "expected": "ALLOW",
+      "reason": ""
+    },
+    {
+      "id": "PERM-004",
+      "tool": "checkpoint.rebuild_audit",
+      "mode": "write",
+      "path": "state/outbox/event.json",
+      "expected": "ALLOW",
+      "reason": ""
+    },
+    {
+      "id": "PERM-005",
+      "tool": "checkpoint.delete",
+      "mode": "write",
+      "path": "state/checkpoints/a.json",
+      "expected": "DENY",
+      "reason": "TOOL_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-006",
+      "tool": "filesystem.delete",
+      "mode": "write",
+      "path": "state/checkpoints/a.json",
+      "expected": "DENY",
+      "reason": "TOOL_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-007",
+      "tool": "github.push",
+      "mode": "write",
+      "path": "",
+      "expected": "DENY",
+      "reason": "TOOL_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-008",
+      "tool": "network.request",
+      "mode": "network",
+      "path": "https://example.com",
+      "expected": "DENY",
+      "reason": "NETWORK_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-009",
+      "tool": "checkpoint.read",
+      "mode": "read",
+      "path": "other/a.json",
+      "expected": "DENY",
+      "reason": "PATH_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-010",
+      "tool": "checkpoint.read",
+      "mode": "read",
+      "path": "state/checkpoints/../secrets/a",
+      "expected": "DENY",
+      "reason": "PATH_TRAVERSAL"
+    },
+    {
+      "id": "PERM-011",
+      "tool": "checkpoint.read",
+      "mode": "read",
+      "path": "C:/state/checkpoints/a",
+      "expected": "DENY",
+      "reason": "PATH_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-012",
+      "tool": "checkpoint.create",
+      "mode": "write",
+      "path": ".git/config",
+      "expected": "DENY",
+      "reason": "PATH_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-013",
+      "tool": "checkpoint.create",
+      "mode": "write",
+      "path": "secrets/token",
+      "expected": "DENY",
+      "reason": "PATH_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-014",
+      "tool": "unknown.tool",
+      "mode": "read",
+      "path": "state/checkpoints/a",
+      "expected": "DENY",
+      "reason": "TOOL_NOT_ALLOWED"
+    },
+    {
+      "id": "PERM-015",
+      "tool": "checkpoint.read",
+      "mode": "read",
+      "path": "state/checkpoints/a",
+      "task_id": "bad",
+      "expected": "DENY",
+      "reason": "EXECUTION_IDENTITY_INVALID"
+    },
+    {
+      "id": "PERM-016",
+      "tool": "checkpoint.read",
+      "mode": "read",
+      "path": "state/checkpoints/a",
+      "attempt": 3,
+      "expected": "DENY",
+      "reason": "MAX_ATTEMPTS_EXCEEDED"
+    }
+  ]
+}

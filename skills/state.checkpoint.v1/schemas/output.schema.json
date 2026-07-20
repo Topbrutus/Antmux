@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antmux://schemas/state-checkpoint-output-v1",
+  "title": "state.checkpoint.v1 output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ok",
+    "operation",
+    "result_state",
+    "task_id",
+    "run_id",
+    "correlation_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "state-checkpoint-output-v1"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "operation": {
+      "enum": [
+        "CREATE",
+        "VERIFY",
+        "LIST",
+        "READ",
+        "FORK",
+        "RESTORE_PLAN",
+        "ACTIVATE_BRANCH",
+        "REBUILD_AUDIT_PROJECTION"
+      ]
+    },
+    "result_state": {
+      "enum": [
+        "COMMITTED",
+        "VERIFIED",
+        "LISTED",
+        "READ",
+        "FORKED",
+        "RESTORE_PLANNED",
+        "BRANCH_ACTIVATED",
+        "AUDIT_REBUILT",
+        "REJECTED",
+        "FAILED"
+      ]
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "reason"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

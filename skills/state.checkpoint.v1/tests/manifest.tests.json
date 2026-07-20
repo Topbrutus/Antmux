@@ -1,0 +1,76 @@
+{
+  "suite_id": "state-checkpoint-manifest-v1",
+  "expected_count": 14,
+  "tests": [
+    {
+      "id": "MAN-001",
+      "path": "schema_version",
+      "expected": "antmux-agent-skill-v1"
+    },
+    {
+      "id": "MAN-002",
+      "path": "skill_id",
+      "expected": "state.checkpoint"
+    },
+    {
+      "id": "MAN-003",
+      "path": "status",
+      "expected": "proposed"
+    },
+    {
+      "id": "MAN-004",
+      "path": "permissions.default_deny",
+      "expected": true
+    },
+    {
+      "id": "MAN-005",
+      "path": "loading.mode",
+      "expected": "progressive"
+    },
+    {
+      "id": "MAN-006",
+      "path": "loading.metadata_first",
+      "expected": true
+    },
+    {
+      "id": "MAN-007",
+      "path": "permissions.network.allowed",
+      "expected": false
+    },
+    {
+      "id": "MAN-008",
+      "path": "safety.destructive",
+      "expected": false
+    },
+    {
+      "id": "MAN-009",
+      "path": "safety.idempotent",
+      "expected": true
+    },
+    {
+      "id": "MAN-010",
+      "path": "safety.open_world",
+      "expected": false
+    },
+    {
+      "id": "MAN-011",
+      "path": "safety.mutation_allowed",
+      "expected": true
+    },
+    {
+      "id": "MAN-012",
+      "path": "safety.mutation_scope",
+      "expected": "append_only_checkpoint_records"
+    },
+    {
+      "id": "MAN-013",
+      "path": "validation.require_immutable_history",
+      "expected": true
+    },
+    {
+      "id": "MAN-014",
+      "path": "validation.require_idempotency_key",
+      "expected": true
+    }
+  ]
+}

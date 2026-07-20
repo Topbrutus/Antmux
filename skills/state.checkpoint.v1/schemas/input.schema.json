@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antmux://schemas/state-checkpoint-input-v1",
+  "title": "state.checkpoint.v1 input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation",
+    "task_id",
+    "run_id",
+    "correlation_id",
+    "agent_id",
+    "idempotency_key"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "state-checkpoint-input-v1"
+    },
+    "operation": {
+      "enum": [
+        "CREATE",
+        "VERIFY",
+        "LIST",
+        "READ",
+        "FORK",
+        "RESTORE_PLAN",
+        "ACTIVATE_BRANCH",
+        "REBUILD_AUDIT_PROJECTION"
+      ]
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^TASK-[A-Z0-9-]{1,64}$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^RUN-[A-Z0-9-]{1,80}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^CORR-[A-Z0-9-]{1,96}$"
+    },
+    "agent_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "checkpoint_id": {
+      "type": "string",
+      "pattern": "^CHK-[A-Z0-9-]{3,160}$"
+    },
+    "source_checkpoint_id": {
+      "type": "string",
+      "pattern": "^CHK-[A-Z0-9-]{3,160}$"
+    },
+    "expected_parent_checkpoint_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^CHK-[A-Z0-9-]{3,160}$"
+    },
+    "task_state": {
+      "enum": [
+        "DISCOVERED",
+        "SELECTED",
+        "LOADED",
+        "AUTHORIZED",
+        "RUNNING",
+        "UNDER_REVIEW",
+        "VALIDATED",
+        "REJECTED",
+        "FAILED",
+        "ROLLED_BACK"
+      ]
+    },
+    "branch_id": {
+      "type": "string",
+      "pattern": "^BRANCH-[A-Z0-9-]{1,80}$"
+    },
+    "source_branch_id": {
+      "type": "string",
+      "pattern": "^BRANCH-[A-Z0-9-]{1,80}$"
+    },
+    "new_branch_id": {
+      "type": "string",
+      "pattern": "^BRANCH-[A-Z0-9-]{1,80}$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2
+    },
+    "current_task_state": {
+      "enum": [
+        "DISCOVERED",
+        "SELECTED",
+        "LOADED",
+        "AUTHORIZED",
+        "RUNNING",
+        "UNDER_REVIEW",
+        "VALIDATED",
+        "REJECTED",
+        "FAILED",
+        "ROLLED_BACK"
+      ]
+    },
+    "approval_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^APPROVAL-[A-Z0-9-]{1,96}$"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "payload": {
+      "type": "object"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/artifact"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/artifact"
+      }
+    }
+  },
+  "definitions": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "path",
+        "sha256",
+        "bermuda_state"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^ART-[A-Z0-9-]{1,96}$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "bermuda_state": {
+          "enum": [
+            "RAW",
+            "PROPOSED",
+            "UNDER_REVIEW",
+            "VALIDATED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        }
+      }
+    }
+  }
+}

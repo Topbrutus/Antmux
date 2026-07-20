@@ -1,0 +1,126 @@
+{
+  "suite_id": "state-checkpoint-contracts-v1",
+  "expected_count": 20,
+  "tests": [
+    {
+      "id": "CON-001",
+      "subject": "input",
+      "case": "valid_root",
+      "valid": true
+    },
+    {
+      "id": "CON-002",
+      "subject": "input",
+      "case": "valid_child",
+      "valid": true
+    },
+    {
+      "id": "CON-003",
+      "subject": "input",
+      "case": "missing_task_id",
+      "valid": false
+    },
+    {
+      "id": "CON-004",
+      "subject": "input",
+      "case": "uppercase_sha",
+      "valid": false
+    },
+    {
+      "id": "CON-005",
+      "subject": "input",
+      "case": "path_traversal",
+      "valid": false
+    },
+    {
+      "id": "CON-006",
+      "subject": "input",
+      "case": "child_without_parent",
+      "valid": false
+    },
+    {
+      "id": "CON-007",
+      "subject": "input",
+      "case": "zero_sequence",
+      "valid": false
+    },
+    {
+      "id": "CON-008",
+      "subject": "input",
+      "case": "duplicate_artifact",
+      "valid": false
+    },
+    {
+      "id": "CON-009",
+      "subject": "input",
+      "case": "unknown_bermuda",
+      "valid": false
+    },
+    {
+      "id": "CON-010",
+      "subject": "input",
+      "case": "valid_fork",
+      "valid": true
+    },
+    {
+      "id": "CON-011",
+      "subject": "input",
+      "case": "same_branch_fork",
+      "valid": false
+    },
+    {
+      "id": "CON-012",
+      "subject": "input",
+      "case": "valid_restore_plan",
+      "valid": true
+    },
+    {
+      "id": "CON-013",
+      "subject": "input",
+      "case": "activate_without_approval",
+      "valid": false
+    },
+    {
+      "id": "CON-014",
+      "subject": "input",
+      "case": "activate_with_approval",
+      "valid": true
+    },
+    {
+      "id": "CON-015",
+      "subject": "input",
+      "case": "secret_field",
+      "valid": false
+    },
+    {
+      "id": "CON-016",
+      "subject": "output",
+      "case": "valid_create_output",
+      "valid": true
+    },
+    {
+      "id": "CON-017",
+      "subject": "output",
+      "case": "raw_array_output",
+      "valid": false
+    },
+    {
+      "id": "CON-018",
+      "subject": "output",
+      "case": "missing_result",
+      "valid": false
+    },
+    {
+      "id": "CON-019",
+      "subject": "output",
+      "case": "wrong_result_state",
+      "valid": false
+    },
+    {
+      "id": "CON-020",
+      "subject": "output",
+      "case": "valid_rejection",
+      "valid": true
+    }
+  ]
+}
