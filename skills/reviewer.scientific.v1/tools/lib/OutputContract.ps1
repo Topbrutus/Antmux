@@ -28,7 +28,7 @@ function Test-ReviewContract {
     if ($evidenceStates -notcontains [string]$Review.evidence_status) { return $false }
 
     $lineIds = @($Review.source_line_ids)
-    if (($lineIds | Sort-Object -Unique).Count -ne $lineIds.Count) { return $false }
+    if (@($lineIds | Sort-Object -Unique).Count -ne $lineIds.Count) { return $false }
     foreach ($lineId in $lineIds) {
         if ([string]$lineId -cnotmatch '^L[0-9]+$') { return $false }
     }
@@ -185,4 +185,3 @@ function New-ValidOutputObject {
         result_state = 'UNDER_REVIEW'
     }
 }
-
