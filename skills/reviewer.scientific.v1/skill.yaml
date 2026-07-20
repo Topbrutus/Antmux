@@ -2,7 +2,7 @@ schema_version: antmux-agent-skill-v1
 
 skill_id: reviewer.scientific
 version: 1.0.0
-status: proposed
+status: VALIDATED_FOR_PROTOTYPE
 
 identity:
   title: Reviewer scientifique
