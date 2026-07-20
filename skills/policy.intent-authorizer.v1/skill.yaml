@@ -1,0 +1,164 @@
+schema_version: antmux-agent-skill-v1
+
+skill_id: policy.intent-authorizer
+version: 1.0.0
+status: proposed
+
+identity:
+  title: Autoriseur déterministe par intention
+  description: >
+    Compare une action proposée à l'intention confirmée, aux permissions
+    statiques, aux politiques de risque, aux approbations et au budget Rent.
+  owner: Antmux
+
+selection:
+  triggers:
+    - autoriser une action
+    - vérifier l'intention
+    - contrôler une proposition d'outil
+    - demander une approbation humaine
+    - expliquer un refus
+  excludes:
+    - exécuter un outil métier
+    - élargir une intention
+    - créer une permission
+    - fabriquer une approbation
+    - accéder à Internet
+  priority: 100
+
+loading:
+  mode: progressive
+  metadata_first: true
+  instructions:
+    - instructions.md
+  prompts:
+    - prompts/authorize-action.md
+  resources:
+    - resources/decision-rules.md
+    - resources/reason-codes.md
+
+inputs:
+  schema: schemas/input.schema.json
+  required:
+    - task_id
+    - run_id
+    - correlation_id
+    - authorizer_id
+    - intent_envelope
+    - proposed_action
+    - permission_snapshot
+    - risk_policy
+    - approval_refs
+    - current_rent
+    - evaluated_at_utc
+
+outputs:
+  schema: schemas/output.schema.json
+  artifacts:
+    - authorization_decision
+
+permissions:
+  default_deny: true
+  tools:
+    allow:
+      - policy.intent.evaluate
+      - policy.intent.explain
+      - policy.snapshot.read
+      - approval.read
+      - decision.write
+    deny:
+      - filesystem.delete
+      - filesystem.write
+      - github.push
+      - github.write
+      - network.request
+      - process.kill
+      - process.spawn
+      - model.activate
+  filesystem:
+    read:
+      - state/intents/**
+      - state/permissions/**
+      - state/approvals/**
+      - state/rent/**
+      - artifacts/**
+    write:
+      - state/decisions/**
+    deny:
+      - .git/**
+      - secrets/**
+      - credentials/**
+      - "**/../**"
+  network:
+    allowed: false
+    destinations: []
+  models:
+    allow: []
+
+execution:
+  protocol_version: antmux-mcp-v1
+  transport:
+    allow:
+      - stdio
+  require_task_id: true
+  require_agent_id: true
+  require_run_id: true
+  require_correlation_id: true
+  timeout_seconds: 60
+  max_attempts: 1
+  parallelism: 1
+
+safety:
+  risk_level: high
+  read_only: false
+  destructive: false
+  idempotent: true
+  open_world: false
+  mutation_allowed: true
+  mutation_scope: append_only_authorization_decisions
+  human_approval:
+    before_start: false
+    before_external_write: true
+    before_destructive_action: true
+    before_scope_expansion: true
+
+telemetry:
+  rent_enabled: true
+  record:
+    - messages_in
+    - messages_out
+    - bytes_read
+    - bytes_written
+    - resources_loaded
+    - tools_called
+    - wait_ms
+    - retries
+    - denied_calls
+    - decisions_allow
+    - decisions_deny
+    - decisions_require_approval
+
+validation:
+  manifest_schema: antmux-agent-skill-v1
+  input_schema_required: true
+  output_schema_required: true
+  independent_reviewer: true
+  require_checksums: true
+  pass_requires_all_tests: true
+  deterministic_decision_required: true
+  require_intent_sha256: true
+  require_action_sha256: true
+  approval_cannot_expand_static_permission: true
+  model_self_authorization_forbidden: true
+
+lifecycle:
+  states:
+    - DISCOVERED
+    - SELECTED
+    - LOADED
+    - AUTHORIZED
+    - RUNNING
+    - UNDER_REVIEW
+    - VALIDATED
+    - REJECTED
+    - FAILED
