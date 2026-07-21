@@ -8,15 +8,19 @@ Première boucle exécutable locale de LinuxIA pour Windows PowerShell 5.1.
 .\tools\linuxia.ps1 inspect --file ".\docs\architecture\ANTMUX-AGENT-SKILL-V1.md"
 ```
 
-`inspect` effectue uniquement une lecture contrôlée :
+`inspect` effectue une lecture contrôlée avec checkpoints :
 
 1. normalisation et validation du chemin relatif;
 2. création d'une enveloppe d'intention minimale;
 3. création d'une action `READ / source.read`;
 4. décision via `policy.intent-authorizer.v1`;
-5. lecture du fichier seulement après `ALLOW`;
-6. calcul SHA-256 des octets locaux;
-7. écriture append-only d'une décision et d'un événement d'audit.
+5. checkpoint immuable `PRE_ACTION` après `ALLOW`;
+6. lecture du fichier;
+7. calcul SHA-256 des octets locaux;
+8. checkpoint enfant immuable `POST_ACTION`;
+9. écriture append-only des événements d'audit.
+
+Le checkpoint `POST_ACTION` référence obligatoirement le checkpoint `PRE_ACTION`. Les deux objets passent les contrats d'entrée et de sortie de `state.checkpoint.v1`.
 
 ## Portée de lecture
 
@@ -32,7 +36,11 @@ Elle refuse les chemins absolus, les segments `..`, les jokers, les points de jo
 Le fichier inspecté n'est jamais modifié. Avec l'audit actif, la CLI peut uniquement créer :
 
 - `state/decisions/DECISION-*.json`;
+- `state/checkpoints/RUN-*/CHK-*.json`;
+- une nouvelle ligne dans `state/events/checkpoints.jsonl`;
 - une nouvelle ligne dans `state/events/linuxia-cli.jsonl`.
+
+Les artefacts de décision et de checkpoint utilisent une création immuable. Les journaux sont append-only.
 
 Aucun réseau, modèle, processus enfant, installation ou commande GitHub n'est utilisé.
 
@@ -49,4 +57,4 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 & ".\tools\linuxia\Test-LinuxIACli.ps1"
 ```
 
-La validation du paquet ne valide pas encore le moteur `state.checkpoint.v1` ni une orchestration multi-agent.
+La validation couvre l'adaptateur de checkpoints JSON/JSONL de la CLI. Elle ne valide pas encore un backend SQLite, les opérations `FORK`, `RESTORE_PLAN`, `ACTIVATE_BRANCH` ni une orchestration multi-agent.
