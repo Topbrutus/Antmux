@@ -5,6 +5,7 @@ $cliRoot=$PSScriptRoot
 . (Join-Path $cliRoot 'lib/CanonicalJson.ps1')
 . (Join-Path $cliRoot 'lib/PathPolicy.ps1')
 . (Join-Path $cliRoot 'lib/Audit.ps1')
+. (Join-Path $cliRoot 'lib/Checkpoint.ps1')
 . (Join-Path $cliRoot 'Invoke-Inspect.ps1')
 
 function Show-LinuxIAUsage {
@@ -30,6 +31,14 @@ try{
             Write-Host ('FILE: ' + $result.source.path)
             Write-Host ('BYTES: ' + $result.source.bytes)
             Write-Host ('SHA256: ' + $result.source.sha256)
+        }
+        if($null -ne $result.checkpoints){
+            Write-Host ('PRE_CHECKPOINT: ' + $result.checkpoints.pre_action.checkpoint_id)
+            Write-Host ('PRE_CHECKPOINT_ARTIFACT: ' + $result.checkpoints.pre_action.artifact)
+            Write-Host ('POST_CHECKPOINT: ' + $result.checkpoints.post_action.checkpoint_id)
+            Write-Host ('POST_CHECKPOINT_ARTIFACT: ' + $result.checkpoints.post_action.artifact)
+            Write-Host ('CHECKPOINT_CHAIN_VALID: ' + $result.checkpoints.chain_valid)
+            Write-Host ('CHECKPOINT_LOG: ' + $result.checkpoints.event_log)
         }
         Write-Host ('DECISION_ARTIFACT: ' + $result.decision_artifact)
         Write-Host ('AUDIT_LOG: ' + $result.audit_log)
