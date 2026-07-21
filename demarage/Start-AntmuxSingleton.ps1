@@ -179,7 +179,10 @@ try {
         & $startupScriptPath -ConfigPath $ConfigPath
     }
 
-    $exitCode = $LASTEXITCODE
+    $exitCode = 0
+    if (Test-Path Variable:LASTEXITCODE) {
+        $exitCode = [int]$LASTEXITCODE
+    }
     $stoppedState = [ordered]@{
         schema_version = 1
         status = "STOPPED"
