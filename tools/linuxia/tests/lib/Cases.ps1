@@ -7,6 +7,7 @@ function Get-LinuxIAExpectedErrorCode {
 
 function Invoke-LinuxIACliCases {
     param($Suite,[string]$RepoRoot)
+    $inspectCache=$null
     foreach($t in @($Suite.tests)){
         $actual=$null
         switch([string]$t.subject){
@@ -39,10 +40,23 @@ function Invoke-LinuxIACliCases {
                 if([string]$t.case -eq 'stable'){$actual=(Get-LinuxIAStringSha256 'abc') -eq (Get-LinuxIAStringSha256 'abc')}
                 if([string]$t.case -eq 'property_order'){$a=[pscustomobject]@{b=2;a=1};$b=[pscustomobject]@{a=1;b=2};$actual=(Get-LinuxIAObjectSha256 $a) -eq (Get-LinuxIAObjectSha256 $b)}
             }
-            'inspect'{
-                $result=Invoke-LinuxIAInspect $RepoRoot 'docs/architecture/ANTMUX-AGENT-SKILL-V1.md' $false
-                if([string]$t.case -eq 'allow_docs'){$actual=($result.decision -eq 'ALLOW' -and $result.status -eq 'COMPLETED' -and $null -eq $result.audit_log)}
-                if([string]$t.case -eq 'source_hash'){$resolved=Resolve-LinuxIAInspectPath $RepoRoot 'docs/architecture/ANTMUX-AGENT-SKILL-V1.md';$actual=$result.source.sha256 -eq (Get-LinuxIAFileSha256 $resolved.full_path)}
+            {$_ -in @('inspect','checkpoint')}{
+                if($null -eq $inspectCache){$inspectCache=Invoke-LinuxIAInspect $RepoRoot 'docs/architecture/ANTMUX-AGENT-SKILL-V1.md' $false}
+                if([string]$t.subject -eq 'inspect'){
+                    if([string]$t.case -eq 'allow_docs'){$actual=($inspectCache.decision -eq 'ALLOW' -and $inspectCache.status -eq 'COMPLETED' -and $null -eq $inspectCache.audit_log)}
+                    if([string]$t.case -eq 'source_hash'){$resolved=Resolve-LinuxIAInspectPath $RepoRoot 'docs/architecture/ANTMUX-AGENT-SKILL-V1.md';$actual=$inspectCache.source.sha256 -eq (Get-LinuxIAFileSha256 $resolved.full_path)}
+                }else{
+                    $pre=$inspectCache.checkpoints.pre_action
+                    $post=$inspectCache.checkpoints.post_action
+                    switch([string]$t.case){
+                        'pre_exists'{$actual=$null -ne $pre}
+                        'pre_root'{$actual=([int]$pre.sequence -eq 1 -and $null -eq $pre.parent_checkpoint_id)}
+                        'post_child'{$actual=([int]$post.sequence -eq 2 -and [string]$post.parent_checkpoint_id -eq [string]$pre.checkpoint_id -and [bool]$inspectCache.checkpoints.chain_valid)}
+                        'states'{$actual=([string]$pre.task_state -eq 'AUTHORIZED' -and [string]$post.task_state -eq 'RUNNING')}
+                        'ids'{$actual=([string]$pre.checkpoint_id -cmatch '^CHK-[A-Z0-9-]{3,160}$' -and [string]$post.checkpoint_id -cmatch '^CHK-[A-Z0-9-]{3,160}$')}
+                        'no_audit_writes'{$actual=($null -eq $pre.artifact -and $null -eq $post.artifact -and $null -eq $inspectCache.checkpoints.event_log)}
+                    }
+                }
             }
         }
         $ok=if($t.expected -is [bool]){[bool]$actual -eq [bool]$t.expected}else{[string]$actual -eq [string]$t.expected}
