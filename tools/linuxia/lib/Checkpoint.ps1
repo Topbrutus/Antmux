@@ -86,26 +86,26 @@ function New-LinuxIACheckpointInput {
 }
 
 function New-LinuxIACheckpointOutput {
-    param([string]$RepoRoot,$Input,[string]$Phase,[string]$CreatedAtUtc)
+    param([string]$RepoRoot,$CheckpointInput,[string]$Phase,[string]$CreatedAtUtc)
     foreach($contractLibrary in @(Get-LinuxIACheckpointContractLibraryPaths $RepoRoot)){. $contractLibrary}
-    if(-not (Test-InputContract $Input)){throw 'CLI_CHECKPOINT_INPUT_INVALID: generated checkpoint input failed its contract'}
-    $checkpointId=New-LinuxIACheckpointId ([string]$Input.run_id) ([int]$Input.sequence)
+    if(-not (Test-InputContract $CheckpointInput)){throw 'CLI_CHECKPOINT_INPUT_INVALID: generated checkpoint input failed its contract'}
+    $checkpointId=New-LinuxIACheckpointId ([string]$CheckpointInput.run_id) ([int]$CheckpointInput.sequence)
     $zero='sha256:' + ('0'*64)
     $result=[pscustomobject]@{
         checkpoint_id=$checkpointId
         checkpoint_status='COMMITTED'
-        task_state=[string]$Input.task_state
-        branch_id=[string]$Input.branch_id
-        sequence=[int]$Input.sequence
-        parent_checkpoint_id=$Input.expected_parent_checkpoint_id
-        payload_sha256=(Get-LinuxIAObjectSha256 $Input.payload)
+        task_state=[string]$CheckpointInput.task_state
+        branch_id=[string]$CheckpointInput.branch_id
+        sequence=[int]$CheckpointInput.sequence
+        parent_checkpoint_id=$CheckpointInput.expected_parent_checkpoint_id
+        payload_sha256=(Get-LinuxIAObjectSha256 $CheckpointInput.payload)
         checkpoint_sha256=$zero
-        idempotency_key=[string]$Input.idempotency_key
+        idempotency_key=[string]$CheckpointInput.idempotency_key
         phase=$Phase
         created_at_utc=$CreatedAtUtc
-        payload=$Input.payload
-        inputs=@($Input.inputs)
-        outputs=@($Input.outputs)
+        payload=$CheckpointInput.payload
+        inputs=@($CheckpointInput.inputs)
+        outputs=@($CheckpointInput.outputs)
     }
     $result.checkpoint_sha256=Get-LinuxIAObjectSha256 $result 'checkpoint_sha256'
     $output=[pscustomobject]@{
@@ -113,9 +113,9 @@ function New-LinuxIACheckpointOutput {
         ok=$true
         operation='CREATE'
         result_state='COMMITTED'
-        task_id=[string]$Input.task_id
-        run_id=[string]$Input.run_id
-        correlation_id=[string]$Input.correlation_id
+        task_id=[string]$CheckpointInput.task_id
+        run_id=[string]$CheckpointInput.run_id
+        correlation_id=[string]$CheckpointInput.correlation_id
         result=$result
         error=$null
     }
