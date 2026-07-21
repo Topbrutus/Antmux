@@ -92,18 +92,36 @@ function Invoke-LinuxIAInspect {
     $decision.decision_payload_sha256=Get-LinuxIAObjectSha256 $decision 'decision_payload_sha256'
     if(-not (Test-AuthorizationOutput $decision)){throw 'CLI_AUTHORIZATION_OUTPUT_INVALID: generated decision failed its contract'}
 
-    $source=$null
-    if($decision.decision -eq 'ALLOW'){
-        $source=[pscustomobject]@{path=$target.relative_path;bytes=$target.bytes;sha256=(Get-LinuxIAFileSha256 $target.full_path);last_write_time_utc=$target.last_write_time_utc}
-    }
     $decisionRel='state/decisions/'+$ids.decision_id+'.json'
     $auditRel='state/events/linuxia-cli.jsonl'
+    $checkpointEventRel='state/events/checkpoints.jsonl'
+    if($Audit){Write-LinuxIAImmutableJson (Join-Path $RepoRoot $decisionRel.Replace('/','\')) $decision}
+
+    $source=$null
+    $checkpoints=$null
+    if($decision.decision -eq 'ALLOW'){
+        $preInput=New-LinuxIACheckpointInput $ids.task_id $ids.run_id $ids.correlation_id 1 $null 'AUTHORIZED' 'PRE_ACTION' $target.relative_path $null $decisionRel $intent.intent_sha256 $action.action_sha256 $decision.decision_payload_sha256
+        $preOutput=New-LinuxIACheckpointOutput $RepoRoot $preInput 'PRE_ACTION' ($evaluated.ToString('o'))
+        $pre=Save-LinuxIACheckpoint $RepoRoot $preOutput $Audit
+
+        $source=[pscustomobject]@{path=$target.relative_path;bytes=$target.bytes;sha256=(Get-LinuxIAFileSha256 $target.full_path);last_write_time_utc=$target.last_write_time_utc}
+
+        $postInput=New-LinuxIACheckpointInput $ids.task_id $ids.run_id $ids.correlation_id 2 $pre.checkpoint_id 'RUNNING' 'POST_ACTION' $target.relative_path $source $decisionRel $intent.intent_sha256 $action.action_sha256 $decision.decision_payload_sha256
+        $postOutput=New-LinuxIACheckpointOutput $RepoRoot $postInput 'POST_ACTION' ($evaluated.AddTicks(1).ToString('o'))
+        $post=Save-LinuxIACheckpoint $RepoRoot $postOutput $Audit
+        $checkpoints=[pscustomobject]@{
+            pre_action=$pre
+            post_action=$post
+            chain_valid=([string]$post.parent_checkpoint_id -eq [string]$pre.checkpoint_id -and [int]$post.sequence -eq ([int]$pre.sequence+1))
+            event_log=if($Audit){$checkpointEventRel}else{$null}
+        }
+    }
+
     if($Audit){
-        Write-LinuxIAImmutableJson (Join-Path $RepoRoot $decisionRel.Replace('/','\')) $decision
         $event=[pscustomobject]@{
             schema_version='linuxia-audit-event-v1';event_id=$ids.event_id;timestamp_utc=[DateTimeOffset]::UtcNow.ToString('o')
             task_id=$ids.task_id;run_id=$ids.run_id;correlation_id=$ids.correlation_id;command='inspect';decision=$decision.decision
-            reason=[string]$rawDecision.reason;source=$source;decision_artifact=$decisionRel
+            reason=[string]$rawDecision.reason;source=$source;decision_artifact=$decisionRel;checkpoints=$checkpoints
         }
         Add-LinuxIAAuditEvent (Join-Path $RepoRoot $auditRel.Replace('/','\')) $event
     }
@@ -111,6 +129,6 @@ function Invoke-LinuxIAInspect {
     return [pscustomobject]@{
         schema_version='linuxia-inspect-result-v1';status=$status;command='inspect';task_id=$ids.task_id;run_id=$ids.run_id;correlation_id=$ids.correlation_id
         decision=$decision.decision;reason=[string]$rawDecision.reason;source=$source;intent_sha256=$intent.intent_sha256;action_sha256=$action.action_sha256
-        decision_artifact=if($Audit){$decisionRel}else{$null};audit_log=if($Audit){$auditRel}else{$null}
+        decision_artifact=if($Audit){$decisionRel}else{$null};audit_log=if($Audit){$auditRel}else{$null};checkpoints=$checkpoints
     }
 }
