@@ -1,12 +1,24 @@
 {
-  "schema_version": "linuxia-ant-frames-v1",
-  "frame_count": 100,
-  "width": 28,
-  "height": 18,
-  "fps": 20.0,
+  "schema_version": "linuxia-ant-frames-v2",
+  "frame_count": 36,
+  "width": 60,
+  "height": 70,
+  "fps": 5.0,
+  "chunks": [
+    "frames-00.json"
+  ],
+  "display_crop": {
+    "top": 8,
+    "bottom": 63
+  },
   "metadata": {
-    "asset_id": "linuxia-ant-royal-360-v1",
-    "render_mode": "fixed-box-only",
-    "validated_visual_reference": "prototype-v3-clean"
-  }
+    "asset_id": "linuxia-36-frames-centrees-60x70-unifiees",
+    "render_mode": "fixed-bottom-anchor-log-above",
+    "color_mode": "ansi-truecolor",
+    "source_size": "60x70",
+    "display_size": "60x55",
+    "angles": "0..350 step 10",
+    "source_zip_sha256": "59caa34846b8d6c174d275bca5a7a483131249cef8abe23568db727a71e7549e"
+  },
+  "encoding": "zlib-base64-json"
 }

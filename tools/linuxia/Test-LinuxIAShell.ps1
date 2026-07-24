@@ -63,7 +63,7 @@ try {
 
     Add-ShellTestResult 'FRAMES-LOCAL-ASSETS' `
         (@($assetPaths | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }).Count -eq 11) `
-        'Manifest and ten local frame resources are present'
+        'Manifest and ten local champion-frame resources are present'
 
     $launcherText = Get-Content -LiteralPath $rootLauncher -Raw -Encoding UTF8
     Add-ShellTestResult 'LAUNCHER-EXPLICIT' `
@@ -120,7 +120,7 @@ try {
         ($scriptText -match 'wrap_transcript_line' -and `
          $scriptText -match 'visible_transcript_lines' -and `
          $scriptText -match 'compact_output_rows') `
-        'The output viewport wraps words and reserves compact terminal rows'
+        'The log wraps words above a stable compact animation viewport'
     Add-ShellTestResult 'STATIC-CANNED-GREETING-REMOVED' `
         (-not ($scriptText -match 'Bonjour Gabi\. Je suis prête\.|Salut Gabi\. Je suis prête\.')) `
         'Prepared greeting responses are absent'
@@ -133,6 +133,11 @@ try {
     Add-ShellTestResult 'STATIC-HISTORY-BOUNDED' `
         ($consoleText -match 'history\s*=\s*history\[-6:\]') `
         'In-memory conversation context is bounded'
+    Add-ShellTestResult 'STATIC-LOG-BUFFER-4000' `
+        ($consoleText -match 'TRANSCRIPT_LINE_LIMIT\s*=\s*4000' -and `
+         $consoleText -match 'maxlen=TRANSCRIPT_LINE_LIMIT' -and `
+         $consoleText -match 'transcript_buffer_4000') `
+        'The in-memory terminal log retains exactly 4000 logical lines'
     Add-ShellTestResult 'STATIC-SYSTEM-JOB-HONEST' `
         ($scriptText -match 'SYSTEM_JOB: NOT_CONNECTED' -and $conversationText -match 'SYSTEM_JOB_STATE\s*=\s*"NOT_CONNECTED"') `
         'The reception layer does not pretend that System Job is connected'
@@ -157,7 +162,7 @@ try {
         $jsonLine = [string]($output | Select-Object -Last 1)
         $selfTest = $jsonLine | ConvertFrom-Json
         Add-ShellTestResult 'SELFTEST-RESULT' ([bool]$selfTest.ok) 'Python fixed-render checks all pass'
-        Add-ShellTestResult 'SELFTEST-FRAMES' ([int]$selfTest.frame_count -eq 100) 'Python loads exactly 100 frames'
+        Add-ShellTestResult 'SELFTEST-FRAMES' ([int]$selfTest.frame_count -eq 36) 'Python loads exactly 36 champion frames'
         Add-ShellTestResult 'SELFTEST-CONVERSATION' ([bool]$selfTest.conversation_ok) 'LinuxIA Interprète reception logic checks all pass'
         Add-ShellTestResult 'SELFTEST-CANNED-REMOVED' ([bool]$selfTest.canned_greetings_removed) 'Prepared greeting library is disabled'
     }

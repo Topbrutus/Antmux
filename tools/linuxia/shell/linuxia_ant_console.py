@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Shell local LinuxIA : fourmi fixe et première couche LinuxIA Interprète 4B."""
+"""Shell local LinuxIA : animation championne fixe et première couche LinuxIA Interprète 4B."""
 
 from __future__ import annotations
 
 import argparse
 import json
+from collections import deque
 import os
 import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import Deque, List, Sequence, Tuple
 
 from conversation import (
     DEFAULT_LANGUAGE_MODE,
@@ -38,6 +39,7 @@ from render import (
 )
 
 MODULE_ROOT = Path(__file__).resolve().parent
+TRANSCRIPT_LINE_LIMIT = 4000
 
 
 def _paint_input_line(
@@ -280,7 +282,7 @@ def run_conversation_with_animation(
     return sanitize_response("".join(chunks), launch.language_mode), launch.language_mode
 
 
-def _append_interpreter_response(transcript: List[str], response: str) -> None:
+def _append_interpreter_response(transcript: Deque[str], response: str) -> None:
     lines = [line.strip() for line in str(response or "").splitlines() if line.strip()]
     if not lines:
         lines = ["Je t'écoute."]
@@ -293,11 +295,15 @@ def shell_loop(pack: FramePack, repo: Path, color: bool) -> None:
     if not launcher.is_file():
         raise FileNotFoundError(f"Lanceur LinuxIA introuvable : {launcher}")
 
-    transcript: List[str] = [
-        "Commandes : /help, /status, /langage, /inspect, /exit",
-        f"Conversation locale : {MODEL_NAME} déjà installé seulement",
-        "La fourmi tourne pendant une réponse ou une inspection.",
-    ]
+    transcript: Deque[str] = deque(
+        [
+            "Commandes : /help, /status, /langage, /inspect, /exit",
+            f"Conversation locale : {MODEL_NAME} déjà installé seulement",
+            f"Tampon du journal : {TRANSCRIPT_LINE_LIMIT} lignes conservées en mémoire.",
+            "Le journal reste au-dessus; l’animation championne demeure centrée et fixe.",
+        ],
+        maxlen=TRANSCRIPT_LINE_LIMIT,
+    )
     history: List[Tuple[str, str]] = []
     command_history: List[str] = []
     language_mode = DEFAULT_LANGUAGE_MODE
@@ -365,6 +371,7 @@ def shell_loop(pack: FramePack, repo: Path, color: bool) -> None:
                         f"MODEL: {MODEL_NAME}",
                         f"MODEL_READY: {availability.available}",
                         f"LANGAGE: {language_mode.upper()}",
+                        f"LOG_BUFFER_LINES: {TRANSCRIPT_LINE_LIMIT}",
                         "SYSTEM_JOB: NOT_CONNECTED",
                         "HERMES: NOT_CONNECTED",
                     ]
@@ -455,6 +462,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "self-test":
         result = self_test(pack)
+        buffer_probe: Deque[str] = deque(maxlen=TRANSCRIPT_LINE_LIMIT)
+        buffer_probe.extend(f"ligne-{index}" for index in range(TRANSCRIPT_LINE_LIMIT + 7))
+        result["checks"]["transcript_buffer_4000"] = (
+            len(buffer_probe) == TRANSCRIPT_LINE_LIMIT
+            and buffer_probe[0] == "ligne-7"
+            and buffer_probe[-1] == f"ligne-{TRANSCRIPT_LINE_LIMIT + 6}"
+        )
         conversation_result = conversation_self_test()
         result["conversation_ok"] = conversation_result["ok"]
         result["conversation_checks"] = conversation_result["checks"]

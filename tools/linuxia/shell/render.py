@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Rendu ANSI fixe : aucune image ni saisie ne pollue le tampon du terminal."""
+"""Rendu ANSI fixe : journal en haut, animation centrée et ancrée en bas."""
 
 from __future__ import annotations
 
 import ctypes
 import os
+import re
 import shutil
 import sys
 import textwrap
@@ -14,7 +15,9 @@ from frames import FramePack
 
 ANSI_RESET = "\x1b[0m"
 ANSI_PURPLE = "\x1b[38;5;141m"
+ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
 MIN_OUTPUT_ROWS = 3
+MIN_FRAME_ROWS = 8
 
 
 def enable_ansi() -> None:
@@ -54,6 +57,14 @@ def show_cursor() -> None:
     sys.stdout.flush()
 
 
+def strip_ansi(value: str) -> str:
+    return ANSI_SGR_RE.sub("", value)
+
+
+def visible_width(value: str) -> int:
+    return len(strip_ansi(value))
+
+
 def fit_text(value: str, width: int) -> str:
     value = value.replace("\r", " ").replace("\n", " ").replace("\t", "    ")
     if len(value) > width:
@@ -65,6 +76,18 @@ def center_text(value: str, width: int) -> str:
     value = value[:width]
     left = max(0, (width - len(value)) // 2)
     return (" " * left) + value + (" " * (width - len(value) - left))
+
+
+def center_ansi(value: str, width: int, color: bool) -> str:
+    rendered = value if color else strip_ansi(value)
+    current = visible_width(rendered)
+    if current > width:
+        raise RuntimeError(
+            f"Image LinuxIA trop large : {current} colonnes visibles pour une zone de {width}."
+        )
+    left = (width - current) // 2
+    right = width - current - left
+    return (" " * left) + rendered + (" " * right)
 
 
 def terminal_layout(
@@ -83,7 +106,7 @@ def terminal_layout(
             f"Terminal trop étroit : {detected_columns} colonnes; "
             f"au moins {pack.width + 5} sont nécessaires."
         )
-    minimum_rows = pack.height + 8
+    minimum_rows = 1 + MIN_OUTPUT_ROWS + 1 + 3 + MIN_FRAME_ROWS
     if safe_rows < minimum_rows:
         raise RuntimeError(
             f"Terminal trop bas : {detected_rows} lignes; "
@@ -92,14 +115,52 @@ def terminal_layout(
     return box_width, safe_rows
 
 
-def frame_lines(frame: str, width: int, height: int) -> List[str]:
-    source = frame.splitlines()[:height]
-    source.extend([""] * (height - len(source)))
-    return [center_text(line[:width].rstrip(), width) for line in source]
+def _layout_metrics(pack: FramePack, total_rows: int, include_prompt: bool) -> Tuple[int, int, bool]:
+    prompt_rows = 1 if include_prompt else 0
+    fixed_without_art = 1 + MIN_OUTPUT_ROWS + prompt_rows + 3
+    roomy = total_rows >= fixed_without_art + pack.height + 2
+    padding_rows = 2 if roomy else 0
+    available_art = total_rows - fixed_without_art - padding_rows
+    art_rows = max(MIN_FRAME_ROWS, min(pack.height, available_art))
+    box_rows = art_rows + 3 + padding_rows
+    transcript_rows = total_rows - box_rows - 1 - prompt_rows
+    return art_rows, max(MIN_OUTPUT_ROWS, transcript_rows), roomy
+
+
+def _sample_rows(lines: Sequence[str], target_height: int) -> List[str]:
+    if target_height >= len(lines):
+        return list(lines)
+    if target_height <= 1:
+        return [lines[len(lines) // 2]]
+    last = len(lines) - 1
+    return [lines[round(index * last / (target_height - 1))] for index in range(target_height)]
+
+
+def frame_lines(frame: str, width: int, height: int, color: bool = True) -> List[str]:
+    """Rend une image à sa hauteur native, centrée sans toucher aux codes ANSI."""
+    source = frame.splitlines()
+    if len(source) != height:
+        raise ValueError(f"Image LinuxIA invalide : {len(source)} lignes au lieu de {height}.")
+    return [center_ansi(line, width, color) for line in source]
+
+
+def scaled_frame_lines(
+    frame: str,
+    width: int,
+    source_height: int,
+    target_height: int,
+    color: bool,
+) -> List[str]:
+    source = frame.splitlines()
+    if len(source) != source_height:
+        raise ValueError(
+            f"Image LinuxIA invalide : {len(source)} lignes au lieu de {source_height}."
+        )
+    return [center_ansi(line, width, color) for line in _sample_rows(source, target_height)]
 
 
 def _continuation_indent(value: str) -> str:
-    for prefix in ("Reine> ", "linuxia> ", "ERREUR: ", "EXIT_CODE: "):
+    for prefix in ("LinuxIA Interprète> ", "Reine> ", "linuxia> ", "ERREUR: ", "EXIT_CODE: "):
         if value.startswith(prefix):
             return " " * len(prefix)
     return ""
@@ -124,7 +185,6 @@ def wrap_transcript_line(value: str, width: int) -> List[str]:
 
 
 def physical_transcript_lines(transcript: Sequence[str], width: int) -> List[str]:
-    """Déplie le journal logique en lignes physiques prêtes à défiler."""
     result: List[str] = []
     for logical in transcript:
         result.extend(wrap_transcript_line(logical, width))
@@ -137,7 +197,6 @@ def visible_transcript_lines(
     row_limit: int,
     offset_from_bottom: int = 0,
 ) -> List[str]:
-    """Retourne une fenêtre du journal; zéro suit automatiquement la fin."""
     if row_limit <= 0:
         return []
     physical = physical_transcript_lines(transcript, width)
@@ -156,17 +215,16 @@ def transcript_scroll_state(
     columns: int | None = None,
     rows: int | None = None,
 ) -> Tuple[int, int, int]:
-    """Normalise le défilement et retourne (offset, taille_page, maximum)."""
     box_width, total_rows = terminal_layout(pack, columns=columns, rows=rows)
-    normal_box_rows = pack.height + 5
-    reserved_rows = 1 + (1 if include_prompt else 0) + MIN_OUTPUT_ROWS
-    compact = total_rows < normal_box_rows + reserved_rows
-    box_rows = pack.height + (3 if compact else 5)
-    transcript_rows = max(0, total_rows - box_rows - 1 - (1 if include_prompt else 0))
+    _, transcript_rows, _ = _layout_metrics(pack, total_rows, include_prompt)
     physical_count = len(physical_transcript_lines(transcript, box_width))
     maximum = max(0, physical_count - transcript_rows)
     offset = min(max(0, int(offset_from_bottom)), maximum)
     return offset, max(1, transcript_rows), maximum
+
+
+def _ui(value: str, color: bool) -> str:
+    return f"{ANSI_PURPLE}{value}{ANSI_RESET}" if color else value
 
 
 def compose_fixed_screen(
@@ -182,38 +240,31 @@ def compose_fixed_screen(
     box_width, total_rows = terminal_layout(pack, columns=columns, rows=rows)
     inner_width = box_width - 2
     art_width = min(pack.width, inner_width - 2)
-    art = frame_lines(
-        pack.frames[frame_index % len(pack.frames)], art_width, pack.height
+    art_rows, transcript_rows, roomy = _layout_metrics(pack, total_rows, include_prompt)
+    art = scaled_frame_lines(
+        pack.frames[frame_index % len(pack.frames)],
+        art_width,
+        pack.height,
+        art_rows,
+        color,
     )
-
-    normal_box_rows = pack.height + 5
-    reserved_rows = 1 + (1 if include_prompt else 0) + MIN_OUTPUT_ROWS
-    compact = total_rows < normal_box_rows + reserved_rows
 
     title = " LINUXIA CLI "
     fill = max(0, box_width - len(title) - 2)
     left = fill // 2
-    box_lines: List[str] = [
-        "╭" + ("─" * left) + title + ("─" * (fill - left)) + "╮",
-        "│" + center_text("LOCAL · AUDITABLE · PRÊTE", inner_width) + "│",
+    plain_box: List[Tuple[str, bool]] = [
+        ("╭" + ("─" * left) + title + ("─" * (fill - left)) + "╮", False),
+        ("│" + center_text("LOCAL · AUDITABLE · PRÊTE", inner_width) + "│", False),
     ]
-    if not compact:
-        box_lines.append("│" + (" " * inner_width) + "│")
-    box_lines.extend("│" + center_text(line, inner_width) + "│" for line in art)
-    if not compact:
-        box_lines.append("│" + (" " * inner_width) + "│")
-    box_lines.append("╰" + ("─" * (box_width - 2)) + "╯")
+    if roomy:
+        plain_box.append(("│" + (" " * inner_width) + "│", False))
+    plain_box.extend((line, True) for line in art)
+    if roomy:
+        plain_box.append(("│" + (" " * inner_width) + "│", False))
+    plain_box.append(("╰" + ("─" * (box_width - 2)) + "╯", False))
 
-    transcript_rows = max(
-        0, total_rows - len(box_lines) - 1 - (1 if include_prompt else 0)
-    )
     normalized_offset, _, maximum_offset = transcript_scroll_state(
-        pack,
-        transcript,
-        include_prompt,
-        transcript_offset,
-        columns=columns,
-        rows=rows,
+        pack, transcript, include_prompt, transcript_offset, columns=columns, rows=rows
     )
     if normalized_offset:
         label = f" HISTORIQUE · PgDn vers récent · +{normalized_offset}/{maximum_offset} "
@@ -221,23 +272,25 @@ def compose_fixed_screen(
         label = " HISTORIQUE · PgUp pour remonter "
     else:
         label = " HISTORIQUE "
-    lines: List[str] = [fit_text(label + ("─" * max(0, box_width - len(label))), box_width)]
-    visible = visible_transcript_lines(
-        transcript, box_width, transcript_rows, normalized_offset
-    )
-    lines.extend([""] * (transcript_rows - len(visible)))
-    lines.extend(fit_text(line, box_width) for line in visible)
-    lines.extend(box_lines)
 
-    prompt_row = min(total_rows, len(lines) + 1)
+    output_lines: List[str] = [_ui(fit_text(label + ("─" * max(0, box_width - len(label))), box_width), color)]
+    visible = visible_transcript_lines(transcript, box_width, transcript_rows, normalized_offset)
+    output_lines.extend(_ui(" " * box_width, color) for _ in range(transcript_rows - len(visible)))
+    output_lines.extend(_ui(fit_text(line, box_width), color) for line in visible)
+
+    for value, is_art in plain_box:
+        if not is_art:
+            output_lines.append(_ui(fit_text(value, box_width), color))
+        else:
+            # L'image garde ses vraies couleurs; les bordures restent violettes.
+            output_lines.append(_ui("│", color) + center_ansi(value, inner_width, color) + _ui("│", color))
+
+    prompt_row = min(total_rows, len(output_lines) + 1)
     if include_prompt:
-        lines.append(fit_text("linuxia> ", box_width))
+        output_lines.append(_ui(fit_text("linuxia> ", box_width), color))
 
-    lines = [fit_text(line, box_width) for line in lines[:total_rows]]
-    screen = "\n".join(lines)
-    if color:
-        screen = f"{ANSI_PURPLE}{screen}{ANSI_RESET}"
-    return screen, prompt_row
+    output_lines = output_lines[:total_rows]
+    return "\n".join(output_lines), prompt_row
 
 
 def draw_fixed_screen(
@@ -249,64 +302,50 @@ def draw_fixed_screen(
     transcript_offset: int = 0,
 ) -> int:
     screen, prompt_row = compose_fixed_screen(
-        pack,
-        frame_index,
-        transcript,
-        include_prompt,
-        color,
-        transcript_offset=transcript_offset,
+        pack, frame_index, transcript, include_prompt, color, transcript_offset=transcript_offset
     )
     cursor_home()
     rendered = screen.split("\n")
     for index, line in enumerate(rendered):
-        # 2K efface aussi les caractères tapés au-delà de la largeur du cadre.
         sys.stdout.write("\x1b[2K")
         sys.stdout.write(line)
         if index + 1 < len(rendered):
             sys.stdout.write("\n")
-    # Efface les anciennes lignes si la fenêtre a été redimensionnée.
     sys.stdout.write("\x1b[J")
     sys.stdout.flush()
     return prompt_row
 
 
 def self_test(pack: FramePack) -> dict:
+    plain_frames = [strip_ansi(frame) for frame in pack.frames]
     checks = {
-        "frame_count_100": len(pack.frames) == 100,
-        "positive_dimensions": pack.width > 0 and pack.height > 0,
-        "frame_height_exact": all(
-            len(frame.splitlines()) == pack.height for frame in pack.frames
-        ),
-        "frame_width_bounded": all(
-            len(line) <= pack.width
-            for frame in pack.frames
+        "frame_count_36": len(pack.frames) == 36,
+        "positive_dimensions": pack.width == 60 and pack.height == 55,
+        "source_dimensions_60x70": pack.metadata.get("source_width") == 60
+        and pack.metadata.get("source_height") == 70,
+        "truecolor_frames": all("\x1b[38;2;" in frame for frame in pack.frames),
+        "frame_height_exact": all(len(frame.splitlines()) == pack.height for frame in pack.frames),
+        "frame_width_exact": all(
+            len(line) == pack.width
+            for frame in plain_frames
             for line in frame.splitlines()
         ),
     }
-    distinct = next(
-        (i for i, frame in enumerate(pack.frames[1:], 1) if frame != pack.frames[0]),
-        0,
-    )
+    distinct = next((i for i, frame in enumerate(pack.frames[1:], 1) if frame != pack.frames[0]), 0)
     sample = [
         "linuxia> première question",
         "LinuxIA Interprète> première réponse",
         "linuxia> deuxième question",
         "LinuxIA Interprète> Une réponse assez longue qui doit revenir proprement à la ligne sans disparaître à droite.",
     ]
-    first, prompt_first = compose_fixed_screen(
-        pack, 0, sample, True, False, 66, 28
-    )
-    second, prompt_second = compose_fixed_screen(
-        pack, distinct, sample, True, False, 66, 28
-    )
-    scrolled, _ = compose_fixed_screen(
-        pack, 0, sample * 4, True, False, 66, 28, transcript_offset=4
-    )
+    first, prompt_first = compose_fixed_screen(pack, 0, sample, True, False, 72, 32)
+    second, prompt_second = compose_fixed_screen(pack, distinct, sample, True, False, 72, 32)
+    scrolled, _ = compose_fixed_screen(pack, 0, sample * 4, True, False, 72, 32, transcript_offset=4)
+    color_screen, _ = compose_fixed_screen(pack, 0, sample, True, True, 72, 32)
+    tall, prompt_tall = compose_fixed_screen(pack, 0, sample, True, False, 72, 70)
     first_lines, second_lines = first.splitlines(), second.splitlines()
     wrapped = visible_transcript_lines(
-        ["LinuxIA Interprète> Une réponse assez longue qui doit revenir proprement à la ligne."],
-        32,
-        3,
+        ["LinuxIA Interprète> Une réponse assez longue qui doit revenir proprement à la ligne."], 32, 3
     )
     checks.update(
         {
@@ -316,25 +355,21 @@ def self_test(pack: FramePack) -> dict:
             and len({len(x) for x in second_lines}) == 1,
             "fixed_prompt_row": prompt_first == prompt_second,
             "no_trailing_newline": not first.endswith("\n") and not second.endswith("\n"),
-            "no_clear_sequence_in_frame": "\x1b[2J" not in first
-            and "\x1b[2J" not in second,
-            "no_flashing_status": "LINUXIA TRAVAILLE" not in first
-            and "·  ·  ·" not in first
-            and "LINUXIA TRAVAILLE" not in second
-            and "·  ·  ·" not in second,
-            "compact_output_rows": len(first_lines) == 27 and prompt_first == 27,
-            "transcript_word_wrap": len(wrapped) >= 2
-            and all(len(line) <= 32 for line in wrapped),
-            "latest_message_end_visible": bool(wrapped)
-            and wrapped[-1].endswith("ligne."),
-            "transcript_above_title": first.find("HISTORIQUE")
-            < first.find("LINUXIA CLI"),
-            "scroll_offset_changes_window": scrolled != first
-            and "PgDn vers récent" in scrolled,
+            "no_clear_sequence_in_frame": "\x1b[2J" not in first and "\x1b[2J" not in second,
+            "no_flashing_status": "LINUXIA TRAVAILLE" not in first and "·  ·  ·" not in first,
+            "compact_output_rows": len(first_lines) == 31 and prompt_first == 31,
+            "transcript_word_wrap": len(wrapped) >= 2 and all(len(line) <= 32 for line in wrapped),
+            "latest_message_end_visible": bool(wrapped) and wrapped[-1].endswith("ligne."),
+            "transcript_above_title": first.find("HISTORIQUE") < first.find("LINUXIA CLI"),
+            "scroll_offset_changes_window": scrolled != first and "PgDn vers récent" in scrolled,
+            "animation_anchor_stable": first.find("LINUXIA CLI") == second.find("LINUXIA CLI")
+            and prompt_first == prompt_second,
+            "ansi_truecolor_preserved": "\x1b[38;2;" in color_screen,
+            "full_frame_when_tall": len(tall.splitlines()) == 69 and prompt_tall == 69,
         }
     )
     return {
-        "schema_version": "linuxia-ant-shell-self-test-v1",
+        "schema_version": "linuxia-ant-shell-self-test-v2",
         "ok": all(checks.values()),
         "frame_count": len(pack.frames),
         "checks": checks,
