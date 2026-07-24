@@ -13,15 +13,17 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Deque, List, Sequence, Tuple
+from typing import Deque, List, Sequence, Tuple, Union
 
 from conversation import (
     DEFAULT_LANGUAGE_MODE,
     LANGUAGE_MODES,
     MODEL_NAME,
+    ProvisionalResponseBuffer,
     check_model_available,
     conversation_self_test,
     launch_response,
+    sanitize_preview_response,
     sanitize_response,
 )
 from frames import FramePack, load_pack
@@ -242,15 +244,15 @@ def run_conversation_with_animation(
         return line, launch.language_mode
 
     process = launch.process
-    chunks: List[str] = []
+    stream = ProvisionalResponseBuffer()
 
     def read_output() -> None:
         if process.stdout is None:
             return
-        for chunk in iter(lambda: process.stdout.read(256), ""):
+        for chunk in iter(lambda: process.stdout.read(64), ""):
             if not chunk:
                 break
-            chunks.append(chunk)
+            stream.feed(chunk)
 
     reader = threading.Thread(target=read_output, name="linuxia-interprete-reader", daemon=True)
     reader.start()
@@ -260,7 +262,11 @@ def run_conversation_with_animation(
     deadline = time.monotonic() + 75.0
     timed_out = False
     while process.poll() is None:
-        draw_fixed_screen(pack, frame_index, transcript, False, color)
+        preview = sanitize_preview_response(stream.preview())
+        provisional_transcript = list(transcript)
+        if preview:
+            _append_interpreter_response(provisional_transcript, preview)
+        draw_fixed_screen(pack, frame_index, provisional_transcript, False, color)
         frame_index = (frame_index + 1) % len(pack.frames)
         if time.monotonic() >= deadline:
             timed_out = True
@@ -274,15 +280,18 @@ def run_conversation_with_animation(
         process.kill()
         process.wait(timeout=5.0)
     reader.join(timeout=2.0)
+    final_output = stream.finalize()
 
     if timed_out:
         return "LinuxIA Interprète a pris trop de temps. J'ai arrêté cette réponse sans lancer d'action.", launch.language_mode
     if process.returncode != 0:
         return "LinuxIA Interprète n'a pas réussi à répondre. Aucune action n'a été exécutée.", launch.language_mode
-    return sanitize_response("".join(chunks), launch.language_mode), launch.language_mode
+    return sanitize_response(final_output, launch.language_mode), launch.language_mode
 
 
-def _append_interpreter_response(transcript: Deque[str], response: str) -> None:
+def _append_interpreter_response(
+    transcript: Union[List[str], Deque[str]], response: str
+) -> None:
     lines = [line.strip() for line in str(response or "").splitlines() if line.strip()]
     if not lines:
         lines = ["Je t'écoute."]
@@ -462,13 +471,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "self-test":
         result = self_test(pack)
-        buffer_probe: Deque[str] = deque(maxlen=TRANSCRIPT_LINE_LIMIT)
-        buffer_probe.extend(f"ligne-{index}" for index in range(TRANSCRIPT_LINE_LIMIT + 7))
-        result["checks"]["transcript_buffer_4000"] = (
-            len(buffer_probe) == TRANSCRIPT_LINE_LIMIT
-            and buffer_probe[0] == "ligne-7"
-            and buffer_probe[-1] == f"ligne-{TRANSCRIPT_LINE_LIMIT + 6}"
-        )
         conversation_result = conversation_self_test()
         result["conversation_ok"] = conversation_result["ok"]
         result["conversation_checks"] = conversation_result["checks"]
@@ -476,6 +478,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         for name, passed in conversation_result["checks"].items():
             result["checks"][f"conversation_{name}"] = passed
         result["checks"]["canned_greetings_removed"] = canned_greetings_removed()
+        transcript_probe = deque(
+            (str(index) for index in range(TRANSCRIPT_LINE_LIMIT + 5)),
+            maxlen=TRANSCRIPT_LINE_LIMIT,
+        )
+        result["checks"]["transcript_buffer_4000"] = (
+            len(transcript_probe) == TRANSCRIPT_LINE_LIMIT
+            and transcript_probe[0] == "5"
+        )
         result["ok"] = all(result["checks"].values())
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0 if result["ok"] else 1
