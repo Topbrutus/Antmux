@@ -1,18 +1,17 @@
-name: Diagnose LinuxIA multiline input refinements
+name: Finalize LinuxIA multiline input refinements
 
 on:
   push:
     branches:
       - linuxia-cli-scroll-integration
     paths:
-      - '.integration/linuxia-multiline-refine/patch.py'
       - '.github/workflows/apply-linuxia-multiline-refine.yml'
 
 permissions:
   contents: write
 
 jobs:
-  diagnose:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout integration branch
@@ -21,21 +20,50 @@ jobs:
           ref: linuxia-cli-scroll-integration
           fetch-depth: 0
 
-      - name: Run patch and record diagnostics
-        shell: bash
+      - name: Apply validated refinements
+        run: python3 .integration/linuxia-multiline-refine/patch.py
+
+      - name: Validate Python shell self-test
+        run: python3 -B tools/linuxia/shell/linuxia_ant_console.py self-test
+
+      - name: Validate checksum registry
         run: |
-          set +e
-          result='.integration/linuxia-multiline-refine/result.txt'
-          : > "$result"
-          python3 .integration/linuxia-multiline-refine/patch.py >> "$result" 2>&1
-          patch_status=$?
-          echo "PATCH_STATUS=$patch_status" >> "$result"
-          if [ "$patch_status" -eq 0 ]; then
-            python3 -B tools/linuxia/shell/linuxia_ant_console.py self-test >> "$result" 2>&1
-            echo "SELFTEST_STATUS=$?" >> "$result"
-          fi
+          python3 - <<'PY'
+          import hashlib
+          import unicodedata
+          from pathlib import Path
+
+          root = Path('tools/linuxia')
+          expected = {}
+          for line in (root / 'checksums.sha256').read_text(encoding='utf-8').splitlines():
+              if line.strip():
+                  digest, rel = line.split('  ', 1)
+                  expected[rel] = digest
+
+          actual = sorted(
+              p.relative_to(root).as_posix()
+              for p in root.rglob('*')
+              if p.is_file() and p.name != 'checksums.sha256'
+          )
+          assert actual == sorted(expected), 'checksum registry file list mismatch'
+
+          for rel, wanted in expected.items():
+              raw = (root / rel).read_bytes()
+              text = raw.decode('utf-8-sig')
+              canonical = unicodedata.normalize(
+                  'NFC', text.replace('\r\n', '\n').replace('\r', '\n')
+              )
+              got = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+              assert got == wanted, f'checksum mismatch: {rel}'
+          PY
+
+      - name: Commit refinements and remove staging files
+        run: |
+          set -euo pipefail
+          rm -rf .integration/linuxia-multiline-refine
+          rm -f .github/workflows/apply-linuxia-multiline-refine.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$result"
-          git commit -m 'chore(shell): record multiline refinement diagnostics'
+          git add -A
+          git commit -m 'fix(shell): keep multiline input responsive and preserve art height'
           git push origin HEAD:linuxia-cli-scroll-integration
