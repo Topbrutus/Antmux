@@ -35,27 +35,52 @@ render = replace_once(
     available_art = total_rows - fixed_rows - target_transcript
     art_rows = max(MIN_FRAME_ROWS, min(pack.height, available_art))
     transcript_rows = total_rows - fixed_rows - art_rows
+
+    roomy = (
+        art_rows == pack.height
+        and transcript_rows >= target_transcript + 2
+    )
+    if roomy:
+        transcript_rows -= 2
+    return art_rows, max(MIN_OUTPUT_ROWS, transcript_rows), roomy
 ''',
     '''    effective_prompt_rows = _effective_prompt_rows(total_rows, include_prompt, prompt_rows)
     fixed_rows = 1 + effective_prompt_rows + 3  # en-tête du journal + invite + cadre
+
+    baseline_prompt_rows = 1 if include_prompt else 0
+    baseline_fixed_rows = 1 + baseline_prompt_rows + 3
+    maximum_transcript = max(
+        MIN_OUTPUT_ROWS,
+        total_rows - baseline_fixed_rows - MIN_FRAME_ROWS,
+    )
     preferred_transcript = max(PREFERRED_OUTPUT_ROWS_MIN, total_rows // 3)
-    baseline_fixed_rows = 1 + (1 if include_prompt else 0) + 3
+    target_transcript = max(
+        MIN_OUTPUT_ROWS,
+        min(PREFERRED_OUTPUT_ROWS_MAX, preferred_transcript, maximum_transcript),
+    )
     baseline_art_rows = max(
         MIN_FRAME_ROWS,
         min(
             pack.height,
-            total_rows - baseline_fixed_rows - preferred_transcript,
+            total_rows - baseline_fixed_rows - target_transcript,
         ),
     )
+
     available_content = total_rows - fixed_rows
-    transcript_rows = max(
-        MIN_OUTPUT_ROWS,
-        min(preferred_transcript, available_content - baseline_art_rows),
+    roomy = (
+        baseline_art_rows == pack.height
+        and available_content >= baseline_art_rows + target_transcript + 2
     )
-    art_rows = max(
-        MIN_FRAME_ROWS,
-        min(pack.height, available_content - transcript_rows),
-    )
+    art_rows = baseline_art_rows
+    transcript_rows = available_content - art_rows - (2 if roomy else 0)
+    if transcript_rows < MIN_OUTPUT_ROWS:
+        roomy = False
+        art_rows = max(
+            MIN_FRAME_ROWS,
+            min(baseline_art_rows, available_content - MIN_OUTPUT_ROWS),
+        )
+        transcript_rows = available_content - art_rows
+    return art_rows, max(MIN_OUTPUT_ROWS, transcript_rows), roomy
 ''',
     "prefer shrinking log before art",
 )
