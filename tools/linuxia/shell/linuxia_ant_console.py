@@ -33,6 +33,7 @@ from render import (
     draw_fixed_screen,
     enable_ansi,
     hide_cursor,
+    maximum_prompt_rows,
     move_cursor,
     self_test,
     show_cursor,
@@ -44,21 +45,65 @@ MODULE_ROOT = Path(__file__).resolve().parent
 TRANSCRIPT_LINE_LIMIT = 4000
 
 
-def _paint_input_line(
-    prompt_row: int,
+def _input_block_layout(
     box_width: int,
     value: Sequence[str],
     cursor_index: int,
-) -> None:
+) -> Tuple[List[str], int, int]:
+    """Compose toutes les lignes physiques de saisie et la position exacte du curseur."""
     prefix = "linuxia> "
-    available = max(1, box_width - len(prefix))
+    continuation = " " * len(prefix)
+    width = max(len(prefix) + 1, int(box_width))
     text = "".join(value)
-    start = max(0, cursor_index - available + 1)
-    visible = text[start : start + available]
-    move_cursor(prompt_row, 1)
-    sys.stdout.write("\x1b[2K")
-    sys.stdout.write(prefix + visible)
-    move_cursor(prompt_row, len(prefix) + cursor_index - start + 1)
+    cursor = min(max(0, int(cursor_index)), len(text))
+    lines = [prefix]
+    row = 0
+    column = len(prefix)
+    cursor_row = 0
+    cursor_column = column
+
+    for index, raw_char in enumerate(text):
+        char = "\n" if raw_char == "\r" else raw_char
+        if char != "\n" and column >= width:
+            lines.append(continuation)
+            row += 1
+            column = len(continuation)
+        if index == cursor:
+            cursor_row = row
+            cursor_column = column
+        if char == "\n":
+            lines.append(continuation)
+            row += 1
+            column = len(continuation)
+        else:
+            lines[row] += char
+            column += 1
+
+    if cursor == len(text):
+        if column >= width:
+            lines.append(continuation)
+            row += 1
+            column = len(continuation)
+        cursor_row = row
+        cursor_column = column
+    return lines, cursor_row, cursor_column
+
+
+def _paint_input_block(
+    prompt_row: int,
+    lines: Sequence[str],
+    cursor_row: int,
+    cursor_column: int,
+    prompt_rows: int,
+    visible_start: int,
+) -> None:
+    visible = list(lines[visible_start : visible_start + prompt_rows])
+    for offset in range(prompt_rows):
+        move_cursor(prompt_row + offset, 1)
+        sys.stdout.write("\x1b[2K")
+        if offset < len(visible):
+            sys.stdout.write(visible[offset])
+    move_cursor(prompt_row + cursor_row - visible_start, cursor_column + 1)
     sys.stdout.flush()
 
 
@@ -69,7 +114,7 @@ def _read_shell_input(
     scroll_offset: int,
     command_history: Sequence[str],
 ) -> Tuple[str, int]:
-    """Lit une commande et gère PgUp/PgDn dans le journal sous Windows."""
+    """Lit une commande, conserve les collages multilignes et gère le journal."""
     if os.name != "nt":
         normalized, _, _ = transcript_scroll_state(
             pack, transcript, True, scroll_offset
@@ -92,78 +137,147 @@ def _read_shell_input(
 
     def redraw() -> Tuple[int, int, int]:
         nonlocal scroll_offset
+        box_width, _ = terminal_layout(pack)
+        input_lines, cursor_row, cursor_column = _input_block_layout(
+            box_width, value, cursor_index
+        )
+        prompt_rows = min(len(input_lines), maximum_prompt_rows(pack))
+        visible_start = max(
+            0,
+            min(
+                cursor_row - prompt_rows + 1,
+                len(input_lines) - prompt_rows,
+            ),
+        )
         scroll_offset, page_size, maximum = transcript_scroll_state(
-            pack, transcript, True, scroll_offset
+            pack,
+            transcript,
+            True,
+            scroll_offset,
+            prompt_rows=prompt_rows,
         )
         prompt_row = draw_fixed_screen(
-            pack, 0, transcript, True, color, scroll_offset
+            pack,
+            0,
+            transcript,
+            True,
+            color,
+            scroll_offset,
+            prompt_rows=prompt_rows,
         )
         show_cursor()
-        box_width, _ = terminal_layout(pack)
-        _paint_input_line(prompt_row, box_width, value, cursor_index)
+        _paint_input_block(
+            prompt_row,
+            input_lines,
+            cursor_row,
+            cursor_column,
+            prompt_rows,
+            visible_start,
+        )
         return prompt_row, page_size, maximum
+
+    def read_key_burst() -> List[str]:
+        """Regroupe un collage afin de distinguer ses retours internes de l'envoi final."""
+        result = [msvcrt.getwch()]
+        quiet_until = time.monotonic() + 0.040
+        while time.monotonic() < quiet_until:
+            drained = False
+            while msvcrt.kbhit():
+                result.append(msvcrt.getwch())
+                drained = True
+            if drained:
+                quiet_until = time.monotonic() + 0.012
+            time.sleep(0.001)
+        return result
 
     prompt_row, page_size, maximum = redraw()
     try:
         while True:
-            char = msvcrt.getwch()
-            if char in ("\r", "\n"):
-                return "".join(value).strip(), scroll_offset
-            if char == "\x03":
-                raise KeyboardInterrupt
-            if char == "\x08":
-                if cursor_index:
-                    del value[cursor_index - 1]
-                    cursor_index -= 1
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                continue
-            if char in ("\x00", "\xe0"):
-                key = msvcrt.getwch()
-                if key == "I":  # Page précédente
-                    scroll_offset = min(maximum, scroll_offset + max(1, page_size - 1))
-                    prompt_row, page_size, maximum = redraw()
-                elif key == "Q":  # Page suivante
-                    scroll_offset = max(0, scroll_offset - max(1, page_size - 1))
-                    prompt_row, page_size, maximum = redraw()
-                elif key == "K" and cursor_index:
-                    cursor_index -= 1
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                elif key == "M" and cursor_index < len(value):
+            burst = read_key_burst()
+            redraw_needed = False
+            submit = False
+            index = 0
+
+            while index < len(burst):
+                char = burst[index]
+                if char in ("\r", "\n"):
+                    next_index = index + 1
+                    if (
+                        next_index < len(burst)
+                        and burst[next_index] in ("\r", "\n")
+                        and burst[next_index] != char
+                    ):
+                        next_index += 1
+                    if next_index < len(burst):
+                        value.insert(cursor_index, "\n")
+                        cursor_index += 1
+                        redraw_needed = True
+                        index = next_index
+                        continue
+                    submit = True
+                    break
+                if char == "\x03":
+                    raise KeyboardInterrupt
+                if char == "\x08":
+                    if cursor_index:
+                        del value[cursor_index - 1]
+                        cursor_index -= 1
+                        redraw_needed = True
+                    index += 1
+                    continue
+                if char in ("\x00", "\xe0"):
+                    if index + 1 < len(burst):
+                        key = burst[index + 1]
+                        index += 2
+                    else:
+                        key = msvcrt.getwch()
+                        index += 1
+                    if key == "I":  # Page précédente
+                        scroll_offset = min(maximum, scroll_offset + max(1, page_size - 1))
+                        redraw_needed = True
+                    elif key == "Q":  # Page suivante
+                        scroll_offset = max(0, scroll_offset - max(1, page_size - 1))
+                        redraw_needed = True
+                    elif key == "K" and cursor_index:
+                        cursor_index -= 1
+                        redraw_needed = True
+                    elif key == "M" and cursor_index < len(value):
+                        cursor_index += 1
+                        redraw_needed = True
+                    elif key == "G":
+                        cursor_index = 0
+                        redraw_needed = True
+                    elif key == "O":
+                        cursor_index = len(value)
+                        redraw_needed = True
+                    elif key == "S" and cursor_index < len(value):
+                        del value[cursor_index]
+                        redraw_needed = True
+                    elif key == "H" and command_history:
+                        history_index = max(0, history_index - 1)
+                        value[:] = list(command_history[history_index])
+                        cursor_index = len(value)
+                        redraw_needed = True
+                    elif key == "P" and command_history:
+                        history_index = min(len(command_history), history_index + 1)
+                        value[:] = [] if history_index == len(command_history) else list(command_history[history_index])
+                        cursor_index = len(value)
+                        redraw_needed = True
+                    continue
+                if char == "\t":
+                    value[cursor_index:cursor_index] = list("    ")
+                    cursor_index += 4
+                    redraw_needed = True
+                elif char.isprintable():
+                    value.insert(cursor_index, char)
                     cursor_index += 1
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                elif key == "G":
-                    cursor_index = 0
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                elif key == "O":
-                    cursor_index = len(value)
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                elif key == "S" and cursor_index < len(value):
-                    del value[cursor_index]
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                elif key == "H" and command_history:
-                    history_index = max(0, history_index - 1)
-                    value[:] = list(command_history[history_index])
-                    cursor_index = len(value)
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                elif key == "P" and command_history:
-                    history_index = min(len(command_history), history_index + 1)
-                    value[:] = [] if history_index == len(command_history) else list(command_history[history_index])
-                    cursor_index = len(value)
-                    box_width, _ = terminal_layout(pack)
-                    _paint_input_line(prompt_row, box_width, value, cursor_index)
-                continue
-            if char.isprintable():
-                value.insert(cursor_index, char)
-                cursor_index += 1
-                box_width, _ = terminal_layout(pack)
-                _paint_input_line(prompt_row, box_width, value, cursor_index)
+                    redraw_needed = True
+                index += 1
+
+            if submit:
+                return "".join(value).strip(), scroll_offset
+            if redraw_needed:
+                prompt_row, page_size, maximum = redraw()
     finally:
         hide_cursor()
 
@@ -485,6 +599,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         result["checks"]["transcript_buffer_4000"] = (
             len(transcript_probe) == TRANSCRIPT_LINE_LIMIT
             and transcript_probe[0] == "5"
+        )
+        input_probe = list("abc\ndef")
+        input_lines, input_cursor_row, input_cursor_column = _input_block_layout(
+            20, input_probe, len(input_probe)
+        )
+        wrapped_lines, wrapped_cursor_row, _ = _input_block_layout(
+            14, list("123456789012"), 12
+        )
+        result["checks"]["multiline_input_newline_preserved"] = (
+            input_lines == ["linuxia> abc", "         def"]
+            and input_cursor_row == 1
+            and input_cursor_column == 12
+        )
+        result["checks"]["multiline_input_wraps_upward"] = (
+            len(wrapped_lines) == 3 and wrapped_cursor_row == 2
         )
         result["ok"] = all(result["checks"].values())
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))

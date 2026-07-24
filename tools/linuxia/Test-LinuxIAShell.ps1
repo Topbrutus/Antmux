@@ -151,6 +151,13 @@ try {
         ($scriptText -match 'PREFERRED_OUTPUT_ROWS_MIN\s*=\s*8' -and `
          $scriptText -match 'visible_log_rows_at_least_10') `
         'A standard terminal reserves at least ten visible rows for the log'
+    Add-ShellTestResult 'STATIC-MULTILINE-INPUT' `
+        ($consoleText -match '_input_block_layout' -and `
+         $consoleText -match 'read_key_burst' -and `
+         $consoleText -match 'maximum_prompt_rows' -and `
+         $consoleText -match 'prompt_rows=prompt_rows' -and `
+         $consoleText.Contains('value.insert(cursor_index, "\n")')) `
+        'Pasted text keeps internal line breaks and expands the input block upward'
     Add-ShellTestResult 'STATIC-SYSTEM-JOB-HONEST' `
         ($scriptText -match 'SYSTEM_JOB: NOT_CONNECTED' -and $conversationText -match 'SYSTEM_JOB_STATE\s*=\s*"NOT_CONNECTED"') `
         'The reception layer does not pretend that System Job is connected'

@@ -117,10 +117,35 @@ def terminal_layout(
     return box_width, safe_rows
 
 
-def _layout_metrics(pack: FramePack, total_rows: int, include_prompt: bool) -> Tuple[int, int, bool]:
+def _effective_prompt_rows(total_rows: int, include_prompt: bool, prompt_rows: int) -> int:
+    if not include_prompt:
+        return 0
+    maximum = max(
+        1,
+        total_rows - (1 + MIN_OUTPUT_ROWS + 3 + MIN_FRAME_ROWS),
+    )
+    return min(max(1, int(prompt_rows)), maximum)
+
+
+def maximum_prompt_rows(
+    pack: FramePack,
+    columns: int | None = None,
+    rows: int | None = None,
+) -> int:
+    """Nombre maximal de lignes de saisie sans masquer le journal ni l'animation minimale."""
+    _, total_rows = terminal_layout(pack, columns=columns, rows=rows)
+    return _effective_prompt_rows(total_rows, True, total_rows)
+
+
+def _layout_metrics(
+    pack: FramePack,
+    total_rows: int,
+    include_prompt: bool,
+    prompt_rows: int = 1,
+) -> Tuple[int, int, bool]:
     """Réserve d'abord un vrai viewport de journal, puis ancre l'art dans le reste."""
-    prompt_rows = 1 if include_prompt else 0
-    fixed_rows = 1 + prompt_rows + 3  # en-tête du journal + invite + cadre
+    effective_prompt_rows = _effective_prompt_rows(total_rows, include_prompt, prompt_rows)
+    fixed_rows = 1 + effective_prompt_rows + 3  # en-tête du journal + invite + cadre
     maximum_transcript = max(
         MIN_OUTPUT_ROWS,
         total_rows - fixed_rows - MIN_FRAME_ROWS,
@@ -231,9 +256,12 @@ def transcript_scroll_state(
     offset_from_bottom: int = 0,
     columns: int | None = None,
     rows: int | None = None,
+    prompt_rows: int = 1,
 ) -> Tuple[int, int, int]:
     box_width, total_rows = terminal_layout(pack, columns=columns, rows=rows)
-    _, transcript_rows, _ = _layout_metrics(pack, total_rows, include_prompt)
+    _, transcript_rows, _ = _layout_metrics(
+        pack, total_rows, include_prompt, prompt_rows
+    )
     physical_count = len(physical_transcript_lines(transcript, box_width))
     maximum = max(0, physical_count - transcript_rows)
     offset = min(max(0, int(offset_from_bottom)), maximum)
@@ -253,11 +281,15 @@ def compose_fixed_screen(
     columns: int | None = None,
     rows: int | None = None,
     transcript_offset: int = 0,
+    prompt_rows: int = 1,
 ) -> Tuple[str, int]:
     box_width, total_rows = terminal_layout(pack, columns=columns, rows=rows)
     inner_width = box_width - 2
     art_width = min(pack.width, inner_width - 2)
-    art_rows, transcript_rows, roomy = _layout_metrics(pack, total_rows, include_prompt)
+    effective_prompt_rows = _effective_prompt_rows(total_rows, include_prompt, prompt_rows)
+    art_rows, transcript_rows, roomy = _layout_metrics(
+        pack, total_rows, include_prompt, prompt_rows
+    )
     art = scaled_frame_lines(
         pack.frames[frame_index % len(pack.frames)],
         art_width,
@@ -281,7 +313,13 @@ def compose_fixed_screen(
     plain_box.append(("╰" + ("─" * (box_width - 2)) + "╯", False))
 
     normalized_offset, _, maximum_offset = transcript_scroll_state(
-        pack, transcript, include_prompt, transcript_offset, columns=columns, rows=rows
+        pack,
+        transcript,
+        include_prompt,
+        transcript_offset,
+        columns=columns,
+        rows=rows,
+        prompt_rows=prompt_rows,
     )
     if normalized_offset:
         label = f" HISTORIQUE · PgDn vers récent · +{normalized_offset}/{maximum_offset} "
@@ -304,7 +342,10 @@ def compose_fixed_screen(
 
     prompt_row = min(total_rows, len(output_lines) + 1)
     if include_prompt:
-        output_lines.append(_ui(fit_text("linuxia> ", box_width), color))
+        continuation = " " * len("linuxia> ")
+        for index in range(effective_prompt_rows):
+            value = "linuxia> " if index == 0 else continuation
+            output_lines.append(_ui(fit_text(value, box_width), color))
 
     output_lines = output_lines[:total_rows]
     return "\n".join(output_lines), prompt_row
@@ -317,9 +358,16 @@ def draw_fixed_screen(
     include_prompt: bool = False,
     color: bool = True,
     transcript_offset: int = 0,
+    prompt_rows: int = 1,
 ) -> int:
     screen, prompt_row = compose_fixed_screen(
-        pack, frame_index, transcript, include_prompt, color, transcript_offset=transcript_offset
+        pack,
+        frame_index,
+        transcript,
+        include_prompt,
+        color,
+        transcript_offset=transcript_offset,
+        prompt_rows=prompt_rows,
     )
     cursor_home()
     rendered = screen.split("\n")
@@ -360,7 +408,13 @@ def self_test(pack: FramePack) -> dict:
     scrolled, _ = compose_fixed_screen(pack, 0, sample * 4, True, False, 72, 32, transcript_offset=4)
     color_screen, _ = compose_fixed_screen(pack, 0, sample, True, True, 72, 32)
     tall, prompt_tall = compose_fixed_screen(pack, 0, sample, True, False, 72, 80)
+    multiline, prompt_multiline = compose_fixed_screen(
+        pack, 0, sample, True, False, 72, 32, prompt_rows=3
+    )
     compact_art_rows, compact_transcript_rows, _ = _layout_metrics(pack, 31, True)
+    multiline_art_rows, multiline_transcript_rows, _ = _layout_metrics(
+        pack, 31, True, prompt_rows=3
+    )
     tall_art_rows, _, _ = _layout_metrics(pack, 79, True)
     first_lines, second_lines = first.splitlines(), second.splitlines()
     wrapped = visible_transcript_lines(
@@ -389,6 +443,11 @@ def self_test(pack: FramePack) -> dict:
             "full_frame_when_tall": len(tall.splitlines()) == 79
             and prompt_tall == 79
             and tall_art_rows == pack.height,
+            "multiline_prompt_rows_reserved": len(multiline.splitlines()) == 31
+            and prompt_multiline == 29
+            and prompt_multiline < prompt_first,
+            "multiline_prompt_preserves_minimum_ui": multiline_transcript_rows >= MIN_OUTPUT_ROWS
+            and multiline_art_rows >= MIN_FRAME_ROWS,
         }
     )
     return {

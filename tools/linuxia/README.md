@@ -66,6 +66,8 @@ Le shell réserve automatiquement une zone compacte sous la fourmi lorsque la fe
 
 Le lancement du modèle résident utilise explicitement `--think=false`. Si la version locale d'Ollama ne fournit pas ce contrôle, LinuxIA refuse l'inférence plutôt que d'afficher le raisonnement interne. Un filtre défensif retire aussi les balises ou préfixes de raisonnement résiduels.
 
+Sous Windows, la saisie se développe maintenant sur plusieurs lignes. Un collage conserve ses retours internes, toutes les lignes disponibles restent visibles et le cadre remonte automatiquement à mesure que le bloc de saisie grandit; seul le dernier retour du collage, ou la touche Entrée pressée séparément, envoie le message.
+
 ## Commandes personnalisées
 
 ```text
