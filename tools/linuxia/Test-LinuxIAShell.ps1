@@ -138,6 +138,19 @@ try {
          $consoleText -match 'maxlen=TRANSCRIPT_LINE_LIMIT' -and `
          $consoleText -match 'transcript_buffer_4000') `
         'The in-memory terminal log retains exactly 4000 logical lines'
+    Add-ShellTestResult 'STATIC-PROVISIONAL-STREAM' `
+        ($conversationText -match 'class ProvisionalResponseBuffer' -and `
+         $consoleText -match 'provisional_transcript = list\(transcript\)' -and `
+         $consoleText -match 'final_output = stream\.finalize\(\)') `
+        'Streaming fragments remain provisional until a safe boundary or final event'
+    Add-ShellTestResult 'STATIC-ANTI-STUTTER' `
+        ($conversationText -match '_apply_backspaces' -and `
+         $conversationText -match '_remove_adjacent_word_stutter') `
+        'Terminal edits and accidental adjacent word stutters are normalized'
+    Add-ShellTestResult 'STATIC-LOG-VIEWPORT' `
+        ($scriptText -match 'PREFERRED_OUTPUT_ROWS_MIN\s*=\s*8' -and `
+         $scriptText -match 'visible_log_rows_at_least_10') `
+        'A standard terminal reserves at least ten visible rows for the log'
     Add-ShellTestResult 'STATIC-SYSTEM-JOB-HONEST' `
         ($scriptText -match 'SYSTEM_JOB: NOT_CONNECTED' -and $conversationText -match 'SYSTEM_JOB_STATE\s*=\s*"NOT_CONNECTED"') `
         'The reception layer does not pretend that System Job is connected'
