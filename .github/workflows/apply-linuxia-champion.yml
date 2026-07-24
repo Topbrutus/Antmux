@@ -1,0 +1,75 @@
+name: Apply LinuxIA champion integration
+
+on:
+  push:
+    branches:
+      - linuxia-cli-scroll-integration
+    paths:
+      - '.integration/linuxia-champion/**'
+      - '.github/workflows/apply-linuxia-champion.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: linuxia-cli-scroll-integration
+          fetch-depth: 0
+
+      - name: Reassemble and verify payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .integration/linuxia-champion/part-* > /tmp/linuxia_payload.b64
+          base64 -d /tmp/linuxia_payload.b64 > /tmp/linuxia_payload.tar.gz
+          echo '0b18205543fa864037d54986e5b63baec68a341e924da65d41d4a3fbe014b876  /tmp/linuxia_payload.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/linuxia_payload.tar.gz -C .
+
+      - name: Validate LinuxIA shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tools/linuxia/shell/linuxia_ant_console.py self-test
+          python3 - <<'PY'
+          import hashlib
+          import unicodedata
+          from pathlib import Path
+
+          root = Path('tools/linuxia')
+          expected = {}
+          for line in (root / 'checksums.sha256').read_text(encoding='utf-8').splitlines():
+              if line.strip():
+                  digest, rel = line.split('  ', 1)
+                  expected[rel] = digest
+
+          actual = sorted(
+              p.relative_to(root).as_posix()
+              for p in root.rglob('*')
+              if p.is_file() and p.name != 'checksums.sha256'
+          )
+          assert actual == sorted(expected), 'checksum registry file list mismatch'
+
+          for rel, wanted in expected.items():
+              raw = (root / rel).read_bytes()
+              text = raw.decode('utf-8-sig')
+              text = unicodedata.normalize('NFC', text.replace('\r\n', '\n').replace('\r', '\n'))
+              got = hashlib.sha256(text.encode('utf-8')).hexdigest()
+              assert got == wanted, f'checksum mismatch: {rel}'
+          PY
+
+      - name: Commit champion integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf .integration/linuxia-champion
+          git add -A
+          git commit -m 'feat(shell): integrate champion animation and 4000-line log'
+          git push origin HEAD:linuxia-cli-scroll-integration
