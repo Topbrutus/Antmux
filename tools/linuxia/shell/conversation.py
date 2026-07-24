@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass
 from typing import List, Sequence, Tuple
 
@@ -33,6 +34,51 @@ class ConversationLaunch:
     process: subprocess.Popen[str] | None
     error_line: str
     language_mode: str
+
+
+_STREAM_BOUNDARY_PUNCTUATION = frozenset(".!?…,:;()[]{}«»\"")
+
+
+class ProvisionalResponseBuffer:
+    """Tampon de flux : les fragments restent provisoires jusqu'à une frontière sûre."""
+
+    def __init__(self) -> None:
+        self._committed = ""
+        self._pending = ""
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _last_boundary(value: str) -> int:
+        last = -1
+        for index, char in enumerate(value):
+            if char.isspace() or char in _STREAM_BOUNDARY_PUNCTUATION:
+                last = index
+        return last
+
+    def feed(self, chunk: str) -> None:
+        text = str(chunk or "")
+        if not text:
+            return
+        with self._lock:
+            self._pending += text
+            boundary = self._last_boundary(self._pending)
+            if boundary >= 0:
+                self._committed += self._pending[: boundary + 1]
+                self._pending = self._pending[boundary + 1 :]
+
+    def snapshot(self) -> Tuple[str, str]:
+        with self._lock:
+            return self._committed, self._pending
+
+    def preview(self) -> str:
+        committed, pending = self.snapshot()
+        return committed + pending
+
+    def finalize(self) -> str:
+        with self._lock:
+            self._committed += self._pending
+            self._pending = ""
+            return self._committed
 
 
 def _creation_flags() -> int:
@@ -134,6 +180,7 @@ def build_prompt(
 Réponds au message de Gabi en français naturel.
 {_length_instruction(mode)}
 Conserve fidèlement les nombres, pourcentages, états et faits présents dans le message et le contexte.
+Évite les répétitions, les faux départs et les fragments de mots; relis ta phrase avant de répondre.
 Ne prétends jamais avoir utilisé un outil, modifié un fichier ou exécuté une action.
 SYSTEM_JOB_NOT_CONNECTED est un état interne; ne le mentionne que si Gabi demande explicitement l’état de System Job.
 
@@ -214,17 +261,69 @@ def _remove_plain_thinking(value: str) -> str:
     return "\n".join(kept)
 
 
-def sanitize_response(output: str, mode: str) -> str:
-    """Retire tout raisonnement interne et borne une réponse imprévisible."""
-    value = str(output or "")
+def _apply_backspaces(value: str) -> str:
+    """Applique les retours arrière comme un terminal au lieu de les supprimer seuls."""
+    result: List[str] = []
+    for char in str(value or ""):
+        if char == "\b":
+            if result:
+                result.pop()
+        else:
+            result.append(char)
+    return "".join(result)
+
+
+def _remove_adjacent_word_stutter(value: str) -> str:
+    """Retire les faux départs adjacents du type « anal analyser »."""
+    pattern = re.compile(
+        r"(?iu)(?=\b([^\W\d_]{4,})\s+([^\W\d_]{4,})\b)"
+    )
+    current = value
+    while True:
+        replacement = None
+        for match in pattern.finditer(current):
+            first, second = match.group(1), match.group(2)
+            left, right = first.casefold(), second.casefold()
+            if left == right or (len(right) > len(left) and right.startswith(left)):
+                replacement = (match.start(1), match.end(2), second)
+                break
+        if replacement is None:
+            return current
+        start, end, second = replacement
+        current = current[:start] + second + current[end:]
+
+
+def sanitize_preview_response(output: str) -> str:
+    """Nettoie un aperçu provisoire sans le transformer en entrée d'historique."""
+    value = _apply_backspaces(str(output or ""))
     value = re.sub(r"(?is)<think>.*?</think>", "", value)
     value = re.sub(r"(?is)<think>.*$", "", value)
     value = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", value)
-    value = value.replace("\b", "").replace("\r", "\n")
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
     value = _remove_plain_thinking(value)
     lines = [line.strip() for line in value.splitlines() if line.strip()]
     value = " ".join(lines)
     value = re.sub(r"\s+", " ", value).strip()
+    value = _remove_adjacent_word_stutter(value)
+    for prefix in ("linuxia interprète:", "linuxia interprete:", "interprète:", "interprete:", "reine:"):
+        if value.lower().startswith(prefix):
+            value = value[len(prefix) :].strip()
+            break
+    return value
+
+
+def sanitize_response(output: str, mode: str) -> str:
+    """Retire tout raisonnement interne, applique les corrections terminales et borne la réponse."""
+    value = _apply_backspaces(str(output or ""))
+    value = re.sub(r"(?is)<think>.*?</think>", "", value)
+    value = re.sub(r"(?is)<think>.*$", "", value)
+    value = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", value)
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
+    value = _remove_plain_thinking(value)
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    value = " ".join(lines)
+    value = re.sub(r"\s+", " ", value).strip()
+    value = _remove_adjacent_word_stutter(value)
     for prefix in ("linuxia interprète:", "linuxia interprete:", "interprète:", "interprete:", "reine:"):
         if value.lower().startswith(prefix):
             value = value[len(prefix) :].strip()
@@ -243,6 +342,15 @@ def conversation_self_test() -> dict:
     prompt_auto, auto_mode = build_prompt(
         "Fais une présentation détaillée de notre architecture LinuxIA.", [], "auto"
     )
+    provisional = ProvisionalResponseBuffer()
+    provisional.feed("fonc")
+    before_boundary = provisional.snapshot()
+    provisional.feed("tion ")
+    after_boundary = provisional.snapshot()
+    provisional.feed("provis")
+    before_final = provisional.snapshot()
+    finalized = provisional.finalize()
+
     checks = {
         "model_exact": MODEL_NAME == "linuxia-interprete:4b",
         "think_disabled_exact": OLLAMA_THINK_ARGUMENT == "--think=false",
@@ -254,6 +362,11 @@ def conversation_self_test() -> dict:
         "auto_long": auto_mode == "long" and "maximum 260 mots" in prompt_auto,
         "no_think": prompt.startswith("/no_think") and prompt.endswith("/no_think"),
         "no_tool_claim": "Ne prétends jamais" in prompt,
+        "anti_stutter_prompt": "Évite les répétitions" in prompt,
+        "provisional_not_committed_before_boundary": before_boundary == ("", "fonc"),
+        "provisional_commits_on_boundary": after_boundary == ("fonction ", ""),
+        "provisional_final_flush": before_final == ("fonction ", "provis")
+        and finalized == "fonction provis",
         "sanitize_think": sanitize_response(
             "<think>raisonnement</think> Reine: Ça va bien, merci!", "court"
         )
@@ -266,6 +379,14 @@ def conversation_self_test() -> dict:
             "Thinking...\nAnswer: Ça va bien, merci!", "court"
         )
         == "Ça va bien, merci!",
+        "sanitize_terminal_backspaces": sanitize_response(
+            "Je dois anal\b\b\b\banalyser cela.", "court"
+        )
+        == "Je dois analyser cela.",
+        "sanitize_prefix_stutter": sanitize_response(
+            "Je n’ai pas de fonction ni d’études person personnelles.", "court"
+        )
+        == "Je n’ai pas de fonction ni d’études personnelles.",
         "no_canned_greeting": "Bonjour Gabi." not in prompt and "Je suis prête." not in prompt,
         "system_job_honest": SYSTEM_JOB_STATE == "NOT_CONNECTED" and "SYSTEM_JOB_NOT_CONNECTED" in prompt,
     }
