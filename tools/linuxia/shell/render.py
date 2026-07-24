@@ -17,6 +17,8 @@ ANSI_RESET = "\x1b[0m"
 ANSI_PURPLE = "\x1b[38;5;141m"
 ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
 MIN_OUTPUT_ROWS = 3
+PREFERRED_OUTPUT_ROWS_MIN = 8
+PREFERRED_OUTPUT_ROWS_MAX = 12
 MIN_FRAME_ROWS = 8
 
 
@@ -116,14 +118,29 @@ def terminal_layout(
 
 
 def _layout_metrics(pack: FramePack, total_rows: int, include_prompt: bool) -> Tuple[int, int, bool]:
+    """Réserve d'abord un vrai viewport de journal, puis ancre l'art dans le reste."""
     prompt_rows = 1 if include_prompt else 0
-    fixed_without_art = 1 + MIN_OUTPUT_ROWS + prompt_rows + 3
-    roomy = total_rows >= fixed_without_art + pack.height + 2
-    padding_rows = 2 if roomy else 0
-    available_art = total_rows - fixed_without_art - padding_rows
+    fixed_rows = 1 + prompt_rows + 3  # en-tête du journal + invite + cadre
+    maximum_transcript = max(
+        MIN_OUTPUT_ROWS,
+        total_rows - fixed_rows - MIN_FRAME_ROWS,
+    )
+    preferred_transcript = max(PREFERRED_OUTPUT_ROWS_MIN, total_rows // 3)
+    target_transcript = max(
+        MIN_OUTPUT_ROWS,
+        min(PREFERRED_OUTPUT_ROWS_MAX, preferred_transcript, maximum_transcript),
+    )
+
+    available_art = total_rows - fixed_rows - target_transcript
     art_rows = max(MIN_FRAME_ROWS, min(pack.height, available_art))
-    box_rows = art_rows + 3 + padding_rows
-    transcript_rows = total_rows - box_rows - 1 - prompt_rows
+    transcript_rows = total_rows - fixed_rows - art_rows
+
+    roomy = (
+        art_rows == pack.height
+        and transcript_rows >= target_transcript + 2
+    )
+    if roomy:
+        transcript_rows -= 2
     return art_rows, max(MIN_OUTPUT_ROWS, transcript_rows), roomy
 
 
@@ -342,7 +359,9 @@ def self_test(pack: FramePack) -> dict:
     second, prompt_second = compose_fixed_screen(pack, distinct, sample, True, False, 72, 32)
     scrolled, _ = compose_fixed_screen(pack, 0, sample * 4, True, False, 72, 32, transcript_offset=4)
     color_screen, _ = compose_fixed_screen(pack, 0, sample, True, True, 72, 32)
-    tall, prompt_tall = compose_fixed_screen(pack, 0, sample, True, False, 72, 70)
+    tall, prompt_tall = compose_fixed_screen(pack, 0, sample, True, False, 72, 80)
+    compact_art_rows, compact_transcript_rows, _ = _layout_metrics(pack, 31, True)
+    tall_art_rows, _, _ = _layout_metrics(pack, 79, True)
     first_lines, second_lines = first.splitlines(), second.splitlines()
     wrapped = visible_transcript_lines(
         ["LinuxIA Interprète> Une réponse assez longue qui doit revenir proprement à la ligne."], 32, 3
@@ -358,6 +377,8 @@ def self_test(pack: FramePack) -> dict:
             "no_clear_sequence_in_frame": "\x1b[2J" not in first and "\x1b[2J" not in second,
             "no_flashing_status": "LINUXIA TRAVAILLE" not in first and "·  ·  ·" not in first,
             "compact_output_rows": len(first_lines) == 31 and prompt_first == 31,
+            "visible_log_rows_at_least_10": compact_transcript_rows >= 10
+            and compact_art_rows >= MIN_FRAME_ROWS,
             "transcript_word_wrap": len(wrapped) >= 2 and all(len(line) <= 32 for line in wrapped),
             "latest_message_end_visible": bool(wrapped) and wrapped[-1].endswith("ligne."),
             "transcript_above_title": first.find("HISTORIQUE") < first.find("LINUXIA CLI"),
@@ -365,7 +386,9 @@ def self_test(pack: FramePack) -> dict:
             "animation_anchor_stable": first.find("LINUXIA CLI") == second.find("LINUXIA CLI")
             and prompt_first == prompt_second,
             "ansi_truecolor_preserved": "\x1b[38;2;" in color_screen,
-            "full_frame_when_tall": len(tall.splitlines()) == 69 and prompt_tall == 69,
+            "full_frame_when_tall": len(tall.splitlines()) == 79
+            and prompt_tall == 79
+            and tall_art_rows == pack.height,
         }
     )
     return {
