@@ -274,17 +274,23 @@ def _apply_backspaces(value: str) -> str:
 
 
 def _remove_adjacent_word_stutter(value: str) -> str:
-    """Retire les faux départs adjacents du type « anal analyser »."""
-    pattern = re.compile(
+    """Retire les répétitions exactes et les faux départs adjacents."""
+    exact_duplicate = re.compile(r"(?iu)\b([^\W\d_]{2,})\s+\1\b")
+    prefix_pair = re.compile(
         r"(?iu)(?=\b([^\W\d_]{4,})\s+([^\W\d_]{4,})\b)"
     )
     current = value
     while True:
+        collapsed = exact_duplicate.sub(r"\1", current)
+        if collapsed != current:
+            current = collapsed
+            continue
+
         replacement = None
-        for match in pattern.finditer(current):
+        for match in prefix_pair.finditer(current):
             first, second = match.group(1), match.group(2)
             left, right = first.casefold(), second.casefold()
-            if left == right or (len(right) > len(left) and right.startswith(left)):
+            if left != right and len(right) > len(left) and right.startswith(left):
                 replacement = (match.start(1), match.end(2), second)
                 break
         if replacement is None:
@@ -387,6 +393,14 @@ def conversation_self_test() -> dict:
             "Je n’ai pas de fonction ni d’études person personnelles.", "court"
         )
         == "Je n’ai pas de fonction ni d’études personnelles.",
+        "sanitize_short_duplicate_stutter": sanitize_response(
+            "Je Je ne peux pas agir.", "court"
+        )
+        == "Je ne peux pas agir.",
+        "preview_short_duplicate_stutter": sanitize_preview_response(
+            "Je Je ne peux pas agir."
+        )
+        == "Je ne peux pas agir.",
         "no_canned_greeting": "Bonjour Gabi." not in prompt and "Je suis prête." not in prompt,
         "system_job_honest": SYSTEM_JOB_STATE == "NOT_CONNECTED" and "SYSTEM_JOB_NOT_CONNECTED" in prompt,
     }
