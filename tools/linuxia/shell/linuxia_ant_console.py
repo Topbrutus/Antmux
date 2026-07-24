@@ -179,14 +179,17 @@ def _read_shell_input(
     def read_key_burst() -> List[str]:
         """Regroupe un collage afin de distinguer ses retours internes de l'envoi final."""
         result = [msvcrt.getwch()]
-        quiet_until = time.monotonic() + 0.040
+        time.sleep(0.002)
+        if not msvcrt.kbhit():
+            return result
+        quiet_until = time.monotonic() + 0.012
         while time.monotonic() < quiet_until:
             drained = False
             while msvcrt.kbhit():
                 result.append(msvcrt.getwch())
                 drained = True
             if drained:
-                quiet_until = time.monotonic() + 0.012
+                quiet_until = time.monotonic() + 0.006
             time.sleep(0.001)
         return result
 
