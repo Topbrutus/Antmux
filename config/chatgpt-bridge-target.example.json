@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "target_type": "nino-tile",
+  "tile_number": 1,
+  "allowed_url_prefixes": [
+    "https://chatgpt.com/"
+  ],
+  "require_visible": true,
+  "require_loaded": true,
+  "require_prompt_element": true,
+  "selected_by": "Brutus"
+}
