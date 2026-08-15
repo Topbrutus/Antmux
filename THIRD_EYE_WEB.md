@@ -77,3 +77,47 @@ Le code est prêt à être servi, mais `antmux.com` n’est pas encore relié à
 4. Seulement après cette preuve, ajouter une persistance serveur et un véritable registre de Fourmis.
 
 **Signé : Rob**
+
+---
+
+## 2026-08-15 — Générateur temporel autonome — Intention — Rob
+
+### Correction de périmètre
+
+La façade officielle `index.html` ne doit plus être considérée comme le générateur et ne doit pas être modifiée pour cette étape. Le générateur doit être une **page supplémentaire autonome** pouvant être reliée depuis la façade par un simple bouton.
+
+### Architecture retenue
+
+Créer `generator/` comme application statique indépendante fondée sur **Web Components / Custom Elements**, JavaScript natif et SVG. Aucun React, aucun framework et aucun backend obligatoire.
+
+### Loi de dépendance
+
+Une seule source dynamique : l’horloge UTC de la Terre fournie par le navigateur. Toutes les valeurs secondaires sont dérivées, jamais éditées indépendamment :
+
+`temps UTC -> 7 phases temporelles -> code base 7 -> Triforce / branche / orientation -> phase 273 -> pôle -> 7 fonctions internes -> emblème`.
+
+### Sept échelles temporelles
+
+- cycle 700 ms, quantum 100 ms ;
+- cycle 7 s, quantum 1 s ;
+- cycle 7 min, quantum 1 min ;
+- cycle 7 h, quantum 1 h ;
+- cycle 7 jours, quantum 1 jour ;
+- cycle 7 semaines, quantum 1 semaine ;
+- cycle 7 années calendaires, quantum 1 année.
+
+### Interaction minimale
+
+- mode vivant lié à `Date.now()` ;
+- pause ;
+- pas manuel de 100 ms ou 1 seconde ;
+- capture d’un état ;
+- réincarnation de la capture et comparaison d’empreinte ;
+- export JSON ;
+- affichage explicite des liens de dépendance.
+
+### Garde-fou scientifique
+
+Le terme « lecteur neuronal temporel » désigne un **lecteur d’états synthétiques** dérivés du temps. Il ne lit aucun neurone biologique et ne constitue pas une mesure de conscience.
+
+**Signé : Rob**
