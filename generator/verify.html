@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#070b10" />
+  <title>Antmux — Vérification indépendante</title>
+  <style>
+    :root{color-scheme:dark;--bg:#070b10;--panel:#0c141d;--line:#263949;--text:#edf7ff;--muted:#91a7b7;--ok:#91e5af;--bad:#ff9ca9;--gold:#e6bc71}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 50% 0,#12283a 0,var(--bg) 52%);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(1180px,94vw);margin:auto;padding:40px 0 64px} h1{font-size:clamp(38px,7vw,72px);margin:.2em 0;letter-spacing:-.045em} p{color:var(--muted);line-height:1.6}.tag{font:700 12px ui-monospace,monospace;letter-spacing:.16em;color:#78d9ff}.card{background:linear-gradient(180deg,#101a25,#0a1118);border:1px solid var(--line);border-radius:20px;padding:20px;margin-top:18px;box-shadow:0 20px 70px #0005}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.ok,.bad{font:800 15px ui-monospace,monospace;border-radius:999px;padding:9px 12px}.ok{color:var(--ok);border:1px solid #326847}.bad{color:var(--bad);border:1px solid #7a3740}button,a.button{background:#122232;color:var(--text);border:1px solid #35546b;border-radius:11px;padding:10px 14px;font-weight:750;text-decoration:none;cursor:pointer}button:hover,a.button:hover{border-color:#78d9ff}button.primary{background:var(--gold);border-color:#f3d498;color:#1a1309}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px}th,td{text-align:left;padding:10px 9px;border-bottom:1px solid #1d2c38}th{color:#8eaabd;font-size:11px;text-transform:uppercase;letter-spacing:.08em}.pass td:first-child{color:var(--ok);font-weight:800}.fail td:first-child{color:var(--bad);font-weight:800}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#f4d896}.scope{border-left:3px solid var(--gold);padding-left:14px}@media(max-width:720px){table{font-size:12px}th:nth-child(4),td:nth-child(4){display:none}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="tag">ANTMUX · PUBLIC VERIFIER · CLIENT-SIDE ONLY</div>
+  <h1>Vérification indépendante</h1>
+  <p>Ce calculateur recalcule localement les invariants mathématiques publiés d’Antmux. Il ne contacte aucun serveur Antmux et n’inclut aucune partie du serveur dédié ou de l’application complète.</p>
+  <div class="card">
+    <div class="toolbar">
+      <span id="status" class="ok">CALCUL…</span>
+      <button id="rerun" class="primary">Recalculer</button>
+      <button id="export">Exporter le rapport JSON</button>
+      <a class="button" href="./">Ouvrir le générateur expérimental</a>
+    </div>
+    <table>
+      <thead><tr><th>État</th><th>Invariant</th><th>Calculé</th><th>Attendu</th></tr></thead>
+      <tbody id="checks"></tbody>
+    </table>
+  </div>
+  <div class="card scope">
+    <strong>Portée de la preuve</strong>
+    <p>Un résultat PASS confirme uniquement que cette implémentation recalcule les identités arithmétiques, combinatoires et temporelles indiquées. Il ne démontre pas une propriété de conscience, une loi physique nouvelle, ni la valeur commerciale d’Antmux.</p>
+  </div>
+</main>
+<script src="./verifier.js"></script>
+</body>
+</html>
