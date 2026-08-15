@@ -64,3 +64,52 @@ Créer la première base publique d’**Antmux** en deux pièces :
 Prochaine étape sûre : exécuter le moteur dans un environnement de test public/CI, ajouter des tests automatisés, puis construire la première simulation de colonie sans modifier les invariants canoniques avant comparaison expérimentale.
 
 **Signé : Rob**
+
+---
+
+## 2026-08-15 — Correction de l’horloge septénaire — Intention — Rob
+
+### Cause
+
+L’horloge initiale mélangeait des quantités naturelles différentes (`1000 ms`, `60 s`, `60 min`, `24 h`, `7 jours`, `52 semaines`, `7 ans`). La règle recherchée est plus stricte : chaque échelle doit appliquer la même division exacte par sept.
+
+### Intention
+
+Remplacer l’horloge par :
+
+- `700 ms / 7 = 100 ms`
+- `7 s / 7 = 1 s`
+- `7 min / 7 = 1 min`
+- `7 h / 7 = 1 h`
+- `7 jours / 7 = 1 jour`
+- `7 semaines / 7 = 1 semaine`
+- `7 ans / 7 = 1 an`
+
+Conserver `1/7 = 0.(142857)` comme cycle arithmétique indépendant, sans le confondre avec une conversion physique entre unités temporelles.
+
+**Signé : Rob**
+
+## 2026-08-15 — Correction de l’horloge septénaire — Résultat — Rob
+
+### Commits
+
+- `antmux_formula.py` : `d6952e1795f662a6842df9c157d38c382f19e9ba`
+- `README.md` : `0aa2d5ace8df4a8301235e60dd380a0fc64a700c`
+
+### Résultat
+
+- Horloge canonique remplacée dans le moteur.
+- Assertions ajoutées pour garantir les sept résultats exacts.
+- README corrigé pour présenter l’horloge comme construction multi-échelle interne.
+- Le cycle `1/7 = 0.(142857)` reste dans le noyau arithmétique NEO et n’est plus présenté comme conséquence des conversions temporelles.
+- Aucun autre invariant Antmux modifié.
+
+### Statut
+
+**OK — horloge septénaire alignée sur une règle unique de division par sept.**
+
+### Reprise
+
+Exécuter `antmux_formula.py` dans une CI reste la prochaine preuve opérationnelle à ajouter.
+
+**Signé : Rob**
