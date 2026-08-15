@@ -128,16 +128,16 @@ NEO_MUTATION = Fraction(1, 999_999)
 
 
 # -----------------------------------------------------------------------------
-# 6. HORLOGE SEPTÉNAIRE
+# 6. HORLOGE SEPTÉNAIRE — SEPT DIVISIONS EXACTES
 # -----------------------------------------------------------------------------
 
 HORLOGE_SOURCE = (
-    ("milliseconde", 1000),
-    ("seconde", 60),
-    ("minute", 60),
-    ("heure", 24),
+    ("milliseconde", 700),
+    ("seconde", 7),
+    ("minute", 7),
+    ("heure", 7),
     ("jour", 7),
-    ("semaine", 52),
+    ("semaine", 7),
     ("annee", 7),
 )
 
@@ -260,6 +260,16 @@ def verifier() -> None:
     assert NEO_NUM == 571_429
     assert NEO == Fraction(4, 7) + NEO_MUTATION
 
+    assert HORLOGE_SEPTENAIRE == (
+        ("milliseconde", Fraction(100, 1)),
+        ("seconde", Fraction(1, 1)),
+        ("minute", Fraction(1, 1)),
+        ("heure", Fraction(1, 1)),
+        ("jour", Fraction(1, 1)),
+        ("semaine", Fraction(1, 1)),
+        ("annee", Fraction(1, 1)),
+    )
+
     assert len(ADRESSES) == 2401
     assert min(ADRESSES) == 0
     assert max(ADRESSES) == 2400
@@ -287,6 +297,7 @@ def rapport() -> str:
             f"rho={RHO}",
             f"NEO_num={NEO_NUM}",
             f"NEO={NEO_NUM}/999999≈{float(NEO):.12f}",
+            "horloge=700ms/7 | 7s/7 | 7min/7 | 7h/7 | 7j/7 | 7sem/7 | 7ans/7",
             f"phases_distinctes={len(PHASES)}",
             f"adresses_Z7^4={len(ADRESSES)}",
             "verification=OK",
