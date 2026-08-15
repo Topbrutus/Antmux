@@ -121,3 +121,55 @@ Une seule source dynamique : l’horloge UTC de la Terre fournie par le navigate
 Le terme « lecteur neuronal temporel » désigne un **lecteur d’états synthétiques** dérivés du temps. Il ne lit aucun neurone biologique et ne constitue pas une mesure de conscience.
 
 **Signé : Rob**
+
+---
+
+## 2026-08-15 — Générateur temporel autonome — Résultat — Rob
+
+### Fichiers créés
+
+- `generator/index.html`
+- `generator/antmux-generator.js`
+- `generator/README.md`
+
+### Commits
+
+- Intention : `ec8baee4d816c0554fdcc76a5469b0442b5a0d3a`
+- Page autonome : `e0bd20331407b26425eb3485ada94d2ee0c7d2d2`
+- Web Component / moteur temporel : `1268e9e884a5dd0fe87e3c41665c7398ce4e7488`
+- Documentation du générateur : `7db483176169748dc9d1ebc1f7c2547ecebdf284`
+
+### Résultat
+
+- Aucune modification de `index.html`, `styles.css` ou `app.js` pendant cette étape.
+- `generator/index.html` est une page indépendante qui instancie `<antmux-world-generator>`.
+- Le Web Component possède son propre Shadow DOM, ses styles et sa mécanique.
+- L'état vivant est ancré sur `Date.now()` et quantifié à 100 ms.
+- Sept phases temporelles de zéro à six sont recalculées : 700 ms, 7 s, 7 min, 7 h, 7 jours, 7 semaines et 7 années calendaires.
+- Les sept phases forment un code en base sept ; Triforce, branche et orientation en sont dérivées, puis la phase canonique modulo 273, le pôle et l'adresse modulo 2401.
+- Les sept fonctions internes sont calculées depuis la phase et normalisées.
+- L'emblème SVG est entièrement calculé depuis l'état courant.
+- Les commandes Pause, Reprendre, +100 ms, +1 s et saisie d'un timestamp permettent d'examiner mécaniquement les transitions.
+- Capture, réincarnation par recalcul, empreinte SHA-256 et export JSON sont intégrés.
+- `generator/README.md` contient le bouton minimal à ajouter plus tard à la façade : `<a href="/generator/">Ouvrir le générateur Antmux</a>`.
+
+### Vérifications directes
+
+- `generator/index.html` relu depuis GitHub sur `main`.
+- Début de `generator/antmux-generator.js` relu depuis GitHub sur `main` ; constantes et chaîne de dérivation présentes.
+- Aucun framework ni dépendance externe ajouté.
+- Aucun secret ajouté.
+- La façade officielle n'a pas été modifiée pendant cette étape.
+
+### Limite actuelle
+
+Le Web Component n'a pas encore été exécuté dans un navigateur public depuis cette session. La preuve suivante doit être un déploiement de `generator/` sur GitHub Pages ou sur l'hébergement existant, puis un test visuel et fonctionnel réel.
+
+### Reprise
+
+1. Servir `generator/` comme page statique.
+2. Tester en navigateur : temps vivant, pause, pas, capture, réincarnation, export.
+3. Corriger uniquement sur preuve d'écart.
+4. Ajouter ensuite un seul bouton sur la façade officielle, sans recopier le moteur dans la façade.
+
+**Signé : Rob**
