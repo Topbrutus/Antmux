@@ -173,3 +173,25 @@ Le Web Component n'a pas encore été exécuté dans un navigateur public depuis
 4. Ajouter ensuite un seul bouton sur la façade officielle, sans recopier le moteur dans la façade.
 
 **Signé : Rob**
+
+---
+
+## 2026-08-15 — Frontière publique / privée — Intention — Rob
+
+### État vérifié avant action
+
+- `Topbrutus/Antmux` est public sur `main`.
+- Le générateur public et le vérificateur doivent rester utilisables sans dépendre du serveur dédié Antmux.
+- Une recherche du dépôt public n’a retourné aucun résultat évident pour les termes `server`, `dedicated`, `backend`, `API`, `token` ou `secret`.
+- Le paquet local `site.zip` a été inspecté uniquement pour repérer un risque de divulgation. Aucun code de backend dédié ou secret exploitable n’a été identifié dans les fichiers applicatifs visibles de cette sauvegarde.
+
+### Intention
+
+1. Définir une frontière écrite entre la surface publique vérifiable et l’application complète privée.
+2. Ne publier aucun code de serveur dédié, topologie d’infrastructure, identifiant sensible, secret, clé API, mémoire privée ou orchestration propriétaire.
+3. Ajouter des exclusions Git défensives pour empêcher l’ajout accidentel de ces catégories.
+4. Conserver le dépôt sans licence open source par défaut et documenter les droits réservés sans prétendre protéger les mathématiques abstraites elles-mêmes.
+5. Ajouter un second calculateur public strictement indépendant : il recalcule les invariants mathématiques Antmux dans le navigateur, produit PASS/FAIL et exporte un rapport, sans connaître l’application complète ni le serveur dédié.
+6. Ne pas modifier la façade officielle du site pendant cette opération.
+
+**Signé : Rob**
