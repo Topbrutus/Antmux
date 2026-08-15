@@ -32,6 +32,7 @@ jobs:
           node --check generator/antmux-generator.js
           node --check generator/antmux-cortex.js
           node --check generator/antmux-worker.js
+          node --check generator/verifier.js
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
