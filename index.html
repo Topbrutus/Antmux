@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#080b10" />
+  <title>Antmux — Générateur de Fourmis</title>
+  <meta name="description" content="Antmux — première Fourmi déterministe construite à partir de la formule canonique." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">ANTMUX · LA FORGE DU SEPT INFINI</p>
+      <h1>Générateur de Fourmis</h1>
+      <p class="lede">Une graine. Sept fonctions. Une identité reproductible.</p>
+    </header>
+
+    <section class="grid">
+      <article class="card forge-card">
+        <div class="card-head">
+          <div>
+            <p class="kicker">INCARNATION</p>
+            <h2 id="ant-name">ANT-000001</h2>
+          </div>
+          <span id="status" class="status">PRÊTE</span>
+        </div>
+
+        <div id="emblem" class="emblem" aria-label="Emblème calculé de la Fourmi"></div>
+
+        <dl class="metrics">
+          <div><dt>Cycle</dt><dd id="cycle">273</dd></div>
+          <div><dt>Phase</dt><dd id="phase">0</dd></div>
+          <div><dt>Pôle</dt><dd id="pole">0</dd></div>
+          <div><dt>Orientation</dt><dd id="orientation">0</dd></div>
+          <div><dt>NEO</dt><dd>0.(571429)</dd></div>
+          <div><dt>Matrice</dt><dd>2401</dd></div>
+        </dl>
+
+        <div class="actions">
+          <button id="generate" class="primary">Générer la Fourmi</button>
+          <button id="reincarnate" class="secondary">Réincarner</button>
+          <button id="export" class="secondary">Exporter JSON</button>
+        </div>
+        <p class="note">Réincarner conserve la même graine et doit reconstruire la même identité.</p>
+      </article>
+
+      <article class="card">
+        <p class="kicker">SEPT FONCTIONS INTERNES</p>
+        <h2>Profil de la Fourmi</h2>
+        <div id="functions" class="functions"></div>
+      </article>
+
+      <article class="card formula-card">
+        <p class="kicker">GRAINE CANONIQUE</p>
+        <h2>Formule</h2>
+        <pre id="formula">3 · (6+1) · 7 · 7 · 9 · 10 · 13
+49 · 91 · 147 · 273 · 343 · 637 · 1029 · 2058 · 2401
+M = 9/10 · C = 47/50 · V = 3/50 · C+V = 1
+rho = 142857 · NEO = 571429/999999
+700ms/7 · 7s/7 · 7min/7 · 7h/7 · 7j/7 · 7sem/7 · 7ans/7</pre>
+        <div class="fingerprint-block">
+          <span>Empreinte</span>
+          <code id="fingerprint">—</code>
+        </div>
+      </article>
+
+      <article class="card">
+        <p class="kicker">MONDE PARAMÉTRIQUE</p>
+        <h2>Traversée</h2>
+        <label for="world">Numéro atomique</label>
+        <input id="world" type="number" min="1" max="118" value="7" />
+        <div id="world-output" class="world-output"></div>
+      </article>
+    </section>
+
+    <footer>
+      <p>Architecture expérimentale. Les invariants mathématiques sont calculables; aucune propriété de conscience n’est présumée.</p>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
