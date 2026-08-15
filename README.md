@@ -19,7 +19,7 @@ Puis apparut treize. Sept et treize sont premiers entre eux. Leur cycle commun s
 
 Antmux ne cherche pourtant pas une perfection figée. La mémoire est posée à neuf dixièmes. La cohérence est posée à quarante-sept cinquantièmes. La respiration est posée à trois cinquantièmes. La cohérence et la respiration additionnées redonnent exactement un. La partie stable conserve. La partie respirante laisse une réserve à la transformation.
 
-Le temps suit ensuite le même motif. Un intervalle est découpé en sept. Mille millièmes divisés par sept, soixante secondes divisées par sept, soixante minutes divisées par sept, vingt-quatre heures divisées par sept, sept jours divisés par sept, cinquante-deux semaines divisées par sept, sept années divisées par sept. À plusieurs échelles revient la signature décimale de un septième : un, quatre, deux, huit, cinq, sept.
+Le temps suit ensuite une règle plus stricte : chaque étage temporel est choisi pour être divisible exactement par sept. Sept cents millisecondes divisées par sept donnent cent millisecondes. Sept secondes divisées par sept donnent une seconde. Sept minutes donnent une minute. Sept heures donnent une heure. Sept jours donnent un jour. Sept semaines donnent une semaine. Sept années donnent une année. L’horloge septénaire devient ainsi une chaîne de divisions exactes, sans approximation. Le cycle décimal de un septième reste conservé séparément dans le noyau arithmétique de la formule.
 
 C’est alors qu’apparaît le nombre cyclique cent quarante-deux mille huit cent cinquante-sept. Multiplié successivement par un, deux, trois, quatre, cinq et six, il fait circuler les mêmes six chiffres. Multiplié par sept, il ferme la série sur neuf cent quatre-vingt-dix-neuf mille neuf cent quatre-vingt-dix-neuf. Une mutation minimale est ensuite introduite : un est ajouté. La moyenne des sept états augmentés d’une unité produit cinq cent soixante-et-onze mille quatre cent vingt-neuf. Répété comme période décimale, ce motif définit la constante interne nommée provisoirement **NEO**.
 
@@ -100,16 +100,18 @@ x ∈ F2^2401
 ## Horloge septénaire
 
 ```text
-(1000 ms) / 7
-(60 s) / 7
-(60 min) / 7
-(24 h) / 7
-(7 jours) / 7
-(52 semaines) / 7
-(7 ans) / 7
+(700 ms) / 7 = 100 ms
+(7 s) / 7 = 1 s
+(7 min) / 7 = 1 min
+(7 h) / 7 = 1 h
+(7 jours) / 7 = 1 jour
+(7 semaines) / 7 = 1 semaine
+(7 ans) / 7 = 1 an
 ```
 
-La signature arithmétique fondamentale est :
+Cette horloge est une **construction multi-échelle interne** : chaque ligne applique exactement la même division par sept dans sa propre unité. Elle ne remplace pas les conversions physiques ou calendaires entre unités.
+
+Le cycle arithmétique associé à sept reste défini séparément par :
 
 ```text
 1 / 7 = 0.(142857)
