@@ -1,0 +1,38 @@
+# Antmux — ne pas publier de secrets ou d'infrastructure privée
+.env
+.env.*
+!.env.example
+
+# Clés, certificats, identifiants
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa*
+id_ed25519*
+credentials*
+secrets*
+
+# Application complète / serveur dédié — hors dépôt public
+server/
+backend/
+dedicated/
+private/
+infra/private/
+ops/private/
+deploy/private/
+
+# Données et mémoires privées
+*.sqlite
+*.sqlite3
+*.db
+private-data/
+memory/private/
+
+# Artefacts locaux
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
