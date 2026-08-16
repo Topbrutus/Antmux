@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Antmux — Carrousel</title>
+  <meta name="description" content="Carrousel Antmux à fenêtre mémoire contrôlée pour les grandes collections d’images." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="../" aria-label="Retour à l’application Antmux">
+      <span class="brand-mark">A/</span>
+      <span>ANTMUX<span class="brand-dot">.</span>CARROUSEL</span>
+    </a>
+    <nav class="site-nav" aria-label="Navigation principale">
+      <a href="../">Application</a>
+      <a href="../generator/">Générateur</a>
+      <a href="../generator/verify.html">Vérifier</a>
+    </nav>
+  </header>
+
+  <main class="page-shell">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow"><span class="pulse"></span> ARCHIVE VIVANTE · FLUX 01</p>
+        <h1 id="page-title">La galerie<br /><em>qui respire.</em></h1>
+        <p class="lede">Une constellation d’images. Cinq présences actives. Le reste demeure en réserve jusqu’au moment où vous l’appelez.</p>
+      </div>
+      <div class="memory-readout" aria-label="Mémoire active du carrousel">
+        <span class="readout-label">FENÊTRE MÉMOIRE</span>
+        <strong><span id="active-count">5</span><small> / <span id="total-count">—</span></small></strong>
+        <span class="readout-note">noyaux visuels actifs</span>
+      </div>
+    </section>
+
+    <section class="carousel" aria-label="Carrousel d’images">
+      <div class="carousel-chrome chrome-top"><span>ANTMUX / IMAGE FIELD</span><span id="collection-state">SYNCHRONISATION</span></div>
+      <div id="stage" class="stage" aria-live="polite">
+        <div class="loading-state"><span class="loader"></span><span>Ouverture du champ visuel…</span></div>
+      </div>
+      <div class="carousel-chrome chrome-bottom"><span id="current-name">—</span><span id="current-index">0000</span></div>
+    </section>
+
+    <section class="controls" aria-label="Commandes du carrousel">
+      <button id="previous" class="control-button" type="button" aria-label="Image précédente">← <span>PRÉCÉDENTE</span></button>
+      <div class="center-controls">
+        <button id="play" class="play-button" type="button" aria-label="Lancer le défilement automatique" aria-pressed="false"><span class="play-icon">▶</span><span id="play-label">DÉFILEMENT</span></button>
+        <button id="random" class="control-button quiet" type="button">✦ <span>IMPULSION</span></button>
+      </div>
+      <button id="next" class="control-button" type="button" aria-label="Image suivante"><span>SUIVANTE</span> →</button>
+    </section>
+
+    <div class="progress-line" aria-hidden="true"><span id="progress"></span></div>
+    <p class="hint">Glissez, utilisez les flèches ou laissez le flux choisir la prochaine image.</p>
+  </main>
+
+  <footer class="footer"><span>ANTMUX / IMAGE</span><span>LA BEAUTÉ DU DÉCALAGE</span><span id="status">PRÊT</span></footer>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
