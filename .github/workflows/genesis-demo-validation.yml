@@ -4,12 +4,15 @@ on:
   push:
     branches:
       - lab/public-research-v1
+      - main
     paths:
-      - 'laboratoire/genesis/**'
+      - 'index.html'
+      - 'laboratoire/**'
       - '.github/workflows/genesis-demo-validation.yml'
   pull_request:
     paths:
-      - 'laboratoire/genesis/**'
+      - 'index.html'
+      - 'laboratoire/**'
       - '.github/workflows/genesis-demo-validation.yml'
   workflow_dispatch:
 
@@ -19,7 +22,7 @@ permissions:
 jobs:
   validate-demo:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -56,6 +59,18 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      - name: Verify Antmux home to laboratory to Genesis in real Chromium
+        run: node laboratoire/browser-public-site.mjs
+
+      - name: Upload public laboratory navigation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: antmux-lab-browser-evidence
+          path: .build/antmux-lab-browser-evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Build deployable public DEMO bundle
         run: node laboratoire/genesis/build-public-bundle.mjs
 
@@ -64,5 +79,16 @@ jobs:
         with:
           name: genesis-vision-center-demo
           path: .build/genesis-vision-center-demo/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Build Antmux laboratory public overlay
+        run: node laboratoire/build-public-overlay.mjs
+
+      - name: Upload Antmux laboratory public overlay
+        uses: actions/upload-artifact@v4
+        with:
+          name: antmux-laboratoire-public
+          path: .build/antmux-laboratoire-public/
           if-no-files-found: error
           retention-days: 7
