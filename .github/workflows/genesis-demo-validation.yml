@@ -38,3 +38,14 @@ jobs:
 
       - name: Smoke-test static cockpit over HTTP
         run: node laboratoire/genesis/smoke-cockpit.mjs
+
+      - name: Build deployable public DEMO bundle
+        run: node laboratoire/genesis/build-public-bundle.mjs
+
+      - name: Upload Genesis Vision Center DEMO bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-vision-center-demo
+          path: .build/genesis-vision-center-demo/
+          if-no-files-found: error
+          retention-days: 7
