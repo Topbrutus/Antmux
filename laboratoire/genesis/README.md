@@ -6,9 +6,23 @@
 
 Phase actuelle :
 
-`FOUNDATION_ONLY`
+`DEMO_PIPELINE_READY`
 
-Aucune connexion au noyau privé Genesis n'est active dans cette phase.
+État démontré dans cette phase :
+
+* cockpit public DEMO présent sous `/laboratoire/genesis/` ;
+* données explicitement marquées `DEMO / SYNTHETIC DATA` ;
+* contrat public versionné ;
+* validation du snapshot DEMO et tests adversariaux présents ;
+* smoke test HTTP présent ;
+* construction automatisée d'un bundle public avec manifeste SHA-256.
+
+Limites actuelles :
+
+* aucun test visuel par navigateur réel n'est encore validé ;
+* aucun déploiement sur `antmux.com` n'est déclaré par ce document ;
+* aucune connexion au noyau privé Genesis n'est active ;
+* aucune donnée Genesis privée ou réelle n'est publiée par le cockpit DEMO.
 
 ---
 
