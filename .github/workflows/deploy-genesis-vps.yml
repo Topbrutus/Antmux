@@ -1,0 +1,143 @@
+name: Deploy Genesis to VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-GENESIS to allow the manual VPS deployment'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-genesis:
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY-GENESIS'
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/genesis
+      REMOTE_STAGE: /tmp/antmux-genesis-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Validate Genesis public DEMO
+        run: |
+          node laboratoire/genesis/validate-demo.mjs
+          node laboratoire/genesis/test-validator.mjs
+          node laboratoire/genesis/smoke-cockpit.mjs
+
+      - name: Assemble exact Genesis public payload
+        run: |
+          set -euo pipefail
+          rm -rf _genesis_deploy
+          mkdir -p _genesis_deploy/demo
+
+          cp laboratoire/genesis/index.html _genesis_deploy/
+          cp laboratoire/genesis/README.md _genesis_deploy/
+          cp laboratoire/genesis/PUBLIC-CONTRACT-v1.md _genesis_deploy/
+          cp laboratoire/genesis/demo/genesis-demo-v1.json _genesis_deploy/demo/
+
+          test -f _genesis_deploy/index.html
+          test -f _genesis_deploy/README.md
+          test -f _genesis_deploy/PUBLIC-CONTRACT-v1.md
+          test -f _genesis_deploy/demo/genesis-demo-v1.json
+
+          test ! -e _genesis_deploy/validate-demo.mjs
+          test ! -e _genesis_deploy/test-validator.mjs
+          test ! -e _genesis_deploy/browser-cockpit.mjs
+
+          (
+            cd _genesis_deploy
+            sha256sum index.html README.md PUBLIC-CONTRACT-v1.md demo/genesis-demo-v1.json > SHA256SUMS
+          )
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.ANTMUX_VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight VPS and sudo
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" \
+            "set -e; sudo -n test -d /var/www/antmux.com/public_html; sudo -n test -d '$TARGET_ROOT'"
+
+      - name: Upload staged Genesis payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" \
+            "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -r _genesis_deploy/. \
+            "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Backup current Genesis and deploy exact files
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/genesis'
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP_ROOT="/var/www/antmux.com/genesis-deploy-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+
+          sudo -n mkdir -p "$BACKUP_ROOT/demo"
+          for file in index.html README.md PUBLIC-CONTRACT-v1.md; do
+            if sudo -n test -f "$TARGET_ROOT/$file"; then
+              sudo -n cp -a "$TARGET_ROOT/$file" "$BACKUP_ROOT/$file"
+            fi
+          done
+          if sudo -n test -f "$TARGET_ROOT/demo/genesis-demo-v1.json"; then
+            sudo -n cp -a "$TARGET_ROOT/demo/genesis-demo-v1.json" "$BACKUP_ROOT/demo/genesis-demo-v1.json"
+          fi
+
+          sudo -n install -d -m 0755 "$TARGET_ROOT/demo"
+          sudo -n install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
+          sudo -n install -m 0644 "$REMOTE_STAGE/README.md" "$TARGET_ROOT/README.md"
+          sudo -n install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v1.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v1.md"
+          sudo -n install -m 0644 "$REMOTE_STAGE/demo/genesis-demo-v1.json" "$TARGET_ROOT/demo/genesis-demo-v1.json"
+
+          cd "$TARGET_ROOT"
+          sudo -n sha256sum -c "$REMOTE_STAGE/SHA256SUMS"
+
+          rm -rf "$REMOTE_STAGE"
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
+
+      - name: Verify public Genesis endpoints
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/ >/dev/null
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/demo/genesis-demo-v1.json >/dev/null
