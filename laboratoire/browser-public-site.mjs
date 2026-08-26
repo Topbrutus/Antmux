@@ -88,9 +88,9 @@ async function verifyViewport(base, viewportName, viewport) {
   try {
     let response = await page.goto(`${base}/`, { waitUntil: 'networkidle' });
     assert(response?.ok(), `${viewportName}: accueil Antmux inaccessible.`);
-    assert((await page.title()) === 'Antmux — Générateur de Fourmis', `${viewportName}: titre accueil inattendu.`);
+    assert((await page.title()) === 'React Artifact', `${viewportName}: titre accueil inattendu.`);
 
-    const labButton = page.locator('a[href="./laboratoire/"]');
+    const labButton = page.locator('a[href="/laboratoire/"]');
     assert(await labButton.isVisible(), `${viewportName}: bouton LABORATOIRE invisible à l'accueil.`);
     assert((await labButton.textContent())?.trim() === 'LABORATOIRE', `${viewportName}: libellé bouton laboratoire inattendu.`);
     await assertNoOverflow(page, `${viewportName}/accueil`);
