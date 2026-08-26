@@ -94,11 +94,17 @@ async function verifyViewport(base, viewportName, viewport) {
     if (url.origin === base) requestedPaths.push(url.pathname);
   });
   // Track local 404s separately — external 404s (fonts, CDN) are expected in CI.
+  // Known VPS-only asset paths not present in the Git repo — expected 404s in CI.
+  const VPS_ONLY_PREFIXES = ['/audio/', '/mnt/'];
+
   page.on('response', response => {
     if (response.status() === 404) {
       try {
         const url = new URL(response.url());
-        if (url.origin === base) localFailedPaths.push(url.pathname);
+        if (url.origin === base) {
+          const isVpsOnly = VPS_ONLY_PREFIXES.some(prefix => url.pathname.startsWith(prefix));
+          if (!isVpsOnly) localFailedPaths.push(url.pathname);
+        }
       } catch { /* ignore malformed URLs */ }
     }
   });
