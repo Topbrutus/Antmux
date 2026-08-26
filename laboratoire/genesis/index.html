@@ -58,7 +58,7 @@
     }
 
     .demo-banner {
-      margin: 24px 0;
+      margin: 24px 0 14px;
       padding: 16px 18px;
       border: 1px solid var(--warn);
       background: rgba(255, 212, 121, .08);
@@ -66,6 +66,56 @@
       font-weight: 900;
       letter-spacing: .08em;
       text-align: center;
+    }
+
+    .continuity-banner {
+      margin: 0 0 24px;
+      padding: 18px;
+      border: 1px solid rgba(109, 231, 255, .35);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(109, 231, 255, .08), rgba(217, 184, 103, .055));
+    }
+
+    .continuity-title {
+      margin: 0;
+      color: var(--accent);
+      font-size: .92rem;
+      font-weight: 950;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+
+    .continuity-copy {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: .9rem;
+    }
+
+    .layer-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .layer-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: .72rem;
+      font-weight: 900;
+      letter-spacing: .05em;
+    }
+
+    .layer-pill.public {
+      color: var(--ok);
+      border-color: rgba(127, 240, 173, .42);
+    }
+
+    .layer-pill.reserved {
+      color: var(--gold);
+      border-color: rgba(217, 184, 103, .42);
     }
 
     .grid {
@@ -175,8 +225,11 @@
       border: 1px solid rgba(109, 231, 255, .28);
       border-radius: 14px;
       background: rgba(23, 29, 38, .94);
+      color: inherit;
+      font: inherit;
       text-align: center;
       box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
+      cursor: pointer;
     }
 
     .cycle-node[data-status="PASSED"] {
@@ -190,6 +243,16 @@
 
     .cycle-node[data-status="PENDING"] {
       border-color: rgba(147, 160, 180, .36);
+    }
+
+    .cycle-node.is-selected {
+      outline: 2px solid var(--gold);
+      outline-offset: 3px;
+    }
+
+    .cycle-node:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 4px;
     }
 
     .cycle-index {
@@ -214,6 +277,26 @@
       white-space: normal;
       overflow-wrap: anywhere;
       line-height: 1.2;
+    }
+
+    .cycle-inspector {
+      margin: 16px auto 0;
+      width: min(100%, 680px);
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+    }
+
+    .cycle-inspector strong {
+      color: var(--gold);
+    }
+
+    .cycle-inspector-meta {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.45;
     }
 
     .step, .metric, .check {
@@ -318,6 +401,15 @@
 
     <div class="demo-banner" id="demoBanner">DEMO / SYNTHETIC DATA</div>
 
+    <section class="continuity-banner" aria-label="Politique de publication Genesis">
+      <p class="continuity-title">Genesis — continuité établie dans le test public synthétique</p>
+      <p class="continuity-copy">La couche publique expose ce qui peut être vérifié ici. Une couche RESERVED est prévue uniquement lorsqu'un résultat réel exige une protection. Cette DEMO n'affirme aucun résultat scientifique réservé.</p>
+      <div class="layer-legend" aria-label="États des couches de publication">
+        <span class="layer-pill public">PUBLIC · ACTIVE</span>
+        <span class="layer-pill reserved">RESERVED · EMPTY / NOT ASSERTED</span>
+      </div>
+    </section>
+
     <section id="cockpit" class="grid" hidden>
       <article class="panel span-5">
         <h2>Publication</h2>
@@ -351,6 +443,7 @@
       <article class="panel span-12 cycle-panel">
         <h2>Cycle Genesis</h2>
         <div id="genesisCycle" class="cycle-shell" aria-label="Cycle Genesis public en 7 étapes"></div>
+        <div id="cycleInspector" class="cycle-inspector" aria-live="polite">Sélectionnez un nœud du cycle pour inspecter son état public.</div>
       </article>
 
       <article class="panel span-4">
@@ -372,7 +465,7 @@
     <div id="fatal" class="fatal" role="alert"></div>
 
     <footer>
-      Cette interface ne prouve ni autonomie, ni conscience, ni activité privée de Genesis. Le mode DEMO doit rester visible tant que les données proviennent du fichier synthétique public.
+      Cette interface ne prouve ni autonomie, ni conscience, ni activité privée de Genesis. Le mode DEMO doit rester visible tant que les données proviennent du fichier synthétique public. Une future couche RESERVED ne devra jamais servir à masquer un résultat négatif ou une réfutation scientifique.
     </footer>
   </main>
 
@@ -407,6 +500,21 @@
         badge.dataset.status = String(status ?? '');
         badge.textContent = status ?? '—';
         return badge;
+      }
+
+      function inspectCycleNode(step, index, node, cycle) {
+        for (const item of cycle.querySelectorAll('.cycle-node')) item.classList.remove('is-selected');
+        node.classList.add('is-selected');
+
+        const inspector = byId('cycleInspector');
+        inspector.replaceChildren();
+
+        const title = document.createElement('strong');
+        title.textContent = `${index + 1}. ${step.label ?? step.id ?? 'Étape'}`;
+        const meta = document.createElement('div');
+        meta.className = 'cycle-inspector-meta';
+        meta.textContent = `Statut: ${step.status ?? '—'} · Couche: PUBLIC · Source: pipeline synthétique versionné`;
+        inspector.append(title, meta);
       }
 
       function renderGenesisCycle(steps) {
@@ -453,6 +561,9 @@
           node.dataset.status = String(step.status ?? '');
           node.style.setProperty('--x', `${points[index].x}%`);
           node.style.setProperty('--y', `${points[index].y}%`);
+          node.setAttribute('role', 'button');
+          node.setAttribute('tabindex', '0');
+          node.setAttribute('aria-label', `Inspecter ${step.label ?? step.id ?? `étape ${index + 1}`}`);
 
           const indexEl = document.createElement('div');
           indexEl.className = 'cycle-index';
@@ -463,8 +574,18 @@
           label.textContent = step.label ?? step.id ?? 'Étape';
 
           node.append(indexEl, label, statusBadge(step.status));
+          node.addEventListener('click', () => inspectCycleNode(step, index, node, cycle));
+          node.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              inspectCycleNode(step, index, node, cycle);
+            }
+          });
           cycle.append(node);
         });
+
+        const firstNode = cycle.querySelector('.cycle-node');
+        if (firstNode && safeSteps[0]) inspectCycleNode(safeSteps[0], 0, firstNode, cycle);
       }
 
       function render(data) {
