@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Genesis Vision Center — DEMO</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090b0f;
+      --panel: #12161d;
+      --panel-2: #171d26;
+      --text: #eef4ff;
+      --muted: #93a0b4;
+      --line: #273142;
+      --accent: #6de7ff;
+      --gold: #d9b867;
+      --ok: #7ff0ad;
+      --warn: #ffd479;
+      --bad: #ff8b8b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #141c28 0, var(--bg) 44%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 4.4rem);
+      letter-spacing: -.045em;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 14px 0 0;
+    }
+
+    .demo-banner {
+      margin: 24px 0;
+      padding: 16px 18px;
+      border: 1px solid var(--warn);
+      background: rgba(255, 212, 121, .08);
+      color: var(--warn);
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-align: center;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .panel {
+      grid-column: span 12;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.025), transparent), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+
+    @media (min-width: 780px) {
+      .span-4 { grid-column: span 4; }
+      .span-5 { grid-column: span 5; }
+      .span-7 { grid-column: span 7; }
+      .span-8 { grid-column: span 8; }
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      color: var(--accent);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: minmax(120px, .7fr) 1.3fr;
+      gap: 9px 14px;
+      font-size: .93rem;
+    }
+
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; overflow-wrap: anywhere; }
+
+    .steps, .metrics, .checks {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step, .metric, .check {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .label { font-weight: 750; }
+    .small { color: var(--muted); font-size: .82rem; margin-top: 5px; }
+
+    .status {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: .72rem;
+      font-weight: 850;
+    }
+
+    .status[data-status="PASSED"] { color: var(--ok); }
+    .status[data-status="RUNNING_PUBLIC"] { color: var(--accent); }
+    .status[data-status="FAILED"] { color: var(--bad); }
+    .status[data-status="PENDING"],
+    .status[data-status="NOT_APPLICABLE"] { color: var(--muted); }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 850;
+      color: var(--gold);
+    }
+
+    .fatal {
+      margin-top: 24px;
+      display: none;
+      padding: 18px;
+      border: 1px solid var(--bad);
+      background: rgba(255, 139, 139, .08);
+      color: var(--bad);
+      border-radius: 12px;
+      white-space: pre-wrap;
+    }
+
+    footer {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Antmux · LAB-004</p>
+      <h1>Genesis Vision Center</h1>
+      <p class="subtitle">Cockpit public de démonstration. Cette page lit uniquement un fichier JSON synthétique versionné dans le dépôt public. Elle n'est connectée à aucun noyau privé Genesis.</p>
+    </header>
+
+    <div class="demo-banner" id="demoBanner">DEMO / SYNTHETIC DATA</div>
+
+    <section id="cockpit" class="grid" hidden>
+      <article class="panel span-5">
+        <h2>Publication</h2>
+        <dl class="kv">
+          <dt>Contrat</dt><dd id="contractVersion">—</dd>
+          <dt>Mode</dt><dd id="mode">—</dd>
+          <dt>Publication</dt><dd id="publicationId">—</dd>
+          <dt>Publié</dt><dd id="publishedAt">—</dd>
+          <dt>Source</dt><dd id="sourceStatus">—</dd>
+          <dt>Intégrité</dt><dd id="integrityStatus">—</dd>
+        </dl>
+      </article>
+
+      <article class="panel span-7">
+        <h2>Expérience synthétique</h2>
+        <dl class="kv">
+          <dt>ID public</dt><dd id="experimentId">—</dd>
+          <dt>Libellé</dt><dd id="experimentLabel">—</dd>
+          <dt>Statut</dt><dd id="experimentStatus">—</dd>
+          <dt>Génération</dt><dd id="generation">—</dd>
+          <dt>Étape continuité</dt><dd id="continuityStage">—</dd>
+          <dt>Retour</dt><dd id="returnStatus">—</dd>
+        </dl>
+      </article>
+
+      <article class="panel span-8">
+        <h2>Pipeline</h2>
+        <div id="pipeline" class="steps"></div>
+      </article>
+
+      <article class="panel span-4">
+        <h2>Métriques DEMO</h2>
+        <div id="metrics" class="metrics"></div>
+      </article>
+
+      <article class="panel span-7">
+        <h2>Contrôles publics</h2>
+        <div id="checks" class="checks"></div>
+      </article>
+
+      <article class="panel span-5">
+        <h2>Provenance publique</h2>
+        <div id="evidence" class="checks"></div>
+      </article>
+    </section>
+
+    <div id="fatal" class="fatal" role="alert"></div>
+
+    <footer>
+      Cette interface ne prouve ni autonomie, ni conscience, ni activité privée de Genesis. Le mode DEMO doit rester visible tant que les données proviennent du fichier synthétique public.
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const DEMO_PATH = './demo/genesis-demo-v1.json';
+      const EXPECTED_CONTRACT = '1.0.0-draft';
+
+      const byId = (id) => document.getElementById(id);
+      const text = (id, value) => { byId(id).textContent = value ?? '—'; };
+
+      function fail(message) {
+        byId('cockpit').hidden = true;
+        const fatal = byId('fatal');
+        fatal.style.display = 'block';
+        fatal.textContent = `DO NOT DISPLAY AS GENESIS DATA\n${message}`;
+      }
+
+      function assertDemoEnvelope(data) {
+        if (!data || typeof data !== 'object') throw new Error('Enveloppe JSON absente.');
+        if (data.contract_version !== EXPECTED_CONTRACT) throw new Error('Version de contrat inattendue.');
+        if (data.mode !== 'DEMO') throw new Error('Cette version du cockpit accepte uniquement le mode DEMO.');
+        if (data.source_status !== 'SYNTHETIC') throw new Error('Une DEMO doit utiliser source_status=SYNTHETIC.');
+        if (!data.payload || typeof data.payload !== 'object') throw new Error('Payload public absent.');
+      }
+
+      function statusBadge(status) {
+        const badge = document.createElement('span');
+        badge.className = 'status';
+        badge.dataset.status = String(status ?? '');
+        badge.textContent = status ?? '—';
+        return badge;
+      }
+
+      function render(data) {
+        assertDemoEnvelope(data);
+
+        text('contractVersion', data.contract_version);
+        text('mode', data.mode);
+        text('publicationId', data.publication_id);
+        text('publishedAt', data.published_at);
+        text('sourceStatus', data.source_status);
+        text('integrityStatus', data.integrity_status);
+
+        const experiment = data.payload.experiment ?? {};
+        text('experimentId', experiment.public_experiment_id);
+        text('experimentLabel', experiment.label);
+        text('experimentStatus', experiment.status);
+        text('generation', experiment.generation);
+
+        const continuity = data.payload.continuity ?? {};
+        text('continuityStage', continuity.stage);
+        text('returnStatus', continuity.return_status);
+
+        const pipeline = byId('pipeline');
+        pipeline.replaceChildren();
+        for (const step of data.payload.pipeline?.steps ?? []) {
+          const card = document.createElement('div');
+          card.className = 'step row';
+          const left = document.createElement('div');
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = step.label ?? step.id ?? 'Étape';
+          const id = document.createElement('div');
+          id.className = 'small';
+          id.textContent = step.id ?? '';
+          left.append(label, id);
+          card.append(left, statusBadge(step.status));
+          pipeline.append(card);
+        }
+
+        const metrics = byId('metrics');
+        metrics.replaceChildren();
+        for (const metric of data.payload.metrics ?? []) {
+          const card = document.createElement('div');
+          card.className = 'metric';
+          const value = document.createElement('div');
+          value.className = 'metric-value';
+          value.textContent = `${metric.value ?? '—'}${metric.unit ? ` ${metric.unit}` : ''}`;
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = metric.label ?? metric.id ?? 'Métrique';
+          const meta = document.createElement('div');
+          meta.className = 'small';
+          meta.textContent = `${metric.status ?? '—'} · ${metric.provenance_ref ?? 'sans provenance'}`;
+          card.append(value, label, meta);
+          metrics.append(card);
+        }
+
+        const checks = byId('checks');
+        checks.replaceChildren();
+        for (const check of data.payload.integrity?.checks ?? []) {
+          const card = document.createElement('div');
+          card.className = 'check row';
+          const left = document.createElement('div');
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = check.id ?? 'Contrôle';
+          const ref = document.createElement('div');
+          ref.className = 'small';
+          ref.textContent = check.public_ref ?? '';
+          left.append(label, ref);
+          card.append(left, statusBadge(check.status));
+          checks.append(card);
+        }
+
+        const evidence = byId('evidence');
+        evidence.replaceChildren();
+        for (const item of data.payload.evidence ?? []) {
+          const card = document.createElement('div');
+          card.className = 'check';
+          const title = document.createElement('div');
+          title.className = 'label';
+          title.textContent = item.id ?? 'Evidence';
+          const meta = document.createElement('div');
+          meta.className = 'small';
+          meta.textContent = `${item.type ?? '—'} · ${item.status ?? '—'} · ${item.public_ref ?? '—'}`;
+          card.append(title, meta);
+          evidence.append(card);
+        }
+
+        byId('cockpit').hidden = false;
+      }
+
+      fetch(DEMO_PATH, { cache: 'no-store' })
+        .then((response) => {
+          if (!response.ok) throw new Error(`Chargement DEMO impossible (${response.status}).`);
+          return response.json();
+        })
+        .then(render)
+        .catch((error) => fail(error instanceof Error ? error.message : String(error)));
+    })();
+  </script>
+</body>
+</html>
