@@ -1,0 +1,110 @@
+{
+  "contract_version": "1.0.0-draft",
+  "mode": "DEMO",
+  "publication_id": "DEMO-GENESIS-0001",
+  "published_at": "2026-08-26T05:50:00Z",
+  "source_status": "SYNTHETIC",
+  "integrity_status": "NOT_APPLICABLE",
+  "payload": {
+    "experiment": {
+      "public_experiment_id": "DEMO-EXP-001",
+      "label": "Genesis Vision Center — synthetic demonstration",
+      "status": "DEMO_ONLY",
+      "generation": 7
+    },
+    "continuity": {
+      "stage": "transformation",
+      "origin_ref": "DEMO-ORIGIN-001",
+      "previous_publication_ref": "DEMO-GENESIS-0000",
+      "return_status": "PENDING"
+    },
+    "pipeline": {
+      "steps": [
+        {
+          "id": "demo-step-origin",
+          "label": "Origine",
+          "status": "PASSED"
+        },
+        {
+          "id": "demo-step-input",
+          "label": "Entrée",
+          "status": "PASSED"
+        },
+        {
+          "id": "demo-step-transform",
+          "label": "Transformation",
+          "status": "RUNNING_PUBLIC"
+        },
+        {
+          "id": "demo-step-test",
+          "label": "Test",
+          "status": "PENDING"
+        },
+        {
+          "id": "demo-step-result",
+          "label": "Résultat",
+          "status": "PENDING"
+        },
+        {
+          "id": "demo-step-memory",
+          "label": "Mémoire",
+          "status": "PENDING"
+        },
+        {
+          "id": "demo-step-return",
+          "label": "Retour",
+          "status": "PENDING"
+        }
+      ]
+    },
+    "metrics": [
+      {
+        "id": "demo-generation",
+        "label": "Génération synthétique",
+        "value": 7,
+        "unit": "generation",
+        "status": "SYNTHETIC",
+        "provenance_ref": "DEMO-PROVENANCE-001"
+      },
+      {
+        "id": "demo-open-branches",
+        "label": "Branches synthétiques ouvertes",
+        "value": 3,
+        "unit": "branch",
+        "status": "SYNTHETIC",
+        "provenance_ref": "DEMO-PROVENANCE-001"
+      },
+      {
+        "id": "demo-failures",
+        "label": "Échecs synthétiques conservés",
+        "value": 2,
+        "unit": "failure",
+        "status": "SYNTHETIC",
+        "provenance_ref": "DEMO-PROVENANCE-001"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "DEMO-PROVENANCE-001",
+        "type": "PUBLIC_DOCUMENT",
+        "status": "SYNTHETIC",
+        "public_ref": "laboratoire/genesis/PUBLIC-CONTRACT-v1.md"
+      }
+    ],
+    "integrity": {
+      "status": "NOT_APPLICABLE",
+      "checks": [
+        {
+          "id": "demo-check-synthetic-label",
+          "status": "PASSED",
+          "public_ref": "DEMO / SYNTHETIC DATA"
+        },
+        {
+          "id": "demo-check-private-source",
+          "status": "NOT_APPLICABLE",
+          "public_ref": "No private Genesis source was read for this demo"
+        }
+      ]
+    }
+  }
+}
