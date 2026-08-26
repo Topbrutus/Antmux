@@ -1,10 +1,6 @@
 name: Deploy Genesis to VPS
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-genesis-vps.yml'
   workflow_dispatch:
     inputs:
       confirm:
@@ -21,7 +17,7 @@ concurrency:
 
 jobs:
   deploy-genesis:
-    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-GENESIS') || (github.event_name == 'push' && contains(github.event.head_commit.message, 'DEPLOY-GENESIS-ONCE')))
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY-GENESIS'
     runs-on: ubuntu-latest
 
     env:
@@ -73,6 +69,14 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519)"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          if [ "$actual_public_key" != "$expected_public_key" ]; then
+            echo 'ANTMUX_VPS_SSH_PRIVATE_KEY does not match github-actions-antmux-2026.' >&2
+            exit 1
+          fi
+
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
