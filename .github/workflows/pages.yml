@@ -9,6 +9,13 @@ on:
       - 'app.js'
       - 'generator/**'
       - 'carrou/**'
+      - 'laboratoire/index.html'
+      - 'laboratoire/README.md'
+      - 'laboratoire/data/**'
+      - 'laboratoire/genesis/index.html'
+      - 'laboratoire/genesis/README.md'
+      - 'laboratoire/genesis/PUBLIC-CONTRACT-v1.md'
+      - 'laboratoire/genesis/demo/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -43,9 +50,32 @@ jobs:
       - name: Assemble public site
         run: |
           rm -rf _site
-          mkdir -p _site
+          mkdir -p _site/laboratoire/data
+          mkdir -p _site/laboratoire/genesis/demo
+
           cp index.html styles.css app.js _site/
           cp -R generator carrou _site/
+
+          cp laboratoire/index.html _site/laboratoire/
+          cp laboratoire/README.md _site/laboratoire/
+          cp laboratoire/data/MEASUREMENT-CONTRACT.md _site/laboratoire/data/
+          cp laboratoire/data/G1-SOURCES.md _site/laboratoire/data/
+
+          cp laboratoire/genesis/index.html _site/laboratoire/genesis/
+          cp laboratoire/genesis/README.md _site/laboratoire/genesis/
+          cp laboratoire/genesis/PUBLIC-CONTRACT-v1.md _site/laboratoire/genesis/
+          cp laboratoire/genesis/demo/genesis-demo-v1.json _site/laboratoire/genesis/demo/
+
+      - name: Assert laboratory publication boundary
+        run: |
+          test -f _site/laboratoire/index.html
+          test -f _site/laboratoire/genesis/index.html
+          test -f _site/laboratoire/genesis/demo/genesis-demo-v1.json
+          test ! -e _site/laboratoire/genesis/validate-demo.mjs
+          test ! -e _site/laboratoire/genesis/test-validator.mjs
+          test ! -e _site/laboratoire/genesis/browser-cockpit.mjs
+          test ! -e _site/laboratoire/browser-public-site.mjs
+          test ! -e _site/laboratoire/build-public-overlay.mjs
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
