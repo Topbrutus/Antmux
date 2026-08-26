@@ -35,3 +35,6 @@ jobs:
 
       - name: Run adversarial validator tests
         run: node laboratoire/genesis/test-validator.mjs
+
+      - name: Smoke-test static cockpit over HTTP
+        run: node laboratoire/genesis/smoke-cockpit.mjs
