@@ -112,6 +112,110 @@
       gap: 10px;
     }
 
+    .cycle-panel {
+      overflow: hidden;
+    }
+
+    .cycle-shell {
+      position: relative;
+      width: min(100%, 680px);
+      aspect-ratio: 1;
+      margin: 0 auto;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(109, 231, 255, .16) 0 16%, transparent 17%),
+        radial-gradient(circle at 50% 50%, transparent 0 48%, rgba(217, 184, 103, .12) 49% 50%, transparent 51%),
+        radial-gradient(circle at 50% 50%, rgba(9, 11, 15, .3), rgba(9, 11, 15, .82));
+      border: 1px solid rgba(109, 231, 255, .22);
+      box-shadow: inset 0 0 60px rgba(109, 231, 255, .08);
+    }
+
+    .cycle-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .cycle-lines line {
+      stroke: rgba(217, 184, 103, .48);
+      stroke-width: 2;
+    }
+
+    .cycle-center {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: grid;
+      place-items: center;
+      width: clamp(104px, 22%, 140px);
+      aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid rgba(109, 231, 255, .58);
+      background: radial-gradient(circle, rgba(109, 231, 255, .18), rgba(18, 22, 29, .96));
+      color: var(--gold);
+      font-size: clamp(.88rem, 2.8vw, 1.08rem);
+      font-weight: 950;
+      letter-spacing: .08em;
+    }
+
+    .cycle-node {
+      position: absolute;
+      left: var(--x);
+      top: var(--y);
+      display: grid;
+      gap: 7px;
+      justify-items: center;
+      width: clamp(90px, 19%, 128px);
+      min-height: 76px;
+      padding: 10px 9px;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(109, 231, 255, .28);
+      border-radius: 14px;
+      background: rgba(23, 29, 38, .94);
+      text-align: center;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
+    }
+
+    .cycle-node[data-status="PASSED"] {
+      border-color: rgba(127, 240, 173, .46);
+    }
+
+    .cycle-node[data-status="RUNNING_PUBLIC"] {
+      border-color: rgba(109, 231, 255, .62);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .22), 0 0 22px rgba(109, 231, 255, .12);
+    }
+
+    .cycle-node[data-status="PENDING"] {
+      border-color: rgba(147, 160, 180, .36);
+    }
+
+    .cycle-index {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid rgba(217, 184, 103, .56);
+      color: var(--gold);
+      font-size: .72rem;
+      font-weight: 900;
+    }
+
+    .cycle-label {
+      font-size: clamp(.82rem, 2.4vw, .96rem);
+      font-weight: 850;
+    }
+
+    .cycle-node .status {
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.2;
+    }
+
     .step, .metric, .check {
       background: var(--panel-2);
       border: 1px solid var(--line);
@@ -169,6 +273,39 @@
       font-size: .82rem;
       line-height: 1.5;
     }
+
+    @media (max-width: 620px) {
+      main {
+        width: min(100% - 20px, 1180px);
+        padding-top: 22px;
+      }
+
+      .panel {
+        padding: 14px;
+        border-radius: 12px;
+      }
+
+      .cycle-shell {
+        width: min(100%, 420px);
+      }
+
+      .cycle-node {
+        width: clamp(76px, 24%, 96px);
+        min-height: 66px;
+        padding: 8px 6px;
+      }
+
+      .cycle-index {
+        width: 20px;
+        height: 20px;
+        font-size: .66rem;
+      }
+
+      .cycle-node .status {
+        padding: 4px 6px;
+        font-size: .58rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -209,6 +346,11 @@
       <article class="panel span-8">
         <h2>Pipeline</h2>
         <div id="pipeline" class="steps"></div>
+      </article>
+
+      <article class="panel span-12 cycle-panel">
+        <h2>Cycle Genesis</h2>
+        <div id="genesisCycle" class="cycle-shell" aria-label="Cycle Genesis public en 7 étapes"></div>
       </article>
 
       <article class="panel span-4">
@@ -267,6 +409,64 @@
         return badge;
       }
 
+      function renderGenesisCycle(steps) {
+        const cycle = byId('genesisCycle');
+        cycle.replaceChildren();
+
+        const safeSteps = Array.isArray(steps) ? steps : [];
+        const count = safeSteps.length;
+        const radius = 37;
+        const center = 50;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'cycle-lines');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('aria-hidden', 'true');
+
+        const points = safeSteps.map((_, index) => {
+          const angle = -Math.PI / 2 + (index * 2 * Math.PI / count);
+          return {
+            x: center + Math.cos(angle) * radius,
+            y: center + Math.sin(angle) * radius
+          };
+        });
+
+        for (let index = 0; index < points.length; index++) {
+          const next = points[(index + 1) % points.length];
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', String(points[index].x));
+          line.setAttribute('y1', String(points[index].y));
+          line.setAttribute('x2', String(next.x));
+          line.setAttribute('y2', String(next.y));
+          svg.append(line);
+        }
+
+        const centerNode = document.createElement('div');
+        centerNode.className = 'cycle-center';
+        centerNode.textContent = 'GENESIS';
+
+        cycle.append(svg, centerNode);
+
+        safeSteps.forEach((step, index) => {
+          const node = document.createElement('div');
+          node.className = 'cycle-node';
+          node.dataset.status = String(step.status ?? '');
+          node.style.setProperty('--x', `${points[index].x}%`);
+          node.style.setProperty('--y', `${points[index].y}%`);
+
+          const indexEl = document.createElement('div');
+          indexEl.className = 'cycle-index';
+          indexEl.textContent = String(index + 1);
+
+          const label = document.createElement('div');
+          label.className = 'cycle-label';
+          label.textContent = step.label ?? step.id ?? 'Étape';
+
+          node.append(indexEl, label, statusBadge(step.status));
+          cycle.append(node);
+        });
+      }
+
       function render(data) {
         assertDemoEnvelope(data);
 
@@ -289,7 +489,8 @@
 
         const pipeline = byId('pipeline');
         pipeline.replaceChildren();
-        for (const step of data.payload.pipeline?.steps ?? []) {
+        const pipelineSteps = data.payload.pipeline?.steps ?? [];
+        for (const step of pipelineSteps) {
           const card = document.createElement('div');
           card.className = 'step row';
           const left = document.createElement('div');
@@ -303,6 +504,7 @@
           card.append(left, statusBadge(step.status));
           pipeline.append(card);
         }
+        renderGenesisCycle(pipelineSteps);
 
         const metrics = byId('metrics');
         metrics.replaceChildren();
