@@ -15,11 +15,16 @@ Phase actuelle :
 * contrat public versionné ;
 * validation du snapshot DEMO et tests adversariaux présents ;
 * smoke test HTTP présent ;
+* rendu automatisé dans un navigateur Chromium réel validé en CI ;
+* captures de preuve desktop et mobile produites par la CI ;
 * construction automatisée d'un bundle public avec manifeste SHA-256.
+
+Le test navigateur vérifie notamment le rendu du cockpit, la bannière DEMO, les valeurs publiques attendues, l'absence d'état fatal, l'absence d'erreurs JavaScript/console et l'absence de débordement horizontal sur les deux viewports testés.
+
+Il s'agit d'un test de rendu navigateur réel avec captures de preuve, et non encore d'un test de régression visuelle pixel-à-pixel avec image de référence figée.
 
 Limites actuelles :
 
-* aucun test visuel par navigateur réel n'est encore validé ;
 * aucun déploiement sur `antmux.com` n'est déclaré par ce document ;
 * aucune connexion au noyau privé Genesis n'est active ;
 * aucune donnée Genesis privée ou réelle n'est publiée par le cockpit DEMO.
