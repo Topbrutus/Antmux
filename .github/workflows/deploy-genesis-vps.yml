@@ -1,6 +1,10 @@
 name: Deploy Genesis to VPS
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-genesis-vps.yml'
   workflow_dispatch:
     inputs:
       confirm:
@@ -17,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-genesis:
-    if: github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY-GENESIS'
+    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-GENESIS') || (github.event_name == 'push' && contains(github.event.head_commit.message, 'DEPLOY-GENESIS-ONCE')))
     runs-on: ubuntu-latest
 
     env:
@@ -62,16 +66,14 @@ jobs:
       - name: Configure pinned SSH identity
         env:
           SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.ANTMUX_VPS_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           test -n "$SSH_PRIVATE_KEY"
-          test -n "$SSH_KNOWN_HOSTS"
 
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Preflight VPS ownership and write access
@@ -83,7 +85,7 @@ jobs:
           test -n "$VPS_HOST"
           test -n "$VPS_USER"
 
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" \
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
             "set -e; test -d '$TARGET_ROOT'; test -w '$TARGET_ROOT'; test \"\$(id -un)\" = '$VPS_USER'"
 
       - name: Upload staged Genesis payload
@@ -92,9 +94,9 @@ jobs:
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" \
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
             "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
-          scp -o BatchMode=yes -o IdentitiesOnly=yes -r _genesis_deploy/. \
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -r _genesis_deploy/. \
             "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
 
       - name: Backup current Genesis and deploy exact files
@@ -103,7 +105,7 @@ jobs:
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
           set -euo pipefail
 
           TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/genesis'
