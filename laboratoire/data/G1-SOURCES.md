@@ -10,6 +10,14 @@ Chaque mesure devra ensuite être vérifiée dans la source elle-même avant d'�
 
 Aucune valeur numérique G1 ne doit être copiée dans ce fichier.
 
+### Statut du registre
+
+`SOURCE_REGISTERED` est un **état de cycle de vie du registre documentaire**, et non un statut scientifique de mesure.
+
+Il ne remplace donc aucun des statuts scientifiques du laboratoire (`SOURCE_DATA`, `PUBLISHED_MEASUREMENT`, `DERIVED_CALCULATION`, `HYPOTHESIS`, `TEST_PROTOCOL`, `TEST_RESULT`, `INDEPENDENT_REPLICATION`, `CORRECTION`, `REJECTED`).
+
+Une source peut être `SOURCE_REGISTERED` ici alors qu'aucune mesure extraite de cette source n'a encore été publiée dans le corpus.
+
 ---
 
 ## SRC-G1-REISNER-1942
