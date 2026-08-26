@@ -75,22 +75,32 @@ async function verifyViewport(base, viewportName, viewport) {
   const consoleErrors = [];
   const pageErrors = [];
   const requestedPaths = [];
+  const localFailedPaths = [];
 
+  // Capture only console errors that are NOT "Failed to load resource" for external URLs.
+  // The SPA loads Google Fonts which are unavailable in the offline CI environment.
   page.on('console', message => {
     if (message.type() === 'error') {
       const text = message.text();
-      // Ignore external resource failures (Google Fonts, CDN) unavailable in offline CI.
-      // Only capture errors from the local test server origin.
-      const isExternalResource = message.location().url
-        ? !message.location().url.includes('127.0.0.1')
-        : /fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\./.test(text);
-      if (!isExternalResource) consoleErrors.push(text);
+      // Suppress generic "Failed to load resource" messages — we track those via
+      // the response listener below, filtering by origin.
+      if (/Failed to load resource/.test(text)) return;
+      consoleErrors.push(text);
     }
   });
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     const url = new URL(request.url());
     if (url.origin === base) requestedPaths.push(url.pathname);
+  });
+  // Track local 404s separately — external 404s (fonts, CDN) are expected in CI.
+  page.on('response', response => {
+    if (response.status() === 404) {
+      try {
+        const url = new URL(response.url());
+        if (url.origin === base) localFailedPaths.push(url.pathname);
+      } catch { /* ignore malformed URLs */ }
+    }
   });
 
   try {
@@ -129,6 +139,7 @@ async function verifyViewport(base, viewportName, viewport) {
 
     assert(pageErrors.length === 0, `${viewportName}: erreurs JavaScript: ${pageErrors.join(' | ')}`);
     assert(consoleErrors.length === 0, `${viewportName}: erreurs console: ${consoleErrors.join(' | ')}`);
+    assert(localFailedPaths.length === 0, `${viewportName}: ressources locales manquantes (404): ${localFailedPaths.join(' | ')}`);
     assert(!requestedPaths.some(path => path.startsWith('/private/')), `${viewportName}: route privée demandée.`);
 
     return {
