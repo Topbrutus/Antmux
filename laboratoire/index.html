@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#080b10" />
+  <title>Antmux — Laboratoire public</title>
+  <meta name="description" content="Laboratoire public Antmux : expériences, contrats, mesures, preuves et démonstrations reproductibles." />
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    .lab-status { display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:7px 11px; border-radius:999px; border:1px solid rgba(141,227,172,.3); color:var(--ok); font-size:.72rem; font-weight:800; letter-spacing:.1em; }
+    .lab-card h2 { margin-bottom:10px; }
+    .lab-card p { color:var(--muted); line-height:1.65; }
+    .lab-meta { display:grid; gap:8px; margin:18px 0 0; padding:0; list-style:none; color:var(--muted); font-size:.86rem; }
+    .lab-meta strong { color:var(--text); }
+    .lab-links { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .lab-links a { text-decoration:none; }
+    .safety { border-color:rgba(110,215,255,.28); }
+    .safety strong { color:var(--cyan); }
+    @media (max-width:820px) { .lab-card { min-height:auto; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">ANTMUX · LABORATOIRE PUBLIC</p>
+      <h1>Laboratoire</h1>
+      <p class="lede">Observer. Mesurer. Tester. Documenter. Reproduire.</p>
+      <div class="lab-status">LAB-004 · DEMO VALIDÉE EN CI</div>
+      <nav class="actions hero-nav" aria-label="Navigation du laboratoire">
+        <a class="secondary" href="../">ACCUEIL ANTMUX</a>
+        <a class="primary" href="./genesis/">OUVRIR GENESIS VISION CENTER</a>
+      </nav>
+    </header>
+
+    <section class="grid" aria-label="Espaces du laboratoire">
+      <article class="card lab-card">
+        <p class="kicker">CENTRE DE VISION</p>
+        <h2>Genesis Vision Center</h2>
+        <p>Interface publique de démonstration pour visualiser un état Genesis strictement synthétique et versionné. Le cockpit affiche clairement son mode DEMO et ne lit aucune donnée privée Genesis.</p>
+        <ul class="lab-meta">
+          <li><strong>Mode :</strong> DEMO / SYNTHETIC DATA</li>
+          <li><strong>Contrat :</strong> 1.0.0-draft</li>
+          <li><strong>Tests :</strong> validateur adversarial, HTTP, Chromium desktop et mobile</li>
+          <li><strong>Genesis privé :</strong> non connecté</li>
+        </ul>
+        <div class="lab-links">
+          <a class="primary" href="./genesis/">ENTRER DANS LE CENTRE</a>
+          <a class="secondary" href="./genesis/PUBLIC-CONTRACT-v1.md">CONTRAT PUBLIC</a>
+        </div>
+      </article>
+
+      <article class="card lab-card">
+        <p class="kicker">MÉTHODE SCIENTIFIQUE</p>
+        <h2>Mesures et provenance</h2>
+        <p>Les données du laboratoire doivent rester séparées selon leur nature : source, mesure publiée, calcul dérivé, hypothèse, protocole, résultat, réplication, correction ou rejet.</p>
+        <div class="lab-links">
+          <a class="secondary" href="./data/MEASUREMENT-CONTRACT.md">CONTRAT DE MESURE</a>
+          <a class="secondary" href="./data/G1-SOURCES.md">REGISTRE DES SOURCES G1</a>
+        </div>
+      </article>
+
+      <article class="card lab-card safety">
+        <p class="kicker">FRONTIÈRE PUBLIQUE / PRIVÉE</p>
+        <h2>Lecture publique seulement</h2>
+        <p><strong>Le laboratoire public n'est pas Genesis.</strong> Il montre uniquement ce qui peut être défendu publiquement. Une animation n'est jamais une preuve d'activité réelle, et aucune donnée privée ne doit traverser la frontière sans contrat, provenance et validation.</p>
+      </article>
+
+      <article class="card lab-card">
+        <p class="kicker">DISCIPLINE</p>
+        <h2>Construire petit</h2>
+        <p>Chaque nouvelle brique est testée avant publication : contrat, donnée DEMO, validation, rendu navigateur, preuve, bundle. Les versions réelles resteront séparées tant que la frontière publique n'aura pas été démontrée.</p>
+      </article>
+    </section>
+
+    <footer>
+      <p>Laboratoire public Antmux · architecture expérimentale · aucune propriété de conscience ou nouvelle loi physique n'est présumée.</p>
+    </footer>
+  </main>
+</body>
+</html>
