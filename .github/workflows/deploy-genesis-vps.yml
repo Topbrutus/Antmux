@@ -74,7 +74,7 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Preflight VPS and sudo
+      - name: Preflight VPS ownership and write access
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -84,7 +84,7 @@ jobs:
           test -n "$VPS_USER"
 
           ssh -o BatchMode=yes -o IdentitiesOnly=yes "$VPS_USER@$VPS_HOST" \
-            "set -e; sudo -n test -d /var/www/antmux.com/public_html; sudo -n test -d '$TARGET_ROOT'"
+            "set -e; test -d '$TARGET_ROOT'; test -w '$TARGET_ROOT'; test \"\$(id -un)\" = '$VPS_USER'"
 
       - name: Upload staged Genesis payload
         env:
@@ -108,29 +108,29 @@ jobs:
 
           TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/genesis'
           REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
-          BACKUP_ROOT="/var/www/antmux.com/genesis-deploy-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+          BACKUP_ROOT="$HOME/antmux-genesis-deploy-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
 
           cd "$REMOTE_STAGE"
           sha256sum -c SHA256SUMS
 
-          sudo -n mkdir -p "$BACKUP_ROOT/demo"
+          mkdir -p "$BACKUP_ROOT/demo"
           for file in index.html README.md PUBLIC-CONTRACT-v1.md; do
-            if sudo -n test -f "$TARGET_ROOT/$file"; then
-              sudo -n cp -a "$TARGET_ROOT/$file" "$BACKUP_ROOT/$file"
+            if test -f "$TARGET_ROOT/$file"; then
+              cp -a "$TARGET_ROOT/$file" "$BACKUP_ROOT/$file"
             fi
           done
-          if sudo -n test -f "$TARGET_ROOT/demo/genesis-demo-v1.json"; then
-            sudo -n cp -a "$TARGET_ROOT/demo/genesis-demo-v1.json" "$BACKUP_ROOT/demo/genesis-demo-v1.json"
+          if test -f "$TARGET_ROOT/demo/genesis-demo-v1.json"; then
+            cp -a "$TARGET_ROOT/demo/genesis-demo-v1.json" "$BACKUP_ROOT/demo/genesis-demo-v1.json"
           fi
 
-          sudo -n install -d -m 0755 "$TARGET_ROOT/demo"
-          sudo -n install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
-          sudo -n install -m 0644 "$REMOTE_STAGE/README.md" "$TARGET_ROOT/README.md"
-          sudo -n install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v1.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v1.md"
-          sudo -n install -m 0644 "$REMOTE_STAGE/demo/genesis-demo-v1.json" "$TARGET_ROOT/demo/genesis-demo-v1.json"
+          install -d -m 0755 "$TARGET_ROOT/demo"
+          install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/README.md" "$TARGET_ROOT/README.md"
+          install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v1.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v1.md"
+          install -m 0644 "$REMOTE_STAGE/demo/genesis-demo-v1.json" "$TARGET_ROOT/demo/genesis-demo-v1.json"
 
           cd "$TARGET_ROOT"
-          sudo -n sha256sum -c "$REMOTE_STAGE/SHA256SUMS"
+          sha256sum -c "$REMOTE_STAGE/SHA256SUMS"
 
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
