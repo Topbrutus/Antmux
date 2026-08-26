@@ -77,7 +77,15 @@ async function verifyViewport(base, viewportName, viewport) {
   const requestedPaths = [];
 
   page.on('console', message => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'error') {
+      const text = message.text();
+      // Ignore external resource failures (Google Fonts, CDN) unavailable in offline CI.
+      // Only capture errors from the local test server origin.
+      const isExternalResource = message.location().url
+        ? !message.location().url.includes('127.0.0.1')
+        : /fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\./.test(text);
+      if (!isExternalResource) consoleErrors.push(text);
+    }
   });
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
