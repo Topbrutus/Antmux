@@ -1,0 +1,47 @@
+name: Genesis progressive LIVE validation
+
+on:
+  pull_request:
+    paths:
+      - 'laboratoire/genesis/live-v2/**'
+      - '.github/workflows/deploy-genesis-progressive-live-runtime.yml'
+      - '.github/workflows/validate-genesis-progressive-live.yml'
+  push:
+    branches:
+      - genesis/progressive-live-c061-20260903
+    paths:
+      - 'laboratoire/genesis/live-v2/**'
+      - '.github/workflows/deploy-genesis-progressive-live-runtime.yml'
+      - '.github/workflows/validate-genesis-progressive-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-progressive-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run progressive LIVE adversarial battery
+        run: node laboratoire/genesis/live-v2/test-progressive-live.mjs
+      - name: Validate sync shell and C060 integration
+        run: |
+          set -euo pipefail
+          bash -n laboratoire/genesis/live/sync-public-read-only.sh
+          cat > /tmp/status.env <<'EOF'
+          science_baseline=GREEN
+          genesis003_c041_c060=COMPLETE_VALIDATED
+          experiment_selection_performed=true
+          selected_experiment_status=PLANNED_NOT_EXECUTED
+          hypothesis_selection_performed=false
+          hypothesis_ranking_produced=false
+          uncertainty_promotion_performed=false
+          probabilities_produced=false
+          evidence_ledger_auto_promotion=false
+          GENESIS_AUDIT_FAILED=0
+          EOF
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive.mjs /tmp/status.env /tmp/input.json
+          node laboratoire/genesis/live-v2/bridge-public-progressive.mjs /tmp/input.json
+          node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
+          echo 'GENESIS_PROGRESSIVE_LIVE_VALIDATION=PASS'
