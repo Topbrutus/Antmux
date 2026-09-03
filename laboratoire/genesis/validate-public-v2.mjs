@@ -9,6 +9,15 @@ const PIPELINE_STATUSES = new Set(['PENDING','RUNNING_PUBLIC','PASSED','FAILED',
 const CHECK_STATUSES = new Set(['PASSED','FAILED','NOT_RUN','NOT_APPLICABLE']);
 const SEMANTIC_CLASSES = new Set(['MEASURED','DERIVED','INTERPRETED','HYPOTHESIS','UNKNOWN']);
 const INTEGRITY_STATUSES = new Set(['NOT_APPLICABLE','UNVERIFIED','VERIFIED_PUBLIC','FAILED_PUBLIC_CHECK']);
+const COMPLETE_CYCLE_IDS = [
+  'demo-step-source',
+  'demo-step-descent',
+  'demo-step-zero',
+  'demo-step-formation',
+  'demo-step-exploration',
+  'demo-step-validation',
+  'demo-step-return'
+];
 
 function fail(m){throw new Error(m)}
 function obj(v,p){if(!v||typeof v!=='object'||Array.isArray(v))fail(`${p} doit être un objet.`)}
@@ -85,6 +94,28 @@ function integrity(v){
   v.checks.forEach((x,i)=>{const p=`$.payload.integrity.checks[${i}]`;obj(x,p);allowed(x,new Set(['id','status','public_ref']),p);required(x,['id','status','public_ref'],p);str(x.id,`${p}.id`);if(!CHECK_STATUSES.has(x.status))fail(`${p}.status invalide.`);str(x.public_ref,`${p}.public_ref`)});
 }
 
+function completeCycle(data){
+  const p=data.payload;
+  const steps=p.pipeline.steps;
+  if(steps.length!==COMPLETE_CYCLE_IDS.length)fail('Le pipeline DEMO complet doit contenir exactement 7 étapes.');
+  COMPLETE_CYCLE_IDS.forEach((id,i)=>{if(steps[i]?.id!==id)fail(`Ordre du pipeline invalide à l'étape ${i+1}.`);if(steps[i]?.status!=='PASSED')fail(`Le cycle DEMO complet exige PASSED à l'étape ${i+1}.`)});
+
+  if(p.metacognition.status!=='DEMO_CYCLE_COMPLETE')fail('GENESIS-003 DEMO doit déclarer DEMO_CYCLE_COMPLETE.');
+  if(p.metacognition.c041_c060_status!=='COMPLETE_VALIDATED_DEMO')fail('C041-C060 DEMO doit être COMPLETE_VALIDATED_DEMO.');
+  if(p.metacognition.competing_hypotheses<2)fail('L’exploration DEMO exige au moins deux hypothèses concurrentes.');
+
+  if(p.continuity.parent_link_status!=='PASSED')fail('Le retour SOURCE exige un lien parent PASSED.');
+  if(p.continuity.root_identity_status!=='PASSED')fail('Le retour SOURCE exige une identité ROOT PASSED.');
+  if(p.continuity.return_status!=='PASSED')fail('Le retour SOURCE exige return_status=PASSED.');
+  if(p.continuity.previous_checkpoint_ref===p.continuity.current_checkpoint_ref)fail('Le checkpoint courant doit avancer sans perdre le lien parent.');
+  if((p.continuity.accepted_candidates+p.continuity.rejected_candidates)<1)fail('La validation DEMO doit conserver au moins un verdict accepté ou rejeté.');
+
+  const evidenceIds=new Set(p.evidence.map(x=>x.id));
+  if(!evidenceIds.has('DEMO-CYCLE-5-6-7'))fail('La preuve publique synthétique DEMO-CYCLE-5-6-7 est obligatoire.');
+  const cycleCheck=p.integrity.checks.find(x=>x.id==='demo-check-cycle-5-6-7');
+  if(!cycleCheck||cycleCheck.status!=='PASSED')fail('Le contrôle d’intégrité du cycle 5-6-7 doit être PASSED.');
+}
+
 export function validatePublicV2(data){
   obj(data,'$');allowed(data,TOP_LEVEL,'$');required(data,TOP_LEVEL,'$');
   if(data.contract_version!==EXPECTED_CONTRACT)fail(`contract_version doit être ${EXPECTED_CONTRACT}.`);
@@ -94,8 +125,9 @@ export function validatePublicV2(data){
   str(data.publication_id,'$.publication_id');str(data.published_at,'$.published_at');if(Number.isNaN(Date.parse(data.published_at)))fail('$.published_at invalide.');
   obj(data.payload,'$.payload');allowed(data.payload,PAYLOAD,'$.payload');
   identity(data.payload.identity);continuity(data.payload.continuity);meta(data.payload.metacognition);pipeline(data.payload.pipeline);observations(data.payload.training_field);observatory(data.payload.observatory);gates(data.payload.publication_gates);metrics(data.payload.metrics);evidence(data.payload.evidence);integrity(data.payload.integrity);
+  completeCycle(data);
   scan(data);
-  return {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id};
+  return {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,cycle_5_6_7:'PASSED'};
 }
 
 async function main(){
