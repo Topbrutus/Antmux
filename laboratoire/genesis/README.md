@@ -22,7 +22,7 @@ Les zones `/generator/`, `/index.html`, `/styles.css`, `/app.js` et le noyau pri
 
 Phase actuelle :
 
-`VISION_CENTER_V2_DEMO_CYCLE_COMPLETE`
+`VISION_CENTER_V2_PUBLIC_ADAPTER_VALIDATED`
 
 Contrat courant :
 
@@ -160,6 +160,21 @@ Puis :
 
 Le navigateur public ne doit jamais accéder directement au dépôt privé, au filesystem privé, aux secrets, aux seeds privées, aux audits privés, aux sorties oracle, aux credentials ou à la topologie serveur privée.
 
+### Genesis Public Adapter — frontière validée
+
+La frontière logicielle de l'Adapter est maintenant validée sur une fixture **private-like synthétique**.
+
+L'Adapter :
+
+- ne publie que la zone explicitement déclarée `public_payload`;
+- rejette les catégories ou champs inconnus à l'intérieur de cette zone;
+- ne copie pas le bruit privé situé hors de la zone publiable;
+- soumet la sortie au validateur `PUBLIC-CONTRACT-v2`;
+- bloque `SNAPSHOT` et `LIVE_READ_ONLY` dans cette phase de validation;
+- ne possède aucune fonction d'écriture vers Genesis.
+
+Cette validation **ne signifie pas** que `Topbrutus/seedgenesis` est connecté. Aucun accès au dépôt privé n'a été ajouté.
+
 ---
 
 ## Modes de données
@@ -174,11 +189,13 @@ Affichage obligatoire : `DEMO / SYNTHETIC DATA`
 
 Publication publique figée produite par un processus explicitement autorisé.
 
+Le premier snapshot réel reste `PENDING`.
+
 ### LIVE_READ_ONLY
 
 Future vue publique en lecture seule.
 
-Ce mode reste bloqué tant que le Genesis Public Adapter n'est pas validé.
+Ce mode reste bloqué jusqu'à validation d'un snapshot public réel et autorisation distincte de la lecture live.
 
 ---
 
@@ -186,9 +203,16 @@ Ce mode reste bloqué tant que le Genesis Public Adapter n'est pas validé.
 
 `CONTRAT -> ADAPTER -> SNAPSHOT -> LIVE_READ_ONLY`
 
-Le contrat v2 et la boucle DEMO 1→7 sont prêts pour validation publique.
+État courant :
 
-L'Adapter public réel n'est pas connecté par ce changement.
+- `CONTRAT = PASSED`
+- `ADAPTER = PASSED` — frontière validée sur données synthétiques, sans connexion privée
+- `SNAPSHOT = PENDING`
+- `LIVE_READ_ONLY = PENDING`
+
+Étape recommandée suivante :
+
+`PREPARE_PUBLIC_SNAPSHOT`
 
 ---
 
@@ -219,6 +243,14 @@ Validation v2 :
 Tests adversariaux v2 :
 
 `node laboratoire/genesis/test-public-v2.mjs`
+
+Validation de frontière Public Adapter :
+
+`node laboratoire/genesis/adapter/validate-public-adapter.mjs`
+
+Tests adversariaux Public Adapter :
+
+`node laboratoire/genesis/adapter/test-public-adapter.mjs`
 
 Smoke test HTTP :
 
