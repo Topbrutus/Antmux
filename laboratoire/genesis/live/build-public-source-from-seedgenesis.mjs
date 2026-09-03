@@ -45,6 +45,7 @@ export function buildBridgeInputFromWhitelistedStatus(status, options = {}) {
     if (status?.[key] !== expected) fail(`Projection refusée: ${key}.`);
   }
 
+  const liveActive = options.liveActive === true;
   const observedAt = new Date(options.observedAt ?? Date.now());
   if (Number.isNaN(observedAt.getTime())) fail('Horodatage d’observation invalide.');
   const receivedAt = new Date(options.receivedAt ?? observedAt);
@@ -81,8 +82,8 @@ export function buildBridgeInputFromWhitelistedStatus(status, options = {}) {
         continuity_policy: 'PRIVATE_ROOT_NOT_EXPOSED; PUBLIC_PROJECTION_ONLY'
       },
       publication_gates: {
-        current_gate: 'LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED',
-        recommended_next_step: 'AUTHORIZE_CONTROLLED_PUBLIC_READ_ONLY_DEPLOYMENT',
+        current_gate: liveActive ? 'LIVE_READ_ONLY_ACTIVE' : 'LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED',
+        recommended_next_step: liveActive ? 'CONTINUE_SERVER_SIDE_READ_ONLY_SYNC' : 'AUTHORIZE_CONTROLLED_PUBLIC_READ_ONLY_DEPLOYMENT',
         gates: [
           { id: 'contract-v2', label: 'Contrat public v2', status: 'PASSED' },
           { id: 'adapter', label: 'Genesis Public Adapter', status: 'PASSED' },
@@ -98,7 +99,8 @@ export function buildBridgeInputFromWhitelistedStatus(status, options = {}) {
         { id: 'probabilities-produced', label: 'Probabilités produites', value: false, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
         { id: 'bridge-read-capability', label: 'Capacité de lecture bridge', value: 'READ_ONLY', status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
         { id: 'bridge-write-capability', label: 'Capacité d’écriture bridge', value: 'NONE', status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
-        { id: 'browser-private-credentials', label: 'Credentials privés navigateur', value: false, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' }
+        { id: 'browser-private-credentials', label: 'Credentials privés navigateur', value: false, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
+        { id: 'public-live-active', label: 'Publication LIVE active', value: liveActive, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' }
       ],
       evidence: [
         { id: 'SERVER-SIDE-WHITELIST', type: 'PUBLIC_ATTESTATION', status: 'VERIFIED_PUBLIC', public_ref: 'Whitelisted server-side Genesis status projection' }
@@ -120,9 +122,11 @@ async function main() {
   const sourcePath = process.argv[2];
   if (!sourcePath) fail('Usage: build-public-source-from-seedgenesis.mjs <private-result-file> [output-json]');
   const outputPath = process.argv[3] ?? '.build/genesis-public-read-only-bridge/server-side-public-source.json';
+  const liveFlag = process.env.GENESIS_PUBLIC_LIVE_ACTIVE ?? '0';
+  if (!['0', '1'].includes(liveFlag)) fail('GENESIS_PUBLIC_LIVE_ACTIVE doit être 0 ou 1.');
   const source = await readFile(path.resolve(sourcePath), 'utf8');
   const status = extractWhitelistedGenesisStatus(source);
-  const input = buildBridgeInputFromWhitelistedStatus(status);
+  const input = buildBridgeInputFromWhitelistedStatus(status, { liveActive: liveFlag === '1' });
   const resolvedOutput = path.resolve(outputPath);
   await mkdir(path.dirname(resolvedOutput), { recursive: true });
   await writeFile(resolvedOutput, `${JSON.stringify(input, null, 2)}\n`, 'utf8');
@@ -132,6 +136,7 @@ async function main() {
     selected_experiment_status: input.source_attestation.selected_experiment_status,
     read_capability: input.source_attestation.read_capability,
     write_capability: input.source_attestation.write_capability,
+    public_live_active: liveFlag === '1',
     private_identifiers_projected: false
   }, null, 2));
 }
