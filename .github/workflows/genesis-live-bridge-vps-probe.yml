@@ -6,6 +6,9 @@ on:
       - genesis/connect-public-read-only-endpoint
     paths:
       - '.github/workflows/genesis-live-bridge-vps-probe.yml'
+      - 'laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs'
+      - 'laboratoire/genesis/live/bridge-public-read-only.mjs'
+      - 'laboratoire/genesis/validate-public-v2.mjs'
   workflow_dispatch:
 
 permissions:
@@ -18,6 +21,35 @@ jobs:
     env:
       TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/genesis
     steps:
+      - name: Checkout Antmux branch
+        uses: actions/checkout@v4
+
+      - name: Validate private-source whitelist builder and bridge
+        run: |
+          set -euo pipefail
+          cat > /tmp/genesis-safe-status.txt <<'EOF'
+          science_baseline=GREEN
+          genesis003_c041_c060=COMPLETE_VALIDATED
+          experiment_selection_performed=true
+          selected_experiment_status=PLANNED_NOT_EXECUTED
+          hypothesis_selection_performed=false
+          hypothesis_ranking_produced=false
+          uncertainty_promotion_performed=false
+          probabilities_produced=false
+          evidence_ledger_auto_promotion=false
+          GENESIS_AUDIT_FAILED=0
+          EOF
+          node laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs /tmp/genesis-safe-status.txt /tmp/genesis-public-source.json
+          node laboratoire/genesis/live/bridge-public-read-only.mjs /tmp/genesis-public-source.json
+
+          cp /tmp/genesis-safe-status.txt /tmp/genesis-rejected-status.txt
+          sed -i 's/hypothesis_selection_performed=false/hypothesis_selection_performed=true/' /tmp/genesis-rejected-status.txt
+          if node laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs /tmp/genesis-rejected-status.txt /tmp/should-not-exist.json; then
+            echo 'FAIL_CLOSED_TEST_FAILED'
+            exit 1
+          fi
+          echo 'GENESIS_WHITELIST_FAIL_CLOSED_PASS'
+
       - name: Configure pinned Antmux VPS identity
         env:
           SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
