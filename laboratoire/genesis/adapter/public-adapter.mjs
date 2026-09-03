@@ -80,16 +80,16 @@ export function adaptPublicCandidate(input){
   obj(input,'$');
   if(input.adapter_input_version!=='1.0.0-test') fail('adapter_input_version doit être 1.0.0-test.');
   if(input.publication_intent!=='EXPLICIT_PUBLICATION_CANDIDATE') fail('publication_intent explicite obligatoire.');
-  if(input.mode!=='DEMO') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement mode=DEMO.');
-  if(input.source_status!=='SYNTHETIC') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement source_status=SYNTHETIC.');
+  if(input.mode!=='DEMO' && input.mode!=='SNAPSHOT') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement mode=DEMO ou SNAPSHOT.');
+  if(input.source_status!=='SYNTHETIC' && input.source_status!=='PUBLIC_SNAPSHOT') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement source_status=SYNTHETIC ou PUBLIC_SNAPSHOT.');
   obj(input.public_payload,'$.public_payload');
 
   const output = {
     contract_version: '2.0.0-draft',
-    mode: 'DEMO',
+    mode: clone(input.mode),
     publication_id: clone(input.publication_id),
     published_at: clone(input.published_at),
-    source_status: 'SYNTHETIC',
+    source_status: clone(input.source_status),
     integrity_status: 'UNVERIFIED',
     payload: buildPayload(input.public_payload)
   };

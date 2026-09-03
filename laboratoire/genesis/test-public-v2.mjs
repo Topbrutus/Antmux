@@ -9,8 +9,8 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const cases = [
   ['canonical v2 complete-cycle demo passes', true, d => d],
   ['unknown top-level field rejected', false, d => (d.private_debug='x',d)],
-  ['non-DEMO canonical mode rejected', false, d => (d.mode='SNAPSHOT',d)],
-  ['non-synthetic canonical source rejected', false, d => (d.source_status='PUBLIC_SNAPSHOT',d)],
+  ['non-DEMO/SNAPSHOT canonical mode rejected', false, d => (d.mode='LIVE_READ_ONLY',d)],
+  ['non-synthetic/public_snapshot canonical source rejected', false, d => (d.source_status='PUBLIC_READ_ONLY',d)],
   ['unknown payload category rejected', false, d => (d.payload.private_state={},d)],
   ['invalid semantic class rejected', false, d => (d.payload.training_field.observations[0].semantic_class='MAGIC',d)],
   ['invalid pipeline status rejected', false, d => (d.payload.pipeline.steps[0].status='SECRET_RUNNING',d)],

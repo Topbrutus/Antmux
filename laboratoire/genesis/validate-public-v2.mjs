@@ -119,8 +119,8 @@ function completeCycle(data){
 export function validatePublicV2(data){
   obj(data,'$');allowed(data,TOP_LEVEL,'$');required(data,TOP_LEVEL,'$');
   if(data.contract_version!==EXPECTED_CONTRACT)fail(`contract_version doit être ${EXPECTED_CONTRACT}.`);
-  if(data.mode!=='DEMO')fail('Le validateur v2 canonique attend mode=DEMO.');
-  if(data.source_status!=='SYNTHETIC')fail('Le snapshot canonique v2 doit rester SYNTHETIC.');
+  if(data.mode!=='DEMO' && data.mode!=='SNAPSHOT')fail('Le validateur v2 canonique attend mode=DEMO ou SNAPSHOT.');
+  if(data.source_status!=='SYNTHETIC' && data.source_status!=='PUBLIC_SNAPSHOT')fail('Le snapshot canonique v2 doit rester SYNTHETIC ou PUBLIC_SNAPSHOT.');
   if(!INTEGRITY_STATUSES.has(data.integrity_status))fail('integrity_status invalide.');
   str(data.publication_id,'$.publication_id');str(data.published_at,'$.published_at');if(Number.isNaN(Date.parse(data.published_at)))fail('$.published_at invalide.');
   obj(data.payload,'$.payload');allowed(data.payload,PAYLOAD,'$.payload');
