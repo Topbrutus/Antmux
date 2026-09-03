@@ -50,6 +50,12 @@ jobs:
       - name: Run Genesis Public Adapter adversarial tests
         run: node laboratoire/genesis/adapter/test-public-adapter.mjs
 
+      - name: Validate frozen public snapshot 0001
+        run: node laboratoire/genesis/snapshot/validate-snapshot-0001.mjs
+
+      - name: Run public snapshot 0001 adversarial tests
+        run: node laboratoire/genesis/snapshot/test-snapshot-0001.mjs
+
       - name: Upload Genesis Public Adapter evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -57,6 +63,14 @@ jobs:
           name: genesis-public-adapter-evidence
           path: .build/genesis-adapter-evidence/
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload frozen public snapshot 0001
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-public-snapshot-0001
+          path: laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json
+          if-no-files-found: error
           retention-days: 7
 
       - name: Smoke-test v2 static cockpit over HTTP

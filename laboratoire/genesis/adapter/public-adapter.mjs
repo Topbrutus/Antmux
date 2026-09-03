@@ -78,10 +78,12 @@ function buildPayload(source){
 
 export function adaptPublicCandidate(input){
   obj(input,'$');
-  if(input.adapter_input_version!=='1.0.0-test') fail('adapter_input_version doit être 1.0.0-test.');
+  if(input.mode!=='DEMO'&&input.mode!=='SNAPSHOT') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement mode=DEMO ou SNAPSHOT.');
+  const expectedInputVersion=input.mode==='SNAPSHOT'?'1.0.0':'1.0.0-test';
+  if(input.adapter_input_version!==expectedInputVersion) fail(`adapter_input_version doit être ${expectedInputVersion} pour ${input.mode}.`);
   if(input.publication_intent!=='EXPLICIT_PUBLICATION_CANDIDATE') fail('publication_intent explicite obligatoire.');
-  if(input.mode!=='DEMO' && input.mode!=='SNAPSHOT') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement mode=DEMO ou SNAPSHOT.');
-  if(input.source_status!=='SYNTHETIC' && input.source_status!=='PUBLIC_SNAPSHOT') fail('VALIDATE_PUBLIC_ADAPTER accepte uniquement source_status=SYNTHETIC ou PUBLIC_SNAPSHOT.');
+  if(input.mode==='DEMO'&&input.source_status!=='SYNTHETIC') fail('DEMO exige source_status=SYNTHETIC.');
+  if(input.mode==='SNAPSHOT'&&input.source_status!=='PUBLIC_SNAPSHOT') fail('SNAPSHOT exige source_status=PUBLIC_SNAPSHOT.');
   obj(input.public_payload,'$.public_payload');
 
   const output = {
@@ -96,6 +98,7 @@ export function adaptPublicCandidate(input){
 
   validatePublicV2(output);
   output.integrity_status = 'VERIFIED_PUBLIC';
+  if(output.mode==='SNAPSHOT'&&output.payload.integrity) output.payload.integrity.status='VERIFIED_PUBLIC';
   validatePublicV2(output);
   return output;
 }
