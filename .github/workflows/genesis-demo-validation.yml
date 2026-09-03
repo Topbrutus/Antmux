@@ -5,6 +5,7 @@ on:
     branches:
       - lab/public-research-v1
       - genesis/vision-center-v2
+      - prepare-snapshot-view-validate-deploy
       - main
     paths:
       - 'laboratoire/**'
@@ -112,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: genesis-vision-center-v2
-          path: .build/genesis-vision-center-demo/
+          path: .build/genesis-vision-center-snapshot/
           if-no-files-found: error
           retention-days: 7
 
