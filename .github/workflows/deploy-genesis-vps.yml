@@ -28,10 +28,12 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v6
 
-      - name: Validate Genesis public DEMO
+      - name: Validate Genesis public v1 and v2
         run: |
           node laboratoire/genesis/validate-demo.mjs
           node laboratoire/genesis/test-validator.mjs
+          node laboratoire/genesis/validate-public-v2.mjs
+          node laboratoire/genesis/test-public-v2.mjs
           node laboratoire/genesis/smoke-cockpit.mjs
 
       - name: Assemble exact Genesis public payload
@@ -43,20 +45,26 @@ jobs:
           cp laboratoire/genesis/index.html _genesis_deploy/
           cp laboratoire/genesis/README.md _genesis_deploy/
           cp laboratoire/genesis/PUBLIC-CONTRACT-v1.md _genesis_deploy/
+          cp laboratoire/genesis/PUBLIC-CONTRACT-v2.md _genesis_deploy/
           cp laboratoire/genesis/demo/genesis-demo-v1.json _genesis_deploy/demo/
+          cp laboratoire/genesis/demo/genesis-demo-v2.json _genesis_deploy/demo/
 
           test -f _genesis_deploy/index.html
           test -f _genesis_deploy/README.md
           test -f _genesis_deploy/PUBLIC-CONTRACT-v1.md
+          test -f _genesis_deploy/PUBLIC-CONTRACT-v2.md
           test -f _genesis_deploy/demo/genesis-demo-v1.json
+          test -f _genesis_deploy/demo/genesis-demo-v2.json
 
           test ! -e _genesis_deploy/validate-demo.mjs
+          test ! -e _genesis_deploy/validate-public-v2.mjs
           test ! -e _genesis_deploy/test-validator.mjs
+          test ! -e _genesis_deploy/test-public-v2.mjs
           test ! -e _genesis_deploy/browser-cockpit.mjs
 
           (
             cd _genesis_deploy
-            sha256sum index.html README.md PUBLIC-CONTRACT-v1.md demo/genesis-demo-v1.json > SHA256SUMS
+            sha256sum index.html README.md PUBLIC-CONTRACT-v1.md PUBLIC-CONTRACT-v2.md demo/genesis-demo-v1.json demo/genesis-demo-v2.json > SHA256SUMS
           )
 
       - name: Configure pinned SSH identity
@@ -120,20 +128,24 @@ jobs:
           sha256sum -c SHA256SUMS
 
           mkdir -p "$BACKUP_ROOT/demo"
-          for file in index.html README.md PUBLIC-CONTRACT-v1.md; do
+          for file in index.html README.md PUBLIC-CONTRACT-v1.md PUBLIC-CONTRACT-v2.md; do
             if test -f "$TARGET_ROOT/$file"; then
               cp -a "$TARGET_ROOT/$file" "$BACKUP_ROOT/$file"
             fi
           done
-          if test -f "$TARGET_ROOT/demo/genesis-demo-v1.json"; then
-            cp -a "$TARGET_ROOT/demo/genesis-demo-v1.json" "$BACKUP_ROOT/demo/genesis-demo-v1.json"
-          fi
+          for file in genesis-demo-v1.json genesis-demo-v2.json; do
+            if test -f "$TARGET_ROOT/demo/$file"; then
+              cp -a "$TARGET_ROOT/demo/$file" "$BACKUP_ROOT/demo/$file"
+            fi
+          done
 
           install -d -m 0755 "$TARGET_ROOT/demo"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/README.md" "$TARGET_ROOT/README.md"
           install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v1.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v1.md"
+          install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v2.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v2.md"
           install -m 0644 "$REMOTE_STAGE/demo/genesis-demo-v1.json" "$TARGET_ROOT/demo/genesis-demo-v1.json"
+          install -m 0644 "$REMOTE_STAGE/demo/genesis-demo-v2.json" "$TARGET_ROOT/demo/genesis-demo-v2.json"
 
           cd "$TARGET_ROOT"
           sha256sum -c "$REMOTE_STAGE/SHA256SUMS"
@@ -146,4 +158,4 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/ >/dev/null
-          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/demo/genesis-demo-v1.json >/dev/null
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/demo/genesis-demo-v2.json >/dev/null
