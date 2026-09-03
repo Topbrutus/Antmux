@@ -1,0 +1,47 @@
+{
+  "contract_version": "2.0.0-draft",
+  "mode": "SNAPSHOT",
+  "publication_id": "GENESIS-PUBLIC-SNAPSHOT-0001",
+  "published_at": "2026-09-03T06:04:16Z",
+  "source_status": "PUBLIC_SNAPSHOT",
+  "integrity_status": "VERIFIED_PUBLIC",
+  "payload": {
+    "identity": {
+      "seed_label": "Genesis",
+      "root_status": "PRESERVED_AT_SOURCE_VALIDATION",
+      "root_version": "GENESIS-003-C060-PUBLIC-ATTESTATION-v1",
+      "root_digest": "PUBLIC-PROJECTION-SHA256:4202421e82f9d7e39f8b2f9a734dc2e7e2e30d94dd2212ace238d3deb96bee2f",
+      "continuity_policy": "PRIVATE_ROOT_NOT_EXPOSED; PUBLIC_PROJECTION_ONLY"
+    },
+    "publication_gates": {
+      "current_gate": "LIVE_READ_ONLY_PENDING",
+      "recommended_next_step": "EVALUATE_LIVE_READ_ONLY",
+      "gates": [
+        {"id":"contract-v2","label":"Contrat public v2","status":"PASSED"},
+        {"id":"adapter","label":"Genesis Public Adapter","status":"PASSED"},
+        {"id":"snapshot","label":"Snapshot public figé","status":"PASSED"},
+        {"id":"live-read-only","label":"Lecture réelle read-only","status":"PENDING"}
+      ]
+    },
+    "metrics": [
+      {"id":"genesis003-c041-c060","label":"GENESIS-003 C041-C060","value":"COMPLETE_VALIDATED","status":"VERIFIED_PUBLIC","provenance_ref":"SNAPSHOT-SOURCE-AUDIT"},
+      {"id":"selected-experiment-status","label":"État du test sélectionné","value":"PLANNED_NOT_EXECUTED","status":"VERIFIED_PUBLIC","provenance_ref":"SNAPSHOT-SOURCE-AUDIT"},
+      {"id":"hypothesis-selection-performed","label":"Hypothèse gagnante sélectionnée","value":false,"status":"VERIFIED_PUBLIC","provenance_ref":"SNAPSHOT-SOURCE-AUDIT"},
+      {"id":"probabilities-produced","label":"Probabilités produites","value":false,"status":"VERIFIED_PUBLIC","provenance_ref":"SNAPSHOT-SOURCE-AUDIT"},
+      {"id":"evidence-ledger-auto-promotion","label":"Promotion Evidence Ledger automatique","value":false,"status":"VERIFIED_PUBLIC","provenance_ref":"SNAPSHOT-SOURCE-AUDIT"},
+      {"id":"source-closure-audit","label":"Audit de clôture de la source","value":"SUCCESS","status":"VERIFIED_PUBLIC","provenance_ref":"SNAPSHOT-SOURCE-AUDIT"}
+    ],
+    "evidence": [
+      {"id":"SNAPSHOT-PROJECTION-HASH","type":"PUBLIC_HASH","status":"VERIFIED_PUBLIC","public_ref":"GENESIS-003 C041-C060 public state projection","hash":"sha256:4202421e82f9d7e39f8b2f9a734dc2e7e2e30d94dd2212ace238d3deb96bee2f"},
+      {"id":"SNAPSHOT-SOURCE-AUDIT","type":"PUBLIC_RESULT","status":"VERIFIED_PUBLIC","public_ref":"Source closure audit verified before explicit public projection"}
+    ],
+    "integrity": {
+      "status": "VERIFIED_PUBLIC",
+      "checks": [
+        {"id":"snapshot-public-projection-hash","status":"PASSED","public_ref":"PUBLIC-PROJECTION-SHA256"},
+        {"id":"snapshot-private-raw-data-not-copied","status":"PASSED","public_ref":"DENY BY DEFAULT -> EXPLICIT WHITELIST -> PUBLIC"},
+        {"id":"snapshot-source-closure-audit","status":"PASSED","public_ref":"Source closure audit checked before projection"}
+      ]
+    }
+  }
+}
