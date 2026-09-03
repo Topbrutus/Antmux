@@ -50,10 +50,15 @@ await expectPass('canonical snapshot remains fallback with LIVE_READ_ONLY PENDIN
   if(snapshot.mode !== 'SNAPSHOT' || snapshot.source_status !== 'PUBLIC_SNAPSHOT' || liveGate?.status !== 'PENDING') throw new Error('snapshot fallback changed');
 });
 
-await expectPass('Vision Center still reads frozen snapshot, not the bridge output', async () => {
+await expectPass('Vision Center consumes only guarded public LIVE with mandatory frozen snapshot fallback', async () => {
   const index = await readFile(indexPath, 'utf8');
-  if(!index.includes("const DATA_PATH='./snapshot/genesis-public-snapshot-0001.json'")) throw new Error('cockpit source changed');
-  if(index.includes('GENESIS-PUBLIC-READ-ONLY-BRIDGE-0001')) throw new Error('bridge publication leaked into cockpit');
+  if(!index.includes("const LIVE_PATH='./live/public-read-only.json'")) throw new Error('public LIVE endpoint missing');
+  if(!index.includes("const SNAPSHOT_PATH='./snapshot/genesis-public-snapshot-0001.json'")) throw new Error('snapshot fallback missing');
+  if(!index.includes("d.payload.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE'")) throw new Error('active gate guard missing');
+  if(!index.includes("x=>x.id==='public-live-active'")) throw new Error('active metric guard missing');
+  if(!index.includes('activeMetric?.value!==true')) throw new Error('active metric value guard missing');
+  if(index.includes('GENESIS-PUBLIC-READ-ONLY-BRIDGE-0001')) throw new Error('bridge publication hard-coded into cockpit');
+  if(index.includes('Topbrutus/seedgenesis') || index.includes('git@github.com:Topbrutus/seedgenesis.git')) throw new Error('private source leaked into cockpit');
 });
 
 const expected = 23;
