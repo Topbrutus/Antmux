@@ -14,10 +14,16 @@ required_vars=(
   GENESIS_BUILDER
   GENESIS_BRIDGE
   GENESIS_VALIDATOR
+  GENESIS_PUBLIC_LIVE_ACTIVE
 )
 for name in "${required_vars[@]}"; do
   test -n "${!name:-}" || { printf 'GENESIS_LIVE_SYNC_INVALID: missing %s\n' "$name" >&2; exit 1; }
 done
+
+test "$GENESIS_PUBLIC_LIVE_ACTIVE" = '0' || test "$GENESIS_PUBLIC_LIVE_ACTIVE" = '1' || {
+  printf 'GENESIS_LIVE_SYNC_INVALID: GENESIS_PUBLIC_LIVE_ACTIVE must be 0 or 1\n' >&2
+  exit 1
+}
 
 for command_name in git node mktemp; do
   command -v "$command_name" >/dev/null 2>&1 || { printf 'GENESIS_LIVE_SYNC_INVALID: missing command %s\n' "$command_name" >&2; exit 1; }
@@ -90,5 +96,6 @@ mv -f "$staging_public" "$GENESIS_PUBLIC_OUTPUT"
 printf 'GENESIS_LIVE_SYNC_VALID\n'
 printf 'PUBLIC_MODE=LIVE_READ_ONLY\n'
 printf 'PUBLIC_SOURCE=PUBLIC_READ_ONLY\n'
+printf 'PUBLIC_LIVE_ACTIVE=%s\n' "$GENESIS_PUBLIC_LIVE_ACTIVE"
 printf 'PUBLIC_WRITE_CAPABILITY=NONE\n'
 printf 'PRIVATE_IDENTIFIERS_PROJECTED=no\n'
