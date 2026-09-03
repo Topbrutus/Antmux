@@ -6,6 +6,7 @@ on:
       - lab/public-research-v1
       - genesis/vision-center-v2
       - prepare-snapshot-view-validate-deploy
+      - genesis/evaluate-live-read-only
       - main
     paths:
       - 'laboratoire/**'
@@ -56,6 +57,21 @@ jobs:
 
       - name: Run public snapshot 0001 adversarial tests
         run: node laboratoire/genesis/snapshot/test-snapshot-0001.mjs
+
+      - name: Evaluate LIVE_READ_ONLY boundary without activation
+        run: node laboratoire/genesis/live/evaluate-live-read-only.mjs
+
+      - name: Run LIVE_READ_ONLY adversarial evaluation tests
+        run: node laboratoire/genesis/live/test-live-read-only.mjs
+
+      - name: Upload LIVE_READ_ONLY evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-live-read-only-evaluation
+          path: .build/genesis-live-read-only-evaluation/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload Genesis Public Adapter evidence
         if: always()
