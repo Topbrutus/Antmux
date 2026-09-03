@@ -33,7 +33,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Probe server capabilities without exposing credentials
+      - name: Probe capabilities and provision dedicated read-only deploy key
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -42,7 +42,7 @@ jobs:
           test -n "$VPS_HOST"
           test -n "$VPS_USER"
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "TARGET_ROOT='$TARGET_ROOT' bash -se" <<'REMOTE'
-          set -u
+          set -eu
           yn() { if "$@" >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; }
           printf 'VPS_USER_MATCH=%s\n' "$(yn test "$(id -un)" = 'rob')"
           printf 'TARGET_EXISTS=%s\n' "$(yn test -d "$TARGET_ROOT")"
@@ -52,20 +52,22 @@ jobs:
           printf 'PYTHON3_AVAILABLE=%s\n' "$(yn command -v python3)"
           printf 'CURL_AVAILABLE=%s\n' "$(yn command -v curl)"
           printf 'CRONTAB_AVAILABLE=%s\n' "$(yn command -v crontab)"
-          printf 'GITHUB_HOST_PINNED=%s\n' "$(yn ssh-keygen -F github.com)"
+
+          install -d -m 700 "$HOME/.ssh"
+          key="$HOME/.ssh/seedgenesis_readonly_ed25519"
+          if test ! -f "$key"; then
+            ssh-keygen -q -t ed25519 -N '' -C 'antmux-genesis-readonly-vps' -f "$key"
+          fi
+          chmod 600 "$key"
+          chmod 644 "$key.pub"
+          printf 'SEEDGENESIS_DEPLOY_KEY_READY=yes\n'
+          printf 'SEEDGENESIS_DEPLOY_KEY_PUBLIC=%s\n' "$(cat "$key.pub")"
+
           if command -v git >/dev/null 2>&1; then
             if GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/Topbrutus/seedgenesis.git HEAD >/dev/null 2>&1; then
               printf 'PRIVATE_REPO_HTTPS_READ=yes\n'
             else
               printf 'PRIVATE_REPO_HTTPS_READ=no\n'
             fi
-            if ssh-keygen -F github.com >/dev/null 2>&1 && GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=yes' git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD >/dev/null 2>&1; then
-              printf 'PRIVATE_REPO_SSH_READ=yes\n'
-            else
-              printf 'PRIVATE_REPO_SSH_READ=no\n'
-            fi
-          else
-            printf 'PRIVATE_REPO_HTTPS_READ=no\n'
-            printf 'PRIVATE_REPO_SSH_READ=no\n'
           fi
           REMOTE
