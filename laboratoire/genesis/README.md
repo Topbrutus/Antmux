@@ -1,95 +1,136 @@
 # ANTMUX — GENESIS VISION CENTER
 
+## Cible publique
+
+`https://antmux.com/laboratoire/genesis/`
+
+Dépôt public :
+
+`Topbrutus/Antmux`
+
+Périmètre de cette interface :
+
+`laboratoire/genesis/`
+
+Les zones `/generator/`, `/index.html`, `/styles.css`, `/app.js` et le noyau privé `Topbrutus/seedgenesis` restent séparés.
+
+---
+
 ## Statut
 
 `LAB-004`
 
 Phase actuelle :
 
-`DEMO_PIPELINE_READY`
+`VISION_CENTER_V2_DEMO_READY`
 
-État démontré dans cette phase :
+Contrat courant :
 
-* cockpit public DEMO présent sous `/laboratoire/genesis/` ;
-* données explicitement marquées `DEMO / SYNTHETIC DATA` ;
-* contrat public versionné ;
-* validation du snapshot DEMO et tests adversariaux présents ;
-* smoke test HTTP présent ;
-* rendu automatisé dans un navigateur Chromium réel validé en CI ;
-* captures de preuve desktop et mobile produites par la CI ;
-* construction automatisée d'un bundle public avec manifeste SHA-256.
+`PUBLIC-CONTRACT-v2.md` — `2.0.0-draft`
 
-Le test navigateur vérifie notamment le rendu du cockpit, la bannière DEMO, les valeurs publiques attendues, l'absence d'état fatal, l'absence d'erreurs JavaScript/console et l'absence de débordement horizontal sur les deux viewports testés.
+Snapshot canonique :
 
-Il s'agit d'un test de rendu navigateur réel avec captures de preuve, et non encore d'un test de régression visuelle pixel-à-pixel avec image de référence figée.
+`demo/genesis-demo-v2.json`
 
-Limites actuelles :
+Mode :
 
-* aucun déploiement sur `antmux.com` n'est déclaré par ce document ;
-* aucune connexion au noyau privé Genesis n'est active ;
-* aucune donnée Genesis privée ou réelle n'est publiée par le cockpit DEMO.
+`DEMO / SYNTHETIC DATA`
+
+Aucune donnée privée Genesis n'est lue par le navigateur.
 
 ---
 
 ## Mission
 
-Genesis Vision Center est l'instrument public de visualisation scientifique associé au programme expérimental Genesis.
+Genesis Vision Center est l'observatoire public associé au programme Genesis.
 
-Son objectif est de permettre de voir, comparer et auditer les états publiables de Genesis sans exposer le noyau privé.
+Il ne constitue pas Genesis lui-même.
 
-Le Centre de Vision ne constitue pas Genesis lui-même.
+Il doit montrer uniquement ce qui peut être publié et défendu publiquement, avec séparation stricte entre :
 
-Il constitue une interface d'observation séparée.
+`MEASURED != DERIVED != INTERPRETED != HYPOTHESIS != UNKNOWN`
+
+Il doit aussi conserver visuellement les rejets, échecs et états inconnus lorsqu'ils font partie du raisonnement expérimental.
 
 ---
 
-## Architecture de confiance
+## Architecture v2 affichée
 
-Architecture cible :
+### 1. ROOT / identité minimale
+
+La page expose un bloc public de démonstration pour identité de la graine, statut ROOT, version publique, digest public et règle de continuité.
+
+En mode DEMO, ces valeurs sont synthétiques et ne sont pas des copies du noyau privé.
+
+### 2. GENESIS-002 / continuité
+
+La page peut représenter cycle, checkpoint précédent, checkpoint courant, lien parent, identité ROOT, acceptés, rejetés et retour.
+
+Principe :
+
+`même ROOT -> cycle suivant -> lien parent -> acceptés/rejetés séparés -> retour`
+
+### 3. GENESIS-003 / méta-apprentissage
+
+La page peut représenter hypothèses concurrentes, incertitude, prochain test recommandé, justification et état C041–C060.
+
+Principe public :
+
+`choisir le prochain test qui réduit le plus l'incertitude`
+
+Une recommandation affichée ne constitue pas une preuve d'autonomie.
+
+### 4. Pyramide / terrain d'entraînement
+
+Le cockpit fournit une zone dédiée aux données du terrain d'entraînement en conservant leur classe :
+
+- `MEASURED`
+- `DERIVED`
+- `INTERPRETED`
+- `HYPOTHESIS`
+- `UNKNOWN`
+
+Le mode DEMO n'utilise aucune valeur réelle de la pyramide. Il illustre seulement la discipline de classification.
+
+Le cockpit ne doit jamais présenter un modèle, une valeur dérivée ou une interprétation comme mesure brute.
+
+### 5. GESIS / observatoire
+
+Le cockpit peut représenter publiquement état FFT, dernier export public, nombre de pics, épisodes, état Block Score et règle scientifique.
+
+Règle obligatoire :
+
+`MESURE != INTERPRÉTATION`
+
+Une proximité fréquentielle ou un score ne devient pas automatiquement une découverte.
+
+---
+
+## Cycle public
+
+`SOURCE`
+→ `DESCENTE`
+→ `ZÉRO`
+→ `FORMATION`
+→ `EXPLORATION`
+→ `VALIDATION`
+→ `RETOUR SOURCE`
+
+Ce cycle est une représentation logicielle du programme Genesis.
+
+Il ne constitue pas une affirmation sur l'intention historique de la Grande Pyramide.
+
+---
+
+## Frontière de confiance
 
 `PRIVATE GENESIS`
 → `GENESIS PUBLIC ADAPTER`
-→ `PUBLIC CONTRACT`
-→ `READ-ONLY API`
+→ `PUBLIC CONTRACT v2`
+→ `SNAPSHOT / READ-ONLY API`
 → `GENESIS VISION CENTER`
 
-Chaque frontière doit rester explicite.
-
----
-
-## Frontière privée
-
-Le dépôt privé :
-
-`Topbrutus/seedgenesis`
-
-reste une source privée.
-
-Le navigateur public ne doit jamais accéder directement :
-
-* au dépôt privé ;
-* au filesystem privé ;
-* à une base privée ;
-* aux variables d'environnement ;
-* aux secrets ;
-* aux seeds privées ;
-* aux programmes cachés ;
-* aux audits privés ;
-* aux sorties oracle privées ;
-* aux credentials ;
-* à la topologie serveur privée.
-
----
-
-## Genesis Public Adapter
-
-Une future couche appelée :
-
-`Genesis Public Adapter`
-
-devra constituer la seule frontière autorisée entre le noyau privé et la vue publique.
-
-Principe obligatoire :
+Principe :
 
 `DENY BY DEFAULT`
 
@@ -97,263 +138,100 @@ Puis :
 
 `EXPLICIT WHITELIST -> PUBLIC`
 
-Tout champ non explicitement autorisé reste privé.
-
-L'absence d'une interdiction explicite ne constitue jamais une autorisation de publication.
-
----
-
-## Lecture seule
-
-Le flux public initial est strictement :
-
-`Genesis -> Adapter -> API -> Vision Center`
-
-Jamais :
-
-`Vision Center -> Genesis`
-
-Le navigateur public ne possède aucune capacité d'écriture vers le noyau Genesis.
-
-Toute future expérimentation publique devra utiliser une frontière séparée, validée et sandboxée.
+Le navigateur public ne doit jamais accéder directement au dépôt privé, au filesystem privé, aux secrets, aux seeds privées, aux audits privés, aux sorties oracle, aux credentials ou à la topologie serveur privée.
 
 ---
 
 ## Modes de données
 
-Le Centre de Vision devra distinguer au minimum :
-
 ### DEMO
 
-Données artificielles destinées au développement de l'interface.
+Données artificielles pour construire et vérifier l'interface.
 
-Affichage obligatoire :
-
-`DEMO / SYNTHETIC DATA`
+Affichage obligatoire : `DEMO / SYNTHETIC DATA`
 
 ### SNAPSHOT
 
-Capture publique figée provenant d'un export autorisé.
+Publication publique figée produite par un processus explicitement autorisé.
 
 ### LIVE_READ_ONLY
 
-État public obtenu par une interface de lecture seule.
+Future vue publique en lecture seule.
 
-Le mode :
-
-`LIVE_READ_ONLY`
-
-ne pourra être utilisé qu'après validation du Genesis Public Adapter.
+Ce mode reste bloqué tant que le Genesis Public Adapter n'est pas validé.
 
 ---
 
-## Règle de vérité visuelle
+## Gates de publication
 
-Une animation n'est pas une preuve d'activité du noyau Genesis.
+`CONTRAT -> ADAPTER -> SNAPSHOT -> LIVE_READ_ONLY`
 
-Une interface animée alimentée par des données de démonstration doit rester explicitement marquée comme démonstration.
+Le contrat v2 est prêt pour la démonstration.
 
-Les mots :
-
-* vivant ;
-* autonome ;
-* conscient ;
-* actif ;
-* auto-évolutif ;
-
-ne doivent pas être utilisés comme conclusions scientifiques sans critères opérationnels et preuves correspondantes.
+L'Adapter public réel n'est pas connecté par ce changement.
 
 ---
 
-## Provenance
+## Relation avec le générateur Antmux
 
-Chaque donnée réelle affichée ultérieurement devra pouvoir fournir au minimum :
+Le Vision Center affiche un lien de navigation vers `/generator/`.
 
-* identifiant ;
-* type ;
-* statut ;
-* origine ;
-* date ou génération ;
-* transformation éventuelle ;
-* preuve ou référence ;
-* niveau d'intégrité ;
-* mode de publication.
+Le générateur reste un produit séparé.
 
-Une valeur sans provenance suffisante ne doit pas apparaître comme résultat scientifique validé.
+Cette évolution ne modifie aucun fichier du générateur et ne crée aucun couplage automatique avec le noyau privé Genesis.
 
 ---
 
-## Séparation des couches
+## Tests
 
-Le Centre de Vision devra distinguer visuellement :
+Validation historique v1 :
 
-1. données observées ;
-2. calculs dérivés ;
-3. hypothèses ;
-4. prédictions ;
-5. résultats de tests ;
-6. échecs ;
-7. réplications ;
-8. corrections.
+`node laboratoire/genesis/validate-demo.mjs`
 
-Ces catégories ne doivent jamais être fusionnées silencieusement.
+Tests adversariaux v1 :
 
----
+`node laboratoire/genesis/test-validator.mjs`
 
-## Vision future du cockpit
+Validation v2 :
 
-Le cockpit pourra ultérieurement représenter notamment :
+`node laboratoire/genesis/validate-public-v2.mjs`
 
-* état de la graine ;
-* génération ;
-* pipeline expérimental ;
-* lignées ;
-* branches ;
-* puzzles ;
-* échecs ;
-* nouveauté ;
-* budget de calcul public ;
-* résultats ;
-* preuves ;
-* intégrité ;
-* retour à la source.
+Tests adversariaux v2 :
 
-Cette liste est une intention d'interface.
+`node laboratoire/genesis/test-public-v2.mjs`
 
-Elle ne prouve pas que chaque donnée est déjà disponible ou publiable.
+Smoke test HTTP :
+
+`node laboratoire/genesis/smoke-cockpit.mjs`
+
+Test Chromium desktop/mobile :
+
+`node laboratoire/genesis/browser-cockpit.mjs`
+
+Bundle public :
+
+`node laboratoire/genesis/build-public-bundle.mjs`
+
+Le workflow GitHub Actions exécute ces validations avant toute décision de déploiement.
 
 ---
 
-## Continuité Genesis
+## Déploiement
 
-Une représentation future pourra suivre la boucle :
+Le déploiement VPS reste volontairement séparé du développement.
 
-`origine`
-→ `entrée`
-→ `transformation`
-→ `test`
-→ `résultat`
-→ `mémoire`
-→ `retour`
+La route cible est `/laboratoire/genesis/`.
 
-Le Centre de Vision doit conserver les branches rejetées et les échecs publiables lorsque ceux-ci font partie de la preuve expérimentale.
+Une branche ou une PR validée doit être revue avant intégration à `main`.
+
+Le serveur ne doit pas être modifié par les tests de développement.
 
 ---
 
-## Contrat public
+## Règle scientifique finale
 
-Avant toute connexion réelle avec Genesis, un contrat public versionné devra définir exactement :
-
-* les champs autorisés ;
-* leurs types ;
-* leurs statuts ;
-* leur provenance ;
-* leurs limites ;
-* les champs interdits ;
-* la version du contrat.
-
-Le cockpit devra consommer ce contrat public et non la structure interne brute du noyau privé.
-
----
-
-## Infrastructure
-
-Le dépôt public Antmux peut contenir :
-
-* interface publique ;
-* JavaScript/CSS public ;
-* contrats ;
-* schémas ;
-* données de démonstration ;
-* tests publics ;
-* documentation reproductible.
-
-Le dépôt public ne doit pas contenir :
-
-* mots de passe ;
-* tokens ;
-* clés privées ;
-* certificats privés ;
-* configuration privée du VPS ;
-* topologie réseau privée ;
-* secrets Nginx ;
-* secrets Genesis ;
-* exports privés.
-
----
-
-## Nginx
-
-Nginx appartient à la couche de déploiement serveur.
-
-Le Centre de Vision ne dépendra pas d'une configuration Nginx secrète enregistrée dans le dépôt public.
-
-Une documentation générique reproductible pourra éventuellement être publiée séparément si elle ne révèle aucune infrastructure sensible.
-
----
-
-## Protection de la devanture Antmux
-
-Pendant LAB-004 :
-
-les fichiers suivants restent hors périmètre :
-
-`/index.html`
-`/styles.css`
-`/app.js`
-
-Aucun bouton Genesis ne doit encore être ajouté à la devanture.
-
-Le Centre de Vision devra d'abord fonctionner indépendamment sous :
-
-`/laboratoire/genesis/`
-
----
-
-## Première règle de construction
-
-Ordre obligatoire :
-
-`CONTRAT`
-→ `DEMO`
-→ `TEST LOCAL`
-→ `VÉRIFICATION`
-→ `PUBLICATION BRANCHE`
-→ `ADAPTER`
-→ `LECTURE RÉELLE`
-
-Ne jamais connecter d'abord le noyau privé puis essayer de sécuriser après.
-
----
-
-## Principe de sécurité
-
-La frontière publique est une frontière scientifique autant qu'une frontière de sécurité.
-
-Une donnée cachée peut compromettre :
-
-* un secret ;
-* une expérience ;
-* une hypothèse aveugle ;
-* une réplication ;
-* une validation future.
-
-Par conséquent :
-
-`PRIVATE UNTIL EXPLICITLY PUBLISHED`
-
----
-
-## Principe final
-
-Genesis Vision Center doit montrer uniquement ce que nous pouvons défendre publiquement.
-
-Il doit rendre visible :
-
-* ce qui est observé ;
-* ce qui est calculé ;
-* ce qui est supposé ;
-* ce qui a échoué ;
-* ce qui a résisté aux tests.
+Le Centre de Vision doit rendre visible ce qui est observé, calculé, interprété, supposé, échoué, rejeté, validé ou encore inconnu.
 
 Il ne doit jamais fabriquer l'apparence d'une preuve.
+
+`UNKNOWN / PENDING > INVENTED`
