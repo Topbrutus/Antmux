@@ -6,8 +6,10 @@ on:
       - genesis/connect-public-read-only-endpoint
     paths:
       - '.github/workflows/genesis-live-bridge-vps-probe.yml'
+      - 'laboratoire/genesis/index.html'
       - 'laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs'
       - 'laboratoire/genesis/live/bridge-public-read-only.mjs'
+      - 'laboratoire/genesis/live/sync-public-read-only.sh'
       - 'laboratoire/genesis/validate-public-v2.mjs'
   workflow_dispatch:
 
@@ -41,6 +43,7 @@ jobs:
           EOF
           node laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs /tmp/genesis-safe-status.txt /tmp/genesis-public-source.json
           node laboratoire/genesis/live/bridge-public-read-only.mjs /tmp/genesis-public-source.json
+          node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
 
           cp /tmp/genesis-safe-status.txt /tmp/genesis-rejected-status.txt
           sed -i 's/hypothesis_selection_performed=false/hypothesis_selection_performed=true/' /tmp/genesis-rejected-status.txt
@@ -49,6 +52,24 @@ jobs:
             exit 1
           fi
           echo 'GENESIS_WHITELIST_FAIL_CLOSED_PASS'
+
+      - name: Validate sync script and cockpit loader
+        run: |
+          set -euo pipefail
+          bash -n laboratoire/genesis/live/sync-public-read-only.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('laboratoire/genesis/index.html').read_text(encoding='utf-8')
+          assert "./live/public-read-only.json" in html
+          assert "./snapshot/genesis-public-snapshot-0001.json" in html
+          assert "LIVE_READ_ONLY" in html
+          assert "SNAPSHOT" in html
+          assert "Topbrutus/seedgenesis" not in html
+          script = html.split('<script>', 1)[1].split('</script>', 1)[0]
+          Path('/tmp/genesis-cockpit-loader.js').write_text(script, encoding='utf-8')
+          PY
+          node --check /tmp/genesis-cockpit-loader.js
+          echo 'GENESIS_COCKPIT_LIVE_FALLBACK_SYNTAX_PASS'
 
       - name: Configure pinned Antmux VPS identity
         env:
@@ -87,7 +108,6 @@ jobs:
           auth_output="$(ssh -n $sshopts -T git@github.com 2>&1 || true)"
           printf '%s' "$auth_output" | grep -q 'successfully authenticated'
           printf 'GITHUB_SSH_AUTH=yes\n'
-          printf 'GITHUB_AUTH_IDENTITY=%s\n' "$(printf '%s' "$auth_output" | head -n 1 | sed -E "s/^Hi ([^!]+)!.*/\1/")"
 
           if GIT_SSH_COMMAND="ssh $sshopts" git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD >/dev/null 2>&1; then
             printf 'PRIVATE_REPO_SSH_READ=yes\n'
