@@ -80,12 +80,14 @@ if grep -Fq "$GENESIS_PRIVATE_REPO_SSH" "$generated" || \
   exit 1
 fi
 
+printf '%s\n' "$source_commit" > "$GENESIS_RUNTIME_DIR/last-source-commit"
+chmod 0600 "$GENESIS_RUNTIME_DIR/last-source-commit"
+
 cp "$generated" "$staging_public"
 chmod 0644 "$staging_public"
 mv -f "$staging_public" "$GENESIS_PUBLIC_OUTPUT"
 
 printf 'GENESIS_LIVE_SYNC_VALID\n'
-printf 'SOURCE_COMMIT_OBSERVED=%s\n' "$source_commit"
 printf 'PUBLIC_MODE=LIVE_READ_ONLY\n'
 printf 'PUBLIC_SOURCE=PUBLIC_READ_ONLY\n'
 printf 'PUBLIC_WRITE_CAPABILITY=NONE\n'
