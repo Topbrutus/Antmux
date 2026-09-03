@@ -73,7 +73,7 @@ jobs:
           for file in /tmp/public-index.html /tmp/origin-index.html; do
             grep -Fq 'Genesis Vision Center — LIVE / SNAPSHOT' "$file"
             grep -Fq 'Actualiser maintenant' "$file"
-            grep -Fq 'C060 → C061 → C062' "$file"
+            grep -Fq 'id="stageTimeline"' "$file"
             grep -Fq "const LIVE_PATH='./live/public-read-only.json'" "$file"
           done
 
