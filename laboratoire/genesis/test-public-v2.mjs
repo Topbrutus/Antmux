@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { validatePublicV2 } from './validate-public-v2.mjs';
+
+const canonical = JSON.parse(await readFile(fileURLToPath(new URL('./demo/genesis-demo-v2.json', import.meta.url)), 'utf8'));
+const clone = value => JSON.parse(JSON.stringify(value));
+
+const cases = [
+  ['canonical v2 demo passes', true, d => d],
+  ['unknown top-level field rejected', false, d => (d.private_debug='x',d)],
+  ['non-DEMO canonical mode rejected', false, d => (d.mode='SNAPSHOT',d)],
+  ['non-synthetic canonical source rejected', false, d => (d.source_status='PUBLIC_SNAPSHOT',d)],
+  ['unknown payload category rejected', false, d => (d.payload.private_state={},d)],
+  ['invalid semantic class rejected', false, d => (d.payload.training_field.observations[0].semantic_class='MAGIC',d)],
+  ['invalid pipeline status rejected', false, d => (d.payload.pipeline.steps[0].status='SECRET_RUNNING',d)],
+  ['invalid publication gate status rejected', false, d => (d.payload.publication_gates.gates[0].status='AUTO_MERGED',d)],
+  ['scientific rule cannot be weakened', false, d => (d.payload.observatory.scientific_rule='MESURE = INTERPRÉTATION',d)],
+  ['private Windows path rejected', false, d => (d.payload.evidence[0].public_ref='C:\\private\\secret.json',d)],
+  ['localhost endpoint rejected', false, d => (d.payload.evidence[0].public_ref='http://127.0.0.1:8080/private',d)],
+  ['private RFC1918 endpoint rejected', false, d => (d.payload.evidence[0].public_ref='https://192.168.1.44/state',d)],
+  ['GitHub token-shaped string rejected', false, d => (d.payload.evidence[0].public_ref='ghp_123456789012345678901234567890123456',d)],
+  ['private key marker rejected', false, d => (d.payload.evidence[0].public_ref='-----BEGIN PRIVATE KEY-----',d)],
+  ['non-finite metric rejected', false, d => (d.payload.metrics[0].value=Infinity,d)],
+  ['missing ROOT field rejected', false, d => (delete d.payload.identity.root_status,d)],
+  ['negative continuity cycle rejected', false, d => (d.payload.continuity.cycle=-1,d)],
+  ['training observations require provenance', false, d => (delete d.payload.training_field.observations[0].provenance_ref,d)]
+];
+
+let failures=0;
+for(const [name,shouldPass,mutate] of cases){
+  let passed=false,msg='';
+  try{validatePublicV2(mutate(clone(canonical)));passed=true}catch(e){msg=e instanceof Error?e.message:String(e)}
+  if(passed===shouldPass) console.log(`PASS  ${name}`);
+  else {failures++;console.error(`FAIL  ${name}`);console.error(`      expected=${shouldPass?'PASS':'REJECT'} actual=${passed?'PASS':'REJECT'}`);if(msg)console.error(`      ${msg}`)}
+}
+if(failures){console.error(`GENESIS_PUBLIC_V2_TESTS_FAILED ${failures}/${cases.length}`);process.exitCode=1}
+else console.log(`GENESIS_PUBLIC_V2_TESTS_PASSED ${cases.length}/${cases.length}`);
