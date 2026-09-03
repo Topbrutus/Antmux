@@ -1,17 +1,16 @@
-name: Genesis DEMO validation
+name: Genesis Vision Center validation
 
 on:
   push:
     branches:
       - lab/public-research-v1
+      - genesis/vision-center-v2
       - main
     paths:
-      - 'index.html'
       - 'laboratoire/**'
       - '.github/workflows/genesis-demo-validation.yml'
   pull_request:
     paths:
-      - 'index.html'
       - 'laboratoire/**'
       - '.github/workflows/genesis-demo-validation.yml'
   workflow_dispatch:
@@ -20,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  validate-demo:
+  validate-genesis-vision-center:
     runs-on: ubuntu-latest
     timeout-minutes: 12
 
@@ -33,13 +32,19 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate canonical DEMO snapshot
+      - name: Validate historical v1 DEMO snapshot
         run: node laboratoire/genesis/validate-demo.mjs
 
-      - name: Run adversarial validator tests
+      - name: Run historical v1 adversarial tests
         run: node laboratoire/genesis/test-validator.mjs
 
-      - name: Smoke-test static cockpit over HTTP
+      - name: Validate canonical v2 DEMO snapshot
+        run: node laboratoire/genesis/validate-public-v2.mjs
+
+      - name: Run v2 adversarial validator tests
+        run: node laboratoire/genesis/test-public-v2.mjs
+
+      - name: Smoke-test v2 static cockpit over HTTP
         run: node laboratoire/genesis/smoke-cockpit.mjs
 
       - name: Install isolated Chromium test runtime
@@ -47,14 +52,14 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Render and verify cockpit in real Chromium
+      - name: Render and verify v2 cockpit in real Chromium
         run: node laboratoire/genesis/browser-cockpit.mjs
 
       - name: Upload Chromium visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: genesis-cockpit-browser-evidence
+          name: genesis-cockpit-v2-browser-evidence
           path: .build/genesis-browser-evidence/
           if-no-files-found: warn
           retention-days: 7
@@ -71,13 +76,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Build deployable public DEMO bundle
+      - name: Build deployable Genesis Vision Center bundle
         run: node laboratoire/genesis/build-public-bundle.mjs
 
-      - name: Upload Genesis Vision Center DEMO bundle
+      - name: Upload Genesis Vision Center bundle
         uses: actions/upload-artifact@v4
         with:
-          name: genesis-vision-center-demo
+          name: genesis-vision-center-v2
           path: .build/genesis-vision-center-demo/
           if-no-files-found: error
           retention-days: 7
