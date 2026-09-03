@@ -44,6 +44,21 @@ jobs:
       - name: Run v2 adversarial validator tests
         run: node laboratoire/genesis/test-public-v2.mjs
 
+      - name: Validate Genesis Public Adapter boundary
+        run: node laboratoire/genesis/adapter/validate-public-adapter.mjs
+
+      - name: Run Genesis Public Adapter adversarial tests
+        run: node laboratoire/genesis/adapter/test-public-adapter.mjs
+
+      - name: Upload Genesis Public Adapter evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-public-adapter-evidence
+          path: .build/genesis-adapter-evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Smoke-test v2 static cockpit over HTTP
         run: node laboratoire/genesis/smoke-cockpit.mjs
 
