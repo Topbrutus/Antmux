@@ -1,0 +1,104 @@
+{
+  "adapter_input_version": "1.0.0-test",
+  "publication_intent": "EXPLICIT_PUBLICATION_CANDIDATE",
+  "mode": "DEMO",
+  "publication_id": "DEMO-GENESIS-V2-CYCLE-0002",
+  "published_at": "2026-09-03T04:25:44Z",
+  "source_status": "SYNTHETIC",
+  "private_context": {
+    "private_repo": "Topbrutus/seedgenesis",
+    "private_windows_path": "C:\\private\\seedgenesis\\root.json",
+    "fake_token_for_redaction_test": "ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "private_endpoint": "http://127.0.0.1:9999/private",
+    "note": "SYNTHETIC PRIVATE-LIKE NOISE — MUST NEVER APPEAR IN OUTPUT"
+  },
+  "public_payload": {
+    "identity": {
+      "seed_label": "Genesis",
+      "root_status": "PRESERVED_DEMO",
+      "root_version": "DEMO-ROOT-v2",
+      "root_digest": "DEMO-ONLY-NOT-A-REAL-DIGEST",
+      "continuity_policy": "ROOT_MUST_NOT_CHANGE"
+    },
+    "continuity": {
+      "cycle": 4,
+      "previous_checkpoint_ref": "DEMO-CHECKPOINT-003",
+      "current_checkpoint_ref": "DEMO-CHECKPOINT-004",
+      "parent_link_status": "PASSED",
+      "root_identity_status": "PASSED",
+      "accepted_candidates": 1,
+      "rejected_candidates": 2,
+      "return_status": "PASSED"
+    },
+    "metacognition": {
+      "status": "DEMO_CYCLE_COMPLETE",
+      "competing_hypotheses": 3,
+      "uncertainty": "REDUCED_DEMO_STRUCTURAL",
+      "next_test": "DEMO-C060-TEST-B — test synthétique le plus discriminant",
+      "rationale": "Étape 5 : sélectionner parmi des tests pré-déclarés celui qui sépare le mieux trois hypothèses concurrentes, sans choisir d'hypothèse gagnante. Étape 6 : enregistrer un verdict synthétique avec rejet/acceptation explicites. Étape 7 : préserver ROOT, lier le checkpoint parent et revenir à SOURCE.",
+      "c041_c060_status": "COMPLETE_VALIDATED_DEMO"
+    },
+    "pipeline": {
+      "steps": [
+        {"id":"demo-step-source","label":"Source","status":"PASSED"},
+        {"id":"demo-step-descent","label":"Descente","status":"PASSED"},
+        {"id":"demo-step-zero","label":"Zéro","status":"PASSED"},
+        {"id":"demo-step-formation","label":"Formation","status":"PASSED"},
+        {"id":"demo-step-exploration","label":"Exploration","status":"PASSED"},
+        {"id":"demo-step-validation","label":"Validation","status":"PASSED"},
+        {"id":"demo-step-return","label":"Retour source","status":"PASSED"}
+      ]
+    },
+    "training_field": {
+      "label": "Pyramide — terrain d'entraînement",
+      "purpose": "Démontrer la séparation MESURE / CALCUL / INTERPRÉTATION / HYPOTHÈSE sans attribuer d'intention historique.",
+      "observations": [
+        {"id":"DEMO-PYR-MEASURED","label":"Exemple de donnée observée","value":"DEMO_VALUE","unit":"demo-unit","semantic_class":"MEASURED","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-PYRAMID"},
+        {"id":"DEMO-PYR-DERIVED","label":"Exemple de valeur calculée","value":"DEMO_DERIVED","unit":"demo-unit","semantic_class":"DERIVED","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-PYRAMID"},
+        {"id":"DEMO-PYR-INTERPRETED","label":"Exemple d'interprétation","value":"DEMO_INTERPRETATION","unit":null,"semantic_class":"INTERPRETED","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-PYRAMID"},
+        {"id":"DEMO-PYR-HYPOTHESIS","label":"Exemple d'hypothèse falsifiable","value":"DEMO_HYPOTHESIS","unit":null,"semantic_class":"HYPOTHESIS","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-PYRAMID"}
+      ]
+    },
+    "observatory": {
+      "label": "GESIS — observatoire audio",
+      "mode": "DEMO",
+      "fft_status": "READY_DEMO",
+      "latest_export_ref": "DEMO-GESIS-EXPORT-001",
+      "peak_count": 8,
+      "episode_count": 3,
+      "block_score_status": "PARTIAL_DEMO",
+      "scientific_rule": "MESURE != INTERPRÉTATION"
+    },
+    "publication_gates": {
+      "current_gate": "PUBLIC_ADAPTER_NOT_CONNECTED",
+      "recommended_next_step": "VALIDATE_PUBLIC_ADAPTER",
+      "gates": [
+        {"id":"contract-v2","label":"Contrat public v2","status":"PASSED"},
+        {"id":"adapter","label":"Genesis Public Adapter","status":"PENDING"},
+        {"id":"snapshot","label":"Snapshot public réel","status":"PENDING"},
+        {"id":"live-read-only","label":"Lecture réelle read-only","status":"PENDING"}
+      ]
+    },
+    "metrics": [
+      {"id":"demo-cycle","label":"Cycle synthétique fermé","value":4,"unit":"cycle","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-hypotheses","label":"Hypothèses concurrentes synthétiques","value":3,"unit":"hypothesis","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-validation","label":"Verdict synthétique étape 6","value":"1_ACCEPTED_2_REJECTED","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-return","label":"Retour SOURCE étape 7","value":true,"status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"}
+    ],
+    "evidence": [
+      {"id":"DEMO-PROVENANCE-001","type":"PUBLIC_DOCUMENT","status":"SYNTHETIC","public_ref":"laboratoire/genesis/PUBLIC-CONTRACT-v2.md"},
+      {"id":"DEMO-PROVENANCE-PYRAMID","type":"PUBLIC_DOCUMENT","status":"SYNTHETIC","public_ref":"laboratoire/genesis/README.md"},
+      {"id":"DEMO-PROVENANCE-GESIS","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"},
+      {"id":"DEMO-CYCLE-5-6-7","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"}
+    ],
+    "integrity": {
+      "status": "NOT_APPLICABLE",
+      "checks": [
+        {"id":"demo-check-synthetic-label","status":"PASSED","public_ref":"DEMO / SYNTHETIC DATA"},
+        {"id":"demo-check-no-private-source","status":"PASSED","public_ref":"No private Genesis source is read by this demo"},
+        {"id":"demo-check-semantic-separation","status":"PASSED","public_ref":"MEASURED != DERIVED != INTERPRETED != HYPOTHESIS"},
+        {"id":"demo-check-cycle-5-6-7","status":"PASSED","public_ref":"DEMO stages 5, 6 and 7 close the synthetic loop while preserving ROOT"}
+      ]
+    }
+  }
+}
