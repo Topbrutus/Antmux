@@ -137,11 +137,14 @@ async function verifyViewport(base, viewportName, viewport) {
     await genesisButton.click();
     await page.waitForLoadState('networkidle');
     assert(new URL(page.url()).pathname === '/laboratoire/genesis/', `${viewportName}: navigation Genesis incorrecte.`);
-    assert((await page.title()) === 'Genesis Vision Center — DEMO', `${viewportName}: titre Genesis inattendu.`);
+    assert((await page.title()) === 'Genesis Vision Center — SNAPSHOT', `${viewportName}: titre Genesis inattendu.`);
     await page.locator('#cockpit').waitFor({ state: 'visible', timeout: 5000 });
-    assert((await page.locator('#demoBanner').textContent())?.trim() === 'DEMO / SYNTHETIC DATA', `${viewportName}: bannière DEMO absente.`);
-    assert((await page.locator('#mode').textContent())?.trim() === 'DEMO', `${viewportName}: mode Genesis inattendu.`);
-    assert((await page.locator('#sourceStatus').textContent())?.trim() === 'SYNTHETIC', `${viewportName}: source Genesis inattendue.`);
+    assert((await page.locator('#snapshotBanner').textContent())?.trim() === 'SNAPSHOT / PUBLIC DATA', `${viewportName}: bannière SNAPSHOT absente.`);
+    assert((await page.locator('#mode').textContent())?.trim() === 'SNAPSHOT', `${viewportName}: mode Genesis inattendu.`);
+    assert((await page.locator('#sourceStatus').textContent())?.trim() === 'PUBLIC_SNAPSHOT', `${viewportName}: source Genesis inattendue.`);
+    assert((await page.locator('#publicationId').textContent())?.trim() === 'GENESIS-PUBLIC-SNAPSHOT-0001', `${viewportName}: publication Genesis inattendue.`);
+    assert((await page.locator('#integrityStatus').textContent())?.trim() === 'VERIFIED_PUBLIC', `${viewportName}: intégrité Genesis inattendue.`);
+    assert((await page.locator('#liveReadOnly').textContent())?.trim() === 'PENDING', `${viewportName}: LIVE_READ_ONLY doit rester PENDING.`);
     assert(!(await page.locator('#fatal').isVisible()), `${viewportName}: état fatal Genesis visible.`);
     await page.screenshot({ path: join(EVIDENCE_DIR, `${viewportName}-genesis.png`), fullPage: true });
     await assertNoOverflow(page, `${viewportName}/genesis`);
@@ -157,8 +160,11 @@ async function verifyViewport(base, viewportName, viewport) {
       home_button_visible: true,
       laboratory_rendered: true,
       genesis_rendered: true,
-      genesis_mode: 'DEMO',
-      source_status: 'SYNTHETIC',
+      genesis_mode: 'SNAPSHOT',
+      source_status: 'PUBLIC_SNAPSHOT',
+      publication_id: 'GENESIS-PUBLIC-SNAPSHOT-0001',
+      integrity_status: 'VERIFIED_PUBLIC',
+      live_read_only: 'PENDING',
       private_route_requested: false,
       horizontal_overflow: false,
       browser_console_errors: 0,
