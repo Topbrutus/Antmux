@@ -33,7 +33,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Verify unique seedgenesis read-only deploy key
+      - name: Diagnose unique seedgenesis deploy-key binding
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -55,17 +55,25 @@ jobs:
           auth_output="$($sshcmd -T git@github.com 2>&1 || true)"
           if printf '%s' "$auth_output" | grep -q 'successfully authenticated'; then
             printf 'GITHUB_SSH_AUTH=yes\n'
+            printf 'GITHUB_AUTH_IDENTITY=%s\n' "$(printf '%s' "$auth_output" | head -n 1 | sed -E "s/^Hi ([^!]+)!.*/\1/")"
           else
             printf 'GITHUB_SSH_AUTH=no\n'
-            exit 1
           fi
 
-          if GIT_SSH_COMMAND="$sshcmd" git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD </dev/null >/dev/null 2>&1; then
+          errfile="$(mktemp)"
+          if GIT_SSH_COMMAND="$sshcmd" git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD </dev/null >/dev/null 2>"$errfile"; then
             printf 'PRIVATE_REPO_SSH_READ=yes\n'
           else
             printf 'PRIVATE_REPO_SSH_READ=no\n'
-            exit 1
+            if grep -qi 'Repository not found' "$errfile"; then
+              printf 'LS_REMOTE_REASON=repository_not_found_or_not_authorized\n'
+            elif grep -qi 'Permission denied' "$errfile"; then
+              printf 'LS_REMOTE_REASON=permission_denied\n'
+            else
+              printf 'LS_REMOTE_REASON=other\n'
+              sed -n '1,3p' "$errfile"
+            fi
           fi
-
+          rm -f "$errfile"
           printf 'WRITE_CAPABILITY_CONFIGURED=no\n'
           REMOTE
