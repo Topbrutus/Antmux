@@ -6,6 +6,7 @@ const EXPECTED_CONTRACT = '2.0.0-draft';
 const TOP_LEVEL = new Set(['contract_version','mode','publication_id','published_at','source_status','integrity_status','payload']);
 const PAYLOAD = new Set(['identity','continuity','metacognition','pipeline','training_field','observatory','publication_gates','metrics','evidence','integrity']);
 const SNAPSHOT_REQUIRED = ['identity','publication_gates','metrics','evidence','integrity'];
+const LIVE_REQUIRED = ['identity','publication_gates','metrics','evidence','integrity'];
 const PIPELINE_STATUSES = new Set(['PENDING','RUNNING_PUBLIC','PASSED','FAILED','REJECTED','NOT_APPLICABLE']);
 const CHECK_STATUSES = new Set(['PASSED','FAILED','NOT_RUN','NOT_APPLICABLE']);
 const SEMANTIC_CLASSES = new Set(['MEASURED','DERIVED','INTERPRETED','HYPOTHESIS','UNKNOWN']);
@@ -98,7 +99,8 @@ function integrity(v){
 function validatePayload(data){
   const p=data.payload;
   if(data.mode==='DEMO') required(p,PAYLOAD,'$.payload');
-  else required(p,SNAPSHOT_REQUIRED,'$.payload');
+  else if(data.mode==='SNAPSHOT') required(p,SNAPSHOT_REQUIRED,'$.payload');
+  else required(p,LIVE_REQUIRED,'$.payload');
   if('identity'in p)identity(p.identity);
   if('continuity'in p)continuity(p.continuity);
   if('metacognition'in p)meta(p.metacognition);
@@ -156,21 +158,50 @@ function validateSnapshot(data){
   if(!privacyCheck||privacyCheck.status!=='PASSED')fail('Le contrôle snapshot-private-raw-data-not-copied doit être PASSED.');
 }
 
+function validateLiveReadOnly(data){
+  const p=data.payload;
+  if(data.publication_id.startsWith('DEMO-'))fail('LIVE_READ_ONLY public ne peut pas utiliser un publication_id DEMO.');
+  if(!p.identity.root_digest.startsWith('PUBLIC-READ-ONLY-SHA256:'))fail('LIVE_READ_ONLY doit exposer uniquement un digest public read-only.');
+  if(p.integrity.status!==data.integrity_status)fail('Les statuts d’intégrité LIVE_READ_ONLY doivent être cohérents.');
+  if(data.integrity_status!=='VERIFIED_PUBLIC')fail('LIVE_READ_ONLY exige integrity_status=VERIFIED_PUBLIC.');
+
+  const gateMap=new Map(p.publication_gates.gates.map(g=>[g.id,g.status]));
+  for(const id of ['contract-v2','adapter','snapshot','live-read-only'])if(!gateMap.has(id))fail(`Gate LIVE_READ_ONLY manquante: ${id}.`);
+  for(const id of ['contract-v2','adapter','snapshot','live-read-only'])if(gateMap.get(id)!=='PASSED')fail(`Gate ${id} doit être PASSED pour LIVE_READ_ONLY.`);
+  if(p.publication_gates.current_gate!=='LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED')fail('current_gate doit rester LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED avant déploiement explicite.');
+
+  const hashEvidence=p.evidence.find(x=>x.id==='LIVE-PUBLIC-PROJECTION-HASH'&&x.type==='PUBLIC_HASH'&&typeof x.hash==='string'&&/^sha256:[0-9a-f]{64}$/.test(x.hash));
+  if(!hashEvidence)fail('LIVE_READ_ONLY exige une preuve LIVE-PUBLIC-PROJECTION-HASH sha256.');
+  for(const id of ['live-public-projection-hash','live-server-side-only','live-write-capability-none','live-freshness-window']){
+    const check=p.integrity.checks.find(x=>x.id===id);
+    if(!check||check.status!=='PASSED')fail(`Le contrôle ${id} doit être PASSED.`);
+  }
+  const writeMetric=p.metrics.find(x=>x.id==='bridge-write-capability');
+  if(writeMetric?.value!=='NONE'||writeMetric?.status!=='VERIFIED_PUBLIC')fail('La métrique bridge-write-capability doit rester NONE/VERIFIED_PUBLIC.');
+  const browserMetric=p.metrics.find(x=>x.id==='browser-private-credentials');
+  if(browserMetric?.value!==false||browserMetric?.status!=='VERIFIED_PUBLIC')fail('La métrique browser-private-credentials doit rester false/VERIFIED_PUBLIC.');
+}
+
 export function validatePublicV2(data){
   obj(data,'$');allowed(data,TOP_LEVEL,'$');required(data,TOP_LEVEL,'$');
   if(data.contract_version!==EXPECTED_CONTRACT)fail(`contract_version doit être ${EXPECTED_CONTRACT}.`);
-  if(data.mode!=='DEMO'&&data.mode!=='SNAPSHOT')fail('Le contrat v2 accepte uniquement DEMO ou SNAPSHOT à cette phase.');
+  if(data.mode!=='DEMO'&&data.mode!=='SNAPSHOT'&&data.mode!=='LIVE_READ_ONLY')fail('Le contrat v2 accepte uniquement DEMO, SNAPSHOT ou LIVE_READ_ONLY.');
   if(data.mode==='DEMO'&&data.source_status!=='SYNTHETIC')fail('DEMO exige source_status=SYNTHETIC.');
   if(data.mode==='SNAPSHOT'&&data.source_status!=='PUBLIC_SNAPSHOT')fail('SNAPSHOT exige source_status=PUBLIC_SNAPSHOT.');
+  if(data.mode==='LIVE_READ_ONLY'&&data.source_status!=='PUBLIC_READ_ONLY')fail('LIVE_READ_ONLY exige source_status=PUBLIC_READ_ONLY.');
   if(!INTEGRITY_STATUSES.has(data.integrity_status))fail('integrity_status invalide.');
   str(data.publication_id,'$.publication_id');str(data.published_at,'$.published_at');if(Number.isNaN(Date.parse(data.published_at)))fail('$.published_at invalide.');
   obj(data.payload,'$.payload');allowed(data.payload,PAYLOAD,'$.payload');
   validatePayload(data);
-  if(data.mode==='DEMO')completeDemoCycle(data);else validateSnapshot(data);
+  if(data.mode==='DEMO')completeDemoCycle(data);
+  else if(data.mode==='SNAPSHOT')validateSnapshot(data);
+  else validateLiveReadOnly(data);
   scan(data);
   return data.mode==='DEMO'
     ? {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,cycle_5_6_7:'PASSED'}
-    : {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,snapshot_gate:'PASSED'};
+    : data.mode==='SNAPSHOT'
+      ? {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,snapshot_gate:'PASSED'}
+      : {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,live_read_only_bridge:'PASSED_NOT_DEPLOYED'};
 }
 
 async function main(){
