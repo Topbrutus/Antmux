@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const EXPECTED_CONTRACT = '2.0.0-draft';
 const TOP_LEVEL = new Set(['contract_version','mode','publication_id','published_at','source_status','integrity_status','payload']);
 const PAYLOAD = new Set(['identity','continuity','metacognition','pipeline','training_field','observatory','publication_gates','metrics','evidence','integrity']);
+const SNAPSHOT_REQUIRED = ['identity','publication_gates','metrics','evidence','integrity'];
 const PIPELINE_STATUSES = new Set(['PENDING','RUNNING_PUBLIC','PASSED','FAILED','REJECTED','NOT_APPLICABLE']);
 const CHECK_STATUSES = new Set(['PASSED','FAILED','NOT_RUN','NOT_APPLICABLE']);
 const SEMANTIC_CLASSES = new Set(['MEASURED','DERIVED','INTERPRETED','HYPOTHESIS','UNKNOWN']);
@@ -94,40 +95,82 @@ function integrity(v){
   v.checks.forEach((x,i)=>{const p=`$.payload.integrity.checks[${i}]`;obj(x,p);allowed(x,new Set(['id','status','public_ref']),p);required(x,['id','status','public_ref'],p);str(x.id,`${p}.id`);if(!CHECK_STATUSES.has(x.status))fail(`${p}.status invalide.`);str(x.public_ref,`${p}.public_ref`)});
 }
 
-function completeCycle(data){
+function validatePayload(data){
+  const p=data.payload;
+  if(data.mode==='DEMO') required(p,PAYLOAD,'$.payload');
+  else required(p,SNAPSHOT_REQUIRED,'$.payload');
+  if('identity'in p)identity(p.identity);
+  if('continuity'in p)continuity(p.continuity);
+  if('metacognition'in p)meta(p.metacognition);
+  if('pipeline'in p)pipeline(p.pipeline);
+  if('training_field'in p)observations(p.training_field);
+  if('observatory'in p)observatory(p.observatory);
+  if('publication_gates'in p)gates(p.publication_gates);
+  if('metrics'in p)metrics(p.metrics);
+  if('evidence'in p)evidence(p.evidence);
+  if('integrity'in p)integrity(p.integrity);
+}
+
+function completeDemoCycle(data){
   const p=data.payload;
   const steps=p.pipeline.steps;
   if(steps.length!==COMPLETE_CYCLE_IDS.length)fail('Le pipeline DEMO complet doit contenir exactement 7 étapes.');
   COMPLETE_CYCLE_IDS.forEach((id,i)=>{if(steps[i]?.id!==id)fail(`Ordre du pipeline invalide à l'étape ${i+1}.`);if(steps[i]?.status!=='PASSED')fail(`Le cycle DEMO complet exige PASSED à l'étape ${i+1}.`)});
-
   if(p.metacognition.status!=='DEMO_CYCLE_COMPLETE')fail('GENESIS-003 DEMO doit déclarer DEMO_CYCLE_COMPLETE.');
   if(p.metacognition.c041_c060_status!=='COMPLETE_VALIDATED_DEMO')fail('C041-C060 DEMO doit être COMPLETE_VALIDATED_DEMO.');
   if(p.metacognition.competing_hypotheses<2)fail('L’exploration DEMO exige au moins deux hypothèses concurrentes.');
-
   if(p.continuity.parent_link_status!=='PASSED')fail('Le retour SOURCE exige un lien parent PASSED.');
   if(p.continuity.root_identity_status!=='PASSED')fail('Le retour SOURCE exige une identité ROOT PASSED.');
   if(p.continuity.return_status!=='PASSED')fail('Le retour SOURCE exige return_status=PASSED.');
   if(p.continuity.previous_checkpoint_ref===p.continuity.current_checkpoint_ref)fail('Le checkpoint courant doit avancer sans perdre le lien parent.');
   if((p.continuity.accepted_candidates+p.continuity.rejected_candidates)<1)fail('La validation DEMO doit conserver au moins un verdict accepté ou rejeté.');
-
   const evidenceIds=new Set(p.evidence.map(x=>x.id));
   if(!evidenceIds.has('DEMO-CYCLE-5-6-7'))fail('La preuve publique synthétique DEMO-CYCLE-5-6-7 est obligatoire.');
   const cycleCheck=p.integrity.checks.find(x=>x.id==='demo-check-cycle-5-6-7');
   if(!cycleCheck||cycleCheck.status!=='PASSED')fail('Le contrôle d’intégrité du cycle 5-6-7 doit être PASSED.');
 }
 
+function validateSnapshot(data){
+  const p=data.payload;
+  if(data.publication_id.startsWith('DEMO-'))fail('Un SNAPSHOT public réel ne peut pas utiliser un publication_id DEMO.');
+  if(!p.identity.root_digest.startsWith('PUBLIC-PROJECTION-SHA256:'))fail('Le SNAPSHOT doit exposer uniquement un digest de projection publique.');
+  if(/DEMO/i.test(p.identity.root_status)||/DEMO/i.test(p.identity.root_version))fail('Le SNAPSHOT ne doit pas réutiliser une identité DEMO.');
+  if(p.integrity.status!==data.integrity_status)fail('Les statuts d’intégrité SNAPSHOT doivent être cohérents.');
+  if(!['UNVERIFIED','VERIFIED_PUBLIC'].includes(data.integrity_status))fail('Un SNAPSHOT doit être UNVERIFIED ou VERIFIED_PUBLIC pendant sa construction/validation.');
+
+  const gateMap=new Map(p.publication_gates.gates.map(g=>[g.id,g.status]));
+  for(const id of ['contract-v2','adapter','snapshot','live-read-only'])if(!gateMap.has(id))fail(`Gate SNAPSHOT manquante: ${id}.`);
+  for(const id of ['contract-v2','adapter','snapshot'])if(gateMap.get(id)!=='PASSED')fail(`Gate ${id} doit être PASSED pour un SNAPSHOT.`);
+  if(gateMap.get('live-read-only')==='PASSED')fail('LIVE_READ_ONLY doit rester bloqué pendant la publication SNAPSHOT.');
+  if(p.publication_gates.current_gate!=='LIVE_READ_ONLY_PENDING')fail('current_gate doit être LIVE_READ_ONLY_PENDING après le premier SNAPSHOT.');
+
+  if(p.metrics.some(x=>x.status==='SYNTHETIC'))fail('Un SNAPSHOT réel ne doit pas publier de métrique SYNTHETIC.');
+  if(p.training_field?.observations?.some(x=>x.status==='SYNTHETIC'))fail('Un SNAPSHOT réel ne doit pas publier d’observation SYNTHETIC.');
+  if(p.observatory?.mode==='DEMO')fail('Un SNAPSHOT réel ne doit pas déclarer observatory.mode=DEMO.');
+
+  const hashEvidence=p.evidence.find(x=>x.type==='PUBLIC_HASH'&&typeof x.hash==='string'&&/^sha256:[0-9a-f]{64}$/.test(x.hash));
+  if(!hashEvidence)fail('Le SNAPSHOT exige une preuve PUBLIC_HASH sha256.');
+  const hashCheck=p.integrity.checks.find(x=>x.id==='snapshot-public-projection-hash');
+  if(!hashCheck||hashCheck.status!=='PASSED')fail('Le contrôle snapshot-public-projection-hash doit être PASSED.');
+  const privacyCheck=p.integrity.checks.find(x=>x.id==='snapshot-private-raw-data-not-copied');
+  if(!privacyCheck||privacyCheck.status!=='PASSED')fail('Le contrôle snapshot-private-raw-data-not-copied doit être PASSED.');
+}
+
 export function validatePublicV2(data){
   obj(data,'$');allowed(data,TOP_LEVEL,'$');required(data,TOP_LEVEL,'$');
   if(data.contract_version!==EXPECTED_CONTRACT)fail(`contract_version doit être ${EXPECTED_CONTRACT}.`);
-  if(data.mode!=='DEMO' && data.mode!=='SNAPSHOT')fail('Le validateur v2 canonique attend mode=DEMO ou SNAPSHOT.');
-  if(data.source_status!=='SYNTHETIC' && data.source_status!=='PUBLIC_SNAPSHOT')fail('Le snapshot canonique v2 doit rester SYNTHETIC ou PUBLIC_SNAPSHOT.');
+  if(data.mode!=='DEMO'&&data.mode!=='SNAPSHOT')fail('Le contrat v2 accepte uniquement DEMO ou SNAPSHOT à cette phase.');
+  if(data.mode==='DEMO'&&data.source_status!=='SYNTHETIC')fail('DEMO exige source_status=SYNTHETIC.');
+  if(data.mode==='SNAPSHOT'&&data.source_status!=='PUBLIC_SNAPSHOT')fail('SNAPSHOT exige source_status=PUBLIC_SNAPSHOT.');
   if(!INTEGRITY_STATUSES.has(data.integrity_status))fail('integrity_status invalide.');
   str(data.publication_id,'$.publication_id');str(data.published_at,'$.published_at');if(Number.isNaN(Date.parse(data.published_at)))fail('$.published_at invalide.');
   obj(data.payload,'$.payload');allowed(data.payload,PAYLOAD,'$.payload');
-  identity(data.payload.identity);continuity(data.payload.continuity);meta(data.payload.metacognition);pipeline(data.payload.pipeline);observations(data.payload.training_field);observatory(data.payload.observatory);gates(data.payload.publication_gates);metrics(data.payload.metrics);evidence(data.payload.evidence);integrity(data.payload.integrity);
-  completeCycle(data);
+  validatePayload(data);
+  if(data.mode==='DEMO')completeDemoCycle(data);else validateSnapshot(data);
   scan(data);
-  return {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,cycle_5_6_7:'PASSED'};
+  return data.mode==='DEMO'
+    ? {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,cycle_5_6_7:'PASSED'}
+    : {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,snapshot_gate:'PASSED'};
 }
 
 async function main(){
