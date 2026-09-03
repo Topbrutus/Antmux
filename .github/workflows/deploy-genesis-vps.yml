@@ -1,6 +1,18 @@
 name: Deploy Genesis to VPS
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-genesis-vps.yml'
+      - 'laboratoire/genesis/index.html'
+      - 'laboratoire/genesis/README.md'
+      - 'laboratoire/genesis/PUBLIC-CONTRACT-v1.md'
+      - 'laboratoire/genesis/PUBLIC-CONTRACT-v2.md'
+      - 'laboratoire/genesis/demo/genesis-demo-v1.json'
+      - 'laboratoire/genesis/demo/genesis-demo-v2.json'
+      - 'laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json'
   workflow_dispatch:
     inputs:
       confirm:
@@ -17,7 +29,10 @@ concurrency:
 
 jobs:
   deploy-genesis:
-    if: github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY-GENESIS'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-GENESIS'))
     runs-on: ubuntu-latest
 
     env:
@@ -161,9 +176,24 @@ jobs:
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
           REMOTE
 
-      - name: Verify public Genesis endpoints
+      - name: Verify public Genesis endpoints and LIVE-capable cockpit
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/ >/dev/null
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/ -o /tmp/genesis-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/demo/genesis-demo-v2.json >/dev/null
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json >/dev/null
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/live/public-read-only.json -o /tmp/genesis-live.json
+
+          grep -Fq 'Genesis Vision Center — LIVE / SNAPSHOT' /tmp/genesis-index.html
+          grep -Fq "const LIVE_PATH='./live/public-read-only.json'" /tmp/genesis-index.html
+          grep -Fq "const SNAPSHOT_PATH='./snapshot/genesis-public-snapshot-0001.json'" /tmp/genesis-index.html
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/genesis-live.json', 'utf8'));
+          if (data.mode !== 'LIVE_READ_ONLY') throw new Error('public LIVE mode not active');
+          if (data.source_status !== 'PUBLIC_READ_ONLY') throw new Error('public LIVE source not read-only');
+          if (data.integrity_status !== 'VERIFIED_PUBLIC') throw new Error('public LIVE integrity not verified');
+          if (data.payload?.publication_gates?.current_gate !== 'LIVE_READ_ONLY_ACTIVE') throw new Error('public LIVE gate not active');
+          console.log('GENESIS_PUBLIC_COCKPIT_DEPLOY=PASS');
+          NODE
