@@ -1,8 +1,8 @@
 {
   "contract_version": "2.0.0-draft",
   "mode": "DEMO",
-  "publication_id": "DEMO-GENESIS-V2-0001",
-  "published_at": "2026-09-03T03:45:00Z",
+  "publication_id": "DEMO-GENESIS-V2-CYCLE-0002",
+  "published_at": "2026-09-03T04:25:44Z",
   "source_status": "SYNTHETIC",
   "integrity_status": "NOT_APPLICABLE",
   "payload": {
@@ -14,22 +14,22 @@
       "continuity_policy": "ROOT_MUST_NOT_CHANGE"
     },
     "continuity": {
-      "cycle": 3,
-      "previous_checkpoint_ref": "DEMO-CHECKPOINT-002",
-      "current_checkpoint_ref": "DEMO-CHECKPOINT-003",
+      "cycle": 4,
+      "previous_checkpoint_ref": "DEMO-CHECKPOINT-003",
+      "current_checkpoint_ref": "DEMO-CHECKPOINT-004",
       "parent_link_status": "PASSED",
       "root_identity_status": "PASSED",
-      "accepted_candidates": 2,
-      "rejected_candidates": 3,
+      "accepted_candidates": 1,
+      "rejected_candidates": 2,
       "return_status": "PASSED"
     },
     "metacognition": {
-      "status": "DEMO_ONLY",
+      "status": "DEMO_CYCLE_COMPLETE",
       "competing_hypotheses": 3,
-      "uncertainty": "MEDIUM_DEMO",
-      "next_test": "DEMO-C060 — choisir le test qui réduit le plus l'incertitude",
-      "rationale": "Comparer des hypothèses concurrentes sans imposer la réponse attendue.",
-      "c041_c060_status": "PLANNED_DEMO"
+      "uncertainty": "REDUCED_DEMO_STRUCTURAL",
+      "next_test": "DEMO-C060-TEST-B — test synthétique le plus discriminant",
+      "rationale": "Étape 5 : sélectionner parmi des tests pré-déclarés celui qui sépare le mieux trois hypothèses concurrentes, sans choisir d'hypothèse gagnante. Étape 6 : enregistrer un verdict synthétique avec rejet/acceptation explicites. Étape 7 : préserver ROOT, lier le checkpoint parent et revenir à SOURCE.",
+      "c041_c060_status": "COMPLETE_VALIDATED_DEMO"
     },
     "pipeline": {
       "steps": [
@@ -37,9 +37,9 @@
         {"id":"demo-step-descent","label":"Descente","status":"PASSED"},
         {"id":"demo-step-zero","label":"Zéro","status":"PASSED"},
         {"id":"demo-step-formation","label":"Formation","status":"PASSED"},
-        {"id":"demo-step-exploration","label":"Exploration","status":"RUNNING_PUBLIC"},
-        {"id":"demo-step-validation","label":"Validation","status":"PENDING"},
-        {"id":"demo-step-return","label":"Retour source","status":"PENDING"}
+        {"id":"demo-step-exploration","label":"Exploration","status":"PASSED"},
+        {"id":"demo-step-validation","label":"Validation","status":"PASSED"},
+        {"id":"demo-step-return","label":"Retour source","status":"PASSED"}
       ]
     },
     "training_field": {
@@ -73,21 +73,24 @@
       ]
     },
     "metrics": [
-      {"id":"demo-cycle","label":"Cycle synthétique","value":3,"unit":"cycle","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-001"},
-      {"id":"demo-hypotheses","label":"Hypothèses concurrentes synthétiques","value":3,"unit":"hypothesis","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-001"},
-      {"id":"demo-rejections","label":"Rejets synthétiques conservés","value":3,"unit":"candidate","status":"SYNTHETIC","provenance_ref":"DEMO-PROVENANCE-001"}
+      {"id":"demo-cycle","label":"Cycle synthétique fermé","value":4,"unit":"cycle","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-hypotheses","label":"Hypothèses concurrentes synthétiques","value":3,"unit":"hypothesis","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-validation","label":"Verdict synthétique étape 6","value":"1_ACCEPTED_2_REJECTED","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-return","label":"Retour SOURCE étape 7","value":true,"status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"}
     ],
     "evidence": [
       {"id":"DEMO-PROVENANCE-001","type":"PUBLIC_DOCUMENT","status":"SYNTHETIC","public_ref":"laboratoire/genesis/PUBLIC-CONTRACT-v2.md"},
       {"id":"DEMO-PROVENANCE-PYRAMID","type":"PUBLIC_DOCUMENT","status":"SYNTHETIC","public_ref":"laboratoire/genesis/README.md"},
-      {"id":"DEMO-PROVENANCE-GESIS","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"}
+      {"id":"DEMO-PROVENANCE-GESIS","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"},
+      {"id":"DEMO-CYCLE-5-6-7","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"}
     ],
     "integrity": {
       "status":"NOT_APPLICABLE",
       "checks":[
         {"id":"demo-check-synthetic-label","status":"PASSED","public_ref":"DEMO / SYNTHETIC DATA"},
         {"id":"demo-check-no-private-source","status":"PASSED","public_ref":"No private Genesis source is read by this demo"},
-        {"id":"demo-check-semantic-separation","status":"PASSED","public_ref":"MEASURED != DERIVED != INTERPRETED != HYPOTHESIS"}
+        {"id":"demo-check-semantic-separation","status":"PASSED","public_ref":"MEASURED != DERIVED != INTERPRETED != HYPOTHESIS"},
+        {"id":"demo-check-cycle-5-6-7","status":"PASSED","public_ref":"DEMO stages 5, 6 and 7 close the synthetic loop while preserving ROOT"}
       ]
     }
   }
