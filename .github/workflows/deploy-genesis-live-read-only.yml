@@ -1,0 +1,254 @@
+name: Activate Genesis LIVE read-only
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type ACTIVATE-GENESIS-LIVE-READ-ONLY to enable the controlled public read-only sync'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-live-read-only-deploy
+  cancel-in-progress: false
+
+jobs:
+  activate-live:
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'ACTIVATE-GENESIS-LIVE-READ-ONLY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/genesis
+      REMOTE_STAGE: /tmp/antmux-genesis-live-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Validate LIVE contract and fail-closed boundaries
+        run: |
+          set -euo pipefail
+          node laboratoire/genesis/test-public-v2.mjs
+          node laboratoire/genesis/smoke-cockpit.mjs
+          bash -n laboratoire/genesis/live/sync-public-read-only.sh
+
+          cat > /tmp/genesis-safe-status.txt <<'EOF'
+          science_baseline=GREEN
+          genesis003_c041_c060=COMPLETE_VALIDATED
+          experiment_selection_performed=true
+          selected_experiment_status=PLANNED_NOT_EXECUTED
+          hypothesis_selection_performed=false
+          hypothesis_ranking_produced=false
+          uncertainty_promotion_performed=false
+          probabilities_produced=false
+          evidence_ledger_auto_promotion=false
+          GENESIS_AUDIT_FAILED=0
+          EOF
+
+          GENESIS_PUBLIC_LIVE_ACTIVE=true node laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs /tmp/genesis-safe-status.txt /tmp/genesis-live-input.json
+          node laboratoire/genesis/live/bridge-public-read-only.mjs /tmp/genesis-live-input.json
+          node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
+
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const d=JSON.parse(await readFile('.build/genesis-public-read-only-bridge/public-read-only-envelope.json','utf8'));
+          if(d.mode!=='LIVE_READ_ONLY') throw new Error('mode');
+          if(d.source_status!=='PUBLIC_READ_ONLY') throw new Error('source');
+          if(d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('integrity');
+          if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') throw new Error('active gate');
+          const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
+          if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('active metric');
+          const text=JSON.stringify(d);
+          for(const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env']) if(text.includes(forbidden)) throw new Error(`private identifier leaked: ${forbidden}`);
+          NODE
+
+          python3 - <<'PY'
+          from pathlib import Path
+          html=Path('laboratoire/genesis/index.html').read_text(encoding='utf-8')
+          assert './live/public-read-only.json' in html
+          assert './snapshot/genesis-public-snapshot-0001.json' in html
+          assert 'LIVE_READ_ONLY_ACTIVE' in html
+          assert 'public-live-active' in html
+          script=html.split('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/genesis-cockpit.js').write_text(script,encoding='utf-8')
+          PY
+          node --check /tmp/genesis-cockpit.js
+
+      - name: Assemble exact LIVE deployment package
+        run: |
+          set -euo pipefail
+          rm -rf _genesis_live_deploy
+          mkdir -p _genesis_live_deploy/runtime _genesis_live_deploy/snapshot
+          cp laboratoire/genesis/index.html _genesis_live_deploy/index.html
+          cp laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs _genesis_live_deploy/runtime/
+          cp laboratoire/genesis/live/bridge-public-read-only.mjs _genesis_live_deploy/runtime/
+          cp laboratoire/genesis/live/sync-public-read-only.sh _genesis_live_deploy/runtime/
+          cp laboratoire/genesis/validate-public-v2.mjs _genesis_live_deploy/runtime/
+          cp laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json _genesis_live_deploy/snapshot/
+          chmod 0755 _genesis_live_deploy/runtime/sync-public-read-only.sh
+          (
+            cd _genesis_live_deploy
+            sha256sum index.html runtime/build-public-source-from-seedgenesis.mjs runtime/bridge-public-read-only.mjs runtime/sync-public-read-only.sh runtime/validate-public-v2.mjs snapshot/genesis-public-snapshot-0001.json > SHA256SUMS
+          )
+
+      - name: Configure pinned VPS SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight VPS and private read-only source
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/genesis'
+          key="$HOME/.ssh/seedgenesis_only_readonly_ed25519"
+          known="$HOME/.ssh/known_hosts_seedgenesis"
+          test -d "$TARGET_ROOT"
+          test -w "$TARGET_ROOT"
+          test -f "$key"
+          test -f "$known"
+          chmod 600 "$key" "$known"
+          sshopts="-i $key -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$known -o HostKeyAlgorithms=ssh-ed25519"
+          probe="$(mktemp -d)"
+          trap 'rm -rf "$probe"' EXIT
+          git init --bare -q "$probe/source.git"
+          git --git-dir="$probe/source.git" remote add origin git@github.com:Topbrutus/seedgenesis.git
+          GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
+          git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
+          test "$(wc -l < "$probe/status.env")" -eq 10
+          grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
+          grep -Fxq 'genesis003_c041_c060=COMPLETE_VALIDATED' "$probe/status.env"
+          grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
+          grep -Fxq 'hypothesis_selection_performed=false' "$probe/status.env"
+          grep -Fxq 'probabilities_produced=false' "$probe/status.env"
+          grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
+          printf 'PRIVATE_LIVE_SOURCE_READ_ONLY_PREFLIGHT=PASS\n'
+          REMOTE
+
+      - name: Upload staged LIVE package
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -r _genesis_live_deploy/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Backup install activate and schedule LIVE sync
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/genesis'
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          RUNTIME_ROOT="$HOME/antmux-genesis-live"
+          STATE_ROOT="$HOME/.local/state/antmux-genesis-live"
+          BACKUP_ROOT="$HOME/antmux-genesis-live-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+
+          mkdir -p "$BACKUP_ROOT" "$BACKUP_ROOT/snapshot"
+          if test -f "$TARGET_ROOT/index.html"; then cp -a "$TARGET_ROOT/index.html" "$BACKUP_ROOT/index.html"; fi
+          if test -f "$TARGET_ROOT/live/public-read-only.json"; then mkdir -p "$BACKUP_ROOT/live"; cp -a "$TARGET_ROOT/live/public-read-only.json" "$BACKUP_ROOT/live/public-read-only.json"; fi
+          if test -f "$TARGET_ROOT/snapshot/genesis-public-snapshot-0001.json"; then cp -a "$TARGET_ROOT/snapshot/genesis-public-snapshot-0001.json" "$BACKUP_ROOT/snapshot/"; fi
+          if test -d "$RUNTIME_ROOT"; then cp -a "$RUNTIME_ROOT" "$BACKUP_ROOT/runtime"; fi
+          crontab -l > "$BACKUP_ROOT/crontab.before" 2>/dev/null || true
+
+          install -d -m 0755 "$RUNTIME_ROOT" "$STATE_ROOT" "$TARGET_ROOT/live" "$TARGET_ROOT/snapshot"
+          install -m 0644 "$REMOTE_STAGE/runtime/build-public-source-from-seedgenesis.mjs" "$RUNTIME_ROOT/build-public-source-from-seedgenesis.mjs"
+          install -m 0644 "$REMOTE_STAGE/runtime/bridge-public-read-only.mjs" "$RUNTIME_ROOT/bridge-public-read-only.mjs"
+          install -m 0644 "$REMOTE_STAGE/runtime/validate-public-v2.mjs" "$RUNTIME_ROOT/validate-public-v2.mjs"
+          install -m 0700 "$REMOTE_STAGE/runtime/sync-public-read-only.sh" "$RUNTIME_ROOT/sync-public-read-only.sh"
+          install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/snapshot/genesis-public-snapshot-0001.json" "$TARGET_ROOT/snapshot/genesis-public-snapshot-0001.json"
+
+          cat > "$RUNTIME_ROOT/run-sync.sh" <<'RUNNER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export GENESIS_PRIVATE_REPO_SSH='git@github.com:Topbrutus/seedgenesis.git'
+          export GENESIS_PRIVATE_REF='public/live-source'
+          export GENESIS_PRIVATE_RESULT_PATH='public/live/status.env'
+          export GENESIS_DEPLOY_KEY="$HOME/.ssh/seedgenesis_only_readonly_ed25519"
+          export GENESIS_GITHUB_KNOWN_HOSTS="$HOME/.ssh/known_hosts_seedgenesis"
+          export GENESIS_RUNTIME_DIR="$HOME/.local/state/antmux-genesis-live"
+          export GENESIS_PUBLIC_OUTPUT='/var/www/antmux.com/public_html/laboratoire/genesis/live/public-read-only.json'
+          export GENESIS_BUILDER="$HOME/antmux-genesis-live/build-public-source-from-seedgenesis.mjs"
+          export GENESIS_BRIDGE="$HOME/antmux-genesis-live/bridge-public-read-only.mjs"
+          export GENESIS_VALIDATOR="$HOME/antmux-genesis-live/validate-public-v2.mjs"
+          export GENESIS_PUBLIC_LIVE_ACTIVE='true'
+          exec "$HOME/antmux-genesis-live/sync-public-read-only.sh"
+          RUNNER
+          chmod 0700 "$RUNTIME_ROOT/run-sync.sh"
+
+          "$RUNTIME_ROOT/run-sync.sh"
+          node "$RUNTIME_ROOT/validate-public-v2.mjs" "$TARGET_ROOT/live/public-read-only.json" >/dev/null
+          node --input-type=module - "$TARGET_ROOT/live/public-read-only.json" <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const path=process.argv[2];
+          const d=JSON.parse(await readFile(path,'utf8'));
+          if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') process.exit(1);
+          if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') process.exit(1);
+          const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
+          if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') process.exit(1);
+          const text=JSON.stringify(d);
+          for(const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env']) if(text.includes(forbidden)) process.exit(1);
+          NODE
+
+          cron_line="*/2 * * * * $RUNTIME_ROOT/run-sync.sh >> $STATE_ROOT/sync.log 2>&1"
+          { crontab -l 2>/dev/null | grep -Fv 'antmux-genesis-live/run-sync.sh' || true; printf '%s\n' "$cron_line"; } | crontab -
+          crontab -l | grep -Fxq "$cron_line"
+
+          rm -rf "$REMOTE_STAGE"
+          printf 'GENESIS_LIVE_ACTIVATION=PASS\n'
+          printf 'GENESIS_LIVE_REFRESH_MINUTES=2\n'
+          printf 'PUBLIC_WRITE_CAPABILITY=NONE\n'
+          printf 'SNAPSHOT_FALLBACK=PRESERVED\n'
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
+
+      - name: Verify public LIVE and snapshot fallback endpoints
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 https://antmux.com/laboratoire/genesis/ -o /tmp/genesis-index.html
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 https://antmux.com/laboratoire/genesis/live/public-read-only.json -o /tmp/genesis-live.json
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 https://antmux.com/laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json -o /tmp/genesis-snapshot.json
+          grep -Fq './live/public-read-only.json' /tmp/genesis-index.html
+          grep -Fq './snapshot/genesis-public-snapshot-0001.json' /tmp/genesis-index.html
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const d=JSON.parse(await readFile('/tmp/genesis-live.json','utf8'));
+          if(d.mode!=='LIVE_READ_ONLY') throw new Error('public mode');
+          if(d.source_status!=='PUBLIC_READ_ONLY') throw new Error('public source');
+          if(d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('public integrity');
+          if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') throw new Error('public active gate');
+          const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
+          if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('public active metric');
+          const text=JSON.stringify(d);
+          for(const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env']) if(text.includes(forbidden)) throw new Error(`public leak: ${forbidden}`);
+          const snapshot=JSON.parse(await readFile('/tmp/genesis-snapshot.json','utf8'));
+          if(snapshot.mode!=='SNAPSHOT'||snapshot.source_status!=='PUBLIC_SNAPSHOT') throw new Error('snapshot fallback');
+          console.log('GENESIS_PUBLIC_LIVE_VERIFIED');
+          NODE
