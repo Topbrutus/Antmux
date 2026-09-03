@@ -48,7 +48,7 @@ jobs:
           GENESIS_AUDIT_FAILED=0
           EOF
 
-          GENESIS_PUBLIC_LIVE_ACTIVE=true node laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs /tmp/genesis-safe-status.txt /tmp/genesis-live-input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs /tmp/genesis-safe-status.txt /tmp/genesis-live-input.json
           node laboratoire/genesis/live/bridge-public-read-only.mjs /tmp/genesis-live-input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
 
@@ -132,8 +132,11 @@ jobs:
           trap 'rm -rf "$probe"' EXIT
           git init --bare -q "$probe/source.git"
           git --git-dir="$probe/source.git" remote add origin git@github.com:Topbrutus/seedgenesis.git
-          GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
-          git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
+          git --git-dir="$probe/source.git" config extensions.partialClone origin
+          git --git-dir="$probe/source.git" config remote.origin.promisor true
+          git --git-dir="$probe/source.git" config remote.origin.partialclonefilter blob:none
+          GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 --filter=blob:none origin public/live-source
+          GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
           test "$(wc -l < "$probe/status.env")" -eq 10
           grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
           grep -Fxq 'genesis003_c041_c060=COMPLETE_VALIDATED' "$probe/status.env"
@@ -177,10 +180,11 @@ jobs:
           if test -d "$RUNTIME_ROOT"; then cp -a "$RUNTIME_ROOT" "$BACKUP_ROOT/runtime"; fi
           crontab -l > "$BACKUP_ROOT/crontab.before" 2>/dev/null || true
 
-          install -d -m 0755 "$RUNTIME_ROOT" "$STATE_ROOT" "$TARGET_ROOT/live" "$TARGET_ROOT/snapshot"
-          install -m 0644 "$REMOTE_STAGE/runtime/build-public-source-from-seedgenesis.mjs" "$RUNTIME_ROOT/build-public-source-from-seedgenesis.mjs"
-          install -m 0644 "$REMOTE_STAGE/runtime/bridge-public-read-only.mjs" "$RUNTIME_ROOT/bridge-public-read-only.mjs"
-          install -m 0644 "$REMOTE_STAGE/runtime/validate-public-v2.mjs" "$RUNTIME_ROOT/validate-public-v2.mjs"
+          install -d -m 0700 "$RUNTIME_ROOT" "$STATE_ROOT"
+          install -d -m 0755 "$TARGET_ROOT/live" "$TARGET_ROOT/snapshot"
+          install -m 0600 "$REMOTE_STAGE/runtime/build-public-source-from-seedgenesis.mjs" "$RUNTIME_ROOT/build-public-source-from-seedgenesis.mjs"
+          install -m 0600 "$REMOTE_STAGE/runtime/bridge-public-read-only.mjs" "$RUNTIME_ROOT/bridge-public-read-only.mjs"
+          install -m 0600 "$REMOTE_STAGE/runtime/validate-public-v2.mjs" "$RUNTIME_ROOT/validate-public-v2.mjs"
           install -m 0700 "$REMOTE_STAGE/runtime/sync-public-read-only.sh" "$RUNTIME_ROOT/sync-public-read-only.sh"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/snapshot/genesis-public-snapshot-0001.json" "$TARGET_ROOT/snapshot/genesis-public-snapshot-0001.json"
@@ -198,7 +202,7 @@ jobs:
           export GENESIS_BUILDER="$HOME/antmux-genesis-live/build-public-source-from-seedgenesis.mjs"
           export GENESIS_BRIDGE="$HOME/antmux-genesis-live/bridge-public-read-only.mjs"
           export GENESIS_VALIDATOR="$HOME/antmux-genesis-live/validate-public-v2.mjs"
-          export GENESIS_PUBLIC_LIVE_ACTIVE='true'
+          export GENESIS_PUBLIC_LIVE_ACTIVE='1'
           exec "$HOME/antmux-genesis-live/sync-public-read-only.sh"
           RUNNER
           chmod 0700 "$RUNTIME_ROOT/run-sync.sh"
@@ -217,6 +221,9 @@ jobs:
           for(const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env']) if(text.includes(forbidden)) process.exit(1);
           NODE
 
+          test ! -d "$STATE_ROOT/private-source.git"
+          test ! -f "$STATE_ROOT/last-source-commit"
+
           cron_line="*/2 * * * * $RUNTIME_ROOT/run-sync.sh >> $STATE_ROOT/sync.log 2>&1"
           { crontab -l 2>/dev/null | grep -Fv 'antmux-genesis-live/run-sync.sh' || true; printf '%s\n' "$cron_line"; } | crontab -
           crontab -l | grep -Fxq "$cron_line"
@@ -225,6 +232,7 @@ jobs:
           printf 'GENESIS_LIVE_ACTIVATION=PASS\n'
           printf 'GENESIS_LIVE_REFRESH_MINUTES=2\n'
           printf 'PUBLIC_WRITE_CAPABILITY=NONE\n'
+          printf 'PRIVATE_SOURCE_CHECKOUT_PERSISTED=no\n'
           printf 'SNAPSHOT_FALLBACK=PRESERVED\n'
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
           REMOTE
