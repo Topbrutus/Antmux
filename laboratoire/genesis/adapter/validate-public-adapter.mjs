@@ -35,6 +35,6 @@ console.log(JSON.stringify({
   integrity_status:output.integrity_status,
   publication_id:output.publication_id,
   private_noise_leaked:false,
-  snapshot_enabled:false,
+  snapshot_enabled:true,
   live_read_only_enabled:false
 }, null, 2));
