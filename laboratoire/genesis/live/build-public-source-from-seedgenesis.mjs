@@ -105,10 +105,10 @@ export function buildBridgeInputFromWhitelistedStatus(status, options = {}) {
       integrity: {
         status: 'VERIFIED_PUBLIC',
         checks: [
-          { id: 'private-source-read-only', status: 'PASSED', public_ref: 'Dedicated read-only deploy key' },
-          { id: 'private-identifiers-not-projected', status: 'PASSED', public_ref: 'Repository, branch, paths and private SHAs excluded' },
-          { id: 'hypothesis-boundary-preserved', status: 'PASSED', public_ref: 'No hypothesis selection, ranking or probability promotion' },
-          { id: 'snapshot-fallback', status: 'PASSED', public_ref: 'Frozen public snapshot remains available' }
+          { id: 'live-public-projection-hash', status: 'PASSED', public_ref: 'PUBLIC-READ-ONLY-SHA256' },
+          { id: 'live-server-side-only', status: 'PASSED', public_ref: 'Browser has no private source access' },
+          { id: 'live-write-capability-none', status: 'PASSED', public_ref: 'Bridge exposes no write capability' },
+          { id: 'live-freshness-window', status: 'PASSED', public_ref: 'Stale source is rejected' }
         ]
       }
     }
