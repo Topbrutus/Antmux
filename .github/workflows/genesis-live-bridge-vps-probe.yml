@@ -6,6 +6,7 @@ on:
       - genesis/connect-public-read-only-endpoint
     paths:
       - '.github/workflows/genesis-live-bridge-vps-probe.yml'
+      - '.github/workflows/deploy-genesis-live-read-only.yml'
       - 'laboratoire/genesis/index.html'
       - 'laboratoire/genesis/live/build-public-source-from-seedgenesis.mjs'
       - 'laboratoire/genesis/live/bridge-public-read-only.mjs'
@@ -20,7 +21,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     env:
       TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/genesis
     steps:
@@ -90,11 +91,15 @@ jobs:
           fi
           echo 'GENESIS_WHITELIST_FAIL_CLOSED_PASS'
 
-      - name: Validate fixture, sync script and cockpit loader
+      - name: Validate fixture sync cockpit and deploy workflow syntax
         run: |
           set -euo pipefail
           node laboratoire/genesis/live/bridge-public-read-only.mjs laboratoire/genesis/live/fixtures/server-side-public-source.json
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
+          ruby -e "require 'psych'; Psych.parse_file('.github/workflows/deploy-genesis-live-read-only.yml')"
+          grep -Fq "GENESIS_PUBLIC_LIVE_ACTIVE='1'" .github/workflows/deploy-genesis-live-read-only.yml
+          grep -Fq 'runtime/live/bridge-public-read-only.mjs' .github/workflows/deploy-genesis-live-read-only.yml
+          grep -Fq 'PRIVATE_SOURCE_CHECKOUT_PERSISTED=no' laboratoire/genesis/live/sync-public-read-only.sh
           python3 - <<'PY'
           from pathlib import Path
           html = Path('laboratoire/genesis/index.html').read_text(encoding='utf-8')
@@ -125,7 +130,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Verify unique seedgenesis read-only deploy key
+      - name: Verify unique seedgenesis read-only deploy key and live source
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -148,12 +153,29 @@ jobs:
           printf '%s' "$auth_output" | grep -q 'successfully authenticated'
           printf 'GITHUB_SSH_AUTH=yes\n'
 
-          if GIT_SSH_COMMAND="ssh $sshopts" git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD >/dev/null 2>&1; then
-            printf 'PRIVATE_REPO_SSH_READ=yes\n'
-          else
-            printf 'PRIVATE_REPO_SSH_READ=no\n'
-            exit 1
-          fi
+          GIT_SSH_COMMAND="ssh $sshopts" git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD >/dev/null
+          printf 'PRIVATE_REPO_SSH_READ=yes\n'
 
+          probe="$(mktemp -d)"
+          trap 'rm -rf "$probe"' EXIT
+          git init --bare -q "$probe/source.git"
+          git --git-dir="$probe/source.git" remote add origin git@github.com:Topbrutus/seedgenesis.git
+          git --git-dir="$probe/source.git" config extensions.partialClone origin
+          git --git-dir="$probe/source.git" config remote.origin.promisor true
+          git --git-dir="$probe/source.git" config remote.origin.partialclonefilter blob:none
+          GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 --filter=blob:none origin public/live-source
+          GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
+          test "$(wc -l < "$probe/status.env")" -eq 10
+          grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
+          grep -Fxq 'genesis003_c041_c060=COMPLETE_VALIDATED' "$probe/status.env"
+          grep -Fxq 'experiment_selection_performed=true' "$probe/status.env"
+          grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
+          grep -Fxq 'hypothesis_selection_performed=false' "$probe/status.env"
+          grep -Fxq 'hypothesis_ranking_produced=false' "$probe/status.env"
+          grep -Fxq 'uncertainty_promotion_performed=false' "$probe/status.env"
+          grep -Fxq 'probabilities_produced=false' "$probe/status.env"
+          grep -Fxq 'evidence_ledger_auto_promotion=false' "$probe/status.env"
+          grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
+          printf 'PRIVATE_LIVE_SOURCE_WHITELIST=PASS\n'
           printf 'WRITE_CAPABILITY_CONFIGURED=no\n'
           REMOTE
