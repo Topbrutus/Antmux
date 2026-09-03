@@ -7,7 +7,7 @@ const canonical = JSON.parse(await readFile(fileURLToPath(new URL('./demo/genesi
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const cases = [
-  ['canonical v2 demo passes', true, d => d],
+  ['canonical v2 complete-cycle demo passes', true, d => d],
   ['unknown top-level field rejected', false, d => (d.private_debug='x',d)],
   ['non-DEMO canonical mode rejected', false, d => (d.mode='SNAPSHOT',d)],
   ['non-synthetic canonical source rejected', false, d => (d.source_status='PUBLIC_SNAPSHOT',d)],
@@ -24,7 +24,22 @@ const cases = [
   ['non-finite metric rejected', false, d => (d.payload.metrics[0].value=Infinity,d)],
   ['missing ROOT field rejected', false, d => (delete d.payload.identity.root_status,d)],
   ['negative continuity cycle rejected', false, d => (d.payload.continuity.cycle=-1,d)],
-  ['training observations require provenance', false, d => (delete d.payload.training_field.observations[0].provenance_ref,d)]
+  ['training observations require provenance', false, d => (delete d.payload.training_field.observations[0].provenance_ref,d)],
+  ['cycle must contain exactly seven stages', false, d => (d.payload.pipeline.steps.pop(),d)],
+  ['cycle stage order is frozen', false, d => ([d.payload.pipeline.steps[4],d.payload.pipeline.steps[5]]=[d.payload.pipeline.steps[5],d.payload.pipeline.steps[4]],d)],
+  ['stage 5 exploration must be passed', false, d => (d.payload.pipeline.steps[4].status='RUNNING_PUBLIC',d)],
+  ['stage 6 validation must be passed', false, d => (d.payload.pipeline.steps[5].status='PENDING',d)],
+  ['stage 7 return source must be passed', false, d => (d.payload.pipeline.steps[6].status='PENDING',d)],
+  ['metacognition must declare completed demo cycle', false, d => (d.payload.metacognition.status='DEMO_ONLY',d)],
+  ['C041-C060 demo completion marker required', false, d => (d.payload.metacognition.c041_c060_status='PLANNED_DEMO',d)],
+  ['exploration requires competing hypotheses', false, d => (d.payload.metacognition.competing_hypotheses=1,d)],
+  ['return source requires parent link', false, d => (d.payload.continuity.parent_link_status='FAILED',d)],
+  ['return source requires preserved ROOT identity', false, d => (d.payload.continuity.root_identity_status='FAILED',d)],
+  ['return source requires return status passed', false, d => (d.payload.continuity.return_status='FAILED',d)],
+  ['return source requires checkpoint advance', false, d => (d.payload.continuity.current_checkpoint_ref=d.payload.continuity.previous_checkpoint_ref,d)],
+  ['validation must preserve accepted or rejected verdict', false, d => (d.payload.continuity.accepted_candidates=0,d.payload.continuity.rejected_candidates=0,d)],
+  ['cycle proof evidence is mandatory', false, d => (d.payload.evidence=d.payload.evidence.filter(x=>x.id!=='DEMO-CYCLE-5-6-7'),d)],
+  ['cycle integrity check must pass', false, d => (d.payload.integrity.checks.find(x=>x.id==='demo-check-cycle-5-6-7').status='FAILED',d)]
 ];
 
 let failures=0;

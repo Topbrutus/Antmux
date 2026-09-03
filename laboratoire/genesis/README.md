@@ -22,7 +22,7 @@ Les zones `/generator/`, `/index.html`, `/styles.css`, `/app.js` et le noyau pri
 
 Phase actuelle :
 
-`VISION_CENTER_V2_DEMO_READY`
+`VISION_CENTER_V2_DEMO_CYCLE_COMPLETE`
 
 Contrat courant :
 
@@ -106,6 +106,26 @@ Une proximité fréquentielle ou un score ne devient pas automatiquement une dé
 
 ---
 
+## Cycle DEMO 5 → 6 → 7
+
+La DEMO canonique ferme maintenant le cycle synthétique complet en conservant les limites scientifiques du Vision Center.
+
+### Étape 5 — EXPLORATION
+
+Trois hypothèses synthétiques concurrentes sont conservées. Le champ `next_test` représente le choix d'un test pré-déclaré conçu pour mieux les distinguer. Aucune hypothèse gagnante n'est sélectionnée.
+
+### Étape 6 — VALIDATION
+
+Le snapshot conserve un verdict synthétique explicite avec candidats acceptés et rejetés. Aucun résultat DEMO n'est promu dans un Evidence Ledger privé et aucune mesure réelle n'est revendiquée.
+
+### Étape 7 — RETOUR SOURCE
+
+Le retour est valide seulement si l'identité ROOT reste `PASSED`, le lien parent reste `PASSED`, le checkpoint courant avance par rapport au précédent et `return_status=PASSED`.
+
+Le validateur public impose désormais ces invariants et les tests adversariaux tentent de casser chacune de ces conditions.
+
+---
+
 ## Cycle public
 
 `SOURCE`
@@ -166,7 +186,7 @@ Ce mode reste bloqué tant que le Genesis Public Adapter n'est pas validé.
 
 `CONTRAT -> ADAPTER -> SNAPSHOT -> LIVE_READ_ONLY`
 
-Le contrat v2 est prêt pour la démonstration.
+Le contrat v2 et la boucle DEMO 1→7 sont prêts pour validation publique.
 
 L'Adapter public réel n'est pas connecté par ce changement.
 
