@@ -1,0 +1,30 @@
+{
+  "evaluation_input_version": "1.0.0",
+  "publication_intent": "EVALUATE_ONLY_NO_ACTIVATION",
+  "mode": "LIVE_READ_ONLY",
+  "source_status": "PUBLIC_READ_ONLY",
+  "source_attestation": {
+    "source_kind": "PRIVATE_GENESIS_PUBLIC_PROJECTION",
+    "source_identity": "OPAQUE_PUBLIC_ATTESTATION",
+    "source_state": "C041_C060_COMPLETE_VALIDATED",
+    "selected_experiment_status": "PLANNED_NOT_EXECUTED",
+    "write_capability": "NONE",
+    "browser_private_access": false,
+    "adapter_only": true
+  },
+  "transport": {
+    "server_side_pull_required": true,
+    "public_endpoint_only": true,
+    "fail_closed": true,
+    "stale_behavior": "REJECT",
+    "max_age_seconds": 300,
+    "snapshot_fallback_available": true,
+    "browser_credentials_present": false
+  },
+  "publication_gates": {
+    "contract_v2": "PASSED",
+    "adapter": "PASSED",
+    "snapshot": "PASSED",
+    "live_read_only": "PENDING"
+  }
+}
