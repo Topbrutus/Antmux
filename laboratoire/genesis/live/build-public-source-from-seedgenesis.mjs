@@ -81,13 +81,13 @@ export function buildBridgeInputFromWhitelistedStatus(status, options = {}) {
         continuity_policy: 'PRIVATE_ROOT_NOT_EXPOSED; PUBLIC_PROJECTION_ONLY'
       },
       publication_gates: {
-        current_gate: 'LIVE_READ_ONLY_SOURCE_VERIFIED',
-        recommended_next_step: 'PUBLISH_VALIDATED_READ_ONLY_ENVELOPE',
+        current_gate: 'LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED',
+        recommended_next_step: 'AUTHORIZE_CONTROLLED_PUBLIC_READ_ONLY_DEPLOYMENT',
         gates: [
           { id: 'contract-v2', label: 'Contrat public v2', status: 'PASSED' },
-          { id: 'adapter', label: 'Projection serveur whitelistée', status: 'PASSED' },
-          { id: 'snapshot', label: 'Fallback snapshot public', status: 'PASSED' },
-          { id: 'live-read-only', label: 'Source Genesis lecture seule', status: 'PASSED' }
+          { id: 'adapter', label: 'Genesis Public Adapter', status: 'PASSED' },
+          { id: 'snapshot', label: 'Snapshot public figé', status: 'PASSED' },
+          { id: 'live-read-only', label: 'Bridge serveur lecture seule', status: 'PASSED' }
         ]
       },
       metrics: [
