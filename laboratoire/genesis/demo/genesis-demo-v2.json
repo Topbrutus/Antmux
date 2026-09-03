@@ -1,8 +1,8 @@
 {
   "contract_version": "2.0.0-draft",
   "mode": "DEMO",
-  "publication_id": "DEMO-GENESIS-V2-CYCLE-0002",
-  "published_at": "2026-09-03T04:25:44Z",
+  "publication_id": "DEMO-GENESIS-V2-ADAPTER-0003",
+  "published_at": "2026-09-03T05:20:49Z",
   "source_status": "SYNTHETIC",
   "integrity_status": "NOT_APPLICABLE",
   "payload": {
@@ -63,11 +63,11 @@
       "scientific_rule":"MESURE != INTERPRÉTATION"
     },
     "publication_gates": {
-      "current_gate":"PUBLIC_ADAPTER_NOT_CONNECTED",
-      "recommended_next_step":"VALIDATE_PUBLIC_ADAPTER",
+      "current_gate":"PUBLIC_SNAPSHOT_PENDING",
+      "recommended_next_step":"PREPARE_PUBLIC_SNAPSHOT",
       "gates":[
         {"id":"contract-v2","label":"Contrat public v2","status":"PASSED"},
-        {"id":"adapter","label":"Genesis Public Adapter","status":"PENDING"},
+        {"id":"adapter","label":"Genesis Public Adapter — frontière validée, non connectée au privé","status":"PASSED"},
         {"id":"snapshot","label":"Snapshot public réel","status":"PENDING"},
         {"id":"live-read-only","label":"Lecture réelle read-only","status":"PENDING"}
       ]
@@ -76,13 +76,15 @@
       {"id":"demo-cycle","label":"Cycle synthétique fermé","value":4,"unit":"cycle","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
       {"id":"demo-hypotheses","label":"Hypothèses concurrentes synthétiques","value":3,"unit":"hypothesis","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
       {"id":"demo-validation","label":"Verdict synthétique étape 6","value":"1_ACCEPTED_2_REJECTED","status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
-      {"id":"demo-return","label":"Retour SOURCE étape 7","value":true,"status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"}
+      {"id":"demo-return","label":"Retour SOURCE étape 7","value":true,"status":"SYNTHETIC","provenance_ref":"DEMO-CYCLE-5-6-7"},
+      {"id":"demo-adapter-boundary","label":"Frontière Public Adapter validée sur fixture synthétique","value":true,"status":"SYNTHETIC","provenance_ref":"PUBLIC-ADAPTER-VALIDATION-V1"}
     ],
     "evidence": [
       {"id":"DEMO-PROVENANCE-001","type":"PUBLIC_DOCUMENT","status":"SYNTHETIC","public_ref":"laboratoire/genesis/PUBLIC-CONTRACT-v2.md"},
       {"id":"DEMO-PROVENANCE-PYRAMID","type":"PUBLIC_DOCUMENT","status":"SYNTHETIC","public_ref":"laboratoire/genesis/README.md"},
       {"id":"DEMO-PROVENANCE-GESIS","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"},
-      {"id":"DEMO-CYCLE-5-6-7","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"}
+      {"id":"DEMO-CYCLE-5-6-7","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/test-public-v2.mjs"},
+      {"id":"PUBLIC-ADAPTER-VALIDATION-V1","type":"PUBLIC_TEST","status":"SYNTHETIC","public_ref":"laboratoire/genesis/adapter/test-public-adapter.mjs"}
     ],
     "integrity": {
       "status":"NOT_APPLICABLE",
@@ -90,7 +92,8 @@
         {"id":"demo-check-synthetic-label","status":"PASSED","public_ref":"DEMO / SYNTHETIC DATA"},
         {"id":"demo-check-no-private-source","status":"PASSED","public_ref":"No private Genesis source is read by this demo"},
         {"id":"demo-check-semantic-separation","status":"PASSED","public_ref":"MEASURED != DERIVED != INTERPRETED != HYPOTHESIS"},
-        {"id":"demo-check-cycle-5-6-7","status":"PASSED","public_ref":"DEMO stages 5, 6 and 7 close the synthetic loop while preserving ROOT"}
+        {"id":"demo-check-cycle-5-6-7","status":"PASSED","public_ref":"DEMO stages 5, 6 and 7 close the synthetic loop while preserving ROOT"},
+        {"id":"adapter-boundary-validation","status":"PASSED","public_ref":"Deny-by-default Adapter validation on synthetic private-like fixture; no private connection"}
       ]
     }
   }
