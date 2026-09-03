@@ -1,0 +1,122 @@
+name: Genesis public divergence probe
+
+on:
+  push:
+    branches:
+      - 'ops/probe-genesis-public-divergence-20260903'
+    paths:
+      - '.github/workflows/probe-genesis-public-divergence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe-public-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+    steps:
+      - name: Checkout exact diagnostic branch
+        uses: actions/checkout@v6
+
+      - name: Probe repository public route and direct VPS origin
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+
+          origin_ip="$(getent ahostsv4 "$VPS_HOST" | awk 'NR==1{print $1}')"
+          test -n "$origin_ip"
+          nonce="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          index_url="https://antmux.com/laboratoire/genesis/?probe=${nonce}"
+          live_url="https://antmux.com/laboratoire/genesis/live/public-read-only.json?probe=${nonce}"
+
+          repo_index='laboratoire/genesis/index.html'
+          test -f "$repo_index"
+
+          curl --fail --silent --show-error --location \
+            -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+            -D /tmp/public-index.headers "$index_url" -o /tmp/public-index.html
+
+          curl --fail --silent --show-error --location \
+            --resolve "antmux.com:443:${origin_ip}" \
+            -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+            -D /tmp/origin-index.headers "$index_url" -o /tmp/origin-index.html
+
+          curl --fail --silent --show-error --location \
+            -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+            -D /tmp/public-live.headers "$live_url" -o /tmp/public-live.json
+
+          curl --fail --silent --show-error --location \
+            --resolve "antmux.com:443:${origin_ip}" \
+            -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+            -D /tmp/origin-live.headers "$live_url" -o /tmp/origin-live.json
+
+          repo_sha="$(sha256sum "$repo_index" | awk '{print $1}')"
+          public_sha="$(sha256sum /tmp/public-index.html | awk '{print $1}')"
+          origin_sha="$(sha256sum /tmp/origin-index.html | awk '{print $1}')"
+
+          echo "REPO_INDEX_SHA256=$repo_sha"
+          echo "PUBLIC_INDEX_SHA256=$public_sha"
+          echo "ORIGIN_INDEX_SHA256=$origin_sha"
+          echo "PUBLIC_INDEX_MATCH_REPO=$([ "$public_sha" = "$repo_sha" ] && echo yes || echo no)"
+          echo "ORIGIN_INDEX_MATCH_REPO=$([ "$origin_sha" = "$repo_sha" ] && echo yes || echo no)"
+          echo "PUBLIC_ORIGIN_INDEX_MATCH=$([ "$public_sha" = "$origin_sha" ] && echo yes || echo no)"
+
+          echo 'PUBLIC_INDEX_HEADERS_BEGIN'
+          grep -Ei '^(HTTP/|age:|cache-control:|etag:|last-modified:|server:|via:|x-cache:|cf-cache-status:)' /tmp/public-index.headers || true
+          echo 'PUBLIC_INDEX_HEADERS_END'
+          echo 'ORIGIN_INDEX_HEADERS_BEGIN'
+          grep -Ei '^(HTTP/|age:|cache-control:|etag:|last-modified:|server:|via:|x-cache:|cf-cache-status:)' /tmp/origin-index.headers || true
+          echo 'ORIGIN_INDEX_HEADERS_END'
+
+          for file in /tmp/public-index.html /tmp/origin-index.html; do
+            grep -Fq 'Genesis Vision Center — LIVE / SNAPSHOT' "$file"
+            grep -Fq 'Actualiser maintenant' "$file"
+            grep -Fq 'C060 → C061 → C062' "$file"
+            grep -Fq "const LIVE_PATH='./live/public-read-only.json'" "$file"
+          done
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def validate(path, label):
+              data=json.loads(Path(path).read_text(encoding='utf-8'))
+              assert data['mode']=='LIVE_READ_ONLY', (label, 'mode', data.get('mode'))
+              assert data['source_status']=='PUBLIC_READ_ONLY', (label, 'source_status')
+              assert data['integrity_status']=='VERIFIED_PUBLIC', (label, 'integrity_status')
+              assert data['payload']['publication_gates']['current_gate']=='LIVE_READ_ONLY_ACTIVE', (label, 'gate')
+              metrics={m['id']:m for m in data['payload']['metrics']}
+              expected={
+                  'genesis003-validated-through':'C062',
+                  'genesis003-c062':'VALIDATED_10_OF_10',
+                  'next-scientific-action':'BUILD_REAL_NEXT_TEST_PLAN',
+                  'real-experiment-spec-id':'REAL-EXPERIMENT-SPEC-001',
+                  'real-experiment-spec-status':'FROZEN_CANDIDATE_NOT_SELECTED',
+                  'real-plan-selection-performed':False,
+              }
+              for key, value in expected.items():
+                  assert key in metrics, (label, 'missing metric', key)
+                  assert metrics[key]['value']==value, (label, key, metrics[key]['value'], value)
+              text=json.dumps(data,sort_keys=True)
+              for forbidden in ('Topbrutus/seedgenesis','public/live-source','public/live/status.env','refs/heads/','PRIVATE KEY','github_pat_'):
+                  assert forbidden not in text, (label, 'forbidden public detail', forbidden)
+              print(f'{label}_C062_LIVE=PASS')
+              print(f'{label}_PUBLISHED_AT={data["published_at"]}')
+
+          validate('/tmp/public-live.json','PUBLIC')
+          validate('/tmp/origin-live.json','ORIGIN')
+          PY
+
+          if [ "$origin_sha" != "$repo_sha" ]; then
+            echo 'PROBE_CLASSIFICATION=ORIGIN_DEPLOYMENT_DIVERGENCE'
+            exit 4
+          fi
+          if [ "$public_sha" != "$origin_sha" ]; then
+            echo 'PROBE_CLASSIFICATION=EXTERNAL_CACHE_OR_ROUTING_DIVERGENCE'
+            exit 3
+          fi
+
+          echo 'PROBE_CLASSIFICATION=PROBE_PASS_CRAWLER_STALE'
+          echo 'GENESIS_PUBLIC_DIVERGENCE_PROBE=PASS'
