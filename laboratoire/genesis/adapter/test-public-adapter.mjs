@@ -57,20 +57,24 @@ test('unknown pipeline step field is rejected', ()=>{
   expectThrow(()=>adaptPublicCandidate(x),'private_path');
 });
 
-test('SNAPSHOT mode is allowed in adapter validation phase', ()=>{
+test('SNAPSHOT requires production adapter input version', ()=>{
   const x = clone(canonical); x.mode = 'SNAPSHOT'; x.source_status = 'PUBLIC_SNAPSHOT';
-  const out = adaptPublicCandidate(x);
-  if(out.mode !== 'SNAPSHOT') throw new Error('mode !== SNAPSHOT');
+  expectThrow(()=>adaptPublicCandidate(x),'1.0.0');
+});
+
+test('DEMO cannot use PUBLIC_SNAPSHOT source', ()=>{
+  const x = clone(canonical); x.source_status = 'PUBLIC_SNAPSHOT';
+  expectThrow(()=>adaptPublicCandidate(x),'SYNTHETIC');
 });
 
 test('LIVE_READ_ONLY mode is blocked in adapter validation phase', ()=>{
   const x = clone(canonical); x.mode = 'LIVE_READ_ONLY';
-  expectThrow(()=>adaptPublicCandidate(x),'mode=DEMO ou SNAPSHOT');
+  expectThrow(()=>adaptPublicCandidate(x),'DEMO ou SNAPSHOT');
 });
 
-test('PUBLIC_READ_ONLY source is blocked in adapter validation phase', ()=>{
+test('PUBLIC_READ_ONLY source is blocked for DEMO', ()=>{
   const x = clone(canonical); x.source_status = 'PUBLIC_READ_ONLY';
-  expectThrow(()=>adaptPublicCandidate(x),'source_status=SYNTHETIC ou PUBLIC_SNAPSHOT');
+  expectThrow(()=>adaptPublicCandidate(x),'SYNTHETIC');
 });
 
 test('explicit publication intent is mandatory', ()=>{
