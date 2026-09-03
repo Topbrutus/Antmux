@@ -97,7 +97,8 @@ export function buildBridgeInputFromWhitelistedStatus(status, options = {}) {
         { id: 'hypothesis-ranking', label: 'Classement d’hypothèses', value: false, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
         { id: 'probabilities-produced', label: 'Probabilités produites', value: false, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
         { id: 'bridge-read-capability', label: 'Capacité de lecture bridge', value: 'READ_ONLY', status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
-        { id: 'bridge-write-capability', label: 'Capacité d’écriture bridge', value: 'NONE', status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' }
+        { id: 'bridge-write-capability', label: 'Capacité d’écriture bridge', value: 'NONE', status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' },
+        { id: 'browser-private-credentials', label: 'Credentials privés navigateur', value: false, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST' }
       ],
       evidence: [
         { id: 'SERVER-SIDE-WHITELIST', type: 'PUBLIC_ATTESTATION', status: 'VERIFIED_PUBLIC', public_ref: 'Whitelisted server-side Genesis status projection' }
