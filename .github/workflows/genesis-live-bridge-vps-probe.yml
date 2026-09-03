@@ -33,7 +33,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Generate unique seedgenesis read-only deploy key
+      - name: Verify unique seedgenesis read-only deploy key
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -43,13 +43,29 @@ jobs:
           test -n "$VPS_USER"
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
           set -euo pipefail
-          install -d -m 700 "$HOME/.ssh"
           key="$HOME/.ssh/seedgenesis_only_readonly_ed25519"
-          if test ! -f "$key"; then
-            ssh-keygen -q -t ed25519 -N '' -C 'seedgenesis-only-antmux-vps-readonly' -f "$key"
-          fi
+          test -f "$key"
           chmod 600 "$key"
-          chmod 644 "$key.pub"
-          printf 'SEEDGENESIS_UNIQUE_KEY_READY=yes\n'
-          printf 'SEEDGENESIS_UNIQUE_PUBLIC_KEY=%s\n' "$(cat "$key.pub")"
+
+          known="$HOME/.ssh/known_hosts_seedgenesis"
+          printf '%s\n' 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$known"
+          chmod 600 "$known"
+          sshcmd="ssh -n -i $key -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$known -o HostKeyAlgorithms=ssh-ed25519"
+
+          auth_output="$($sshcmd -T git@github.com 2>&1 || true)"
+          if printf '%s' "$auth_output" | grep -q 'successfully authenticated'; then
+            printf 'GITHUB_SSH_AUTH=yes\n'
+          else
+            printf 'GITHUB_SSH_AUTH=no\n'
+            exit 1
+          fi
+
+          if GIT_SSH_COMMAND="$sshcmd" git ls-remote git@github.com:Topbrutus/seedgenesis.git HEAD </dev/null >/dev/null 2>&1; then
+            printf 'PRIVATE_REPO_SSH_READ=yes\n'
+          else
+            printf 'PRIVATE_REPO_SSH_READ=no\n'
+            exit 1
+          fi
+
+          printf 'WRITE_CAPABILITY_CONFIGURED=no\n'
           REMOTE
