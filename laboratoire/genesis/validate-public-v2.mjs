@@ -168,7 +168,20 @@ function validateLiveReadOnly(data){
   const gateMap=new Map(p.publication_gates.gates.map(g=>[g.id,g.status]));
   for(const id of ['contract-v2','adapter','snapshot','live-read-only'])if(!gateMap.has(id))fail(`Gate LIVE_READ_ONLY manquante: ${id}.`);
   for(const id of ['contract-v2','adapter','snapshot','live-read-only'])if(gateMap.get(id)!=='PASSED')fail(`Gate ${id} doit être PASSED pour LIVE_READ_ONLY.`);
-  if(p.publication_gates.current_gate!=='LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED')fail('current_gate doit rester LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED avant déploiement explicite.');
+
+  const activeMetric=p.metrics.find(x=>x.id==='public-live-active');
+  if(!activeMetric||typeof activeMetric.value!=='boolean'||activeMetric.status!=='VERIFIED_PUBLIC')fail('La métrique public-live-active doit être booléenne et VERIFIED_PUBLIC.');
+  const currentGate=p.publication_gates.current_gate;
+  const nextStep=p.publication_gates.recommended_next_step;
+  if(currentGate==='LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED'){
+    if(activeMetric.value!==false)fail('READY_NOT_DEPLOYED exige public-live-active=false.');
+    if(nextStep!=='AUTHORIZE_CONTROLLED_PUBLIC_READ_ONLY_DEPLOYMENT')fail('READY_NOT_DEPLOYED exige l’étape d’autorisation de déploiement.');
+  }else if(currentGate==='LIVE_READ_ONLY_ACTIVE'){
+    if(activeMetric.value!==true)fail('LIVE_READ_ONLY_ACTIVE exige public-live-active=true.');
+    if(nextStep!=='CONTINUE_SERVER_SIDE_READ_ONLY_SYNC')fail('LIVE_READ_ONLY_ACTIVE exige la poursuite du sync server-side read-only.');
+  }else{
+    fail('current_gate LIVE_READ_ONLY invalide.');
+  }
 
   const hashEvidence=p.evidence.find(x=>x.id==='LIVE-PUBLIC-PROJECTION-HASH'&&x.type==='PUBLIC_HASH'&&typeof x.hash==='string'&&/^sha256:[0-9a-f]{64}$/.test(x.hash));
   if(!hashEvidence)fail('LIVE_READ_ONLY exige une preuve LIVE-PUBLIC-PROJECTION-HASH sha256.');
@@ -201,7 +214,7 @@ export function validatePublicV2(data){
     ? {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,cycle_5_6_7:'PASSED'}
     : data.mode==='SNAPSHOT'
       ? {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,snapshot_gate:'PASSED'}
-      : {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,live_read_only_bridge:'PASSED_NOT_DEPLOYED'};
+      : {ok:true,contract_version:data.contract_version,mode:data.mode,publication_id:data.publication_id,live_read_only_bridge:data.payload.publication_gates.current_gate==='LIVE_READ_ONLY_ACTIVE'?'PASSED_ACTIVE':'PASSED_NOT_DEPLOYED'};
 }
 
 async function main(){

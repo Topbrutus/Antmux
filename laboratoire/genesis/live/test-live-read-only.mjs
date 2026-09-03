@@ -54,8 +54,16 @@ if(snapshot.mode==='SNAPSHOT' && snapshot.source_status==='PUBLIC_SNAPSHOT' && l
 else { console.error('FAIL  canonical snapshot boundary changed'); process.exitCode=1; }
 
 const index=await readFile(indexPath,'utf8');
-if(index.includes("const DATA_PATH='./snapshot/genesis-public-snapshot-0001.json'") && index.includes('LIVE_READ_ONLY') && index.includes('PENDING')) pass('Vision Center source remains the frozen snapshot during evaluation');
-else { console.error('FAIL  Vision Center appears to have been switched away from frozen snapshot'); process.exitCode=1; }
+const cockpitPreparedSafely =
+  index.includes("const LIVE_PATH='./live/public-read-only.json'") &&
+  index.includes("const SNAPSHOT_PATH='./snapshot/genesis-public-snapshot-0001.json'") &&
+  index.includes("d.payload.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE'") &&
+  index.includes("x=>x.id==='public-live-active'") &&
+  index.includes("activeMetric?.value!==true") &&
+  !index.includes('Topbrutus/seedgenesis') &&
+  !index.includes('git@github.com:Topbrutus/seedgenesis.git');
+if(cockpitPreparedSafely) pass('Vision Center may prepare LIVE only with explicit active gate and mandatory snapshot fallback');
+else { console.error('FAIL  Vision Center LIVE preparation boundary is incomplete'); process.exitCode=1; }
 
 const expected=23;
 if(process.exitCode) process.exit(process.exitCode);

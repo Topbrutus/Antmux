@@ -10,208 +10,31 @@ const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url));
 const EVIDENCE_DIR = join(REPO_ROOT, '.build', 'antmux-lab-browser-evidence');
 
 const MIME = new Map([
-  ['.html', 'text/html; charset=utf-8'],
-  ['.css', 'text/css; charset=utf-8'],
-  ['.js', 'text/javascript; charset=utf-8'],
-  ['.mjs', 'text/javascript; charset=utf-8'],
-  ['.json', 'application/json; charset=utf-8'],
-  ['.md', 'text/markdown; charset=utf-8']
+  ['.html','text/html; charset=utf-8'],['.css','text/css; charset=utf-8'],['.js','text/javascript; charset=utf-8'],['.mjs','text/javascript; charset=utf-8'],['.json','application/json; charset=utf-8'],['.md','text/markdown; charset=utf-8']
 ]);
-
-function fail(message) { throw new Error(message); }
-function assert(condition, message) { if (!condition) fail(message); }
-
-async function resolvePublicPath(urlPath) {
-  const decoded = decodeURIComponent((urlPath ?? '/').split('?')[0]);
-  let relative = decoded.replace(/^\/+/, '');
-  if (!relative || relative.endsWith('/')) relative += 'index.html';
-  const normalized = normalize(relative);
-  if (normalized.startsWith('..') || normalized.includes('/../') || normalized.includes('\\..\\')) {
-    fail('Traversal de chemin refusé.');
-  }
-  let path = join(REPO_ROOT, normalized);
-  try {
-    const info = await stat(path);
-    if (info.isDirectory()) path = join(path, 'index.html');
-  } catch {
-    // Le serveur retournera 404.
-  }
-  return path;
-}
-
-const server = createServer(async (request, response) => {
-  try {
-    const filePath = await resolvePublicPath(request.url);
-    const body = await readFile(filePath);
-    response.statusCode = 200;
-    response.setHeader('content-type', MIME.get(extname(filePath)) ?? 'application/octet-stream');
-    response.setHeader('cache-control', 'no-store');
-    response.end(body);
-  } catch {
-    response.statusCode = 404;
-    response.end('Not Found');
-  }
-});
-
-await new Promise((resolve, reject) => {
-  server.once('error', reject);
-  server.listen(0, '127.0.0.1', resolve);
-});
-
+function fail(message){throw new Error(message)}
+function assert(condition,message){if(!condition)fail(message)}
+async function resolvePublicPath(urlPath){const decoded=decodeURIComponent((urlPath??'/').split('?')[0]);let relative=decoded.replace(/^\/+/,'');if(!relative||relative.endsWith('/'))relative+='index.html';const normalized=normalize(relative);if(normalized.startsWith('..')||normalized.includes('/../')||normalized.includes('\\..\\'))fail('Traversal de chemin refusé.');let path=join(REPO_ROOT,normalized);try{const info=await stat(path);if(info.isDirectory())path=join(path,'index.html')}catch{}return path}
+const server=createServer(async(request,response)=>{try{const filePath=await resolvePublicPath(request.url);const body=await readFile(filePath);response.statusCode=200;response.setHeader('content-type',MIME.get(extname(filePath))??'application/octet-stream');response.setHeader('cache-control','no-store');response.end(body)}catch{response.statusCode=404;response.end('Not Found')}});
+await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});
 let browser;
-
-async function assertNoOverflow(page, label) {
-  const geometry = await page.evaluate(() => ({
-    viewportWidth: window.innerWidth,
-    scrollWidth: document.documentElement.scrollWidth
-  }));
-  assert(geometry.scrollWidth <= geometry.viewportWidth + 1,
-    `${label}: débordement horizontal (${geometry.scrollWidth} > ${geometry.viewportWidth}).`);
+async function assertNoOverflow(page,label){const g=await page.evaluate(()=>({viewportWidth:innerWidth,scrollWidth:document.documentElement.scrollWidth}));assert(g.scrollWidth<=g.viewportWidth+1,`${label}: débordement horizontal (${g.scrollWidth} > ${g.viewportWidth}).`)}
+async function verifyViewport(base,viewportName,viewport){
+  const context=await browser.newContext({viewport,deviceScaleFactor:1});const page=await context.newPage();const consoleErrors=[],pageErrors=[],requestedPaths=[],localFailedPaths=[];
+  page.on('console',message=>{if(message.type()==='error'){const text=message.text();if(/Failed to load resource/.test(text))return;consoleErrors.push(text)}});page.on('pageerror',error=>pageErrors.push(error.message));page.on('request',request=>{const url=new URL(request.url());if(url.origin===base)requestedPaths.push(url.pathname)});
+  const EXPECTED_LOCAL_404=new Set(['/audio/tounne.mp3','/mnt/data/tounne.mp3','/laboratoire/genesis/live/public-read-only.json']);
+  page.on('response',response=>{if(response.status()===404){try{const url=new URL(response.url());if(url.origin===base&&!EXPECTED_LOCAL_404.has(url.pathname))localFailedPaths.push(url.pathname)}catch{}}});
+  try{
+    let response=await page.goto(`${base}/`,{waitUntil:'networkidle'});assert(response?.ok(),`${viewportName}: accueil Antmux inaccessible.`);assert((await page.title())==='React Artifact',`${viewportName}: titre accueil inattendu.`);
+    const labButton=page.locator('a[href="/laboratoire/"]');assert(await labButton.isVisible(),`${viewportName}: bouton LABORATOIRE invisible à l'accueil.`);assert((await labButton.textContent())?.trim()==='LABORATOIRE',`${viewportName}: libellé bouton laboratoire inattendu.`);await assertNoOverflow(page,`${viewportName}/accueil`);
+    await labButton.click();await page.waitForLoadState('networkidle');assert(new URL(page.url()).pathname==='/laboratoire/',`${viewportName}: navigation laboratoire incorrecte.`);assert((await page.title())==='Antmux — Laboratoire public',`${viewportName}: titre laboratoire inattendu.`);assert((await page.locator('h1').textContent())?.trim()==='Laboratoire',`${viewportName}: H1 laboratoire absent.`);assert(await page.getByText('LAB-004 · DEMO VALIDÉE EN CI',{exact:true}).isVisible(),`${viewportName}: statut LAB-004 absent.`);
+    const genesisButton=page.locator('a.primary[href="./genesis/"]').first();assert(await genesisButton.isVisible(),`${viewportName}: bouton Genesis invisible dans le laboratoire.`);await page.screenshot({path:join(EVIDENCE_DIR,`${viewportName}-laboratoire.png`),fullPage:true});await assertNoOverflow(page,`${viewportName}/laboratoire`);
+    await genesisButton.click();await page.waitForLoadState('networkidle');assert(new URL(page.url()).pathname==='/laboratoire/genesis/',`${viewportName}: navigation Genesis incorrecte.`);assert((await page.title())==='Genesis Vision Center — LIVE / SNAPSHOT',`${viewportName}: titre Genesis inattendu.`);await page.locator('#cockpit').waitFor({state:'visible',timeout:5000});assert((await page.locator('#dataBanner').textContent())?.trim()==='SNAPSHOT FALLBACK / PUBLIC DATA',`${viewportName}: bannière fallback absente.`);assert((await page.locator('#viewEyebrow').textContent())?.includes('Snapshot fallback'),`${viewportName}: libellé fallback absent.`);assert((await page.locator('#mode').textContent())?.trim()==='SNAPSHOT',`${viewportName}: mode Genesis inattendu.`);assert((await page.locator('#sourceStatus').textContent())?.trim()==='PUBLIC_SNAPSHOT',`${viewportName}: source Genesis inattendue.`);assert((await page.locator('#publicationId').textContent())?.trim()==='GENESIS-PUBLIC-SNAPSHOT-0001',`${viewportName}: publication Genesis inattendue.`);assert((await page.locator('#integrityStatus').textContent())?.trim()==='VERIFIED_PUBLIC',`${viewportName}: intégrité Genesis inattendue.`);assert((await page.locator('#liveReadOnly').textContent())?.trim()==='PENDING',`${viewportName}: fallback LIVE_READ_ONLY doit rester PENDING.`);assert(!(await page.locator('#fatal').isVisible()),`${viewportName}: état fatal Genesis visible.`);assert(requestedPaths.includes('/laboratoire/genesis/live/public-read-only.json'),`${viewportName}: tentative LIVE publique absente.`);assert(requestedPaths.includes('/laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json'),`${viewportName}: requête snapshot fallback absente.`);await page.screenshot({path:join(EVIDENCE_DIR,`${viewportName}-genesis.png`),fullPage:true});await assertNoOverflow(page,`${viewportName}/genesis`);
+    assert(pageErrors.length===0,`${viewportName}: erreurs JavaScript: ${pageErrors.join(' | ')}`);assert(consoleErrors.length===0,`${viewportName}: erreurs console: ${consoleErrors.join(' | ')}`);assert(localFailedPaths.length===0,`${viewportName}: ressources locales manquantes (404): ${localFailedPaths.join(' | ')}`);assert(!requestedPaths.some(path=>path.startsWith('/private/')),`${viewportName}: route privée demandée.`);
+    return {viewport:viewportName,size:viewport,home_button_visible:true,laboratory_rendered:true,genesis_rendered:true,genesis_display_mode:'SNAPSHOT_FALLBACK',genesis_mode:'SNAPSHOT',source_status:'PUBLIC_SNAPSHOT',publication_id:'GENESIS-PUBLIC-SNAPSHOT-0001',integrity_status:'VERIFIED_PUBLIC',live_read_only:'PENDING',live_endpoint_preactivation_404:true,snapshot_fallback_verified:true,private_route_requested:false,horizontal_overflow:false,browser_console_errors:0,browser_page_errors:0,screenshots:[`.build/antmux-lab-browser-evidence/${viewportName}-laboratoire.png`,`.build/antmux-lab-browser-evidence/${viewportName}-genesis.png`]};
+  }finally{await context.close()}
 }
-
-async function verifyViewport(base, viewportName, viewport) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
-  const page = await context.newPage();
-  const consoleErrors = [];
-  const pageErrors = [];
-  const requestedPaths = [];
-  const localFailedPaths = [];
-
-  // Capture only console errors that are NOT "Failed to load resource" for external URLs.
-  // The SPA loads Google Fonts which are unavailable in the offline CI environment.
-  page.on('console', message => {
-    if (message.type() === 'error') {
-      const text = message.text();
-      // Suppress generic "Failed to load resource" messages — we track those via
-      // the response listener below, filtering by origin.
-      if (/Failed to load resource/.test(text)) return;
-      consoleErrors.push(text);
-    }
-  });
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('request', request => {
-    const url = new URL(request.url());
-    if (url.origin === base) requestedPaths.push(url.pathname);
-  });
-  // Track local 404s separately — external 404s (fonts, CDN) are expected in CI.
-  // Exact allowlist of VPS-only asset paths absent from the Git repo.
-  // Any local 404 NOT in this set will fail the test.
-  const VPS_ONLY_PATHS = new Set([
-    '/audio/tounne.mp3',
-    '/mnt/data/tounne.mp3'
-  ]);
-
-  page.on('response', response => {
-    if (response.status() === 404) {
-      try {
-        const url = new URL(response.url());
-        if (url.origin === base) {
-          if (!VPS_ONLY_PATHS.has(url.pathname)) localFailedPaths.push(url.pathname);
-        }
-      } catch { /* ignore malformed URLs */ }
-    }
-  });
-
-  try {
-    let response = await page.goto(`${base}/`, { waitUntil: 'networkidle' });
-    assert(response?.ok(), `${viewportName}: accueil Antmux inaccessible.`);
-    assert((await page.title()) === 'React Artifact', `${viewportName}: titre accueil inattendu.`);
-
-    const labButton = page.locator('a[href="/laboratoire/"]');
-    assert(await labButton.isVisible(), `${viewportName}: bouton LABORATOIRE invisible à l'accueil.`);
-    assert((await labButton.textContent())?.trim() === 'LABORATOIRE', `${viewportName}: libellé bouton laboratoire inattendu.`);
-    await assertNoOverflow(page, `${viewportName}/accueil`);
-
-    await labButton.click();
-    await page.waitForLoadState('networkidle');
-    assert(new URL(page.url()).pathname === '/laboratoire/', `${viewportName}: navigation laboratoire incorrecte.`);
-    assert((await page.title()) === 'Antmux — Laboratoire public', `${viewportName}: titre laboratoire inattendu.`);
-    assert((await page.locator('h1').textContent())?.trim() === 'Laboratoire', `${viewportName}: H1 laboratoire absent.`);
-    assert(await page.getByText('LAB-004 · DEMO VALIDÉE EN CI', { exact: true }).isVisible(), `${viewportName}: statut LAB-004 absent.`);
-
-    const genesisButton = page.locator('a.primary[href="./genesis/"]').first();
-    assert(await genesisButton.isVisible(), `${viewportName}: bouton Genesis invisible dans le laboratoire.`);
-    await page.screenshot({ path: join(EVIDENCE_DIR, `${viewportName}-laboratoire.png`), fullPage: true });
-    await assertNoOverflow(page, `${viewportName}/laboratoire`);
-
-    await genesisButton.click();
-    await page.waitForLoadState('networkidle');
-    assert(new URL(page.url()).pathname === '/laboratoire/genesis/', `${viewportName}: navigation Genesis incorrecte.`);
-    assert((await page.title()) === 'Genesis Vision Center — SNAPSHOT', `${viewportName}: titre Genesis inattendu.`);
-    await page.locator('#cockpit').waitFor({ state: 'visible', timeout: 5000 });
-    assert((await page.locator('#snapshotBanner').textContent())?.trim() === 'SNAPSHOT / PUBLIC DATA', `${viewportName}: bannière SNAPSHOT absente.`);
-    assert((await page.locator('#mode').textContent())?.trim() === 'SNAPSHOT', `${viewportName}: mode Genesis inattendu.`);
-    assert((await page.locator('#sourceStatus').textContent())?.trim() === 'PUBLIC_SNAPSHOT', `${viewportName}: source Genesis inattendue.`);
-    assert((await page.locator('#publicationId').textContent())?.trim() === 'GENESIS-PUBLIC-SNAPSHOT-0001', `${viewportName}: publication Genesis inattendue.`);
-    assert((await page.locator('#integrityStatus').textContent())?.trim() === 'VERIFIED_PUBLIC', `${viewportName}: intégrité Genesis inattendue.`);
-    assert((await page.locator('#liveReadOnly').textContent())?.trim() === 'PENDING', `${viewportName}: LIVE_READ_ONLY doit rester PENDING.`);
-    assert(!(await page.locator('#fatal').isVisible()), `${viewportName}: état fatal Genesis visible.`);
-    await page.screenshot({ path: join(EVIDENCE_DIR, `${viewportName}-genesis.png`), fullPage: true });
-    await assertNoOverflow(page, `${viewportName}/genesis`);
-
-    assert(pageErrors.length === 0, `${viewportName}: erreurs JavaScript: ${pageErrors.join(' | ')}`);
-    assert(consoleErrors.length === 0, `${viewportName}: erreurs console: ${consoleErrors.join(' | ')}`);
-    assert(localFailedPaths.length === 0, `${viewportName}: ressources locales manquantes (404): ${localFailedPaths.join(' | ')}`);
-    assert(!requestedPaths.some(path => path.startsWith('/private/')), `${viewportName}: route privée demandée.`);
-
-    return {
-      viewport: viewportName,
-      size: viewport,
-      home_button_visible: true,
-      laboratory_rendered: true,
-      genesis_rendered: true,
-      genesis_mode: 'SNAPSHOT',
-      source_status: 'PUBLIC_SNAPSHOT',
-      publication_id: 'GENESIS-PUBLIC-SNAPSHOT-0001',
-      integrity_status: 'VERIFIED_PUBLIC',
-      live_read_only: 'PENDING',
-      private_route_requested: false,
-      horizontal_overflow: false,
-      browser_console_errors: 0,
-      browser_page_errors: 0,
-      screenshots: [
-        `.build/antmux-lab-browser-evidence/${viewportName}-laboratoire.png`,
-        `.build/antmux-lab-browser-evidence/${viewportName}-genesis.png`
-      ]
-    };
-  } finally {
-    await context.close();
-  }
-}
-
-try {
-  const address = server.address();
-  if (!address || typeof address === 'string') fail('Port HTTP de test indisponible.');
-  const base = `http://127.0.0.1:${address.port}`;
-  await mkdir(EVIDENCE_DIR, { recursive: true });
-
-  browser = await chromium.launch({ headless: true });
-  const results = [
-    await verifyViewport(base, 'desktop', { width: 1440, height: 1000 }),
-    await verifyViewport(base, 'mobile', { width: 390, height: 844 })
-  ];
-
-  const report = {
-    ok: true,
-    lab: 'LAB-004',
-    test: 'ANTMUX_HOME_TO_LAB_TO_GENESIS_REAL_BROWSER',
-    browser: 'Chromium',
-    browser_version: browser.version(),
-    home_button: '/laboratoire/',
-    lab_entry: '/laboratoire/',
-    genesis_entry: '/laboratoire/genesis/',
-    private_genesis_connected: false,
-    viewports: results
-  };
-
-  await writeFile(join(EVIDENCE_DIR, 'REPORT.json'), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  console.log('ANTMUX_LAB_PUBLIC_BROWSER_VALID');
-  console.log(JSON.stringify(report, null, 2));
-} catch (error) {
-  console.error('ANTMUX_LAB_PUBLIC_BROWSER_INVALID');
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
-  process.exitCode = 1;
-} finally {
-  if (browser) await browser.close();
-  await new Promise(resolve => server.close(resolve));
-}
+try{
+  const address=server.address();if(!address||typeof address==='string')fail('Port HTTP de test indisponible.');const base=`http://127.0.0.1:${address.port}`;await mkdir(EVIDENCE_DIR,{recursive:true});browser=await chromium.launch({headless:true});const results=[await verifyViewport(base,'desktop',{width:1440,height:1000}),await verifyViewport(base,'mobile',{width:390,height:844})];const report={ok:true,lab:'LAB-004',test:'ANTMUX_HOME_TO_LAB_TO_GENESIS_LIVE_CAPABLE_FALLBACK_BROWSER',browser:'Chromium',browser_version:browser.version(),home_button:'/laboratoire/',lab_entry:'/laboratoire/',genesis_entry:'/laboratoire/genesis/',private_genesis_connected:false,live_endpoint_predeployed:false,snapshot_fallback_verified:true,viewports:results};await writeFile(join(EVIDENCE_DIR,'REPORT.json'),`${JSON.stringify(report,null,2)}\n`,'utf8');console.log('ANTMUX_LAB_PUBLIC_BROWSER_VALID');console.log(JSON.stringify(report,null,2));
+}catch(error){console.error('ANTMUX_LAB_PUBLIC_BROWSER_INVALID');console.error(error instanceof Error?error.stack??error.message:String(error));process.exitCode=1}
+finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve))}
