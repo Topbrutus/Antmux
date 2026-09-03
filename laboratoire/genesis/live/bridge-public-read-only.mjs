@@ -116,11 +116,12 @@ export function buildPublicReadOnlyEnvelope(input, options={}){
     payload
   };
   validatePublicV2(envelope);
+  const liveActive = envelope.payload.publication_gates.current_gate === 'LIVE_READ_ONLY_ACTIVE';
   return {
     ok: true,
     bridge: 'SERVER_SIDE_PUBLIC_READ_ONLY',
-    public_live_enabled: false,
-    deployment_required: true,
+    public_live_enabled: liveActive,
+    deployment_required: !liveActive,
     snapshot_fallback_available: true,
     source_age_seconds: ageSeconds,
     envelope
