@@ -6,7 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { validatePublicV2 } from '../validate-public-v2.mjs';
 
 const TOP_KEYS = new Set(['bridge_input_version','publication_intent','bridge_received_at','source_observed_at','max_age_seconds','source_attestation','transport','live_active']);
-const SOURCE_KEYS = new Set(['source_kind','source_identity','source_state','validated_through','c061_status','c061_execution_input','execution_admissibility','next_scientific_action','selected_experiment_status','read_capability','write_capability','adapter_only']);
+const SOURCE_KEYS = new Set([
+  'source_kind','source_identity','source_state','validated_through','c061_status','c061_execution_input',
+  'execution_admissibility','next_scientific_action','selected_experiment_status','c062_status',
+  'real_experiment_spec_id','real_experiment_spec_status','real_experiment_family','trial_class',
+  'replicates_per_arm','blinded_primary_analysis','pretargeted_symbolic_search','real_plan_selection_performed',
+  'read_capability','write_capability','adapter_only',
+]);
 const TRANSPORT_KEYS = new Set(['server_side_pull','public_endpoint_only','fail_closed','snapshot_fallback_available','browser_credentials_present','private_browser_request']);
 
 function fail(message) { throw new Error(message); }
@@ -50,6 +56,18 @@ function digestPayload(payload, observedAt) {
   return createHash('sha256').update(JSON.stringify(stable({ observed_at: observedAt, payload })), 'utf8').digest('hex');
 }
 
+function validateNotApplicableC062(a) {
+  eq(a.c062_status, 'NOT_APPLICABLE', '$.source_attestation.c062_status');
+  eq(a.real_experiment_spec_id, 'NOT_APPLICABLE', '$.source_attestation.real_experiment_spec_id');
+  eq(a.real_experiment_spec_status, 'NOT_APPLICABLE', '$.source_attestation.real_experiment_spec_status');
+  eq(a.real_experiment_family, 'NOT_APPLICABLE', '$.source_attestation.real_experiment_family');
+  eq(a.trial_class, 'NOT_APPLICABLE', '$.source_attestation.trial_class');
+  eq(a.replicates_per_arm, null, '$.source_attestation.replicates_per_arm');
+  eq(a.blinded_primary_analysis, null, '$.source_attestation.blinded_primary_analysis');
+  eq(a.pretargeted_symbolic_search, null, '$.source_attestation.pretargeted_symbolic_search');
+  eq(a.real_plan_selection_performed, null, '$.source_attestation.real_plan_selection_performed');
+}
+
 function validateAttestation(a) {
   allowed(a, SOURCE_KEYS, '$.source_attestation');
   required(a, SOURCE_KEYS, '$.source_attestation');
@@ -66,6 +84,7 @@ function validateAttestation(a) {
     eq(a.c061_execution_input, 'NOT_APPLICABLE', '$.source_attestation.c061_execution_input');
     eq(a.execution_admissibility, 'NOT_APPLICABLE', '$.source_attestation.execution_admissibility');
     eq(a.next_scientific_action, 'AWAIT_EXPLICIT_NEW_PHASE', '$.source_attestation.next_scientific_action');
+    validateNotApplicableC062(a);
     return;
   }
   if (a.validated_through === 'C061') {
@@ -74,6 +93,24 @@ function validateAttestation(a) {
     eq(a.c061_execution_input, 'SYNTHETIC_C060_FIXTURE', '$.source_attestation.c061_execution_input');
     eq(a.execution_admissibility, 'BLOCKED_SYNTHETIC_SELECTION', '$.source_attestation.execution_admissibility');
     eq(a.next_scientific_action, 'AWAIT_REAL_EXPERIMENT_SPEC', '$.source_attestation.next_scientific_action');
+    validateNotApplicableC062(a);
+    return;
+  }
+  if (a.validated_through === 'C062') {
+    eq(a.source_state, 'C041_C062_COMPLETE_VALIDATED', '$.source_attestation.source_state');
+    eq(a.c061_status, 'VALIDATED_10_OF_10', '$.source_attestation.c061_status');
+    eq(a.c061_execution_input, 'SYNTHETIC_C060_FIXTURE', '$.source_attestation.c061_execution_input');
+    eq(a.execution_admissibility, 'BLOCKED_SYNTHETIC_SELECTION', '$.source_attestation.execution_admissibility');
+    eq(a.next_scientific_action, 'BUILD_REAL_NEXT_TEST_PLAN', '$.source_attestation.next_scientific_action');
+    eq(a.c062_status, 'VALIDATED_10_OF_10', '$.source_attestation.c062_status');
+    eq(a.real_experiment_spec_id, 'REAL-EXPERIMENT-SPEC-001', '$.source_attestation.real_experiment_spec_id');
+    eq(a.real_experiment_spec_status, 'FROZEN_CANDIDATE_NOT_SELECTED', '$.source_attestation.real_experiment_spec_status');
+    eq(a.real_experiment_family, 'BLIND_MULTILINGUAL_GESIS_COMPARISON', '$.source_attestation.real_experiment_family');
+    eq(a.trial_class, 'PILOT_COMPARATIVE_NOT_CONFIRMATORY', '$.source_attestation.trial_class');
+    eq(a.replicates_per_arm, 3, '$.source_attestation.replicates_per_arm');
+    eq(a.blinded_primary_analysis, true, '$.source_attestation.blinded_primary_analysis');
+    eq(a.pretargeted_symbolic_search, false, '$.source_attestation.pretargeted_symbolic_search');
+    eq(a.real_plan_selection_performed, false, '$.source_attestation.real_plan_selection_performed');
     return;
   }
   fail('$.source_attestation.validated_through non autorisé.');
@@ -112,12 +149,25 @@ export function buildProgressivePublicEnvelope(input, options = {}) {
     { id: 'genesis003-c041-c060', label: 'GENESIS-003 C041–C060', value: 'COMPLETE_VALIDATED', status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
     { id: 'selected-experiment-status', label: 'État du test sélectionné', value: a.selected_experiment_status, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
   ];
-  if (a.validated_through === 'C061') {
+  if (a.validated_through === 'C061' || a.validated_through === 'C062') {
     metrics.push(
       { id: 'genesis003-c061', label: 'C061 · admissibilité d’exécution', value: a.c061_status, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
       { id: 'c061-execution-input', label: 'Entrée d’exécution C061', value: a.c061_execution_input, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
       { id: 'execution-admissibility', label: 'Gate d’exécution', value: a.execution_admissibility, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
       { id: 'next-scientific-action', label: 'Prochaine action scientifique', value: a.next_scientific_action, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+    );
+  }
+  if (a.validated_through === 'C062') {
+    metrics.push(
+      { id: 'genesis003-c062', label: 'C062 · spécification réelle', value: a.c062_status, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'real-experiment-spec-id', label: 'Expérience réelle candidate', value: a.real_experiment_spec_id, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'real-experiment-spec-status', label: 'État de la spécification', value: a.real_experiment_spec_status, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'real-experiment-family', label: 'Famille expérimentale', value: a.real_experiment_family, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'trial-class', label: 'Classe d’essai', value: a.trial_class, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'replicates-per-arm', label: 'Répétitions par condition', value: a.replicates_per_arm, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'blinded-primary-analysis', label: 'Analyse primaire aveugle', value: a.blinded_primary_analysis, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'pretargeted-symbolic-search', label: 'Recherche symbolique pré-ciblée', value: a.pretargeted_symbolic_search, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
+      { id: 'real-plan-selection-performed', label: 'Plan réel sélectionné', value: a.real_plan_selection_performed, status: 'VERIFIED_PUBLIC', provenance_ref: 'SERVER-SIDE-WHITELIST-V2' },
     );
   }
   metrics.push(
