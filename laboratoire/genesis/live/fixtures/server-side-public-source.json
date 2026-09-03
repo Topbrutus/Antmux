@@ -1,0 +1,60 @@
+{
+  "bridge_input_version": "1.0.0",
+  "publication_intent": "SERVER_SIDE_PUBLIC_READ_ONLY_BRIDGE",
+  "bridge_received_at": "2026-09-03T07:24:00Z",
+  "source_observed_at": "2026-09-03T07:20:00Z",
+  "max_age_seconds": 300,
+  "source_attestation": {
+    "source_kind": "PRIVATE_GENESIS_PUBLIC_PROJECTION",
+    "source_identity": "OPAQUE_PUBLIC_ATTESTATION",
+    "source_state": "C041_C060_COMPLETE_VALIDATED",
+    "selected_experiment_status": "PLANNED_NOT_EXECUTED",
+    "read_capability": "READ_ONLY",
+    "write_capability": "NONE",
+    "adapter_only": true
+  },
+  "transport": {
+    "server_side_pull": true,
+    "public_endpoint_only": true,
+    "fail_closed": true,
+    "snapshot_fallback_available": true,
+    "browser_credentials_present": false,
+    "private_browser_request": false
+  },
+  "public_payload": {
+    "identity": {
+      "seed_label": "Genesis",
+      "root_status": "PRESERVED_AT_SOURCE_VALIDATION",
+      "root_version": "GENESIS-003-C060-PUBLIC-ATTESTATION-v1",
+      "continuity_policy": "PRIVATE_ROOT_NOT_EXPOSED; PUBLIC_PROJECTION_ONLY"
+    },
+    "publication_gates": {
+      "current_gate": "LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED",
+      "recommended_next_step": "AUTHORIZE_CONTROLLED_PUBLIC_READ_ONLY_DEPLOYMENT",
+      "gates": [
+        {"id":"contract-v2","label":"Contrat public v2","status":"PASSED"},
+        {"id":"adapter","label":"Genesis Public Adapter","status":"PASSED"},
+        {"id":"snapshot","label":"Snapshot public figé","status":"PASSED"},
+        {"id":"live-read-only","label":"Bridge serveur lecture seule","status":"PASSED"}
+      ]
+    },
+    "metrics": [
+      {"id":"bridge-read-capability","label":"Capacité de lecture bridge","value":"READ_ONLY","status":"VERIFIED_PUBLIC","provenance_ref":"SERVER-SIDE-PUBLIC-BRIDGE"},
+      {"id":"bridge-write-capability","label":"Capacité d'écriture bridge","value":"NONE","status":"VERIFIED_PUBLIC","provenance_ref":"SERVER-SIDE-PUBLIC-BRIDGE"},
+      {"id":"browser-private-credentials","label":"Credentials privés navigateur","value":false,"status":"VERIFIED_PUBLIC","provenance_ref":"SERVER-SIDE-PUBLIC-BRIDGE"},
+      {"id":"selected-experiment-status","label":"État du test sélectionné","value":"PLANNED_NOT_EXECUTED","status":"VERIFIED_PUBLIC","provenance_ref":"SERVER-SIDE-PUBLIC-BRIDGE"}
+    ],
+    "evidence": [
+      {"id":"SERVER-SIDE-PUBLIC-BRIDGE","type":"PUBLIC_TEST","status":"VERIFIED_PUBLIC","public_ref":"Bridge server-side public read-only projection"}
+    ],
+    "integrity": {
+      "status": "VERIFIED_PUBLIC",
+      "checks": [
+        {"id":"live-public-projection-hash","status":"PASSED","public_ref":"PUBLIC-READ-ONLY-SHA256"},
+        {"id":"live-server-side-only","status":"PASSED","public_ref":"Browser has no private source access"},
+        {"id":"live-write-capability-none","status":"PASSED","public_ref":"Bridge exposes no write capability"},
+        {"id":"live-freshness-window","status":"PASSED","public_ref":"Stale source is rejected"}
+      ]
+    }
+  }
+}
