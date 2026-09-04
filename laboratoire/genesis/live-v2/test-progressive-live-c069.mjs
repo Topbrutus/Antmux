@@ -65,7 +65,7 @@ function c069(){return C068
  .replace('next_scientific_action=FREEZE_REAL_GENERATION_REQUEST_PROFILE','next_scientific_action=FREEZE_ANALYSIS_THRESHOLDS_AND_DECISION_RULE')
  .replace('execution_bindings_bound=6','execution_bindings_bound=10')
  .replace('execution_bindings_unbound=5','execution_bindings_unbound=1')+
- `genesis003_c069=VALIDATED_10_OF_10\nreal_generation_request_profile_frozen=true\nprompt_hashes_frozen=true\nstyle_structure_template_frozen=true\nduration_export_profile_frozen=true\nreal_request_bindings_added=4\ntranslation_equivalence_verified=false\nanalysis_decision_rule_bound=false\n`;}
+ `genesis003_c069=VALIDATED_10_OF_10\nreal_generation_request_profile_frozen=true\nprompt_hashes_frozen=true\nstyle_structure_template_frozen=true\nduration_export_profile_frozen=true\nreal_request_bindings_added=4\ntranslation_equivalence_verified=false\nrequest_profile_only=true\n`;}
 function mustFail(text,needle){assert.throws(()=>extractProgressiveGenesisStatusC069(text),e=>e instanceof Error&&e.message.includes(needle));}
 
 const legacy=extractProgressiveGenesisStatusC069(C068);assert.equal(legacy.validatedThrough,'C068');console.log('PASS 01 exact C068 remains accepted');
@@ -73,7 +73,7 @@ const status=extractProgressiveGenesisStatusC069(c069());assert.equal(status.val
 const input=buildProgressiveBridgeInputC069(status,{now:'2026-09-04T07:00:00Z',liveActive:true});
 const {envelope}=buildProgressivePublicEnvelopeC069(input,{now:'2026-09-04T07:00:00Z'});
 const metrics=Object.fromEntries(envelope.payload.metrics.map(x=>[x.id,x.value]));
-assert.equal(metrics['genesis003-validated-through'],'C069');assert.equal(metrics['execution-bindings-bound'],10);assert.equal(metrics['execution-bindings-unbound'],1);assert.equal(metrics['real-generation-request-profile-frozen'],true);assert.equal(metrics['real-request-bindings-added'],4);assert.equal(metrics['translation-equivalence-verified'],false);assert.equal(metrics['analysis-decision-rule-bound'],false);assert.equal(metrics['bridge-write-capability'],'NONE');console.log('PASS 02 exact C069 becomes read-only public envelope');
+assert.equal(metrics['genesis003-validated-through'],'C069');assert.equal(metrics['execution-bindings-bound'],10);assert.equal(metrics['execution-bindings-unbound'],1);assert.equal(metrics['real-generation-request-profile-frozen'],true);assert.equal(metrics['real-request-bindings-added'],4);assert.equal(metrics['translation-equivalence-verified'],false);assert.equal(metrics['request-profile-only'],true);assert.equal(metrics['analysis-decision-rule-bound'],false);assert.equal(metrics['bridge-write-capability'],'NONE');console.log('PASS 02 exact C069 becomes read-only public envelope');
 mustFail(c069().replace('execution_bindings_bound=10','execution_bindings_bound=11'),'Comptage bindings');console.log('PASS 03 premature complete binding count rejected');
 mustFail(c069().replace('analysis_decision_rule_bound=false','analysis_decision_rule_bound=true'),'analysis_decision_rule_bound');console.log('PASS 04 invented analysis decision binding rejected');
 mustFail(c069().replace('translation_equivalence_verified=false','translation_equivalence_verified=true'),'translation_equivalence_verified');console.log('PASS 05 invented translation equivalence rejected');
