@@ -37,10 +37,11 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v6
 
-      - name: Validate progressive LIVE runtime
+      - name: Validate progressive LIVE runtime through C067
         run: |
           set -euo pipefail
           node laboratoire/genesis/live-v2/test-progressive-live.mjs
+          node laboratoire/genesis/live-v2/test-progressive-live-c067.mjs
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
           cat > /tmp/genesis-status.env <<'EOF'
           science_baseline=GREEN
@@ -54,8 +55,8 @@ jobs:
           evidence_ledger_auto_promotion=false
           GENESIS_AUDIT_FAILED=0
           EOF
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive.mjs /tmp/genesis-status.env /tmp/progressive-input.json
-          node laboratoire/genesis/live-v2/bridge-public-progressive.mjs /tmp/progressive-input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs /tmp/genesis-status.env /tmp/progressive-input.json
+          node laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs /tmp/progressive-input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
 
       - name: Assemble exact progressive runtime package
@@ -63,8 +64,8 @@ jobs:
           set -euo pipefail
           rm -rf _genesis_progressive_deploy
           mkdir -p _genesis_progressive_deploy/runtime/live-v2
-          cp laboratoire/genesis/live-v2/build-public-source-progressive.mjs _genesis_progressive_deploy/runtime/live-v2/
-          cp laboratoire/genesis/live-v2/bridge-public-progressive.mjs _genesis_progressive_deploy/runtime/live-v2/
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs
           cp laboratoire/genesis/live/sync-public-read-only.sh _genesis_progressive_deploy/runtime/live-v2/
           cp laboratoire/genesis/validate-public-v2.mjs _genesis_progressive_deploy/runtime/
           chmod 0755 _genesis_progressive_deploy/runtime/live-v2/sync-public-read-only.sh
@@ -114,7 +115,7 @@ jobs:
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
           lines="$(wc -l < "$probe/status.env" | tr -d ' ')"
-          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42'
+          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42' || test "$lines" = '46' || test "$lines" = '51'
           grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
           grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
           grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
@@ -180,7 +181,7 @@ jobs:
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') process.exit(1);
           if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') process.exit(1);
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064','C065'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
+          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
           const write=d.payload?.metrics?.find(x=>x.id==='bridge-write-capability');
           if(write?.value!=='NONE') process.exit(1);
           NODE
@@ -190,6 +191,7 @@ jobs:
           rm -rf "$REMOTE_STAGE"
           echo 'GENESIS_PROGRESSIVE_LIVE_RUNTIME_DEPLOY=PASS'
           echo 'GENESIS_PROGRESSIVE_LIVE_REFRESH_MINUTES=2'
+          echo 'GENESIS_PROGRESSIVE_LIVE_MAX_STAGE=C067'
           echo 'PUBLIC_WRITE_CAPABILITY=NONE'
           echo 'PRIVATE_SOURCE_CHECKOUT_PERSISTED=no'
           echo "BACKUP_ROOT=$BACKUP_ROOT"
@@ -204,10 +206,10 @@ jobs:
           const d=JSON.parse(fs.readFileSync('/tmp/live.json','utf8'));
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('public boundary');
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064','C065'].includes(stage.value)) throw new Error('progressive stage');
+          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067'].includes(stage.value)) throw new Error('progressive stage');
           const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
           if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('live active');
           const text=JSON.stringify(d);
-          for(const forbidden of ['Topbrutus/seedgenesis','Topbrutus/gesis','public/live-source','public/live/status.env','file:///']) if(text.includes(forbidden)) throw new Error(`private leak ${forbidden}`);
+          for(const forbidden of ['Topbrutus/seedgenesis','Topbrutus/gesis','public/live-source','public/live/status.env','file:///','refs/heads/','e8a3bfed7d518d579fc24515996b5296346c9e0842b5a6f3173ab02b030d3e54','932c41a3af4272ae40f74ffac0885f6a56ffaa99c2ba239a451a788b534246d5','8d4a6af197fc6ffb060d01126a317efadd63428fa0b0a96d781b12f364e2793c']) if(text.includes(forbidden)) throw new Error(`private leak ${forbidden}`);
           console.log(`GENESIS_PROGRESSIVE_PUBLIC_ENDPOINT=PASS stage=${stage.value}`);
           NODE

@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - genesis/progressive-live-c061-20260903
+      - genesis/progressive-live-c067-20260904
     paths:
       - 'laboratoire/genesis/live-v2/**'
       - '.github/workflows/deploy-genesis-progressive-live-runtime.yml'
@@ -23,9 +24,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - name: Run progressive LIVE adversarial battery
-        run: node laboratoire/genesis/live-v2/test-progressive-live.mjs
-      - name: Validate sync shell and C060 integration
+      - name: Run progressive LIVE adversarial batteries through C067
+        run: |
+          set -euo pipefail
+          node laboratoire/genesis/live-v2/test-progressive-live.mjs
+          node laboratoire/genesis/live-v2/test-progressive-live-c067.mjs
+      - name: Validate sync shell and C060 integration with C067-capable runtime
         run: |
           set -euo pipefail
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
@@ -41,7 +45,7 @@ jobs:
           evidence_ledger_auto_promotion=false
           GENESIS_AUDIT_FAILED=0
           EOF
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive.mjs /tmp/status.env /tmp/input.json
-          node laboratoire/genesis/live-v2/bridge-public-progressive.mjs /tmp/input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs /tmp/status.env /tmp/input.json
+          node laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs /tmp/input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
-          echo 'GENESIS_PROGRESSIVE_LIVE_VALIDATION=PASS'
+          echo 'GENESIS_PROGRESSIVE_LIVE_C067_VALIDATION=PASS'
