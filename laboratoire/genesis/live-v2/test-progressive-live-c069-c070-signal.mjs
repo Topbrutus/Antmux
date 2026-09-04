@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { extractProgressiveGenesisStatusC069, buildProgressiveBridgeInputC069 } from './build-public-source-progressive-c069.mjs';
 import { buildProgressivePublicEnvelopeC069 } from './bridge-public-progressive-c069.mjs';
 import { extractProgressiveGenesisStatusC070, buildProgressiveBridgeInputC070 } from './build-public-source-progressive-c070.mjs';
@@ -18,3 +20,7 @@ assert.equal(m69['next-scientific-action'],'FREEZE_ANALYSIS_THRESHOLDS_AND_DECIS
 assert.equal(m69['calibration-control-passed'],true);assert.equal(m70['calibration-control-passed'],true);console.log('PASS 09 calibration status preserved without private measurement');
 assert.equal(m69['cross-runner-reproducibility-proven'],true);assert.equal(m70['cross-runner-reproducibility-proven'],true);console.log('PASS 10 corrected C069 evidence preserved through C070');
 console.log('GENESIS_PROGRESSIVE_LIVE_C069_C070_SIGNAL_TESTS=10/10');
+
+const cliStatus='/tmp/antmux-c070-cli-status.env';const cliInput='/tmp/antmux-c070-cli-input.json';writeFileSync(cliStatus,c070(),'utf8');
+const buildCli=spawnSync(process.execPath,['laboratoire/genesis/live-v2/build-public-source-progressive-c070.mjs',cliStatus,cliInput],{encoding:'utf8',env:{...process.env,GENESIS_PUBLIC_LIVE_ACTIVE:'1'}});assert.equal(buildCli.status,0,buildCli.stderr||buildCli.stdout);assert.equal(existsSync(cliInput),true);
+const bridgeCli=spawnSync(process.execPath,['laboratoire/genesis/live-v2/bridge-public-progressive-c070.mjs',cliInput],{encoding:'utf8'});assert.equal(bridgeCli.status,0,bridgeCli.stderr||bridgeCli.stdout);const cliEnvelope=JSON.parse(readFileSync('.build/genesis-public-read-only-bridge/public-read-only-envelope.json','utf8'));const cliStage=cliEnvelope.payload.metrics.find(x=>x.id==='genesis003-validated-through');assert.equal(cliStage?.value,'C070');assert.equal(cliEnvelope.mode,'LIVE_READ_ONLY');console.log('C070_RUNTIME_CLI_SMOKE=PASS');
