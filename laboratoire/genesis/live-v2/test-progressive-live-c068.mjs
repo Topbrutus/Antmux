@@ -82,3 +82,4 @@ console.log('GENESIS_PROGRESSIVE_LIVE_C068_TESTS=10/10');
 
 // Extend the already-authorized progressive PR suite without adding or changing workflow permissions.
 await import('./test-progressive-live-c069-c070-signal.mjs');
+await import('./test-progressive-live-c071-kernel.mjs');
