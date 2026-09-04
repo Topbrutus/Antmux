@@ -15,7 +15,7 @@ const C069_NEW_KEYS=Object.freeze({
   duration_export_profile_frozen:'true',
   real_request_bindings_added:'4',
   translation_equivalence_verified:'false',
-  analysis_decision_rule_bound:'false',
+  request_profile_only:'true',
 });
 
 function fail(message){throw new Error(message);}
@@ -46,6 +46,7 @@ function assertExactC069(found){
   if(found.get('genesis003_validated_through')!=='C069')fail('Stage C069 manquant.');
   if(found.get('next_scientific_action')!=='FREEZE_ANALYSIS_THRESHOLDS_AND_DECISION_RULE')fail('Action C069 inattendue.');
   if(found.get('execution_bindings_required')!=='11'||found.get('execution_bindings_bound')!=='10'||found.get('execution_bindings_unbound')!=='1'||found.get('execution_bindings_complete')!=='false')fail('Comptage bindings C069 invalide.');
+  if(found.get('analysis_decision_rule_bound')!=='false')fail('analysis_decision_rule_bound doit rester false en C069.');
   if(found.get('real_generator_bindings_added')!=='3'||found.get('real_generator_profile_frozen')!=='false'||found.get('real_generator_identity_frozen')!=='true')fail('Frontière générateur C069 invalide.');
   if(found.get('runtime_compatibility_verified')!=='false'||found.get('language_coverage_verified')!=='false'||found.get('language_confound_registered')!=='true')fail('Frontière incertitude C069 invalide.');
   for(const[key,value]of Object.entries(C069_NEW_KEYS))if(found.get(key)!==value)fail(`Champ C069 invalide: ${key}.`);
