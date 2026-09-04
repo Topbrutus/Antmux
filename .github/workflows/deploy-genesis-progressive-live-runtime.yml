@@ -42,7 +42,6 @@ jobs:
           set -euo pipefail
           node laboratoire/genesis/live-v2/test-progressive-live.mjs
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
-
           cat > /tmp/genesis-status.env <<'EOF'
           science_baseline=GREEN
           genesis003_c041_c060=COMPLETE_VALIDATED
@@ -115,7 +114,7 @@ jobs:
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
           lines="$(wc -l < "$probe/status.env" | tr -d ' ')"
-          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38'
+          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42'
           grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
           grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
           grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
@@ -144,21 +143,18 @@ jobs:
           RUNTIME_ROOT="$HOME/antmux-genesis-live-v2"
           STATE_ROOT="$HOME/.local/state/antmux-genesis-live-v2"
           BACKUP_ROOT="$HOME/antmux-genesis-live-v2-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
-
           cd "$REMOTE_STAGE"
           sha256sum -c SHA256SUMS
           mkdir -p "$BACKUP_ROOT"
           crontab -l > "$BACKUP_ROOT/crontab.before" 2>/dev/null || true
           if test -f "$TARGET_ROOT/live/public-read-only.json"; then cp -a "$TARGET_ROOT/live/public-read-only.json" "$BACKUP_ROOT/public-read-only.json"; fi
           if test -d "$RUNTIME_ROOT"; then cp -a "$RUNTIME_ROOT" "$BACKUP_ROOT/runtime.before"; fi
-
           install -d -m 0700 "$RUNTIME_ROOT" "$RUNTIME_ROOT/live-v2" "$STATE_ROOT"
           install -d -m 0755 "$TARGET_ROOT/live"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive.mjs"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive.mjs"
           install -m 0700 "$REMOTE_STAGE/runtime/live-v2/sync-public-read-only.sh" "$RUNTIME_ROOT/live-v2/sync-public-read-only.sh"
           install -m 0600 "$REMOTE_STAGE/runtime/validate-public-v2.mjs" "$RUNTIME_ROOT/validate-public-v2.mjs"
-
           cat > "$RUNTIME_ROOT/run-sync-v2.sh" <<'RUNNER'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -176,7 +172,6 @@ jobs:
           exec "$HOME/antmux-genesis-live-v2/live-v2/sync-public-read-only.sh"
           RUNNER
           chmod 0700 "$RUNTIME_ROOT/run-sync-v2.sh"
-
           "$RUNTIME_ROOT/run-sync-v2.sh"
           node "$RUNTIME_ROOT/validate-public-v2.mjs" "$TARGET_ROOT/live/public-read-only.json" >/dev/null
           node --input-type=module - "$TARGET_ROOT/live/public-read-only.json" <<'NODE'
@@ -185,11 +180,10 @@ jobs:
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') process.exit(1);
           if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') process.exit(1);
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
+          if(!stage||!['C060','C061','C062','C063','C064','C065'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
           const write=d.payload?.metrics?.find(x=>x.id==='bridge-write-capability');
           if(write?.value!=='NONE') process.exit(1);
           NODE
-
           cron_line="*/2 * * * * $RUNTIME_ROOT/run-sync-v2.sh >> $STATE_ROOT/sync.log 2>&1"
           { crontab -l 2>/dev/null | grep -Fv 'antmux-genesis-live/run-sync.sh' | grep -Fv 'antmux-genesis-live-v2/run-sync-v2.sh' || true; printf '%s\n' "$cron_line"; } | crontab -
           crontab -l | grep -Fxq "$cron_line"
@@ -210,7 +204,7 @@ jobs:
           const d=JSON.parse(fs.readFileSync('/tmp/live.json','utf8'));
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('public boundary');
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064'].includes(stage.value)) throw new Error('progressive stage');
+          if(!stage||!['C060','C061','C062','C063','C064','C065'].includes(stage.value)) throw new Error('progressive stage');
           const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
           if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('live active');
           const text=JSON.stringify(d);
