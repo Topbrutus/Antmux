@@ -37,12 +37,13 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v6
 
-      - name: Validate progressive LIVE runtime through C068
+      - name: Validate progressive LIVE runtime through C069
         run: |
           set -euo pipefail
           node laboratoire/genesis/live-v2/test-progressive-live.mjs
           node laboratoire/genesis/live-v2/test-progressive-live-c067.mjs
           node laboratoire/genesis/live-v2/test-progressive-live-c068.mjs
+          node laboratoire/genesis/live-v2/test-progressive-live-c069.mjs
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
           cat > /tmp/genesis-status.env <<'EOF'
           science_baseline=GREEN
@@ -56,8 +57,8 @@ jobs:
           evidence_ledger_auto_promotion=false
           GENESIS_AUDIT_FAILED=0
           EOF
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c068.mjs /tmp/genesis-status.env /tmp/progressive-input.json
-          node laboratoire/genesis/live-v2/bridge-public-progressive-c068.mjs /tmp/progressive-input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c069.mjs /tmp/genesis-status.env /tmp/progressive-input.json
+          node laboratoire/genesis/live-v2/bridge-public-progressive-c069.mjs /tmp/progressive-input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
 
       - name: Assemble and smoke-test exact progressive runtime package
@@ -69,8 +70,10 @@ jobs:
           cp laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-c067.mjs
           cp laboratoire/genesis/live-v2/build-public-source-progressive-c068.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-c068.mjs
           cp laboratoire/genesis/live-v2/bridge-public-progressive-c068.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-c068.mjs
-          cp laboratoire/genesis/live-v2/build-public-source-progressive-c068.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs
-          cp laboratoire/genesis/live-v2/bridge-public-progressive-c068.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c069.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-c069.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c069.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-c069.mjs
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c069.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c069.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs
           cp laboratoire/genesis/live/sync-public-read-only.sh _genesis_progressive_deploy/runtime/live-v2/
           cp laboratoire/genesis/validate-public-v2.mjs _genesis_progressive_deploy/runtime/
           chmod 0755 _genesis_progressive_deploy/runtime/live-v2/sync-public-read-only.sh
@@ -81,6 +84,8 @@ jobs:
               runtime/live-v2/bridge-public-progressive-c067.mjs \
               runtime/live-v2/build-public-source-progressive-c068.mjs \
               runtime/live-v2/bridge-public-progressive-c068.mjs \
+              runtime/live-v2/build-public-source-progressive-c069.mjs \
+              runtime/live-v2/bridge-public-progressive-c069.mjs \
               runtime/live-v2/build-public-source-progressive.mjs \
               runtime/live-v2/bridge-public-progressive.mjs \
               runtime/live-v2/sync-public-read-only.sh \
@@ -106,6 +111,8 @@ jobs:
           test -f _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-c067.mjs
           test -f _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-c068.mjs
           test -f _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-c068.mjs
+          test -f _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-c069.mjs
+          test -f _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-c069.mjs
           echo 'GENESIS_PROGRESSIVE_PACKAGE_IMPORT_SMOKE=PASS'
 
       - name: Configure pinned VPS SSH identity
@@ -149,7 +156,7 @@ jobs:
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
           lines="$(wc -l < "$probe/status.env" | tr -d ' ')"
-          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42' || test "$lines" = '46' || test "$lines" = '51' || test "$lines" = '56'
+          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42' || test "$lines" = '46' || test "$lines" = '51' || test "$lines" = '56' || test "$lines" = '64'
           grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
           grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
           grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
@@ -190,6 +197,8 @@ jobs:
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive-c067.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive-c067.mjs"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive-c068.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive-c068.mjs"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive-c068.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive-c068.mjs"
+          install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive-c069.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive-c069.mjs"
+          install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive-c069.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive-c069.mjs"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive.mjs"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive.mjs"
           install -m 0700 "$REMOTE_STAGE/runtime/live-v2/sync-public-read-only.sh" "$RUNTIME_ROOT/live-v2/sync-public-read-only.sh"
@@ -219,7 +228,7 @@ jobs:
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') process.exit(1);
           if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') process.exit(1);
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
+          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068','C069'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
           const write=d.payload?.metrics?.find(x=>x.id==='bridge-write-capability');
           if(write?.value!=='NONE') process.exit(1);
           NODE
@@ -229,7 +238,7 @@ jobs:
           rm -rf "$REMOTE_STAGE"
           echo 'GENESIS_PROGRESSIVE_LIVE_RUNTIME_DEPLOY=PASS'
           echo 'GENESIS_PROGRESSIVE_LIVE_REFRESH_MINUTES=2'
-          echo 'GENESIS_PROGRESSIVE_LIVE_MAX_STAGE=C068'
+          echo 'GENESIS_PROGRESSIVE_LIVE_MAX_STAGE=C069'
           echo 'PUBLIC_WRITE_CAPABILITY=NONE'
           echo 'PRIVATE_SOURCE_CHECKOUT_PERSISTED=no'
           echo "BACKUP_ROOT=$BACKUP_ROOT"
@@ -244,7 +253,7 @@ jobs:
           const d=JSON.parse(fs.readFileSync('/tmp/live.json','utf8'));
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('public boundary');
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068'].includes(stage.value)) throw new Error('progressive stage');
+          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068','C069'].includes(stage.value)) throw new Error('progressive stage');
           const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
           if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('live active');
           const text=JSON.stringify(d);
@@ -253,7 +262,9 @@ jobs:
             'e8a3bfed7d518d579fc24515996b5296346c9e0842b5a6f3173ab02b030d3e54','932c41a3af4272ae40f74ffac0885f6a56ffaa99c2ba239a451a788b534246d5','8d4a6af197fc6ffb060d01126a317efadd63428fa0b0a96d781b12f364e2793c',
             'MiniMaxAI/MiniMax-Music3','LOCAL_HUGGINGFACE_DIFFUSERS','huggingface/diffusers','fbdf52fbaaca799592917417eb05f1899f1255ec','dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d',
             'c302f498bf518f7e9b2c15a7c6fa552343ee8cb3a6e639112a98d191635cfbc5','dfcdae683b561ffb1379d8f7d92fed67439ae5d593e90e29a39100a22a3cc4d2','779a78432902c898dc37e05a62f90d69317638c38c0e1e1002e2d7077e953bdf',
-            'generator_provider','model_name','model_version_or_build','runtime_repository','runtime_revision','model_revision'
+            '78f850157a54a099dc0f20009b5a4865d5b16e32b8c3eaf3ee3b63237460e7ff','0ba3d5b8baf00cbabf2b4f713f9e8ca1fcf722a2bca49f1330c21f9af55b9f30','21cab7963787255c8343d171da8be4bb3ed51fff1c781d7761d8dce49147a498','6fafcf0def4125a1acc9f74a1d7b33b95f94318710c218dc235f546a21719a38','a19eb4571217bd9d0e3f067f5862189d33cd10299c2f55bdc6adfdbdbc3fecc6',
+            '97eac2e27fa1e47065e15c2e69143226f4248cae0623f3b6f723b9356c811a5c','aefdc5b6d486a54845613220728124aeb486e47054a11394c0d413c9203f71c3','1489c87a09e48b86e3b8675e4b6416a4462248895275e31532b75c79152bc0b4','WAV_PCM16_LE_44100HZ_STEREO',
+            'generator_provider','model_name','model_version_or_build','runtime_repository','runtime_revision','model_revision','target_duration_seconds','audio_export_format','prompt_hash','prompt_bytes'
           ]) if(text.includes(forbidden)) throw new Error(`private leak ${forbidden}`);
           console.log(`GENESIS_PROGRESSIVE_PUBLIC_ENDPOINT=PASS stage=${stage.value}`);
           NODE
