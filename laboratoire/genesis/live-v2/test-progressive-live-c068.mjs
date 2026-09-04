@@ -79,3 +79,6 @@ mustFail(c068().replace('language_confound_registered=true','language_confound_r
 const serialized=JSON.stringify(envelope);for(const forbidden of ['MiniMaxAI/MiniMax-Music3','LOCAL_HUGGINGFACE_DIFFUSERS','fbdf52fbaaca799592917417eb05f1899f1255ec','dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d'])assert.equal(serialized.includes(forbidden),false);console.log('PASS 09 envelope contains no private generator identity');
 assert.equal(envelope.mode,'LIVE_READ_ONLY');assert.equal(envelope.source_status,'PUBLIC_READ_ONLY');assert.equal(envelope.integrity_status,'VERIFIED_PUBLIC');console.log('PASS 10 public boundary remains fail-closed read-only');
 console.log('GENESIS_PROGRESSIVE_LIVE_C068_TESTS=10/10');
+
+// Extend the already-authorized progressive PR suite without adding or changing workflow permissions.
+await import('./test-progressive-live-c069-c070-signal.mjs');
