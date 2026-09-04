@@ -20,6 +20,7 @@ C069 projection is exactly 64 lines: the exact trusted C068 56-line projection w
 - `next_scientific_action=FREEZE_ANALYSIS_THRESHOLDS_AND_DECISION_RULE`
 - `execution_bindings_bound=10`
 - `execution_bindings_unbound=1`
+- inherited `analysis_decision_rule_bound=false` remains unchanged
 
 and exactly eight new non-secret keys:
 
@@ -30,7 +31,7 @@ and exactly eight new non-secret keys:
 5. `duration_export_profile_frozen=true`
 6. `real_request_bindings_added=4`
 7. `translation_equivalence_verified=false`
-8. `analysis_decision_rule_bound=false`
+8. `request_profile_only=true`
 
 The public projection deliberately omits actual prompt text/hashes, actual duration, actual export format, generator identity, runtime/model revisions, and private C069 digests.
 
