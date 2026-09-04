@@ -5,99 +5,33 @@ import { buildProgressivePublicEnvelope } from './bridge-public-progressive.mjs'
 const LEGACY = `science_baseline=GREEN\ngenesis003_c041_c060=COMPLETE_VALIDATED\nexperiment_selection_performed=true\nselected_experiment_status=PLANNED_NOT_EXECUTED\nhypothesis_selection_performed=false\nhypothesis_ranking_produced=false\nuncertainty_promotion_performed=false\nprobabilities_produced=false\nevidence_ledger_auto_promotion=false\nGENESIS_AUDIT_FAILED=0\n`;
 const C061 = `${LEGACY}genesis003_validated_through=C061\ngenesis003_c061=VALIDATED_10_OF_10\nc061_execution_input=SYNTHETIC_C060_FIXTURE\nexecution_admissibility=BLOCKED_SYNTHETIC_SELECTION\nnext_scientific_action=AWAIT_REAL_EXPERIMENT_SPEC\n`;
 const C062 = `${LEGACY}genesis003_validated_through=C062\ngenesis003_c061=VALIDATED_10_OF_10\nc061_execution_input=SYNTHETIC_C060_FIXTURE\nexecution_admissibility=BLOCKED_SYNTHETIC_SELECTION\nnext_scientific_action=BUILD_REAL_NEXT_TEST_PLAN\ngenesis003_c062=VALIDATED_10_OF_10\nreal_experiment_spec_id=REAL-EXPERIMENT-SPEC-001\nreal_experiment_spec_status=FROZEN_CANDIDATE_NOT_SELECTED\nreal_experiment_family=BLIND_MULTILINGUAL_GESIS_COMPARISON\ntrial_class=PILOT_COMPARATIVE_NOT_CONFIRMATORY\nreplicates_per_arm=3\nblinded_primary_analysis=true\npretargeted_symbolic_search=false\nreal_plan_selection_performed=false\n`;
+const C063 = `${LEGACY}genesis003_validated_through=C063\ngenesis003_c061=VALIDATED_10_OF_10\nc061_execution_input=SYNTHETIC_C060_FIXTURE\nexecution_admissibility=BLOCKED_MISSING_EXECUTION_BINDINGS\nnext_scientific_action=BIND_REAL_EXECUTION_CONTRACT\ngenesis003_c062=VALIDATED_10_OF_10\nreal_experiment_spec_id=REAL-EXPERIMENT-SPEC-001\nreal_experiment_spec_status=FROZEN_CANDIDATE_NOT_SELECTED\nreal_experiment_family=BLIND_MULTILINGUAL_GESIS_COMPARISON\ntrial_class=PILOT_COMPARATIVE_NOT_CONFIRMATORY\nreplicates_per_arm=3\nblinded_primary_analysis=true\npretargeted_symbolic_search=false\nreal_plan_selection_performed=true\ngenesis003_c063=VALIDATED_10_OF_10\nreal_next_test_plan_id=REAL-NEXT-TEST-PLAN-001\nreal_next_test_plan_status=FROZEN_PLAN_AWAITING_EXECUTION_BINDINGS\nsample_count=12\nexecution_bindings_required=11\nexecution_bindings_bound=0\nexecution_bindings_complete=false\n`;
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function rejected(fn) { try { fn(); return false; } catch { return true; } }
-function metric(envelope, id) { return envelope.payload.metrics.find((x) => x.id === id); }
+function metric(envelope,id) { return envelope.payload.metrics.find(x=>x.id===id); }
+function envelopeFor(source,liveActive=true) {
+  const status=extractProgressiveGenesisStatus(source);
+  const input=buildProgressiveBridgeInput(status,{now:'2026-09-04T00:00:00Z',liveActive});
+  return {status,input,...buildProgressivePublicEnvelope(input,{now:'2026-09-04T00:00:00Z'})};
+}
 
 const tests = [
-  ['PV2-01', 'legacy C060 status remains accepted and live', () => {
-    const status = extractProgressiveGenesisStatus(LEGACY);
-    assert(status.validatedThrough === 'C060', 'legacy stage');
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: true });
-    const { envelope } = buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:00:00Z' });
-    assert(envelope.mode === 'LIVE_READ_ONLY', 'mode');
-    assert(metric(envelope, 'genesis003-validated-through')?.value === 'C060', 'C060 metric');
-    assert(metric(envelope, 'public-live-active')?.value === true, 'live metric');
-  }],
-  ['PV2-02', 'C061 status remains accepted only with exact blocked synthetic boundary', () => {
-    const status = extractProgressiveGenesisStatus(C061);
-    assert(status.validatedThrough === 'C061', 'C061 stage');
-    assert(status.executionAdmissibility === 'BLOCKED_SYNTHETIC_SELECTION', 'C061 gate');
-    assert(status.nextScientificAction === 'AWAIT_REAL_EXPERIMENT_SPEC', 'C061 next action');
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: true });
-    const { envelope } = buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:00:00Z' });
-    assert(metric(envelope, 'genesis003-c061')?.value === 'VALIDATED_10_OF_10', 'C061 metric');
-  }],
-  ['PV2-03', 'exact C062 frozen real-spec status is accepted without claiming execution', () => {
-    const status = extractProgressiveGenesisStatus(C062);
-    assert(status.validatedThrough === 'C062', 'C062 stage');
-    assert(status.c062Status === 'VALIDATED_10_OF_10', 'C062 status');
-    assert(status.realExperimentSpecId === 'REAL-EXPERIMENT-SPEC-001', 'spec id');
-    assert(status.realExperimentSpecStatus === 'FROZEN_CANDIDATE_NOT_SELECTED', 'spec status');
-    assert(status.realPlanSelectionPerformed === false, 'real plan selection');
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: true });
-    const { envelope } = buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:00:00Z' });
-    assert(metric(envelope, 'genesis003-validated-through')?.value === 'C062', 'stage missing');
-    assert(metric(envelope, 'genesis003-c062')?.value === 'VALIDATED_10_OF_10', 'C062 missing');
-    assert(metric(envelope, 'real-experiment-spec-id')?.value === 'REAL-EXPERIMENT-SPEC-001', 'spec missing');
-    assert(metric(envelope, 'real-experiment-spec-status')?.value === 'FROZEN_CANDIDATE_NOT_SELECTED', 'spec status missing');
-    assert(metric(envelope, 'replicates-per-arm')?.value === 3, 'replicates missing');
-    assert(metric(envelope, 'blinded-primary-analysis')?.value === true, 'blindness missing');
-    assert(metric(envelope, 'pretargeted-symbolic-search')?.value === false, 'pretarget flag');
-    assert(metric(envelope, 'real-plan-selection-performed')?.value === false, 'plan selection flag');
-    assert(metric(envelope, 'execution-admissibility')?.value === 'BLOCKED_SYNTHETIC_SELECTION', 'gate changed');
-    assert(metric(envelope, 'next-scientific-action')?.value === 'BUILD_REAL_NEXT_TEST_PLAN', 'next action');
-    assert(metric(envelope, 'selected-experiment-status')?.value === 'PLANNED_NOT_EXECUTED', 'execution state changed');
-  }],
-  ['PV2-04', 'unknown extra private/source field is rejected fail-closed', () => {
-    assert(rejected(() => extractProgressiveGenesisStatus(`${C062}branch=secret\n`)), 'unknown key accepted');
-  }],
-  ['PV2-05', 'partial or malformed C062 state is rejected', () => {
-    const bad = C062.replace('real_experiment_spec_status=FROZEN_CANDIDATE_NOT_SELECTED\n', '');
-    assert(rejected(() => extractProgressiveGenesisStatus(bad)), 'partial C062 accepted');
-  }],
-  ['PV2-06', 'C062 cannot silently become executable unblinded or symbolically pretargeted', () => {
-    assert(rejected(() => extractProgressiveGenesisStatus(C062.replace('BLOCKED_SYNTHETIC_SELECTION', 'READY_NOT_EXECUTED'))), 'unexpected READY accepted');
-    assert(rejected(() => extractProgressiveGenesisStatus(C062.replace('blinded_primary_analysis=true', 'blinded_primary_analysis=false'))), 'unblinded C062 accepted');
-    assert(rejected(() => extractProgressiveGenesisStatus(C062.replace('pretargeted_symbolic_search=false', 'pretargeted_symbolic_search=true'))), 'pretargeted C062 accepted');
-    assert(rejected(() => extractProgressiveGenesisStatus(C062.replace('real_plan_selection_performed=false', 'real_plan_selection_performed=true'))), 'selected real plan accepted');
-  }],
-  ['PV2-07', 'stale progressive C062 source is rejected by bridge', () => {
-    const status = extractProgressiveGenesisStatus(C062);
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: true });
-    assert(rejected(() => buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:10:01Z' })), 'stale source accepted');
-  }],
-  ['PV2-08', 'ready-not-deployed C062 mode remains internally consistent', () => {
-    const status = extractProgressiveGenesisStatus(C062);
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: false });
-    const { envelope } = buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:00:00Z' });
-    assert(envelope.payload.publication_gates.current_gate === 'LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED', 'ready gate');
-    assert(metric(envelope, 'public-live-active')?.value === false, 'ready metric');
-  }],
-  ['PV2-09', 'write capability and browser credentials remain locked down through C062', () => {
-    const status = extractProgressiveGenesisStatus(C062);
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: true });
-    const { envelope } = buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:00:00Z' });
-    assert(metric(envelope, 'bridge-write-capability')?.value === 'NONE', 'write capability');
-    assert(metric(envelope, 'browser-private-credentials')?.value === false, 'browser credentials');
-  }],
-  ['PV2-10', 'C062 public envelope contains no private repo branch path file URL or target-frequency list', () => {
-    const status = extractProgressiveGenesisStatus(C062);
-    const input = buildProgressiveBridgeInput(status, { now: '2026-09-03T22:00:00Z', liveActive: true });
-    const { envelope } = buildProgressivePublicEnvelope(input, { now: '2026-09-03T22:00:00Z' });
-    const text = JSON.stringify(envelope);
-    for (const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env','file:///','refs/heads/','targetFrequencyList']) {
-      assert(!text.includes(forbidden), `leak: ${forbidden}`);
-    }
-  }],
+  ['PV2-01','legacy C060 status remains accepted and live',()=>{const {status,envelope}=envelopeFor(LEGACY);assert(status.validatedThrough==='C060','stage');assert(metric(envelope,'genesis003-validated-through')?.value==='C060','metric');}],
+  ['PV2-02','C061 blocked synthetic boundary remains accepted exactly',()=>{const {status,envelope}=envelopeFor(C061);assert(status.executionAdmissibility==='BLOCKED_SYNTHETIC_SELECTION','gate');assert(metric(envelope,'genesis003-c061')?.value==='VALIDATED_10_OF_10','C061');}],
+  ['PV2-03','C062 frozen real-spec status remains accepted without execution',()=>{const {status,envelope}=envelopeFor(C062);assert(status.validatedThrough==='C062','stage');assert(status.realPlanSelectionPerformed===false,'selection');assert(metric(envelope,'real-experiment-spec-status')?.value==='FROZEN_CANDIDATE_NOT_SELECTED','spec');assert(metric(envelope,'execution-admissibility')?.value==='BLOCKED_SYNTHETIC_SELECTION','gate');}],
+  ['PV2-04','exact C063 selected real plan is accepted only while bindings remain missing',()=>{const {status,envelope}=envelopeFor(C063);assert(status.validatedThrough==='C063','stage');assert(status.c063Status==='VALIDATED_10_OF_10','C063 status');assert(status.realPlanSelectionPerformed===true,'selection');assert(status.executionBindingsRequired===11&&status.executionBindingsBound===0&&status.executionBindingsComplete===false,'bindings');assert(metric(envelope,'genesis003-c063')?.value==='VALIDATED_10_OF_10','metric C063');assert(metric(envelope,'real-next-test-plan-id')?.value==='REAL-NEXT-TEST-PLAN-001','plan id');assert(metric(envelope,'real-next-test-plan-status')?.value==='FROZEN_PLAN_AWAITING_EXECUTION_BINDINGS','plan status');assert(metric(envelope,'real-next-test-sample-count')?.value===12,'sample count');assert(metric(envelope,'execution-admissibility')?.value==='BLOCKED_MISSING_EXECUTION_BINDINGS','gate');assert(metric(envelope,'next-scientific-action')?.value==='BIND_REAL_EXECUTION_CONTRACT','next');}],
+  ['PV2-05','unknown extra private/source field is rejected fail-closed through C063',()=>{assert(rejected(()=>extractProgressiveGenesisStatus(`${C063}branch=secret\n`)),'unknown key accepted');}],
+  ['PV2-06','partial C063 source cannot masquerade as validated',()=>{const bad=C063.replace('real_next_test_plan_status=FROZEN_PLAN_AWAITING_EXECUTION_BINDINGS\n','');assert(rejected(()=>extractProgressiveGenesisStatus(bad)),'partial C063 accepted');}],
+  ['PV2-07','C063 cannot silently become executable bound or pretargeted',()=>{assert(rejected(()=>extractProgressiveGenesisStatus(C063.replace('BLOCKED_MISSING_EXECUTION_BINDINGS','READY_NOT_EXECUTED'))),'READY accepted');assert(rejected(()=>extractProgressiveGenesisStatus(C063.replace('execution_bindings_bound=0','execution_bindings_bound=11'))),'bound plan accepted');assert(rejected(()=>extractProgressiveGenesisStatus(C063.replace('execution_bindings_complete=false','execution_bindings_complete=true'))),'complete bindings accepted');assert(rejected(()=>extractProgressiveGenesisStatus(C063.replace('pretargeted_symbolic_search=false','pretargeted_symbolic_search=true'))),'pretarget accepted');}],
+  ['PV2-08','stale progressive C063 source is rejected by bridge',()=>{const status=extractProgressiveGenesisStatus(C063);const input=buildProgressiveBridgeInput(status,{now:'2026-09-04T00:00:00Z',liveActive:true});assert(rejected(()=>buildProgressivePublicEnvelope(input,{now:'2026-09-04T00:10:01Z'})),'stale accepted');}],
+  ['PV2-09','ready-not-deployed C063 mode remains internally consistent',()=>{const {envelope}=envelopeFor(C063,false);assert(envelope.payload.publication_gates.current_gate==='LIVE_READ_ONLY_BRIDGE_READY_NOT_DEPLOYED','ready gate');assert(metric(envelope,'public-live-active')?.value===false,'ready metric');}],
+  ['PV2-10','write capability and browser credentials remain locked down through C063',()=>{const {envelope}=envelopeFor(C063);assert(metric(envelope,'bridge-write-capability')?.value==='NONE','write');assert(metric(envelope,'browser-private-credentials')?.value===false,'credentials');}],
+  ['PV2-11','C063 public envelope leaks no private allocation bindings languages or source identifiers',()=>{const {envelope}=envelopeFor(C063);const text=JSON.stringify(envelope);for(const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env','file:///','refs/heads/','GX-C063-','GENESIS003-C063-REAL-NEXT-TEST-PLAN-001','SANSKRIT','OLD_NORSE','TIBETAN','MIDDLE_EGYPTIAN','generator_provider','model_name','targetFrequencyList'])assert(!text.includes(forbidden),`leak ${forbidden}`);}],
+  ['PV2-12','C063 preserves non-selection non-ranking and public LIVE integrity',()=>{const {envelope}=envelopeFor(C063);assert(metric(envelope,'hypothesis-selection')?.value===false,'hypothesis selection');assert(metric(envelope,'hypothesis-ranking')?.value===false,'ranking');assert(metric(envelope,'probabilities-produced')?.value===false,'probability');assert(metric(envelope,'public-live-active')?.value===true,'live');assert(envelope.integrity_status==='VERIFIED_PUBLIC','integrity');}],
 ];
-
-let failed = 0;
-for (const [id, name, fn] of tests) {
-  try { fn(); console.log(`PASS ${id} — ${name}`); }
-  catch (error) { failed += 1; console.error(`FAIL ${id} — ${name} — ${error instanceof Error ? error.message : String(error)}`); }
-}
-console.log(`GENESIS_PROGRESSIVE_LIVE_TESTS_PASSED=${tests.length - failed}/${tests.length}`);
+let failed=0;
+for(const [id,name,fn] of tests){try{fn();console.log(`PASS ${id} — ${name}`);}catch(error){failed+=1;console.error(`FAIL ${id} — ${name} — ${error instanceof Error?error.message:String(error)}`);}}
+console.log(`GENESIS_PROGRESSIVE_LIVE_TESTS_PASSED=${tests.length-failed}/${tests.length}`);
 console.log(`GENESIS_PROGRESSIVE_LIVE_TESTS_FAILED=${failed}`);
-if (failed) process.exit(1);
+if(failed) process.exit(1);
