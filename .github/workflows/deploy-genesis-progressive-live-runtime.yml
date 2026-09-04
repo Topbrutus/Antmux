@@ -65,13 +65,14 @@ jobs:
           rm -rf _genesis_progressive_deploy
           mkdir -p _genesis_progressive_deploy/runtime/live-v2
           cp laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-c067.mjs
           cp laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs
           cp laboratoire/genesis/live/sync-public-read-only.sh _genesis_progressive_deploy/runtime/live-v2/
           cp laboratoire/genesis/validate-public-v2.mjs _genesis_progressive_deploy/runtime/
           chmod 0755 _genesis_progressive_deploy/runtime/live-v2/sync-public-read-only.sh
           (
             cd _genesis_progressive_deploy
-            sha256sum runtime/live-v2/build-public-source-progressive.mjs runtime/live-v2/bridge-public-progressive.mjs runtime/live-v2/sync-public-read-only.sh runtime/validate-public-v2.mjs > SHA256SUMS
+            sha256sum runtime/live-v2/build-public-source-progressive.mjs runtime/live-v2/build-public-source-progressive-c067.mjs runtime/live-v2/bridge-public-progressive.mjs runtime/live-v2/sync-public-read-only.sh runtime/validate-public-v2.mjs > SHA256SUMS
           )
 
       - name: Configure pinned VPS SSH identity
@@ -153,6 +154,7 @@ jobs:
           install -d -m 0700 "$RUNTIME_ROOT" "$RUNTIME_ROOT/live-v2" "$STATE_ROOT"
           install -d -m 0755 "$TARGET_ROOT/live"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive.mjs"
+          install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive-c067.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive-c067.mjs"
           install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive.mjs"
           install -m 0700 "$REMOTE_STAGE/runtime/live-v2/sync-public-read-only.sh" "$RUNTIME_ROOT/live-v2/sync-public-read-only.sh"
           install -m 0600 "$REMOTE_STAGE/runtime/validate-public-v2.mjs" "$RUNTIME_ROOT/validate-public-v2.mjs"
