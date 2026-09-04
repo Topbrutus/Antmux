@@ -46,6 +46,7 @@ export function buildProgressivePublicEnvelopeC069(input,options={}){
   byId(metrics,'next-scientific-action').value='FREEZE_ANALYSIS_THRESHOLDS_AND_DECISION_RULE';
   byId(metrics,'execution-bindings-bound').value=10;
   byId(metrics,'execution-bindings-unbound').value=1;
+  byId(metrics,'analysis-decision-rule-bound').value=false;
   metrics.splice(metrics.findIndex(x=>x.id==='hypothesis-selection'),0,
     metric('genesis003-c069','C069 · profil requête génération','VALIDATED_10_OF_10'),
     metric('real-generation-request-profile-frozen','Profil requête génération gelé',true),
@@ -54,7 +55,7 @@ export function buildProgressivePublicEnvelopeC069(input,options={}){
     metric('duration-export-profile-frozen','Profil durée/export gelé',true),
     metric('real-request-bindings-added','Bindings requête réelle ajoutés',4),
     metric('translation-equivalence-verified','Équivalence traduction vérifiée',false),
-    metric('analysis-decision-rule-bound','Règle décision analyse liée',false),
+    metric('request-profile-only','Profil requête seulement',true),
   );
   envelope.payload.identity.root_version='GENESIS-003-C069-PUBLIC-PROGRESS-v5';
   envelope.payload.evidence=envelope.payload.evidence.filter(x=>x.id!=='LIVE-PUBLIC-PROJECTION-HASH');
