@@ -115,7 +115,7 @@ jobs:
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
           lines="$(wc -l < "$probe/status.env" | tr -d ' ')"
-          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31'
+          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38'
           grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
           grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
           grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
@@ -185,7 +185,7 @@ jobs:
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') process.exit(1);
           if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') process.exit(1);
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
+          if(!stage||!['C060','C061','C062','C063','C064'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
           const write=d.payload?.metrics?.find(x=>x.id==='bridge-write-capability');
           if(write?.value!=='NONE') process.exit(1);
           NODE
@@ -210,10 +210,10 @@ jobs:
           const d=JSON.parse(fs.readFileSync('/tmp/live.json','utf8'));
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('public boundary');
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063'].includes(stage.value)) throw new Error('progressive stage');
+          if(!stage||!['C060','C061','C062','C063','C064'].includes(stage.value)) throw new Error('progressive stage');
           const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
           if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('live active');
           const text=JSON.stringify(d);
-          for(const forbidden of ['Topbrutus/seedgenesis','public/live-source','public/live/status.env','file:///']) if(text.includes(forbidden)) throw new Error(`private leak ${forbidden}`);
+          for(const forbidden of ['Topbrutus/seedgenesis','Topbrutus/gesis','public/live-source','public/live/status.env','file:///']) if(text.includes(forbidden)) throw new Error(`private leak ${forbidden}`);
           console.log(`GENESIS_PROGRESSIVE_PUBLIC_ENDPOINT=PASS stage=${stage.value}`);
           NODE
