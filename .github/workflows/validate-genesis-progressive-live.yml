@@ -51,3 +51,35 @@ jobs:
           node laboratoire/genesis/live-v2/bridge-public-progressive-c068.mjs /tmp/input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
           echo 'GENESIS_PROGRESSIVE_LIVE_C068_VALIDATION=PASS'
+      - name: Smoke-test exact assembled C068 runtime package
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/genesis-c068-package .build/genesis-public-read-only-bridge
+          mkdir -p /tmp/genesis-c068-package/runtime/live-v2
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs /tmp/genesis-c068-package/runtime/live-v2/build-public-source-progressive-c067.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs /tmp/genesis-c068-package/runtime/live-v2/bridge-public-progressive-c067.mjs
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c068.mjs /tmp/genesis-c068-package/runtime/live-v2/build-public-source-progressive-c068.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c068.mjs /tmp/genesis-c068-package/runtime/live-v2/bridge-public-progressive-c068.mjs
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c068.mjs /tmp/genesis-c068-package/runtime/live-v2/build-public-source-progressive.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c068.mjs /tmp/genesis-c068-package/runtime/live-v2/bridge-public-progressive.mjs
+          cp laboratoire/genesis/validate-public-v2.mjs /tmp/genesis-c068-package/runtime/validate-public-v2.mjs
+          cat > /tmp/package-status.env <<'EOF'
+          science_baseline=GREEN
+          genesis003_c041_c060=COMPLETE_VALIDATED
+          experiment_selection_performed=true
+          selected_experiment_status=PLANNED_NOT_EXECUTED
+          hypothesis_selection_performed=false
+          hypothesis_ranking_produced=false
+          uncertainty_promotion_performed=false
+          probabilities_produced=false
+          evidence_ledger_auto_promotion=false
+          GENESIS_AUDIT_FAILED=0
+          EOF
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node /tmp/genesis-c068-package/runtime/live-v2/build-public-source-progressive.mjs /tmp/package-status.env /tmp/package-input.json
+          node /tmp/genesis-c068-package/runtime/live-v2/bridge-public-progressive.mjs /tmp/package-input.json
+          node /tmp/genesis-c068-package/runtime/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
+          test -f /tmp/genesis-c068-package/runtime/live-v2/build-public-source-progressive-c067.mjs
+          test -f /tmp/genesis-c068-package/runtime/live-v2/bridge-public-progressive-c067.mjs
+          test -f /tmp/genesis-c068-package/runtime/live-v2/build-public-source-progressive-c068.mjs
+          test -f /tmp/genesis-c068-package/runtime/live-v2/bridge-public-progressive-c068.mjs
+          echo 'GENESIS_PROGRESSIVE_C068_PACKAGE_SMOKE=PASS'
