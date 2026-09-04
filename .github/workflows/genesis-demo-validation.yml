@@ -70,6 +70,34 @@ jobs:
       - name: Run server-side public read-only bridge adversarial tests
         run: node laboratoire/genesis/live/test-public-read-only-bridge.mjs
 
+      - name: Smoke-test packaged progressive C067 runtime imports
+        run: |
+          set -euo pipefail
+          package=/tmp/genesis-progressive-package
+          rm -rf "$package" .build/genesis-public-read-only-bridge
+          mkdir -p "$package/runtime/live-v2"
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs "$package/runtime/live-v2/build-public-source-progressive-c067.mjs"
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs "$package/runtime/live-v2/bridge-public-progressive-c067.mjs"
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c067.mjs "$package/runtime/live-v2/build-public-source-progressive.mjs"
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c067.mjs "$package/runtime/live-v2/bridge-public-progressive.mjs"
+          cp laboratoire/genesis/validate-public-v2.mjs "$package/runtime/validate-public-v2.mjs"
+          cat > /tmp/package-status.env <<'EOF'
+          science_baseline=GREEN
+          genesis003_c041_c060=COMPLETE_VALIDATED
+          experiment_selection_performed=true
+          selected_experiment_status=PLANNED_NOT_EXECUTED
+          hypothesis_selection_performed=false
+          hypothesis_ranking_produced=false
+          uncertainty_promotion_performed=false
+          probabilities_produced=false
+          evidence_ledger_auto_promotion=false
+          GENESIS_AUDIT_FAILED=0
+          EOF
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node "$package/runtime/live-v2/build-public-source-progressive.mjs" /tmp/package-status.env /tmp/package-input.json
+          node "$package/runtime/live-v2/bridge-public-progressive.mjs" /tmp/package-input.json
+          node "$package/runtime/validate-public-v2.mjs" .build/genesis-public-read-only-bridge/public-read-only-envelope.json
+          echo 'GENESIS_PROGRESSIVE_PACKAGE_IMPORT_SMOKE=PASS'
+
       - name: Upload LIVE_READ_ONLY evaluation evidence
         if: always()
         uses: actions/upload-artifact@v4
