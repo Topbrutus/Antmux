@@ -40,6 +40,21 @@ const C062_EXPECTED = Object.freeze({
   real_plan_selection_performed: 'false',
 });
 
+const C063_EXPECTED = Object.freeze({
+  ...C062_EXPECTED,
+  genesis003_validated_through: 'C063',
+  execution_admissibility: 'BLOCKED_MISSING_EXECUTION_BINDINGS',
+  next_scientific_action: 'BIND_REAL_EXECUTION_CONTRACT',
+  real_plan_selection_performed: 'true',
+  genesis003_c063: 'VALIDATED_10_OF_10',
+  real_next_test_plan_id: 'REAL-NEXT-TEST-PLAN-001',
+  real_next_test_plan_status: 'FROZEN_PLAN_AWAITING_EXECUTION_BINDINGS',
+  sample_count: '12',
+  execution_bindings_required: '11',
+  execution_bindings_bound: '0',
+  execution_bindings_complete: 'false',
+});
+
 function fail(message) { throw new Error(message); }
 
 function parseExactStatus(text) {
@@ -76,50 +91,70 @@ function emptyC062Fields() {
   };
 }
 
+function emptyC063Fields() {
+  return {
+    c063Status: 'NOT_APPLICABLE',
+    realNextTestPlanId: 'NOT_APPLICABLE',
+    realNextTestPlanStatus: 'NOT_APPLICABLE',
+    sampleCount: null,
+    executionBindingsRequired: null,
+    executionBindingsBound: null,
+    executionBindingsComplete: null,
+  };
+}
+
 export function extractProgressiveGenesisStatus(text) {
   const found = parseExactStatus(text);
   if (matchesExact(found, LEGACY_EXPECTED)) {
     return {
-      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2',
-      validatedThrough: 'C060',
-      c061Status: 'NOT_APPLICABLE',
-      c061ExecutionInput: 'NOT_APPLICABLE',
-      executionAdmissibility: 'NOT_APPLICABLE',
-      nextScientificAction: 'AWAIT_EXPLICIT_NEW_PHASE',
+      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2', validatedThrough: 'C060',
+      c061Status: 'NOT_APPLICABLE', c061ExecutionInput: 'NOT_APPLICABLE',
+      executionAdmissibility: 'NOT_APPLICABLE', nextScientificAction: 'AWAIT_EXPLICIT_NEW_PHASE',
       selectedExperimentStatus: found.get('selected_experiment_status'),
-      ...emptyC062Fields(),
+      ...emptyC062Fields(), ...emptyC063Fields(),
     };
   }
   if (matchesExact(found, C061_EXPECTED)) {
     return {
-      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2',
-      validatedThrough: 'C061',
-      c061Status: found.get('genesis003_c061'),
-      c061ExecutionInput: found.get('c061_execution_input'),
-      executionAdmissibility: found.get('execution_admissibility'),
-      nextScientificAction: found.get('next_scientific_action'),
+      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2', validatedThrough: 'C061',
+      c061Status: found.get('genesis003_c061'), c061ExecutionInput: found.get('c061_execution_input'),
+      executionAdmissibility: found.get('execution_admissibility'), nextScientificAction: found.get('next_scientific_action'),
       selectedExperimentStatus: found.get('selected_experiment_status'),
-      ...emptyC062Fields(),
+      ...emptyC062Fields(), ...emptyC063Fields(),
     };
   }
   if (matchesExact(found, C062_EXPECTED)) {
     return {
-      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2',
-      validatedThrough: 'C062',
-      c061Status: found.get('genesis003_c061'),
-      c061ExecutionInput: found.get('c061_execution_input'),
-      executionAdmissibility: found.get('execution_admissibility'),
-      nextScientificAction: found.get('next_scientific_action'),
+      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2', validatedThrough: 'C062',
+      c061Status: found.get('genesis003_c061'), c061ExecutionInput: found.get('c061_execution_input'),
+      executionAdmissibility: found.get('execution_admissibility'), nextScientificAction: found.get('next_scientific_action'),
       selectedExperimentStatus: found.get('selected_experiment_status'),
-      c062Status: found.get('genesis003_c062'),
-      realExperimentSpecId: found.get('real_experiment_spec_id'),
-      realExperimentSpecStatus: found.get('real_experiment_spec_status'),
-      realExperimentFamily: found.get('real_experiment_family'),
-      trialClass: found.get('trial_class'),
-      replicatesPerArm: Number(found.get('replicates_per_arm')),
+      c062Status: found.get('genesis003_c062'), realExperimentSpecId: found.get('real_experiment_spec_id'),
+      realExperimentSpecStatus: found.get('real_experiment_spec_status'), realExperimentFamily: found.get('real_experiment_family'),
+      trialClass: found.get('trial_class'), replicatesPerArm: Number(found.get('replicates_per_arm')),
       blindedPrimaryAnalysis: found.get('blinded_primary_analysis') === 'true',
       pretargetedSymbolicSearch: found.get('pretargeted_symbolic_search') === 'true',
       realPlanSelectionPerformed: found.get('real_plan_selection_performed') === 'true',
+      ...emptyC063Fields(),
+    };
+  }
+  if (matchesExact(found, C063_EXPECTED)) {
+    return {
+      schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2', validatedThrough: 'C063',
+      c061Status: found.get('genesis003_c061'), c061ExecutionInput: found.get('c061_execution_input'),
+      executionAdmissibility: found.get('execution_admissibility'), nextScientificAction: found.get('next_scientific_action'),
+      selectedExperimentStatus: found.get('selected_experiment_status'),
+      c062Status: found.get('genesis003_c062'), realExperimentSpecId: found.get('real_experiment_spec_id'),
+      realExperimentSpecStatus: found.get('real_experiment_spec_status'), realExperimentFamily: found.get('real_experiment_family'),
+      trialClass: found.get('trial_class'), replicatesPerArm: Number(found.get('replicates_per_arm')),
+      blindedPrimaryAnalysis: found.get('blinded_primary_analysis') === 'true',
+      pretargetedSymbolicSearch: found.get('pretargeted_symbolic_search') === 'true',
+      realPlanSelectionPerformed: found.get('real_plan_selection_performed') === 'true',
+      c063Status: found.get('genesis003_c063'), realNextTestPlanId: found.get('real_next_test_plan_id'),
+      realNextTestPlanStatus: found.get('real_next_test_plan_status'), sampleCount: Number(found.get('sample_count')),
+      executionBindingsRequired: Number(found.get('execution_bindings_required')),
+      executionBindingsBound: Number(found.get('execution_bindings_bound')),
+      executionBindingsComplete: found.get('execution_bindings_complete') === 'true',
     };
   }
   const keys = [...found.keys()].sort().join(',');
@@ -128,53 +163,40 @@ export function extractProgressiveGenesisStatus(text) {
 
 export function buildProgressiveBridgeInput(status, options = {}) {
   if (status?.schema !== 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V2') fail('Statut progressif invalide.');
-  if (!['C060', 'C061', 'C062'].includes(status.validatedThrough)) fail('validatedThrough non autorisé.');
+  if (!['C060', 'C061', 'C062', 'C063'].includes(status.validatedThrough)) fail('validatedThrough non autorisé.');
 
   const now = new Date(options.now ?? Date.now());
   if (Number.isNaN(now.getTime())) fail('Horodatage invalide.');
   const liveActive = options.liveActive !== false;
   const state = {
-    C060: 'C041_C060_COMPLETE_VALIDATED',
-    C061: 'C041_C061_COMPLETE_VALIDATED',
-    C062: 'C041_C062_COMPLETE_VALIDATED',
+    C060: 'C041_C060_COMPLETE_VALIDATED', C061: 'C041_C061_COMPLETE_VALIDATED',
+    C062: 'C041_C062_COMPLETE_VALIDATED', C063: 'C041_C063_COMPLETE_VALIDATED',
   }[status.validatedThrough];
 
   return {
     bridge_input_version: '2.0.0',
     publication_intent: 'SERVER_SIDE_PUBLIC_READ_ONLY_PROGRESSIVE_BRIDGE',
-    bridge_received_at: now.toISOString(),
-    source_observed_at: now.toISOString(),
-    max_age_seconds: 300,
+    bridge_received_at: now.toISOString(), source_observed_at: now.toISOString(), max_age_seconds: 300,
     source_attestation: {
-      source_kind: 'PRIVATE_GENESIS_PUBLIC_PROJECTION',
-      source_identity: 'OPAQUE_PUBLIC_ATTESTATION',
-      source_state: state,
-      validated_through: status.validatedThrough,
-      c061_status: status.c061Status,
-      c061_execution_input: status.c061ExecutionInput,
-      execution_admissibility: status.executionAdmissibility,
-      next_scientific_action: status.nextScientificAction,
+      source_kind: 'PRIVATE_GENESIS_PUBLIC_PROJECTION', source_identity: 'OPAQUE_PUBLIC_ATTESTATION',
+      source_state: state, validated_through: status.validatedThrough,
+      c061_status: status.c061Status, c061_execution_input: status.c061ExecutionInput,
+      execution_admissibility: status.executionAdmissibility, next_scientific_action: status.nextScientificAction,
       selected_experiment_status: status.selectedExperimentStatus,
-      c062_status: status.c062Status,
-      real_experiment_spec_id: status.realExperimentSpecId,
-      real_experiment_spec_status: status.realExperimentSpecStatus,
-      real_experiment_family: status.realExperimentFamily,
-      trial_class: status.trialClass,
-      replicates_per_arm: status.replicatesPerArm,
-      blinded_primary_analysis: status.blindedPrimaryAnalysis,
-      pretargeted_symbolic_search: status.pretargetedSymbolicSearch,
+      c062_status: status.c062Status, real_experiment_spec_id: status.realExperimentSpecId,
+      real_experiment_spec_status: status.realExperimentSpecStatus, real_experiment_family: status.realExperimentFamily,
+      trial_class: status.trialClass, replicates_per_arm: status.replicatesPerArm,
+      blinded_primary_analysis: status.blindedPrimaryAnalysis, pretargeted_symbolic_search: status.pretargetedSymbolicSearch,
       real_plan_selection_performed: status.realPlanSelectionPerformed,
-      read_capability: 'READ_ONLY',
-      write_capability: 'NONE',
-      adapter_only: true,
+      c063_status: status.c063Status, real_next_test_plan_id: status.realNextTestPlanId,
+      real_next_test_plan_status: status.realNextTestPlanStatus, sample_count: status.sampleCount,
+      execution_bindings_required: status.executionBindingsRequired, execution_bindings_bound: status.executionBindingsBound,
+      execution_bindings_complete: status.executionBindingsComplete,
+      read_capability: 'READ_ONLY', write_capability: 'NONE', adapter_only: true,
     },
     transport: {
-      server_side_pull: true,
-      public_endpoint_only: true,
-      fail_closed: true,
-      snapshot_fallback_available: true,
-      browser_credentials_present: false,
-      private_browser_request: false,
+      server_side_pull: true, public_endpoint_only: true, fail_closed: true,
+      snapshot_fallback_available: true, browser_credentials_present: false, private_browser_request: false,
     },
     live_active: liveActive,
   };
@@ -198,6 +220,7 @@ async function main() {
     execution_admissibility: input.source_attestation.execution_admissibility,
     next_scientific_action: input.source_attestation.next_scientific_action,
     real_experiment_spec_status: input.source_attestation.real_experiment_spec_status,
+    real_next_test_plan_status: input.source_attestation.real_next_test_plan_status,
     private_identifiers_projected: false,
   }, null, 2));
 }
