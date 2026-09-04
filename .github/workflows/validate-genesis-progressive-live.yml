@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - name: Run progressive LIVE adversarial batteries through C073
+      - name: Run progressive LIVE adversarial batteries through C074
         run: |
           set -euo pipefail
           node laboratoire/genesis/live-v2/test-progressive-live.mjs
@@ -35,7 +35,8 @@ jobs:
           node laboratoire/genesis/live-v2/test-progressive-live-c071-kernel.mjs
           node laboratoire/genesis/live-v2/test-progressive-live-c072-ingest.mjs
           node laboratoire/genesis/live-v2/test-progressive-live-c073-decode-adapter.mjs
-      - name: Validate sync shell and C060 integration with C073-capable runtime
+          node laboratoire/genesis/live-v2/test-progressive-live-c074-runtime-transform.mjs
+      - name: Validate sync shell and C060 integration with C074-capable runtime
         run: |
           set -euo pipefail
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
@@ -51,40 +52,44 @@ jobs:
           evidence_ledger_auto_promotion=false
           GENESIS_AUDIT_FAILED=0
           EOF
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c073.mjs /tmp/status.env /tmp/input.json
-          node laboratoire/genesis/live-v2/bridge-public-progressive-c073.mjs /tmp/input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c074.mjs /tmp/status.env /tmp/input.json
+          node laboratoire/genesis/live-v2/bridge-public-progressive-c074.mjs /tmp/input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
-          echo 'GENESIS_PROGRESSIVE_LIVE_C073_VALIDATION=PASS'
-      - name: Smoke-test exact assembled C073 runtime package
+          echo 'GENESIS_PROGRESSIVE_LIVE_C074_VALIDATION=PASS'
+      - name: Smoke-test exact assembled C074 runtime package
         run: |
           set -euo pipefail
-          rm -rf /tmp/genesis-c073-package .build/genesis-public-read-only-bridge
-          mkdir -p /tmp/genesis-c073-package/runtime/live-v2
-          for stage in c067 c068 c069 c070 c071 c072 c073; do
-            cp "laboratoire/genesis/live-v2/build-public-source-progressive-${stage}.mjs" "/tmp/genesis-c073-package/runtime/live-v2/build-public-source-progressive-${stage}.mjs"
-            cp "laboratoire/genesis/live-v2/bridge-public-progressive-${stage}.mjs" "/tmp/genesis-c073-package/runtime/live-v2/bridge-public-progressive-${stage}.mjs"
+          rm -rf /tmp/genesis-c074-package .build/genesis-public-read-only-bridge
+          mkdir -p /tmp/genesis-c074-package/runtime/live-v2
+          for stage in c067 c068 c069 c070 c071 c072 c073 c074; do
+            cp "laboratoire/genesis/live-v2/build-public-source-progressive-${stage}.mjs" "/tmp/genesis-c074-package/runtime/live-v2/build-public-source-progressive-${stage}.mjs"
+            cp "laboratoire/genesis/live-v2/bridge-public-progressive-${stage}.mjs" "/tmp/genesis-c074-package/runtime/live-v2/bridge-public-progressive-${stage}.mjs"
           done
-          cp laboratoire/genesis/live-v2/build-public-source-progressive-c073.mjs /tmp/genesis-c073-package/runtime/live-v2/build-public-source-progressive.mjs
-          cp laboratoire/genesis/live-v2/bridge-public-progressive-c073.mjs /tmp/genesis-c073-package/runtime/live-v2/bridge-public-progressive.mjs
-          cp laboratoire/genesis/validate-public-v2.mjs /tmp/genesis-c073-package/runtime/validate-public-v2.mjs
-          test -f /tmp/antmux-c073-cli-status.env
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node /tmp/genesis-c073-package/runtime/live-v2/build-public-source-progressive.mjs /tmp/antmux-c073-cli-status.env /tmp/package-input.json
-          node /tmp/genesis-c073-package/runtime/live-v2/bridge-public-progressive.mjs /tmp/package-input.json
-          node /tmp/genesis-c073-package/runtime/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
-          for stage in c067 c068 c069 c070 c071 c072 c073; do
-            test -f "/tmp/genesis-c073-package/runtime/live-v2/build-public-source-progressive-${stage}.mjs"
-            test -f "/tmp/genesis-c073-package/runtime/live-v2/bridge-public-progressive-${stage}.mjs"
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c074.mjs /tmp/genesis-c074-package/runtime/live-v2/build-public-source-progressive.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c074.mjs /tmp/genesis-c074-package/runtime/live-v2/bridge-public-progressive.mjs
+          cp laboratoire/genesis/validate-public-v2.mjs /tmp/genesis-c074-package/runtime/validate-public-v2.mjs
+          test -f /tmp/antmux-c074-cli-status.env
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node /tmp/genesis-c074-package/runtime/live-v2/build-public-source-progressive.mjs /tmp/antmux-c074-cli-status.env /tmp/package-input.json
+          node /tmp/genesis-c074-package/runtime/live-v2/bridge-public-progressive.mjs /tmp/package-input.json
+          node /tmp/genesis-c074-package/runtime/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
+          for stage in c067 c068 c069 c070 c071 c072 c073 c074; do
+            test -f "/tmp/genesis-c074-package/runtime/live-v2/build-public-source-progressive-${stage}.mjs"
+            test -f "/tmp/genesis-c074-package/runtime/live-v2/bridge-public-progressive-${stage}.mjs"
           done
           node --input-type=module - <<'NODE'
           import { readFile } from 'node:fs/promises';
           const d=JSON.parse(await readFile('.build/genesis-public-read-only-bridge/public-read-only-envelope.json','utf8'));
           const m=Object.fromEntries(d.payload.metrics.map(x=>[x.id,x.value]));
-          if(m['genesis003-validated-through']!=='C073') process.exit(1);
-          if(m['gesis-decode-runtime-dependency']!==true) process.exit(1);
-          if(m['gesis-decode-runtime-identity-required']!==true) process.exit(1);
-          if(m['gesis-decode-cross-runtime-equivalence-proven']!==false) process.exit(1);
-          if(m['gesis-decode-signal-performed']!==false) process.exit(1);
-          if(m['gesis-decode-analysis-performed']!==false) process.exit(1);
+          if(m['genesis003-validated-through']!=='C074') process.exit(1);
+          if(m['c074-claim-class']!=='MEASURED') process.exit(1);
+          if(m['c074-control-encoded-sample-rate-hz']!==48000) process.exit(1);
+          if(m['c074-runtime-audio-context-sample-rate-hz']!==44100) process.exit(1);
+          if(m['c074-decoded-sample-rate-hz']!==44100) process.exit(1);
+          if(m['c074-decoded-frame-length']!==44099) process.exit(1);
+          if(m['c074-repeated-decode-receipt-match']!==true) process.exit(1);
+          if(m['c074-verification-verdict']!=='FAIL_RUNTIME_DECODE_TRANSFORM') process.exit(1);
+          if(m['c074-finding']!=='AUDIO_CONTEXT_SAMPLE_RATE_TRANSFORM_DETECTED') process.exit(1);
+          if(m['c074-cross-runtime-decode-equivalence-proven']!==false) process.exit(1);
           if(m['bridge-write-capability']!=='NONE') process.exit(1);
           NODE
-          echo 'GENESIS_PROGRESSIVE_C073_PACKAGE_SMOKE=PASS'
+          echo 'GENESIS_PROGRESSIVE_C074_PACKAGE_SMOKE=PASS'

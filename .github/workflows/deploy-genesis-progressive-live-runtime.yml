@@ -37,7 +37,7 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v6
 
-      - name: Validate progressive LIVE runtime through C073
+      - name: Validate progressive LIVE runtime through C074
         run: |
           set -euo pipefail
           node laboratoire/genesis/live-v2/test-progressive-live.mjs
@@ -47,6 +47,7 @@ jobs:
           node laboratoire/genesis/live-v2/test-progressive-live-c071-kernel.mjs
           node laboratoire/genesis/live-v2/test-progressive-live-c072-ingest.mjs
           node laboratoire/genesis/live-v2/test-progressive-live-c073-decode-adapter.mjs
+          node laboratoire/genesis/live-v2/test-progressive-live-c074-runtime-transform.mjs
           bash -n laboratoire/genesis/live/sync-public-read-only.sh
           cat > /tmp/genesis-status.env <<'EOF'
           science_baseline=GREEN
@@ -60,8 +61,8 @@ jobs:
           evidence_ledger_auto_promotion=false
           GENESIS_AUDIT_FAILED=0
           EOF
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c073.mjs /tmp/genesis-status.env /tmp/progressive-input.json
-          node laboratoire/genesis/live-v2/bridge-public-progressive-c073.mjs /tmp/progressive-input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node laboratoire/genesis/live-v2/build-public-source-progressive-c074.mjs /tmp/genesis-status.env /tmp/progressive-input.json
+          node laboratoire/genesis/live-v2/bridge-public-progressive-c074.mjs /tmp/progressive-input.json
           node laboratoire/genesis/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
 
       - name: Assemble and smoke-test exact progressive runtime package
@@ -69,12 +70,12 @@ jobs:
           set -euo pipefail
           rm -rf _genesis_progressive_deploy
           mkdir -p _genesis_progressive_deploy/runtime/live-v2
-          for stage in c067 c068 c069 c070 c071 c072 c073; do
+          for stage in c067 c068 c069 c070 c071 c072 c073 c074; do
             cp "laboratoire/genesis/live-v2/build-public-source-progressive-${stage}.mjs" "_genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-${stage}.mjs"
             cp "laboratoire/genesis/live-v2/bridge-public-progressive-${stage}.mjs" "_genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-${stage}.mjs"
           done
-          cp laboratoire/genesis/live-v2/build-public-source-progressive-c073.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs
-          cp laboratoire/genesis/live-v2/bridge-public-progressive-c073.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs
+          cp laboratoire/genesis/live-v2/build-public-source-progressive-c074.mjs _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs
+          cp laboratoire/genesis/live-v2/bridge-public-progressive-c074.mjs _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs
           cp laboratoire/genesis/live/sync-public-read-only.sh _genesis_progressive_deploy/runtime/live-v2/
           cp laboratoire/genesis/validate-public-v2.mjs _genesis_progressive_deploy/runtime/
           chmod 0755 _genesis_progressive_deploy/runtime/live-v2/sync-public-read-only.sh
@@ -95,17 +96,19 @@ jobs:
               runtime/live-v2/bridge-public-progressive-c072.mjs \
               runtime/live-v2/build-public-source-progressive-c073.mjs \
               runtime/live-v2/bridge-public-progressive-c073.mjs \
+              runtime/live-v2/build-public-source-progressive-c074.mjs \
+              runtime/live-v2/bridge-public-progressive-c074.mjs \
               runtime/live-v2/build-public-source-progressive.mjs \
               runtime/live-v2/bridge-public-progressive.mjs \
               runtime/live-v2/sync-public-read-only.sh \
               runtime/validate-public-v2.mjs > SHA256SUMS
           )
-          test -f /tmp/antmux-c073-cli-status.env
+          test -f /tmp/antmux-c074-cli-status.env
           rm -rf .build/genesis-public-read-only-bridge
-          GENESIS_PUBLIC_LIVE_ACTIVE=1 node _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs /tmp/antmux-c073-cli-status.env /tmp/package-input.json
+          GENESIS_PUBLIC_LIVE_ACTIVE=1 node _genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive.mjs /tmp/antmux-c074-cli-status.env /tmp/package-input.json
           node _genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive.mjs /tmp/package-input.json
           node _genesis_progressive_deploy/runtime/validate-public-v2.mjs .build/genesis-public-read-only-bridge/public-read-only-envelope.json
-          for stage in c067 c068 c069 c070 c071 c072 c073; do
+          for stage in c067 c068 c069 c070 c071 c072 c073 c074; do
             test -f "_genesis_progressive_deploy/runtime/live-v2/build-public-source-progressive-${stage}.mjs"
             test -f "_genesis_progressive_deploy/runtime/live-v2/bridge-public-progressive-${stage}.mjs"
           done
@@ -113,15 +116,19 @@ jobs:
           import { readFile } from 'node:fs/promises';
           const d=JSON.parse(await readFile('.build/genesis-public-read-only-bridge/public-read-only-envelope.json','utf8'));
           const m=Object.fromEntries(d.payload.metrics.map(x=>[x.id,x.value]));
-          if(m['genesis003-validated-through']!=='C073') process.exit(1);
-          if(m['gesis-decode-runtime-dependency']!==true) process.exit(1);
-          if(m['gesis-decode-runtime-identity-required']!==true) process.exit(1);
-          if(m['gesis-decode-cross-runtime-equivalence-proven']!==false) process.exit(1);
-          if(m['gesis-decode-signal-performed']!==false) process.exit(1);
-          if(m['gesis-decode-analysis-performed']!==false) process.exit(1);
+          if(m['genesis003-validated-through']!=='C074') process.exit(1);
+          if(m['c074-claim-class']!=='MEASURED') process.exit(1);
+          if(m['c074-control-encoded-sample-rate-hz']!==48000) process.exit(1);
+          if(m['c074-runtime-audio-context-sample-rate-hz']!==44100) process.exit(1);
+          if(m['c074-decoded-sample-rate-hz']!==44100) process.exit(1);
+          if(m['c074-decoded-frame-length']!==44099) process.exit(1);
+          if(m['c074-repeated-decode-receipt-match']!==true) process.exit(1);
+          if(m['c074-verification-verdict']!=='FAIL_RUNTIME_DECODE_TRANSFORM') process.exit(1);
+          if(m['c074-finding']!=='AUDIO_CONTEXT_SAMPLE_RATE_TRANSFORM_DETECTED') process.exit(1);
+          if(m['c074-cross-runtime-decode-equivalence-proven']!==false) process.exit(1);
           if(m['bridge-write-capability']!=='NONE') process.exit(1);
           NODE
-          echo 'GENESIS_PROGRESSIVE_C073_PACKAGE_IMPORT_SMOKE=PASS'
+          echo 'GENESIS_PROGRESSIVE_C074_PACKAGE_IMPORT_SMOKE=PASS'
 
       - name: Configure pinned VPS SSH identity
         env:
@@ -164,7 +171,7 @@ jobs:
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" fetch -q --no-tags --depth=1 origin public/live-source
           GIT_SSH_COMMAND="ssh $sshopts" git --git-dir="$probe/source.git" show FETCH_HEAD:public/live/status.env > "$probe/status.env"
           lines="$(wc -l < "$probe/status.env" | tr -d ' ')"
-          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42' || test "$lines" = '46' || test "$lines" = '51' || test "$lines" = '56' || test "$lines" = '61' || test "$lines" = '63' || test "$lines" = '73' || test "$lines" = '84' || test "$lines" = '95'
+          test "$lines" = '10' || test "$lines" = '15' || test "$lines" = '24' || test "$lines" = '31' || test "$lines" = '38' || test "$lines" = '42' || test "$lines" = '46' || test "$lines" = '51' || test "$lines" = '56' || test "$lines" = '61' || test "$lines" = '63' || test "$lines" = '73' || test "$lines" = '84' || test "$lines" = '95' || test "$lines" = '109'
           grep -Fxq 'science_baseline=GREEN' "$probe/status.env"
           grep -Fxq 'selected_experiment_status=PLANNED_NOT_EXECUTED' "$probe/status.env"
           grep -Fxq 'GENESIS_AUDIT_FAILED=0' "$probe/status.env"
@@ -201,7 +208,7 @@ jobs:
           if test -d "$RUNTIME_ROOT"; then cp -a "$RUNTIME_ROOT" "$BACKUP_ROOT/runtime.before"; fi
           install -d -m 0700 "$RUNTIME_ROOT" "$RUNTIME_ROOT/live-v2" "$STATE_ROOT"
           install -d -m 0755 "$TARGET_ROOT/live"
-          for stage in c067 c068 c069 c070 c071 c072 c073; do
+          for stage in c067 c068 c069 c070 c071 c072 c073 c074; do
             install -m 0600 "$REMOTE_STAGE/runtime/live-v2/build-public-source-progressive-${stage}.mjs" "$RUNTIME_ROOT/live-v2/build-public-source-progressive-${stage}.mjs"
             install -m 0600 "$REMOTE_STAGE/runtime/live-v2/bridge-public-progressive-${stage}.mjs" "$RUNTIME_ROOT/live-v2/bridge-public-progressive-${stage}.mjs"
           done
@@ -234,7 +241,7 @@ jobs:
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') process.exit(1);
           if(d.payload?.publication_gates?.current_gate!=='LIVE_READ_ONLY_ACTIVE') process.exit(1);
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068','C069','C070','C071','C072','C073'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
+          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068','C069','C070','C071','C072','C073','C074'].includes(stage.value)||stage.status!=='VERIFIED_PUBLIC') process.exit(1);
           const write=d.payload?.metrics?.find(x=>x.id==='bridge-write-capability');
           if(write?.value!=='NONE') process.exit(1);
           NODE
@@ -244,7 +251,7 @@ jobs:
           rm -rf "$REMOTE_STAGE"
           echo 'GENESIS_PROGRESSIVE_LIVE_RUNTIME_DEPLOY=PASS'
           echo 'GENESIS_PROGRESSIVE_LIVE_REFRESH_MINUTES=2'
-          echo 'GENESIS_PROGRESSIVE_LIVE_MAX_STAGE=C073'
+          echo 'GENESIS_PROGRESSIVE_LIVE_MAX_STAGE=C074'
           echo 'PUBLIC_WRITE_CAPABILITY=NONE'
           echo 'PRIVATE_SOURCE_CHECKOUT_PERSISTED=no'
           echo "BACKUP_ROOT=$BACKUP_ROOT"
@@ -259,7 +266,7 @@ jobs:
           const d=JSON.parse(fs.readFileSync('/tmp/live.json','utf8'));
           if(d.mode!=='LIVE_READ_ONLY'||d.source_status!=='PUBLIC_READ_ONLY'||d.integrity_status!=='VERIFIED_PUBLIC') throw new Error('public boundary');
           const stage=d.payload?.metrics?.find(x=>x.id==='genesis003-validated-through');
-          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068','C069','C070','C071','C072','C073'].includes(stage.value)) throw new Error('progressive stage');
+          if(!stage||!['C060','C061','C062','C063','C064','C065','C066','C067','C068','C069','C070','C071','C072','C073','C074'].includes(stage.value)) throw new Error('progressive stage');
           const active=d.payload?.metrics?.find(x=>x.id==='public-live-active');
           if(active?.value!==true||active?.status!=='VERIFIED_PUBLIC') throw new Error('live active');
           const text=JSON.stringify(d);
@@ -271,8 +278,9 @@ jobs:
             'a5acd442d9a851496c9f3bdc706b6f408e4fd92a03cff83c663b85e6b583a0e4','932c41a38dc8cce2e7cccee436f26a200d269c058e69e5de9ec09105013407aa','6c8256a5fcb7a11b44f519880eb792f936f44f49','8b97673a2228af397fa949bf5f7921c8cdc54be4','707c17bd150f2313f5b649a4da053820f6320f0412ed9957aa6582495c8e5c91','d737d3fa761ccc7112d84387d34a24a3bf8aff5bdb8469e3a436f9b3793ab056','6ca8caa0b84e685c86d2552d27ae87517e6b8a285857ca1da047aabf5ffc63d7','1a5886e1105ae781d3ce32ba77cb741420cc8c14',
             '3910ba8431504196c02d3b1550b50fc51166aa8b','e49962faf07627c9ca35cf292ec17336933c95c3','a2d9685f6437ebc3d42fd8bc893e40d649bf817b7c4b2bc37bdc4093c304f28a','dae4c8995ea19d51a4acc354bd97d882e28ba9fdb8217ea7779368562c6cc4eb','e7d9b93be4c5b3df659c9a6805a5371a06035aa00d86dc88ede4dc50d6595eac','24e6eafcb2681b84e1f9debe577db6e2fc2a965456093c7dea09b14b6f4cbe12',
             '20ea3c3d77c8d934db17ae60bb3032b023dff5a6','b6efdff8639264a48d269806ad6507f5e2bee5d9','203f94de2824a1f904a004ce5092f5c5d423b7bd3f7264a7a08f51e7a96830ec','e9bf65407aaf1072601de7c5f68a80255f4ff0a1d947bfad9cc621b13440d204','14aa571228918a7665358a93cb1b0f5da8a711222f48105d3e615b01239a8283',
+            '84582b2a7c53c7c51d4b7a18ac6650365135e8e1','e4db07078b95e743c57a8ac322958d636087f8ad','c6532a7806de59c78268cc0e36e5cd48906031ed','e5865c110509d98c80bf88ee9f73282ddb608185e39cde1e49c84e3786706858','c1d6aeb247e61e5fbc5575bf251c8331c6bdfe4784b68065a3d6ad50b9ffe7bc','07a53c7ed515c93ea16aa4e78b46222404e3614bd171d1eca662d0c3a945a66d','50b8e3153a4f6d8b8ec5660a3d8e06106f132be367ca8bf279524a6fce7e29e8','33db943f9eb42fd277084f4f945ae7e4d7a088ca7fd008847b1a73f0206734a9','6bf952c076f93e57d45e8305d696c54c8907b76e513e076924ae8bac5db679de','c4df37399dca258ce61f568b71bcabb4d01c069d3ae94409094412f65fbf977a',
             'generator_provider','model_name','model_version_or_build','runtime_repository','runtime_revision','model_revision',
-            'decision_rule_digest','derived_contract_digest','c069_digest','c070_digest','kernel_contract_digest','interface_spec_digest','signal_sha256','provenance_sha256','ingest_descriptor_sha256','gesis_commit','gesis_analyzer_blob','gesis_configuration_sha256','analysis_decision_rule_sha256','measurement_digest_sha256','adapter_contract_spec_digest','runtime_identity_sha256','handoff_descriptor_sha256','decoded_pcm_sha256','gesis_commit_sha','gesis_decoder_blob_sha'
+            'decision_rule_digest','derived_contract_digest','c069_digest','c070_digest','kernel_contract_digest','interface_spec_digest','signal_sha256','provenance_sha256','ingest_descriptor_sha256','gesis_commit','gesis_analyzer_blob','gesis_configuration_sha256','analysis_decision_rule_sha256','measurement_digest_sha256','adapter_contract_spec_digest','runtime_identity_sha256','handoff_descriptor_sha256','decoded_pcm_sha256','gesis_commit_sha','gesis_decoder_blob_sha','measurement_record_digest','naive_reference_pcm_sha256','receipt_sha256','gesis_harness_run_id'
           ]) if(text.includes(forbidden)) throw new Error(`private leak ${forbidden}`);
           console.log(`GENESIS_PROGRESSIVE_PUBLIC_ENDPOINT=PASS stage=${stage.value}`);
           NODE
