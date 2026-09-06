@@ -26,6 +26,24 @@
   <header><h1>Genesis Vision Center</h1><p class="subtitle">Observatoire public en lecture seule de Genesis. Le cockpit tente d’abord la projection publique LIVE validée et revient automatiquement au snapshot figé si le LIVE est indisponible, périmé ou invalide.</p></header>
   <div class="banner" id="dataBanner">PUBLIC READ-ONLY</div>
   <div class="boundary" id="publicBoundary">Frontière publique : <strong>PRIVATE GENESIS → SERVER-SIDE PUBLIC ADAPTER → CONTRACT v2 → PUBLIC READ-ONLY → VISION CENTER</strong>. Aucun accès privé n’est effectué par le navigateur.</div>
+  <section class="panel interactive-panel" id="currentScientificState" data-public-state="POST_C079_MECHANISM_36_DECODE">
+    <h2>État scientifique actuel · projection publique bornée</h2>
+    <p class="safe-note"><strong>Synchronisation publique 2026-09-06.</strong> Cette synthèse expose uniquement les constats autorisés. Le flux LIVE progressif historique affiché plus bas peut rester borné à C074; il n’annule pas cet état scientifique plus récent. Aucun dépôt privé, chemin local, token, identifiant machine brut ou artefact privé n’est exposé.</p>
+    <div class="experiment-grid">
+      <div class="experiment-cell"><strong>C079</strong><span>MEASURED / VALIDATED · 44,1 kHz : Chrome ≠ Firefox · 48 kHz : Chrome = Firefox · déterminisme interne valide · portée limitée aux classes runtime Ubuntu enregistrées.</span></div>
+      <div class="experiment-cell"><strong>C080</strong><span>PRE_FLIGHT_BLOCK_NO_SCIENTIFIC_VERDICT · environnement réel non conforme au preregistration figé · arrêt avant decode · ce n’est pas un succès scientifique.</span></div>
+      <div class="experiment-cell"><strong>Post-C079 · mécanisme</strong><span>MEASURED_EXPLORATORY_RESULT · 36 decodes · mesure de AudioBuffer.length immédiatement après decodeAudioData, avant sérialisation PCM, hash, FFT ou analyse GESIS.</span></div>
+      <div class="experiment-cell"><strong>Runtime exploratoire</strong><span>Windows build 26200 · Chrome 151.0.7922.174 · Firefox 154.0.1 · WAV 48 000 Hz mono PCM16 · N = 47999, 48000, 48001 · 3 répétitions par condition.</span></div>
+      <div class="experiment-cell"><strong>44,1 kHz · Chrome 151</strong><span>N47999 → 44099 · N48000 → 44099 · N48001 → 44100.</span></div>
+      <div class="experiment-cell"><strong>44,1 kHz · Firefox 154.0.1</strong><span>N47999 → 44100 · N48000 → 44100 · N48001 → 44101.</span></div>
+      <div class="experiment-cell"><strong>48 kHz · les deux moteurs</strong><span>N47999 → 47999 · N48000 → 48000 · N48001 → 48001 · aucune divergence observée.</span></div>
+      <div class="experiment-cell"><strong>Répétabilité</strong><span>Les 3 répétitions de chaque condition sont identiques. À 44,1 kHz, Chrome retourne exactement 1 frame de moins que Firefox sur les trois longueurs testées.</span></div>
+      <div class="experiment-cell"><strong>Modèle antérieur</strong><span>ENDPOINT_MINUS_ONE est falsifié comme règle générale par N47999 côté Chrome.</span></div>
+      <div class="experiment-cell"><strong>Descriptions empiriques compatibles</strong><span>Chrome : ceil(N×147/160)−1 · Firefox : ceil(N×147/160) · statut : HYPOTHESIS_COMPATIBLE_DESCRIPTION_NOT_INTERNAL_MECHANISM_PROOF.</span></div>
+      <div class="experiment-cell"><strong>Frontière de preuve</strong><span>Aucune affirmation sur l’algorithme interne exact des navigateurs; aucune nouvelle physique, conscience, matériau ou phénomène externe.</span></div>
+      <div class="experiment-cell"><strong>C081</strong><span>NOT STARTED · aucune nouvelle expérience n’est lancée par cette publication.</span></div>
+    </div>
+  </section>
   <section class="panel interactive-panel" aria-labelledby="exploreTitle">
     <h2 id="exploreTitle">Exploration publique interactive</h2>
     <div class="controls"><button class="control-btn" id="refreshNow" type="button">Actualiser maintenant</button><label class="toggle"><input id="autoRefresh" type="checkbox"> Auto-refresh 30 s</label><button class="control-btn" id="copySummary" type="button">Copier le résumé public</button><span class="interactive-status" id="refreshState" aria-live="polite">Chargement du LIVE public…</span></div>
