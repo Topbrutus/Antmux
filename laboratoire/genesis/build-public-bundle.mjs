@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT=fileURLToPath(new URL('./',import.meta.url));
 const OUT=fileURLToPath(new URL('../../.build/genesis-vision-center-snapshot/',import.meta.url));
-const FILES=['index.html','snapshot/genesis-public-snapshot-0001.json','demo/genesis-demo-v1.json','demo/genesis-demo-v2.json','PUBLIC-CONTRACT-v2.md','README.md'];
+const FILES=['index.html','snapshot/genesis-public-snapshot-0001.json','demo/genesis-demo-v1.json','demo/genesis-demo-v2.json','PUBLIC-CONTRACT-v2.md','README.md','V0.1-PUBLIC-RELEASE.md'];
 async function sha256(path){return createHash('sha256').update(await readFile(path)).digest('hex')}
 await rm(OUT,{recursive:true,force:true});await mkdir(OUT,{recursive:true});
 const manifestFiles=[];
