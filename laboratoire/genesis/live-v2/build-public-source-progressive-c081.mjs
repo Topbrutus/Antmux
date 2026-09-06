@@ -68,6 +68,16 @@ export function c081ToExactC074Text(found) {
   return serialize(copy);
 }
 
+function assertExactPostC074Fallback(found) {
+  if (found.size !== 121) fail(`Projection post-C074 attendue sur 121 lignes; reçu ${found.size}.`);
+  if (found.get('genesis003_validated_through') !== 'C074') fail('Stage post-C074 invalide.');
+  if (found.get('next_scientific_action') !== 'DEFINE_C075_SCIENTIFIC_STAGE') fail('Action post-C074 invalide.');
+  for (const [key, value] of Object.entries(POST_C074_KEYS)) {
+    if (found.get(key) !== value) fail(`Champ post-C074 invalide: ${key}`);
+  }
+  extractProgressiveGenesisStatusC074(c081ToExactC074Text(found));
+}
+
 function assertExactC081(found) {
   if (found.size !== 140) fail(`Projection C081 attendue sur 140 lignes; reçu ${found.size}.`);
   if (found.get('genesis003_validated_through') !== 'C081') fail('Stage C081 invalide.');
@@ -120,6 +130,10 @@ export function extractProgressiveGenesisStatusC081(text) {
     return extractProgressiveGenesisStatusC074(text);
   } catch {
     const found = parse(text);
+    if (found.size === 121) {
+      assertExactPostC074Fallback(found);
+      return extractProgressiveGenesisStatusC074(c081ToExactC074Text(found));
+    }
     assertExactC081(found);
     return {
       schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V11_C081_MEASURED_INCONCLUSIVE',
