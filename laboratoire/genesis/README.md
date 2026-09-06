@@ -1,5 +1,13 @@
 # ANTMUX — GENESIS VISION CENTER
 
+> **V0.1 CURRENT RELEASE NOTE — 2026-09-06**
+>
+> The current validated public state is `LIVE_READ_ONLY`, source `PUBLIC_READ_ONLY`, integrity `VERIFIED_PUBLIC`, public gate `LIVE_READ_ONLY_ACTIVE`. C081 is `VALIDATED_MEASURED_INCONCLUSIVE` (Firefox 18 decodes, Chrome 0; primary hypothesis not tested; no prediction verdict). `C082_STARTED=false` for this release process.
+>
+> Canonical current public release boundary: [`V0.1-PUBLIC-RELEASE.md`](./V0.1-PUBLIC-RELEASE.md).
+>
+> The LAB-004 sections below are retained as chronological construction notes. Their older `PENDING`/DEMO status statements are historical and are superseded by the current V0.1 release note above. They must not be read as the present deployment status.
+
 ## Cible publique
 
 `https://antmux.com/laboratoire/genesis/`
@@ -16,15 +24,15 @@ Les zones `/generator/`, `/index.html`, `/styles.css`, `/app.js` et le noyau pri
 
 ---
 
-## Statut
+## Statut historique LAB-004
 
 `LAB-004`
 
-Phase actuelle :
+Phase documentée à cette étape historique :
 
 `VISION_CENTER_V2_PUBLIC_ADAPTER_VALIDATED`
 
-Contrat courant :
+Contrat courant de cette note historique :
 
 `PUBLIC-CONTRACT-v2.md` — `2.0.0-draft`
 
@@ -32,7 +40,7 @@ Snapshot canonique :
 
 `demo/genesis-demo-v2.json`
 
-Mode :
+Mode à cette étape historique :
 
 `DEMO / SYNTHETIC DATA`
 
@@ -170,14 +178,14 @@ L'Adapter :
 - rejette les catégories ou champs inconnus à l'intérieur de cette zone;
 - ne copie pas le bruit privé situé hors de la zone publiable;
 - soumet la sortie au validateur `PUBLIC-CONTRACT-v2`;
-- bloque `SNAPSHOT` et `LIVE_READ_ONLY` dans cette phase de validation;
+- bloquait `SNAPSHOT` et `LIVE_READ_ONLY` dans cette phase historique de validation;
 - ne possède aucune fonction d'écriture vers Genesis.
 
-Cette validation **ne signifie pas** que `Topbrutus/seedgenesis` est connecté. Aucun accès au dépôt privé n'a été ajouté.
+Cette validation historique **ne signifie pas** que le navigateur accède directement à `Topbrutus/seedgenesis`. Aucun accès direct du navigateur au dépôt privé n'a été ajouté.
 
 ---
 
-## Modes de données
+## Modes de données — historique de construction
 
 ### DEMO
 
@@ -189,30 +197,26 @@ Affichage obligatoire : `DEMO / SYNTHETIC DATA`
 
 Publication publique figée produite par un processus explicitement autorisé.
 
-Le premier snapshot réel reste `PENDING`.
+Dans les notes LAB-004 ci-dessous, le premier snapshot réel était encore `PENDING`. Voir la note V0.1 en tête de fichier pour l'état actuel.
 
 ### LIVE_READ_ONLY
 
-Future vue publique en lecture seule.
-
-Ce mode reste bloqué jusqu'à validation d'un snapshot public réel et autorisation distincte de la lecture live.
+Dans les notes LAB-004, cette vue était encore future/bloquée. Voir la note V0.1 en tête de fichier pour l'état actuel validé.
 
 ---
 
-## Gates de publication
+## Gates de publication — historique LAB-004
 
 `CONTRAT -> ADAPTER -> SNAPSHOT -> LIVE_READ_ONLY`
 
-État courant :
+État à l'étape LAB-004 documentée :
 
 - `CONTRAT = PASSED`
-- `ADAPTER = PASSED` — frontière validée sur données synthétiques, sans connexion privée
-- `SNAPSHOT = PENDING`
-- `LIVE_READ_ONLY = PENDING`
+- `ADAPTER = PASSED` — frontière validée sur données synthétiques
+- `SNAPSHOT = PENDING` à cette étape historique
+- `LIVE_READ_ONLY = PENDING` à cette étape historique
 
-Étape recommandée suivante :
-
-`PREPARE_PUBLIC_SNAPSHOT`
+L'état V0.1 actuel est indiqué en tête de fichier et dans `V0.1-PUBLIC-RELEASE.md`.
 
 ---
 
@@ -270,13 +274,11 @@ Le workflow GitHub Actions exécute ces validations avant toute décision de dé
 
 ## Déploiement
 
-Le déploiement VPS reste volontairement séparé du développement.
+Le déploiement VPS reste séparé du développement et est automatisé par le workflow validé sur `main`.
 
 La route cible est `/laboratoire/genesis/`.
 
 Une branche ou une PR validée doit être revue avant intégration à `main`.
-
-Le serveur ne doit pas être modifié par les tests de développement.
 
 ---
 

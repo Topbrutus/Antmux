@@ -8,6 +8,7 @@ on:
       - '.github/workflows/deploy-genesis-vps.yml'
       - 'laboratoire/genesis/index.html'
       - 'laboratoire/genesis/README.md'
+      - 'laboratoire/genesis/V0.1-PUBLIC-RELEASE.md'
       - 'laboratoire/genesis/PUBLIC-CONTRACT-v1.md'
       - 'laboratoire/genesis/PUBLIC-CONTRACT-v2.md'
       - 'laboratoire/genesis/demo/genesis-demo-v1.json'
@@ -60,6 +61,7 @@ jobs:
 
           cp laboratoire/genesis/index.html _genesis_deploy/
           cp laboratoire/genesis/README.md _genesis_deploy/
+          cp laboratoire/genesis/V0.1-PUBLIC-RELEASE.md _genesis_deploy/
           cp laboratoire/genesis/PUBLIC-CONTRACT-v1.md _genesis_deploy/
           cp laboratoire/genesis/PUBLIC-CONTRACT-v2.md _genesis_deploy/
           cp laboratoire/genesis/demo/genesis-demo-v1.json _genesis_deploy/demo/
@@ -68,6 +70,7 @@ jobs:
 
           test -f _genesis_deploy/index.html
           test -f _genesis_deploy/README.md
+          test -f _genesis_deploy/V0.1-PUBLIC-RELEASE.md
           test -f _genesis_deploy/PUBLIC-CONTRACT-v1.md
           test -f _genesis_deploy/PUBLIC-CONTRACT-v2.md
           test -f _genesis_deploy/demo/genesis-demo-v1.json
@@ -82,7 +85,7 @@ jobs:
 
           (
             cd _genesis_deploy
-            sha256sum index.html README.md PUBLIC-CONTRACT-v1.md PUBLIC-CONTRACT-v2.md demo/genesis-demo-v1.json demo/genesis-demo-v2.json snapshot/genesis-public-snapshot-0001.json > SHA256SUMS
+            sha256sum index.html README.md V0.1-PUBLIC-RELEASE.md PUBLIC-CONTRACT-v1.md PUBLIC-CONTRACT-v2.md demo/genesis-demo-v1.json demo/genesis-demo-v2.json snapshot/genesis-public-snapshot-0001.json > SHA256SUMS
           )
 
       - name: Configure pinned SSH identity
@@ -146,7 +149,7 @@ jobs:
           sha256sum -c SHA256SUMS
 
           mkdir -p "$BACKUP_ROOT/demo" "$BACKUP_ROOT/snapshot"
-          for file in index.html README.md PUBLIC-CONTRACT-v1.md PUBLIC-CONTRACT-v2.md; do
+          for file in index.html README.md V0.1-PUBLIC-RELEASE.md PUBLIC-CONTRACT-v1.md PUBLIC-CONTRACT-v2.md; do
             if test -f "$TARGET_ROOT/$file"; then
               cp -a "$TARGET_ROOT/$file" "$BACKUP_ROOT/$file"
             fi
@@ -163,6 +166,7 @@ jobs:
           install -d -m 0755 "$TARGET_ROOT/demo" "$TARGET_ROOT/snapshot"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/README.md" "$TARGET_ROOT/README.md"
+          install -m 0644 "$REMOTE_STAGE/V0.1-PUBLIC-RELEASE.md" "$TARGET_ROOT/V0.1-PUBLIC-RELEASE.md"
           install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v1.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v1.md"
           install -m 0644 "$REMOTE_STAGE/PUBLIC-CONTRACT-v2.md" "$TARGET_ROOT/PUBLIC-CONTRACT-v2.md"
           install -m 0644 "$REMOTE_STAGE/demo/genesis-demo-v1.json" "$TARGET_ROOT/demo/genesis-demo-v1.json"
@@ -180,6 +184,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/ -o /tmp/genesis-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/V0.1-PUBLIC-RELEASE.md >/dev/null
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/demo/genesis-demo-v2.json >/dev/null
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/snapshot/genesis-public-snapshot-0001.json >/dev/null
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/genesis/live/public-read-only.json -o /tmp/genesis-live.json

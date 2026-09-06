@@ -14,6 +14,7 @@ on:
       - 'laboratoire/data/**'
       - 'laboratoire/genesis/index.html'
       - 'laboratoire/genesis/README.md'
+      - 'laboratoire/genesis/V0.1-PUBLIC-RELEASE.md'
       - 'laboratoire/genesis/PUBLIC-CONTRACT-v1.md'
       - 'laboratoire/genesis/demo/**'
       - '.github/workflows/pages.yml'
@@ -63,6 +64,7 @@ jobs:
 
           cp laboratoire/genesis/index.html _site/laboratoire/genesis/
           cp laboratoire/genesis/README.md _site/laboratoire/genesis/
+          cp laboratoire/genesis/V0.1-PUBLIC-RELEASE.md _site/laboratoire/genesis/
           cp laboratoire/genesis/PUBLIC-CONTRACT-v1.md _site/laboratoire/genesis/
           cp laboratoire/genesis/demo/genesis-demo-v1.json _site/laboratoire/genesis/demo/
 
@@ -70,6 +72,7 @@ jobs:
         run: |
           test -f _site/laboratoire/index.html
           test -f _site/laboratoire/genesis/index.html
+          test -f _site/laboratoire/genesis/V0.1-PUBLIC-RELEASE.md
           test -f _site/laboratoire/genesis/demo/genesis-demo-v1.json
           test ! -e _site/laboratoire/genesis/validate-demo.mjs
           test ! -e _site/laboratoire/genesis/test-validator.mjs
