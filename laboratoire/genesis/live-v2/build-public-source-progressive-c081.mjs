@@ -59,6 +59,13 @@ function serialize(found) {
   return `${[...found].map(([key, value]) => `${key}=${value}`).join('\n')}\n`;
 }
 
+function postC074ToExactC074Text(found) {
+  const copy = new Map(found);
+  for (const key of Object.keys(POST_C074_KEYS)) copy.delete(key);
+  copy.set('next_scientific_action', 'BIND_AUDIO_CONTEXT_SAMPLE_RATE_IN_DECODE_RUNTIME_IDENTITY');
+  return serialize(copy);
+}
+
 export function c081ToExactC074Text(found) {
   const copy = new Map(found);
   for (const key of Object.keys(POST_C074_KEYS)) copy.delete(key);
@@ -115,11 +122,23 @@ function assertExactC081(found) {
   extractProgressiveGenesisStatusC074(c081ToExactC074Text(found));
 }
 
+function isPostC074(found) {
+  if (found.size !== 121) return false;
+  if (found.get('genesis003_validated_through') !== 'C074') return false;
+  if (found.get('next_scientific_action') !== 'DEFINE_C075_SCIENTIFIC_STAGE') return false;
+  for (const [key, value] of Object.entries(POST_C074_KEYS)) {
+    if (found.get(key) !== value) return false;
+  }
+  extractProgressiveGenesisStatusC074(postC074ToExactC074Text(found));
+  return true;
+}
+
 export function extractProgressiveGenesisStatusC081(text) {
   try {
     return extractProgressiveGenesisStatusC074(text);
   } catch {
     const found = parse(text);
+    if (isPostC074(found)) return extractProgressiveGenesisStatusC074(postC074ToExactC074Text(found));
     assertExactC081(found);
     return {
       schema: 'GENESIS_PUBLIC_PROGRESSIVE_STATUS_V11_C081_MEASURED_INCONCLUSIVE',

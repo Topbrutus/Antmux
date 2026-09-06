@@ -59,6 +59,25 @@ assert.equal(status.validatedThrough, 'C081');
 assert.equal(Object.keys(status.values).length, 140);
 console.log('PASS C081-LIVE-01 exact 140-line V0.1 C081 projection accepted');
 
+const postC074Status = extractProgressiveGenesisStatusC081(
+  C074.replace('next_scientific_action=BIND_AUDIO_CONTEXT_SAMPLE_RATE_IN_DECODE_RUNTIME_IDENTITY', 'next_scientific_action=DEFINE_C075_SCIENTIFIC_STAGE') +
+`post_c074_runtime_identity_sample_rate_binding=VALIDATED
+post_c074_claim_class=MEASURED
+post_c074_audio_context_sample_rate_hz=44100
+post_c074_same_runtime_repeatability=true
+post_c074_sample_rate_tamper_changes_identity=true
+post_c074_invalid_sample_rates_fail_closed=true
+post_c074_historical_c074_verdict_preserved=true
+post_c074_cross_runtime_decode_equivalence_proven=false
+post_c074_real_experiment_executed=false
+post_c074_experimental_audio_generated=false
+post_c074_external_model_or_api_used=false
+c075_started=false
+`
+);
+assert.equal(postC074Status.validatedThrough, 'C074');
+console.log('PASS C081-LIVE-01B post-C074 121-line source remains accepted as C074 fallback');
+
 const input = buildProgressiveBridgeInputC081(status, { now: '2026-09-06T14:00:00Z', liveActive: true });
 assert.equal(input.max_age_seconds, 300);
 assert.equal(input.transport.snapshot_fallback_available, true);
@@ -150,5 +169,5 @@ assert.equal(cliEnvelope.payload.metrics.find((entry) => entry.id === 'c081-pred
 assert.equal(cliEnvelope.payload.metrics.find((entry) => entry.id === 'c082-started')?.value, false);
 assert.equal(cliEnvelope.mode, 'LIVE_READ_ONLY');
 console.log('PASS C081-LIVE-08 C081 runtime CLI smoke');
-console.log('GENESIS_PROGRESSIVE_LIVE_C081_HEALTH_TESTS=8/8');
+console.log('GENESIS_PROGRESSIVE_LIVE_C081_HEALTH_TESTS=9/9');
 console.log('C081_RUNTIME_CLI_SMOKE=PASS');
