@@ -364,13 +364,20 @@ class Persistence:
 
     def load_latest(self) -> QueenCore | None:
         with sqlite3.connect(self.db_path) as db:
-            rows = db.execute("SELECT state_json FROM checkpoints ORDER BY id DESC LIMIT 20").fetchall()
-        for (state_json,) in rows:
+            rows = db.execute(
+                "SELECT state_json, protected_h256, whole_h256 "
+                "FROM checkpoints ORDER BY id DESC LIMIT 20"
+            ).fetchall()
+        for state_json, stored_protected_h256, stored_whole_h256 in rows:
             try:
                 checkpoint = json.loads(state_json)
                 if checkpoint.get("schema") != "ANTMUX-X72-SERVER-CHECKPOINT-v1":
                     continue
                 queen = QueenCore.from_checkpoint(checkpoint)
+                if queen.protected_h256() != stored_protected_h256:
+                    continue
+                if queen.whole_h256() != stored_whole_h256:
+                    continue
                 return queen
             except Exception:
                 continue
