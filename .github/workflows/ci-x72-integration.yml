@@ -125,6 +125,11 @@ jobs:
           print("NO_LOCAL_TICK_MUTATION=PASS")
           PY
 
+      - name: Run canonical frontend authority contract
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/check_frontend_authority.py
+
   # ──────────────────────────────────────────────
   # JOB 3: Python self-tests + hash integrity
   # ──────────────────────────────────────────────
@@ -283,15 +288,30 @@ jobs:
           python3 -m pip install --disable-pip-version-check --quiet fastapi uvicorn pydantic websockets
           python3 -c 'import fastapi, pydantic, uvicorn, websockets; print("QUEEN_SERVER_DEPS=PASS")'
 
-      - name: Resolve Queen server source (from worker3 branch via HEAD)
+      - name: Resolve Queen server source and runtime contracts
         run: |
           set -euo pipefail
-          # The Queen server lives in deploy/x72-shared-queen/app/server.py.
-          # On this integration branch it comes from main (same HEAD).
-          # Verify it exists and compiles.
           test -f deploy/x72-shared-queen/app/server.py
           python3 -m py_compile deploy/x72-shared-queen/app/server.py
-          printf 'QUEEN_SERVER_COMPILE=PASS\n'
+          python3 deploy/x72-shared-queen/tests/check_runtime_metrics.py
+          printf 'QUEEN_SERVER_COMPILE_AND_RUNTIME_CONTRACT=PASS\n'
+
+      - name: Run integrated robustness suite
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/run_robustness_tests.py             --report "$RUNNER_TEMP/ANTMUX_X72_ROBUSTNESS_REPORT.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(
+              Path(os.environ["RUNNER_TEMP"], "ANTMUX_X72_ROBUSTNESS_REPORT.json").read_text(encoding="utf-8")
+          )
+          assert report["verdict"] == "PASS"
+          assert report["tests_total"] == 30
+          assert report["tests_failed"] == 0
+          print("ROBUSTNESS_SUITE_30_OF_30=PASS")
+          PY
 
       - name: Start local Queen server
         run: |
@@ -321,6 +341,23 @@ jobs:
           assert d["entity_id"] == "QUEEN-X72-0072"
           print("LOCAL_HEALTH=PASS")
           '
+
+      - name: Run shared-Queen baseline suite
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/run_server_tests.py             --base http://127.0.0.1:8720             --report "$RUNNER_TEMP/ANTMUX_X72_SHARED_QUEEN_REPORT.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(
+              Path(os.environ["RUNNER_TEMP"], "ANTMUX_X72_SHARED_QUEEN_REPORT.json").read_text(encoding="utf-8")
+          )
+          assert report["verdict"] == "PASS"
+          assert report["tests_total"] == 40
+          assert report["tests_failed"] == 0
+          print("SHARED_QUEEN_BASELINE_40_OF_40=PASS")
+          PY
 
       - name: Smoke test — telemetry endpoint
         run: |
@@ -415,7 +452,7 @@ jobs:
           assert state["integrity_match"] is True
 
           # inject fault on S4
-          code, fault = req("POST", "/api/fault", {"synapse_id": "S4"}, ip="10.72.0.4")
+          code, fault = req("POST", "/api/fault", {"synapse_id": "S4"}, ip="10.99.0.4")
           assert code == 200, f"fault returned {code}"
           assert fault["state"]["protected_h256"] != ref, "fault did not change hash"
 
@@ -423,7 +460,7 @@ jobs:
           time.sleep(3.5)
 
           # repair
-          code, repair = req("POST", "/api/repair", ip="10.72.1.4")
+          code, repair = req("POST", "/api/repair", ip="10.99.1.4")
           assert code == 200, f"repair returned {code}"
           assert repair["report"]["verdict"] == "PASS", f"repair verdict: {repair['report']}"
           assert repair["state"]["protected_h256"] == ref, "repair did not restore reference hash"
