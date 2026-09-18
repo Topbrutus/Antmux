@@ -379,6 +379,12 @@ jobs:
                   raise AssertionError(f"{method} {path} returned {status}: {payload}")
               return json.loads(payload)
 
+          def synapse_status(state, synapse_id):
+              for synapse in state.get("synapses", []):
+                  if synapse.get("id") == synapse_id:
+                      return synapse.get("status")
+              raise AssertionError(f"{synapse_id} not found")
+
           async def recv_until(ws, predicate, label):
               for _ in range(80):
                   message = json.loads(await asyncio.wait_for(ws.recv(), timeout=2))
@@ -394,14 +400,16 @@ jobs:
                   await recv_until(first, lambda msg: "tick_count" in msg, "first initial state")
                   await recv_until(second, lambda msg: "tick_count" in msg, "second initial state")
                   fault = request_json("/api/fault", method="POST", body={"synapse_id": "S4"})
-                  if fault["state"]["synapses"]["S4"]["status"] != "MISMATCH":
+                  if synapse_status(fault["state"], "S4") != "MISMATCH":
                       raise AssertionError("S4 did not enter MISMATCH")
                   def saw_s4_fault(msg):
-                      state = msg.get("state") if isinstance(msg, dict) else None
-                      return isinstance(state, dict) and state.get("synapses", {}).get("S4", {}).get("status") == "MISMATCH"
+                      state = msg.get("state", msg) if isinstance(msg, dict) else None
+                      return isinstance(state, dict) and synapse_status(state, "S4") == "MISMATCH"
                   first_fault = await recv_until(first, saw_s4_fault, "first S4 fault")
                   second_fault = await recv_until(second, saw_s4_fault, "second S4 fault")
-                  if first_fault["state"]["protected_h256"] != second_fault["state"]["protected_h256"]:
+                  first_state = first_fault.get("state", first_fault)
+                  second_state = second_fault.get("state", second_fault)
+                  if first_state["protected_h256"] != second_state["protected_h256"]:
                       raise AssertionError("shared S4 fault hash differs between clients")
                   repaired = request_json("/api/repair", method="POST", body={})
                   if repaired.get("verdict") != "PASS" or not repaired["state"].get("integrity_match"):
