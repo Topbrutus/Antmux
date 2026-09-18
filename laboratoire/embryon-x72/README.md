@@ -1,7 +1,8 @@
-# Embryon X72 — Horloge de la Vie — Core V0.2
+# Embryon X72 — Horloge de la Vie — Shared Queen V0.2
 
-Cette section publique d’Antmux héberge le **port Web fidèle** de l’application Python
-`ANTMUX_X72_LIFE_V02.py`.
+Cette section publique d’Antmux affiche l’état d’une **Reine X72 partagée et autoritaire côté serveur**.
+Le navigateur est un client de visualisation : il reçoit `VisualState` par WebSocket et n’exécute aucun tick local.
+La source Python historique `ANTMUX_X72_LIFE_V02.py` reste publiée comme référence de la logique V0.2.
 
 ## Source de référence
 
@@ -28,7 +29,7 @@ QueenCore
 → Visual
 ```
 
-Le port Web reprend les paramètres et la logique visibles dans la V0.2 :
+Le serveur partagé reprend les paramètres et la logique visibles dans la V0.2 :
 
 - graine 72 ;
 - 7 synapses internes ;
@@ -46,12 +47,28 @@ Le port Web reprend les paramètres et la logique visibles dans la V0.2 :
 
 ## Important
 
-Le navigateur exécute un **port JavaScript** des règles du Core V0.2 afin de rendre l’interface
-accessible directement sur Antmux.
+Le runtime public actuel est **server-authoritative** : `deploy/x72-shared-queen/app/server.py`
+maintient l’entité `QUEEN-X72-0072`, la persistance et les mutations contrôlées.
 
-Le fichier Python original reste la source de référence publiée pour audit.
+Le frontend `deploy/x72-shared-queen/frontend/app.js` ne calcule pas l’état cognitif : il affiche
+le dernier `VisualState` reçu et gèle l’affichage si le WebSocket est déconnecté.
 
-Le port Web ne prétend pas être le processus Python Tkinter lui-même.
+Le fichier Python original reste une référence publiée pour audit; il n’est pas présenté comme
+le processus live servi au navigateur.
+
+## Observabilité publique
+
+Le serveur expose des interfaces en lecture pour distinguer l’état fonctionnel de l’état opérationnel :
+
+- `GET /api/health` : disponibilité minimale et identité de la Reine ;
+- `GET /api/state` : `VisualState` fonctionnel partagé ;
+- `GET /api/telemetry` : télémétrie opérationnelle `ANTMUX-X72-OBSERVABILITY-v1` ;
+- `GET /api/events` : fenêtre récente du bus d’événements ;
+- `GET /api/report` : dernier rapport de réparation ;
+- `WS /ws` : flux partagé du `VisualState` autoritaire.
+
+La télémétrie d’observabilité décrit le fonctionnement du service; elle ne constitue pas une preuve
+scientifique indépendante de la sémantique cognitive des métriques affichées.
 
 ## Rapport de test fourni
 

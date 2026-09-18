@@ -392,6 +392,9 @@ state_lock = asyncio.Lock()
 last_mutation_by_ip: dict[str, float] = {}
 tick_task: asyncio.Task[None] | None = None
 checkpoint_task: asyncio.Task[None] | None = None
+server_started_monotonic = time.monotonic()
+active_websocket_clients = 0
+websocket_messages_sent = 0
 
 
 def client_ip(request: Request) -> str:
@@ -407,6 +410,27 @@ def enforce_rate_limit(ip: str) -> None:
     if now - last < 3:
         raise HTTPException(status_code=429, detail="rate limit: one public mutation per IP per 3 seconds")
     last_mutation_by_ip[ip] = now
+
+
+def observability_snapshot() -> dict[str, Any]:
+    state = queen.visual_state()
+    return {
+        "schema": "ANTMUX-X72-OBSERVABILITY-v1",
+        "scope": "operational_read_only",
+        "authority": "QUEEN_SERVER_V0_2",
+        "entity_id": state["entity_id"],
+        "uptime_seconds": round(max(0.0, time.monotonic() - server_started_monotonic), 3),
+        "tick_count": state["tick_count"],
+        "queen_mode": state["queen_mode"],
+        "generation": state["generation"],
+        "active_synapses": state["active_synapses"],
+        "integrity_match": state["integrity_match"],
+        "repair_active": queen.repair_active,
+        "event_count": state["event_count"],
+        "websocket_clients": active_websocket_clients,
+        "websocket_messages_sent": websocket_messages_sent,
+        "cadence_seconds": {"tick": 0.05, "checkpoint": 2.0, "websocket": 0.25},
+    }
 
 
 async def tick_loop() -> None:
@@ -456,6 +480,12 @@ async def health() -> dict[str, Any]:
 async def state() -> dict[str, Any]:
     async with state_lock:
         return queen.visual_state()
+
+
+@app.get("/api/telemetry")
+async def telemetry() -> dict[str, Any]:
+    async with state_lock:
+        return observability_snapshot()
 
 
 @app.get("/api/events")
@@ -546,12 +576,17 @@ async def repair(request: Request) -> dict[str, Any]:
 
 @app.websocket("/ws")
 async def websocket_state(websocket: WebSocket) -> None:
+    global active_websocket_clients, websocket_messages_sent
     await websocket.accept()
+    active_websocket_clients += 1
     try:
         while True:
             async with state_lock:
                 payload = queen.visual_state()
             await websocket.send_json(payload)
+            websocket_messages_sent += 1
             await asyncio.sleep(0.25)
     except WebSocketDisconnect:
         return
+    finally:
+        active_websocket_clients = max(0, active_websocket_clients - 1)
