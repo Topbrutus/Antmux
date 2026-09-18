@@ -1,0 +1,138 @@
+name: Audit Embryon X72 VPS Read Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type AUDIT-EMBRYON-X72-READONLY to run the read-only VPS audit'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: embryon-x72-vps-readonly-audit
+  cancel-in-progress: false
+
+jobs:
+  audit-embryon-x72-vps:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'AUDIT-EMBRYON-X72-READONLY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          if [ "$actual_public_key" != "$expected_public_key" ]; then
+            echo 'ANTMUX_VPS_SSH_PRIVATE_KEY does not match the pinned deployment identity.' >&2
+            exit 1
+          fi
+
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run read-only VPS audit
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+
+          redact='s/(password|passwd|secret|token|private[_-]?key|authorization)([^[:space:]=:;]*)([[:space:]=:;]+)[^[:space:];]+/\1\2\3[REDACTED]/Ig'
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' 2>&1 <<'REMOTE' | sed -E "$redact" | tee audit.log
+          set -uo pipefail
+
+          section() {
+            printf '\n===== %s =====\n' "$1"
+          }
+
+          run_readonly() {
+            label="$1"
+            shift
+            section "$label"
+            "$@" 2>&1
+            status="$?"
+            if [ "$status" -ne 0 ]; then
+              printf 'COMMAND_FAILED exit=%s\n' "$status"
+            fi
+            return 0
+          }
+
+          run_readonly 'hostname' hostname
+          run_readonly 'whoami' whoami
+          run_readonly 'pwd' pwd
+          run_readonly 'cat /etc/os-release' cat /etc/os-release
+          run_readonly 'python3 --version' python3 --version
+          run_readonly 'nginx -v' nginx -v
+          run_readonly 'df -h' df -h
+          run_readonly 'ss -ltnp' ss -ltnp
+          run_readonly 'systemctl --type=service --state=running' systemctl --type=service --state=running
+
+          TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/embryon-x72'
+          section "inspect $TARGET_ROOT without reading agent.md"
+          if [ -d "$TARGET_ROOT" ]; then
+            printf 'TARGET_ROOT_EXISTS=true\n'
+            find "$TARGET_ROOT" -mindepth 1 -maxdepth 4 \( -name agent.md -o -path '*/agent.md' \) -prune -o -printf '%M %u %g %s %TY-%Tm-%TdT%TH:%TM:%TS %p\n' | sort
+          else
+            printf 'TARGET_ROOT_EXISTS=false\n'
+          fi
+
+          section 'active nginx config lines concerning antmux.com'
+          nginx_dump="$(mktemp)"
+          if sudo -n nginx -T >"$nginx_dump" 2>&1; then
+            printf 'NGINX_T_SOURCE=sudo -n nginx -T\n'
+          elif nginx -T >"$nginx_dump" 2>&1; then
+            printf 'NGINX_T_SOURCE=nginx -T\n'
+          else
+            printf 'NGINX_T_SOURCE=FAILED\n'
+            cat "$nginx_dump"
+            rm -f "$nginx_dump"
+            exit 0
+          fi
+
+          awk '
+            BEGIN { IGNORECASE = 1 }
+            /configuration file/ ||
+            /server_name[[:space:]].*antmux\.com/ ||
+            /listen[[:space:]]/ ||
+            /root[[:space:]]/ ||
+            /location[[:space:]]/ ||
+            /proxy_pass[[:space:]]/ ||
+            /proxy_http_version/ ||
+            /proxy_set_header/ ||
+            /ssl_certificate/ ||
+            /include[[:space:]]/ {
+              print
+            }
+          ' "$nginx_dump"
+          rm -f "$nginx_dump"
+          REMOTE
+
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: embryon-x72-vps-readonly-audit
+          path: audit.log
+          if-no-files-found: error
