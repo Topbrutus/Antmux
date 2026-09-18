@@ -63,6 +63,8 @@ jobs:
           test -f deploy/x72-shared-queen/tests/test_trend_analyzer.py
           test -f deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
           test -f deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
+          test -f deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
+          test -f deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -81,6 +83,8 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/tests/test_trend_analyzer.py
           python3 -m py_compile deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
           python3 -m py_compile deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py
           printf 'PYTHON_COMPILE=PASS\n'
 
   # ──────────────────────────────────────────────
@@ -419,6 +423,23 @@ jobs:
             --module trend_analyzer \
             --class-name X72TrendAnalyzer
           printf 'TREND_ANALYZER_ADVERSARIAL_CANDIDATE=PASS\n'
+
+      - name: Smoke test — DecisionCandidate adversarial hardening
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
+          if PYTHONPATH=deploy/x72-shared-queen python3 -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('decision_candidate') else 1)"; then
+            python3 deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py \
+              --require-candidate \
+              --module decision_candidate \
+              --class-name X72DecisionCandidate
+            printf 'DECISION_CANDIDATE_ADVERSARIAL_REAL=PASS\n'
+          else
+            python3 deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py \
+              --module decision_candidate \
+              --class-name X72DecisionCandidate
+            printf 'DECISION_CANDIDATE_ADVERSARIAL_CONTRACT_ONLY=PASS\n'
+          fi
 
       - name: Smoke test — state endpoint
         run: |
