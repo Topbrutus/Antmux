@@ -53,6 +53,11 @@ async def main() -> None:
     code, health = request_json("GET", f"{base}/api/health")
     assert_test(results, "A health JSON", code == 200 and health.get("ok") is True, str(health))
 
+    code, telemetry0 = request_json("GET", f"{base}/api/telemetry")
+    assert_test(results, "A1 telemetry schema", code == 200 and telemetry0.get("schema") == "ANTMUX-X72-OBSERVABILITY-v1", str(telemetry0))
+    assert_test(results, "A2 telemetry authority", telemetry0.get("authority") == "QUEEN_SERVER_V0_2" and telemetry0.get("scope") == "operational_read_only", str(telemetry0))
+    assert_test(results, "A3 telemetry starts without WS clients", telemetry0.get("websocket_clients") == 0, str(telemetry0))
+
     code, state1 = request_json("GET", f"{base}/api/state")
     time.sleep(0.3)
     _, state2 = request_json("GET", f"{base}/api/state")
@@ -64,6 +69,8 @@ async def main() -> None:
     assert_test(results, "C plusieurs WebSockets", ws_a["tick_count"] >= 0 and ws_b["tick_count"] >= 0, "no ws state")
     assert_test(results, "D same Queen entity_id", ws_a["entity_id"] == ws_b["entity_id"] == entity_id, "entity mismatch")
     assert_test(results, "E same reference H256", ws_a["reference_h256"] == ws_b["reference_h256"] == reference_h256, "reference mismatch")
+    _, telemetry_ws = request_json("GET", f"{base}/api/telemetry")
+    assert_test(results, "E1 telemetry counts WS messages", telemetry_ws.get("websocket_messages_sent", 0) >= 2, str(telemetry_ws))
 
     for index in range(1, 8):
         synapse = f"S{index}"
