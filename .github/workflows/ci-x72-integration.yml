@@ -55,6 +55,8 @@ jobs:
           test -f laboratoire/embryon-x72/README.md
           test -f laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
           test -f laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
+          test -f deploy/x72-shared-queen/observation_adapter/adapter.py
+          test -f deploy/x72-shared-queen/tests/test_observation_adapter.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -377,6 +379,12 @@ jobs:
           assert d["integrity_match"] is True
           print("TELEMETRY_CONTRACT=PASS")
           '
+
+      - name: Smoke test — observation adapter acceptance
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_observation_adapter.py
+          printf 'OBSERVATION_ADAPTER_ACCEPTANCE=PASS\n'
 
       - name: Smoke test — state endpoint
         run: |
