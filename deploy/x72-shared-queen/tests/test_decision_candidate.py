@@ -118,12 +118,26 @@ def run() -> dict[str, Any]:
         envelope(21, 2, body=payload(21, event_count=21)),
     )
     stable_trend, stable_candidate = generate(stable)
+    unknown_after_stable = make_history(
+        envelope(20, 1, body=payload(20, event_count=20)),
+        envelope(21, 2, body=payload(21, event_count=21)),
+        envelope(
+            None,
+            3,
+            status="UNKNOWN",
+            condition="HTTP_TIMEOUT",
+            body=None,
+        ),
+    )
+    _, unknown_candidate = generate(unknown_after_stable)
     checks.append(
         check(
             "stable no change",
             stable_candidate.candidate_type == "NO_CHANGE"
             and stable_candidate.integrity_state == "CLOSED"
-            and stable_candidate.condition == "STABLE_CLOSED_WINDOW",
+            and stable_candidate.condition == "STABLE_CLOSED_WINDOW"
+            and unknown_candidate.candidate_type == "OBSERVE_MORE"
+            and unknown_candidate.condition == "UNKNOWN_OBSERVATION_PRESENT",
         )
     )
     fault_open = make_history(
@@ -333,12 +347,33 @@ def run() -> dict[str, Any]:
         ),
     )
     _, runtime_candidate = generate(runtime_change)
+    runtime_excursion = make_history(
+        envelope(
+            120,
+            25,
+            body=payload(120, r_exec=100.0, f_rt=0.5, active_synapses=7),
+        ),
+        envelope(
+            121,
+            26,
+            body=payload(121, r_exec=120.0, f_rt=0.7, active_synapses=6),
+        ),
+        envelope(
+            122,
+            27,
+            body=payload(122, r_exec=100.0, f_rt=0.5, active_synapses=7),
+        ),
+    )
+    excursion_trend, excursion_candidate = generate(runtime_excursion)
     checks.append(
         check(
             "runtime change candidate",
             runtime_candidate.candidate_type == "INVESTIGATE_RUNTIME_CHANGE"
             and runtime_candidate.evidence["r_exec_delta"] == 1.5
-            and runtime_candidate.evidence["f_rt_delta"] == 0.05,
+            and runtime_candidate.evidence["f_rt_delta"] == 0.05
+            and excursion_trend.r_exec_delta == 0.0
+            and excursion_candidate.candidate_type
+            == "INVESTIGATE_RUNTIME_CHANGE",
         )
     )
 
@@ -369,7 +404,20 @@ def run() -> dict[str, Any]:
         bad_trend_hash_rejected = True
     else:
         bad_trend_hash_rejected = False
-    checks.append(check("bad source trend h256 rejected", bad_trend_hash_rejected))
+
+    type_coerced_trend = replace(stable_trend, h256_closed=1)
+    try:
+        X72DecisionCandidate().generate(stable, type_coerced_trend)
+    except ValueError:
+        type_coerced_rejected = True
+    else:
+        type_coerced_rejected = False
+    checks.append(
+        check(
+            "bad source trend h256 rejected",
+            bad_trend_hash_rejected and type_coerced_rejected,
+        )
+    )
 
     bad_history_hash = replace(stable_trend, source_history_h256="0" * 64)
     try:

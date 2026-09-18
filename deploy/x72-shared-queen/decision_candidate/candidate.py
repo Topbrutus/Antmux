@@ -40,6 +40,20 @@ def _canonical_json(value: Any) -> bytes:
     ).encode("utf-8")
 
 
+def _strict_equal(left: Any, right: Any) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        if left.keys() != right.keys():
+            return False
+        return all(_strict_equal(left[key], right[key]) for key in left)
+    if isinstance(left, (list, tuple)):
+        return len(left) == len(right) and all(
+            _strict_equal(a, b) for a, b in zip(left, right)
+        )
+    return left == right
+
+
 @dataclass(frozen=True)
 class X72CandidateFrame:
     schema: str
@@ -99,7 +113,7 @@ class X72DecisionCandidate:
             raise ValueError("trend source_history_h256 does not match History")
         if trend.entity_id != history.entity_id:
             raise ValueError("trend entity_id does not match History")
-        if trend.to_dict() != expected_trend.to_dict():
+        if not _strict_equal(trend.to_dict(), expected_trend.to_dict()):
             raise ValueError("trend frame does not match deterministic History analysis")
 
         records = tuple(history.records)
@@ -193,7 +207,18 @@ class X72DecisionCandidate:
             trend.f_rt_delta,
             trend.active_synapses_delta,
         )
-        return any(value is not None and value != 0 for value in deltas)
+        ranges = (
+            (trend.r_exec_min, trend.r_exec_max),
+            (trend.f_rt_min, trend.f_rt_max),
+            (trend.active_synapses_min, trend.active_synapses_max),
+        )
+        return (
+            any(value is not None and value != 0 for value in deltas)
+            or any(
+                low is not None and high is not None and low != high
+                for low, high in ranges
+            )
+        )
 
     def _classify(
         self,
@@ -231,6 +256,13 @@ class X72DecisionCandidate:
                     "reconnect_count": trend.reconnect_count,
                     "stale_count": trend.stale_count,
                 },
+            )
+
+        if trend.unknown_count > 0:
+            return (
+                "OBSERVE_MORE",
+                "UNKNOWN_OBSERVATION_PRESENT",
+                {"unknown_count": trend.unknown_count},
             )
 
         repair_active = latest_mode in {"AUTO_REPAIR", "REPAIR"}

@@ -59,7 +59,7 @@ Before classification, the module:
 3. recomputes the deterministic TrendFrame from History;
 4. verifies `source_history_h256`;
 5. verifies entity identity;
-6. requires the supplied TrendFrame to equal the recomputed TrendFrame.
+6. requires the supplied TrendFrame to equal the recomputed TrendFrame with type-strict structural comparison.
 
 A stale, forged, or unrelated TrendFrame is rejected.
 
@@ -69,14 +69,15 @@ A stale, forged, or unrelated TrendFrame is rejected.
 2. fewer than two records -> OBSERVE_MORE
 3. schema mismatch -> INVESTIGATE_SCHEMA_MISMATCH
 4. reconnect/stale evidence -> INVESTIGATE_DISCONNECT
-5. active repair interval -> INVESTIGATE_REPAIR
-6. open fault interval -> INVESTIGATE_FAULT
-7. open H256 without fault interval -> VERIFY_INTEGRITY
-8. observed repair interval -> INVESTIGATE_REPAIR
-9. reclosed fault -> VERIFY_INTEGRITY
-10. runtime metric variation -> INVESTIGATE_RUNTIME_CHANGE
-11. stable closed window -> NO_CHANGE
-12. otherwise -> OBSERVE_MORE
+5. unresolved UNKNOWN observation -> OBSERVE_MORE
+6. active repair interval -> INVESTIGATE_REPAIR
+7. open fault interval -> INVESTIGATE_FAULT
+8. open H256 without fault interval -> VERIFY_INTEGRITY
+9. observed repair interval -> INVESTIGATE_REPAIR
+10. reclosed fault -> VERIFY_INTEGRITY
+11. runtime metric variation or in-window excursion -> INVESTIGATE_RUNTIME_CHANGE
+12. stable closed window -> NO_CHANGE
+13. otherwise -> OBSERVE_MORE
 
 The ordering is part of the v0.1 contract.
 ## Candidate types
