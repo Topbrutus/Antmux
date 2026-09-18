@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#050a12" />
+  <title>Embryon X72 — Horloge de la Vie</title>
+  <meta name="description" content="Visualisation interactive du cerveau expérimental MYRMIX : temporalité, synapses, événements, panne, réparation et reconstruction." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="life-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ANTMUX · EMBRYON X72</p>
+        <h1>Horloge de la Vie — Reine</h1>
+        <p class="lede">Visualisation observable du cerveau expérimental MYRMIX-X72-D13-G7.</p>
+      </div>
+      <div class="mode-stack" aria-live="polite">
+        <span id="sourceBadge" class="badge demo">DEMO TELEMETRY — NOT CORE</span>
+        <span id="connectionBadge" class="badge dim">LIVE CORE : NON CONNECTÉ</span>
+      </div>
+    </header>
+
+    <nav class="nav-row" aria-label="Navigation">
+      <a href="../">← LABORATOIRE</a>
+      <a href="../../">ACCUEIL ANTMUX</a>
+      <a href="https://github.com/Topbrutus/antmux-x72" rel="noreferrer">ANTMUX-X72</a>
+    </nav>
+
+    <section class="dashboard" aria-label="Horloge de la Vie">
+      <aside class="panel metrics-panel">
+        <h2>Temporal Core</h2>
+        <dl class="metrics">
+          <div><dt>dt_sim</dt><dd id="mDt">0.0167 s</dd></div>
+          <div><dt>R_exec</dt><dd id="mExec">1.00×</dd></div>
+          <div><dt>F_rt</dt><dd id="mFps">60 Hz</dd></div>
+          <div><dt>Tick</dt><dd id="mTick">0</dd></div>
+          <div><dt>Génération</dt><dd id="mGen">0</dd></div>
+          <div><dt>Synapses</dt><dd id="mActive">7 / 7</dd></div>
+        </dl>
+
+        <h2>État mesuré</h2>
+        <div class="gauges">
+          <label>Activité <meter id="gActivity" min="0" max="1" value=".35"></meter><span id="vActivity">0.35</span></label>
+          <label>Mémoire <meter id="gMemory" min="0" max="1" value=".46"></meter><span id="vMemory">0.46</span></label>
+          <label>Cristallisation <meter id="gCrystal" min="0" max="1" value=".28"></meter><span id="vCrystal">0.28</span></label>
+          <label>Réparation <meter id="gRepair" min="0" max="1" value="0"></meter><span id="vRepair">0.00</span></label>
+          <label>Erreur <meter id="gError" min="0" max="1" value="0"></meter><span id="vError">0.00</span></label>
+        </div>
+      </aside>
+
+      <section class="panel clock-panel" aria-label="Cadran dynamique">
+        <div class="clock-head">
+          <div>
+            <span class="micro-label">QUEEN MODE</span>
+            <strong id="queenMode">STABLE</strong>
+          </div>
+          <div class="micro-right">
+            <span class="micro-label">ÉVÉNEMENTS</span>
+            <strong id="eventCount">0</strong>
+          </div>
+        </div>
+
+        <svg id="lifeClock" viewBox="0 0 640 640" role="img" aria-labelledby="clockTitle clockDesc">
+          <title id="clockTitle">Horloge de la Vie de la Reine</title>
+          <desc id="clockDesc">Sept synapses disposées autour du noyau central. Les liens, impulsions et anneaux évoluent selon la télémétrie affichée.</desc>
+
+          <defs>
+            <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <circle class="ring ring-outer" cx="320" cy="320" r="270"/>
+          <circle class="ring ring-mid" cx="320" cy="320" r="210"/>
+          <circle class="ring ring-inner" cx="320" cy="320" r="145"/>
+
+          <g id="phasePetals" class="phase-petals"></g>
+          <g id="relationLayer" class="relations"></g>
+
+          <g id="core" class="core-node" filter="url(#softGlow)">
+            <circle cx="320" cy="320" r="80"/>
+            <text x="320" y="310" text-anchor="middle" class="core-symbol">∞</text>
+            <text x="320" y="344" text-anchor="middle" class="core-label">REINE</text>
+          </g>
+
+          <g id="synapseLayer"></g>
+          <g id="pulseLayer"></g>
+        </svg>
+
+        <div class="clock-legend">
+          <span><i class="dot syn"></i>synapse active</span>
+          <span><i class="dot fault"></i>panne</span>
+          <span><i class="dot repair"></i>réparation</span>
+          <span><i class="line"></i>relation</span>
+        </div>
+      </section>
+
+      <aside class="panel event-panel">
+        <h2>Event Bus</h2>
+        <ol id="eventLog" class="event-log" aria-live="polite"></ol>
+
+        <h2>Empreinte</h2>
+        <div class="hash-box">
+          <span class="micro-label">SHA-256 de l’état de visualisation</span>
+          <code id="hashValue">calcul…</code>
+          <span class="micro-label">Base36_50</span>
+          <code id="b36Value">calcul…</code>
+        </div>
+      </aside>
+    </section>
+
+    <section class="controls panel" aria-label="Contrôles de démonstration">
+      <div>
+        <p class="micro-label">CONTRÔLE EXPÉRIMENTAL</p>
+        <p id="controlHint">La simulation locale reste clairement séparée du Core. Un endpoint public read-only pourra remplacer automatiquement la démo.</p>
+      </div>
+      <div class="button-row">
+        <button id="faultBtn" type="button">Injecter panne S3</button>
+        <button id="repairBtn" type="button" class="secondary">Lancer réparation</button>
+        <button id="pauseBtn" type="button" class="secondary">Pause</button>
+        <button id="resetBtn" type="button" class="ghost">Réinitialiser</button>
+      </div>
+    </section>
+
+    <section class="contract-grid">
+      <article class="panel">
+        <p class="micro-label">CONTRAT VISUEL</p>
+        <h2>CORE → TELEMETRY → VisualState → VISUAL</h2>
+        <p>Aucune animation ne doit inventer une activité absente. Le même état doit produire la même géométrie calculée.</p>
+      </article>
+      <article class="panel">
+        <p class="micro-label">ROYAL-GERMINATION-000</p>
+        <h2>Naissance → Panne → Réparation → Reconstruction → Preuve</h2>
+        <p>L’Horloge de la Vie devient l’instrument de lecture. Les tests, les événements et les hashes restent les instruments de validation.</p>
+      </article>
+    </section>
+
+    <footer>
+      <p>EMBRYON X72 · visualisation expérimentale · une animation n’est pas une preuve de conscience ni une nouvelle loi physique.</p>
+    </footer>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
