@@ -49,7 +49,12 @@ jobs:
           cp -a deploy/x72-shared-queen/. _x72_shared_queen_deploy/
           (
             cd _x72_shared_queen_deploy
-            find . -type f -not -name agent.md -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+            find . -type f \
+              -not -name agent.md \
+              -not -name SHA256SUMS \
+              -not -name '*.pyc' \
+              -not -path '*/__pycache__/*' \
+              -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
           )
 
       - name: Configure pinned SSH identity
@@ -401,4 +406,3 @@ jobs:
           name: x72-shared-queen-deploy-log
           path: deploy-x72-shared-queen.log
           if-no-files-found: ignore
-
