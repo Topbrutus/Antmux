@@ -165,7 +165,17 @@ jobs:
           install -m 0644 "$REMOTE_STAGE/app/__init__.py" "$APP_ROOT/app/__init__.py"
           install -m 0644 "$REMOTE_STAGE/app/server.py" "$APP_ROOT/app/server.py"
           install -m 0644 "$REMOTE_STAGE/tests/run_server_tests.py" "$APP_ROOT/run_server_tests.py"
-          python3 -m venv "$APP_ROOT/venv"
+          if ! python3 -m venv "$APP_ROOT/venv"; then
+            printf 'PYTHON_VENV_MISSING=ensurepip/python3-venv\n'
+            if ! sudo -n true >/dev/null 2>&1; then
+              printf 'BLOCKER=sudo -n unavailable to install python3.12-venv\n'
+              exit 1
+            fi
+            rm -rf "$APP_ROOT/venv"
+            sudo -n apt-get update
+            sudo -n apt-get install -y python3.12-venv
+            python3 -m venv "$APP_ROOT/venv"
+          fi
           "$APP_ROOT/venv/bin/python" -m pip install --upgrade pip
           "$APP_ROOT/venv/bin/python" -m pip install fastapi 'uvicorn[standard]' websockets
 
