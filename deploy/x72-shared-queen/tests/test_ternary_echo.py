@@ -602,10 +602,56 @@ def run() -> dict[str, Any]:
     try:
         frame_a.evidence["tamper"] = True  # type: ignore[index]
     except TypeError:
-        evidence_immutable = True
+        outer_evidence_immutable = True
     else:
-        evidence_immutable = False
-    checks.append(check("echo evidence immutable", evidence_immutable))
+        outer_evidence_immutable = False
+
+    nested_matrix = X72TernaryEchoMatrix(capacity=4)
+    register(
+        nested_matrix,
+        history,
+        trend,
+        candidate,
+        "NESTED-EVIDENCE",
+        second=28,
+    )
+    nested_frame = nested_matrix.observe_echo(
+        correlation_id="NESTED-EVIDENCE",
+        observed_at_utc="2026-09-18T22:09:00.000Z",
+        explicit_confirmation=True,
+        echo_origin_id="ROCK_A",
+        evidence={"proof": ["a"], "nested": {"items": [1, 2]}},
+    )
+    nested_hash_before = nested_frame.echo_h256
+    try:
+        nested_frame.evidence["observed_evidence"]["proof"].append("tamper")  # type: ignore[union-attr]
+    except (AttributeError, TypeError):
+        nested_list_immutable = True
+    else:
+        nested_list_immutable = False
+    try:
+        nested_frame.evidence["observed_evidence"]["nested"]["items"] += (3,)  # type: ignore[index,operator]
+    except (AttributeError, TypeError):
+        nested_mapping_immutable = True
+    else:
+        nested_mapping_immutable = False
+
+    defensive_copy = nested_frame.to_dict()
+    defensive_copy["evidence"]["observed_evidence"]["proof"].append("copy-only")
+    copy_isolated = (
+        "copy-only"
+        not in nested_frame.to_dict()["evidence"]["observed_evidence"]["proof"]
+        and nested_frame.echo_h256 == nested_hash_before
+    )
+    checks.append(
+        check(
+            "echo evidence immutable",
+            outer_evidence_immutable
+            and nested_list_immutable
+            and nested_mapping_immutable
+            and copy_isolated,
+        )
+    )
 
     checks.append(
         check(

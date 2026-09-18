@@ -224,9 +224,9 @@ After replacing the normal hot path with canonical hash/provenance validation:
 
 A second 100-sample microprofile measured:
 
-- hash/provenance validation: 631.35 us
-- register_intent: 642.417 us
-- observe_echo: 43.782 us
+- hash/provenance validation: 620.159 us
+- register_intent: 638.813 us
+- observe_echo: 51.157 us
 
 The remaining register cost is therefore dominated by validating the History
 report and canonical source hash chain rather than recomputing Trend/Decision.
@@ -246,41 +246,41 @@ Method:
 
 At 200 events:
 
-- A baseline CPU: 11,328.125 us/event
-- A baseline wall: 11,376.5585 us/event
-- B every-event CPU: 16,406.25 us/event
-- B every-event wall: 16,737.16 us/event
-- B CPU overhead: +44.827586206896555 %
-- B wall overhead: +47.119711114745286 %
-- C sparse CPU: 12,031.25 us/event
-- C sparse wall: 12,338.8985 us/event
-- C CPU overhead: +6.206896551724128 %
-- C wall overhead: +8.458972895889394 %
-- median B echo register: 4,195.812 us with tracemalloc instrumentation
-- median B echo observe: 212.1285 us with tracemalloc instrumentation
-- median B hash validation micro-sample: 626.505 us
+- A baseline CPU: 10,937.5 us/event
+- A baseline wall: 11,045.872 us/event
+- B every-event CPU: 15,937.5 us/event
+- B every-event wall: 16,174.2015 us/event
+- B CPU overhead: +45.71428571428571 %
+- B wall overhead: +46.427565881625284 %
+- C sparse CPU: 12,109.375 us/event
+- C sparse wall: 12,289.3035 us/event
+- C CPU overhead: +10.71428571428572 %
+- C wall overhead: +11.25697907779486 %
+- median B echo register: 4,076.37 us with tracemalloc instrumentation
+- median B echo observe: 223.1525 us with tracemalloc instrumentation
+- median B hash validation micro-sample: 653.95 us
 - baseline median peak-memory delta: 72,184 bytes
-- B median peak-memory delta: 128,438 bytes
-- C median peak-memory delta: 105,944 bytes
+- B median peak-memory delta: 130,866 bytes
+- C median peak-memory delta: 106,632 bytes
 
 At 1000 events:
 
-- A baseline CPU: 11,921.875 us/event
-- A baseline wall: 11,989.4187 us/event
-- B every-event CPU: 16,546.875 us/event
-- B every-event wall: 16,666.0217 us/event
-- B CPU overhead: +38.79423328964613 %
-- B wall overhead: +39.00608625837714 %
-- C sparse CPU: 12,046.875 us/event
-- C sparse wall: 12,152.0301 us/event
-- C CPU overhead: +1.0484927916120546 %
-- C wall overhead: +1.3562909434466697 %
-- median B echo register: 4,185.8777 us with tracemalloc instrumentation
-- median B echo observe: 195.107 us with tracemalloc instrumentation
-- median B hash validation micro-sample: 617.527 us
-- baseline median peak-memory delta: 74,036 bytes
-- B median peak-memory delta: 129,262 bytes
-- C median peak-memory delta: 131,498 bytes
+- A baseline CPU: 11,812.5 us/event
+- A baseline wall: 11,877.0496 us/event
+- B every-event CPU: 15,859.375 us/event
+- B every-event wall: 15,904.49 us/event
+- B CPU overhead: +34.25925925925925 %
+- B wall overhead: +33.909434881875036 %
+- C sparse CPU: 12,000.0 us/event
+- C sparse wall: 12,023.6171 us/event
+- C CPU overhead: +1.5873015873015817 %
+- C wall overhead: +1.234039638935247 %
+- median B echo register: 3,981.1181 us with tracemalloc instrumentation
+- median B echo observe: 208.786 us with tracemalloc instrumentation
+- median B hash validation micro-sample: 650.248 us
+- baseline median peak-memory delta: 74,136 bytes
+- B median peak-memory delta: 131,382 bytes
+- C median peak-memory delta: 133,238 bytes
 
 The tracemalloc-enabled per-stage register figures are intentionally reported
 separately from the lighter hot-path microprofile; instrumentation materially
@@ -291,13 +291,13 @@ changes absolute timings.
 Compared with the original 200-event paired measurement:
 
 - old post-Echo CPU: 27,734.375 us/event
-- new 200-event median every-event CPU: 16,406.25 us/event
+- new 200-event median every-event CPU: 15,937.5 us/event
 - old CPU overhead: +139.86486486486487 %
-- new CPU overhead: +44.827586206896555 %
+- new CPU overhead: +45.71428571428571 %
 - old post-Echo wall: 28,074.72 us/event
-- new 200-event median every-event wall: 16,737.16 us/event
+- new 200-event median every-event wall: 16,174.2015 us/event
 - old wall overhead: +140.00988944645263 %
-- new wall overhead: +47.119711114745286 %
+- new wall overhead: +46.427565881625284 %
 
 The optimization removes redundant recomputation and materially lowers the
 Echo hot-path cost. Echo-every-event remains slower than the pre-Echo pipeline.

@@ -53,6 +53,26 @@ def _canonical_json(value: Any) -> bytes:
     ).encode("utf-8")
 
 
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {key: _deep_freeze(item) for key, item in value.items()}
+        )
+    if isinstance(value, list):
+        return tuple(_deep_freeze(item) for item in value)
+    if isinstance(value, tuple):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
+
+
+def _deep_thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _deep_thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_deep_thaw(item) for item in value]
+    return copy.deepcopy(value)
+
+
 def _strict_equal(left: Any, right: Any) -> bool:
     if type(left) is not type(right):
         return False
@@ -180,7 +200,7 @@ class X72EchoFrame:
             "source_history_h256": self.source_history_h256,
             "source_trend_h256": self.source_trend_h256,
             "source_candidate_h256": self.source_candidate_h256,
-            "evidence": copy.deepcopy(dict(self.evidence)),
+            "evidence": _deep_thaw(self.evidence),
             "echo_h256": self.echo_h256,
         }
 class X72TernaryEchoMatrix:
@@ -498,7 +518,7 @@ class X72TernaryEchoMatrix:
             source_history_h256=intent.source_history_h256,
             source_trend_h256=intent.source_trend_h256,
             source_candidate_h256=intent.source_candidate_h256,
-            evidence=MappingProxyType(evidence_dict),
+            evidence=_deep_freeze(evidence_dict),
             echo_h256=echo_h256,
         )
 
