@@ -84,9 +84,17 @@ Each registered intent carries:
 entity, correlation, origin, target and source Candidate hash. It is a
 correlation seal, not proof that an echo is true or belongs to the intent.
 
-Before registration, the module recomputes TrendFrame and CandidateFrame from
-History and requires type-strict equality with the supplied sources. A stale,
-forged or unrelated source frame is rejected.
+Before registration, the normal hot path verifies the current History report
+hash, the canonical TrendFrame hash, the canonical CandidateFrame hash, entity
+identity, tick/count coherence, source-hash links and candidate evidence links.
+
+The SHA-256 values are deterministic integrity/provenance seals, not signed
+producer authentication. The fast path assumes the supplied typed frames came
+from the already validated upstream X72 pipeline. A private deep verification
+path remains available to tests/audits and reconstructs TrendFrame and
+CandidateFrame completely when semantic recomputation is required.
+
+A frame whose content changes without a matching canonical hash is rejected.
 
 ## X72EchoFrame
 
@@ -194,8 +202,107 @@ Post-Echo:
 - CPU overhead: +139.86486486486487 %
 - wall-time overhead: +140.00988944645263 %
 
-The large measured overhead is dominated by source-traceability validation,
-which recomputes deterministic Trend/Candidate lineage during registration.
+The large measured overhead was dominated by source-traceability validation,
+which recomputed deterministic Trend/Candidate lineage during registration.
+
+## [MESURÉ] Performance optimization pass
+
+Profiling of the original hot path over 50 registrations confirmed redundant
+work inside `_validate_sources()`:
+
+- TrendAnalyzer.analyze calls: 100 = 2 per registration
+- DecisionCandidate.generate calls: 50 = 1 per registration
+- History deterministic report calls: 100 = 2 per registration
+- mean register_intent: 2,494.118 us
+
+After replacing the normal hot path with canonical hash/provenance validation:
+
+- TrendAnalyzer.analyze calls: 0
+- DecisionCandidate.generate calls: 0
+- History deterministic report calls: 50 = 1 per registration
+- mean register_intent in the same microprofile: 653.902 us
+
+A second 100-sample microprofile measured:
+
+- hash/provenance validation: 631.35 us
+- register_intent: 642.417 us
+- observe_echo: 43.782 us
+
+The remaining register cost is therefore dominated by validating the History
+report and canonical source hash chain rather than recomputing Trend/Decision.
+
+### Paired benchmark v0.2
+
+Method:
+
+- sizes: 200 and 1000 observed events
+- repetitions: 3 per scenario
+- reported CPU/wall values: medians
+- A: History + Trend + Candidate only
+- B: Echo on every observed event
+- C: sparse Echo, one Echo every 10 observed events
+- sparse density was fixed at 10% before measurement and was not tuned to
+  produce a favorable result
+
+At 200 events:
+
+- A baseline CPU: 11,328.125 us/event
+- A baseline wall: 11,376.5585 us/event
+- B every-event CPU: 16,406.25 us/event
+- B every-event wall: 16,737.16 us/event
+- B CPU overhead: +44.827586206896555 %
+- B wall overhead: +47.119711114745286 %
+- C sparse CPU: 12,031.25 us/event
+- C sparse wall: 12,338.8985 us/event
+- C CPU overhead: +6.206896551724128 %
+- C wall overhead: +8.458972895889394 %
+- median B echo register: 4,195.812 us with tracemalloc instrumentation
+- median B echo observe: 212.1285 us with tracemalloc instrumentation
+- median B hash validation micro-sample: 626.505 us
+- baseline median peak-memory delta: 72,184 bytes
+- B median peak-memory delta: 128,438 bytes
+- C median peak-memory delta: 105,944 bytes
+
+At 1000 events:
+
+- A baseline CPU: 11,921.875 us/event
+- A baseline wall: 11,989.4187 us/event
+- B every-event CPU: 16,546.875 us/event
+- B every-event wall: 16,666.0217 us/event
+- B CPU overhead: +38.79423328964613 %
+- B wall overhead: +39.00608625837714 %
+- C sparse CPU: 12,046.875 us/event
+- C sparse wall: 12,152.0301 us/event
+- C CPU overhead: +1.0484927916120546 %
+- C wall overhead: +1.3562909434466697 %
+- median B echo register: 4,185.8777 us with tracemalloc instrumentation
+- median B echo observe: 195.107 us with tracemalloc instrumentation
+- median B hash validation micro-sample: 617.527 us
+- baseline median peak-memory delta: 74,036 bytes
+- B median peak-memory delta: 129,262 bytes
+- C median peak-memory delta: 131,498 bytes
+
+The tracemalloc-enabled per-stage register figures are intentionally reported
+separately from the lighter hot-path microprofile; instrumentation materially
+changes absolute timings.
+
+## [CALCULÉ] Optimization result
+
+Compared with the original 200-event paired measurement:
+
+- old post-Echo CPU: 27,734.375 us/event
+- new 200-event median every-event CPU: 16,406.25 us/event
+- old CPU overhead: +139.86486486486487 %
+- new CPU overhead: +44.827586206896555 %
+- old post-Echo wall: 28,074.72 us/event
+- new 200-event median every-event wall: 16,737.16 us/event
+- old wall overhead: +140.00988944645263 %
+- new wall overhead: +47.119711114745286 %
+
+The optimization removes redundant recomputation and materially lowers the
+Echo hot-path cost. Echo-every-event remains slower than the pre-Echo pipeline.
+The 10% sparse workload approaches baseline at 1000 events but is still
+measured as overhead, not a speedup.
 
 ## [HYPOTHÈSE]
 
@@ -204,11 +311,13 @@ prevents retries, repeated searches, recalculations or unresolved events.
 
 ## [NON DÉMONTRÉ]
 
-The performance hypothesis is not confirmed by the current benchmark.
+The broader total-system-cost hypothesis is still not demonstrated.
 
 `RETRY_COUNT` and `UNRESOLVED_EVENT_COUNT` are not exposed by this synthetic
-workload, so no retry or unresolved reduction can be calculated. The measured
-v0.1 cost is an overhead, not a speedup.
+workload, so no retry or unresolved reduction can be calculated. The optimized
+v0.1 hot path is substantially cheaper than the original implementation, but
+the measured every-event and sparse scenarios remain overhead rather than a
+demonstrated speedup.
 
 ## [FUTUR]
 
@@ -228,7 +337,11 @@ These remain future hypotheses/modules. The v0.1 kernel is only
 
 Run:
 
-`python deploy/x72-shared-queen/tests/benchmark_ternary_echo.py --events 200`
+`python deploy/x72-shared-queen/tests/benchmark_ternary_echo.py --sizes 200 1000 --repetitions 3 --sparse-every 10`
 
-Benchmark output is JSON and labels retry/unresolved metrics
-`NOT_AVAILABLE` when they cannot be measured.
+Benchmark output is JSON, reports per-stage timings and median run metrics, and
+labels retry/unresolved metrics `NOT_AVAILABLE` when they cannot be measured.
+
+The recorded optimization run is preserved in:
+
+`deploy/x72-shared-queen/reports/TERNARY-ECHO-PERFORMANCE-OPTIMIZATION-2026-09-18.json`

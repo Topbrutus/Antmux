@@ -10,9 +10,17 @@ from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from decision_candidate import X72CandidateFrame, X72DecisionCandidate
+from decision_candidate import (
+    CANDIDATE_SCHEMA,
+    X72CandidateFrame,
+    X72DecisionCandidate,
+)
 from observation_history import X72ObservationHistory
-from trend_analyzer import X72TrendAnalyzer, X72TrendFrame
+from trend_analyzer import (
+    TREND_SCHEMA,
+    X72TrendAnalyzer,
+    X72TrendFrame,
+)
 
 
 ECHO_SCHEMA = "ANTMUX-X72-TERNARY-ECHO-FRAME-v0.1"
@@ -212,18 +220,105 @@ class X72TernaryEchoMatrix:
         return TERNARY_MATRIX
 
     @staticmethod
+    def _canonical_frame_h256(
+        frame_dict: Mapping[str, Any],
+        hash_field: str,
+    ) -> str:
+        body = copy.deepcopy(dict(frame_dict))
+        observed = body.pop(hash_field, None)
+        _validate_h256(observed, hash_field)
+        expected = hashlib.sha256(_canonical_json(body)).hexdigest()
+        if observed != expected:
+            raise ValueError(f"{hash_field} does not match canonical frame content")
+        return observed
+
+    @classmethod
     def _validate_sources(
+        cls,
         history: X72ObservationHistory,
         trend: X72TrendFrame,
         candidate: X72CandidateFrame,
     ) -> tuple[str, str, str, str]:
-        if not isinstance(history, X72ObservationHistory):
-            raise TypeError("history must be X72ObservationHistory")
-        if not isinstance(trend, X72TrendFrame):
-            raise TypeError("trend must be X72TrendFrame")
-        if not isinstance(candidate, X72CandidateFrame):
-            raise TypeError("candidate must be X72CandidateFrame")
+        if type(history) is not X72ObservationHistory:
+            raise TypeError("history must be exactly X72ObservationHistory")
+        if type(trend) is not X72TrendFrame:
+            raise TypeError("trend must be exactly X72TrendFrame")
+        if type(candidate) is not X72CandidateFrame:
+            raise TypeError("candidate must be exactly X72CandidateFrame")
 
+        if history.entity_id is None:
+            raise ValueError("History entity_id is required for echo correlation")
+        if trend.schema != TREND_SCHEMA:
+            raise ValueError("unexpected TrendFrame schema")
+        if candidate.schema != CANDIDATE_SCHEMA:
+            raise ValueError("unexpected CandidateFrame schema")
+
+        history_h256 = history.deterministic_report()["report_h256"]
+        _validate_h256(history_h256, "history_h256")
+        trend_h256 = cls._canonical_frame_h256(
+            trend.to_dict(), "trend_h256"
+        )
+        candidate_h256 = cls._canonical_frame_h256(
+            candidate.to_dict(), "candidate_h256"
+        )
+
+        if trend.entity_id != history.entity_id:
+            raise ValueError("TrendFrame entity_id mismatch")
+        if candidate.entity_id != history.entity_id:
+            raise ValueError("CandidateFrame entity_id mismatch")
+        if trend.source_history_h256 != history_h256:
+            raise ValueError("TrendFrame source_history_h256 mismatch")
+        if candidate.source_history_h256 != history_h256:
+            raise ValueError("CandidateFrame source_history_h256 mismatch")
+        if candidate.source_trend_h256 != trend_h256:
+            raise ValueError("CandidateFrame source_trend_h256 mismatch")
+
+        records = tuple(history.records)
+        first_tick = next(
+            (record.tick_count for record in records if record.tick_count is not None),
+            None,
+        )
+        last_tick = next(
+            (
+                record.tick_count
+                for record in reversed(records)
+                if record.tick_count is not None
+            ),
+            None,
+        )
+        if trend.records_count != len(records):
+            raise ValueError("TrendFrame records_count mismatch")
+        if candidate.source_records_count != trend.records_count:
+            raise ValueError("CandidateFrame source_records_count mismatch")
+        if trend.window_start_tick != first_tick or trend.window_end_tick != last_tick:
+            raise ValueError("TrendFrame tick window mismatch")
+        if (
+            candidate.window_start_tick != trend.window_start_tick
+            or candidate.window_end_tick != trend.window_end_tick
+        ):
+            raise ValueError("CandidateFrame tick window mismatch")
+
+        evidence = dict(candidate.evidence)
+        if evidence.get("source_history_h256") != history_h256:
+            raise ValueError("Candidate evidence history hash mismatch")
+        if evidence.get("source_trend_h256") != trend_h256:
+            raise ValueError("Candidate evidence trend hash mismatch")
+        if evidence.get("records_count") != trend.records_count:
+            raise ValueError("Candidate evidence records_count mismatch")
+
+        return (
+            history.entity_id,
+            history_h256,
+            trend_h256,
+            candidate_h256,
+        )
+
+    @staticmethod
+    def _deep_validate_sources(
+        history: X72ObservationHistory,
+        trend: X72TrendFrame,
+        candidate: X72CandidateFrame,
+    ) -> tuple[str, str, str, str]:
         expected_trend = X72TrendAnalyzer().analyze(history)
         if not _strict_equal(trend.to_dict(), expected_trend.to_dict()):
             raise ValueError("TrendFrame does not match deterministic History analysis")
@@ -234,19 +329,7 @@ class X72TernaryEchoMatrix:
                 "CandidateFrame does not match deterministic History/Trend analysis"
             )
 
-        if history.entity_id is None:
-            raise ValueError("History entity_id is required for echo correlation")
-        if trend.entity_id != history.entity_id or candidate.entity_id != history.entity_id:
-            raise ValueError("entity_id mismatch across History/Trend/Candidate")
-
         history_h256 = history.deterministic_report()["report_h256"]
-        if trend.source_history_h256 != history_h256:
-            raise ValueError("TrendFrame source_history_h256 mismatch")
-        if candidate.source_history_h256 != history_h256:
-            raise ValueError("CandidateFrame source_history_h256 mismatch")
-        if candidate.source_trend_h256 != trend.trend_h256:
-            raise ValueError("CandidateFrame source_trend_h256 mismatch")
-
         return (
             history.entity_id,
             history_h256,

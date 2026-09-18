@@ -483,6 +483,70 @@ def run() -> dict[str, Any]:
         )
     )
 
+    tampered_trend = replace(trend, r_exec_mean=999.0)
+    tampered_candidate = replace(candidate, condition="FORGED_CONDITION")
+    try:
+        X72TernaryEchoMatrix._validate_sources(
+            history, tampered_trend, candidate
+        )
+    except ValueError:
+        tampered_trend_rejected = True
+    else:
+        tampered_trend_rejected = False
+    try:
+        X72TernaryEchoMatrix._validate_sources(
+            history, trend, tampered_candidate
+        )
+    except ValueError:
+        tampered_candidate_rejected = True
+    else:
+        tampered_candidate_rejected = False
+    checks.append(
+        check(
+            "fast hash integrity rejects frame tampering",
+            tampered_trend_rejected and tampered_candidate_rejected,
+        )
+    )
+
+    original_analyze = X72TrendAnalyzer.analyze
+    original_generate = X72DecisionCandidate.generate
+
+    def forbidden_analyze(*args, **kwargs):
+        raise AssertionError("fast path must not recompute TrendAnalyzer")
+
+    def forbidden_generate(*args, **kwargs):
+        raise AssertionError("fast path must not recompute DecisionCandidate")
+
+    X72TrendAnalyzer.analyze = forbidden_analyze
+    X72DecisionCandidate.generate = forbidden_generate
+    try:
+        fast_matrix = X72TernaryEchoMatrix(capacity=4)
+        register(
+            fast_matrix,
+            history,
+            trend,
+            candidate,
+            "FAST-PATH-NO-RECOMPUTE",
+            second=27,
+        )
+        fast_path_no_recompute = True
+    finally:
+        X72TrendAnalyzer.analyze = original_analyze
+        X72DecisionCandidate.generate = original_generate
+
+    deep_result = X72TernaryEchoMatrix._deep_validate_sources(
+        history, trend, candidate
+    )
+    fast_result = X72TernaryEchoMatrix._validate_sources(
+        history, trend, candidate
+    )
+    checks.append(
+        check(
+            "fast path avoids recomputation and deep verify remains available",
+            fast_path_no_recompute and fast_result == deep_result,
+        )
+    )
+
     invalid_trits = [True, False, float("nan"), float("inf"), 0.5, 2, -2, "1"]
     trit_rejections = 0
     for value in invalid_trits:
