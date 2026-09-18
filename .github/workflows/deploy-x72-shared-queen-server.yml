@@ -280,13 +280,12 @@ jobs:
           PY
 
           section "prepare user service and nginx snippet"
+          cleanup_temp
+          TEMP_PID=""
           mkdir -p "$APP_ROOT/prepared"
           cat > "$APP_ROOT/prepared/antmux-x72-queen.service" <<EOF
           [Unit]
           Description=ANTMUX X72 Shared Queen Server
-          After=network-online.target
-          Wants=network-online.target
-
           [Service]
           Type=simple
           WorkingDirectory=$APP_ROOT
@@ -321,15 +320,94 @@ jobs:
               proxy_read_timeout 3600;
           }
           EOF
-          if systemctl --user status >/tmp/x72-systemctl-user-status.txt 2>&1; then
-            printf 'SYSTEMD=READY\n'
-          else
-            printf 'SYSTEMD=BLOCKED\n'
-          fi
-          printf 'NGINX=BLOCKED\n'
           printf 'SYSTEMD_PREPARED=%s\n' "$APP_ROOT/prepared/antmux-x72-queen.service"
           printf 'NGINX_SNIPPET_PREPARED=%s\n' "$APP_ROOT/prepared/nginx-x72-shared-queen.conf"
-          printf 'ROOT_COMMAND_SYSTEMD=install -m 0644 %s /etc/systemd/system/antmux-x72-queen.service && systemctl daemon-reload && systemctl enable --now antmux-x72-queen.service\n' "$APP_ROOT/prepared/antmux-x72-queen.service"
+
+          section "install and verify user service"
+          if systemctl --user status >/tmp/x72-systemctl-user-status.txt 2>&1; then
+            mkdir -p "$HOME/.config/systemd/user"
+            install -m 0644 "$APP_ROOT/prepared/antmux-x72-queen.service" "$HOME/.config/systemd/user/antmux-x72-queen.service"
+            systemctl --user daemon-reload
+            systemctl --user enable antmux-x72-queen.service
+            systemctl --user restart antmux-x72-queen.service
+            for _ in $(seq 1 60); do
+              if curl --fail --silent --show-error http://127.0.0.1:8720/api/health >/tmp/x72-user-service-health.json; then
+                break
+              fi
+              sleep 0.5
+            done
+            curl --fail --silent --show-error http://127.0.0.1:8720/api/health
+            printf 'SYSTEMD=PASS\n'
+          else
+            printf 'SYSTEMD=BLOCKED\n'
+            printf 'BLOCKER=SYSTEMD_USER_UNAVAILABLE\n'
+            exit 1
+          fi
+
+          section "exact shared S4 websocket test"
+          PYTHONPATH="$APP_ROOT/vendor" python3 - <<'PY'
+          import asyncio
+          import json
+          import urllib.error
+          import urllib.request
+          import websockets
+
+          BASE = "http://127.0.0.1:8720"
+          WS_URL = "ws://127.0.0.1:8720/ws"
+
+          def request_json(path, method="GET", body=None, allowed=(200,)):
+              data = None if body is None else json.dumps(body).encode("utf-8")
+              req = urllib.request.Request(
+                  BASE + path,
+                  data=data,
+                  method=method,
+                  headers={"Content-Type": "application/json"},
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=10) as response:
+                      payload = response.read().decode("utf-8")
+                      status = response.status
+              except urllib.error.HTTPError as exc:
+                  payload = exc.read().decode("utf-8")
+                  status = exc.code
+              if status not in allowed:
+                  raise AssertionError(f"{method} {path} returned {status}: {payload}")
+              return json.loads(payload)
+
+          async def recv_until(ws, predicate, label):
+              for _ in range(80):
+                  message = json.loads(await asyncio.wait_for(ws.recv(), timeout=2))
+                  if predicate(message):
+                      return message
+              raise AssertionError(f"timeout waiting for {label}")
+
+          async def main():
+              health = request_json("/api/health")
+              if not health.get("ok"):
+                  raise AssertionError("health is not ok")
+              async with websockets.connect(WS_URL) as first, websockets.connect(WS_URL) as second:
+                  await recv_until(first, lambda msg: msg.get("type") in {"state", "welcome"}, "first initial state")
+                  await recv_until(second, lambda msg: msg.get("type") in {"state", "welcome"}, "second initial state")
+                  fault = request_json("/api/fault", method="POST", body={"synapse_id": "S4"})
+                  if fault["state"]["synapses"]["S4"]["status"] != "MISMATCH":
+                      raise AssertionError("S4 did not enter MISMATCH")
+                  def saw_s4_fault(msg):
+                      state = msg.get("state") if isinstance(msg, dict) else None
+                      return isinstance(state, dict) and state.get("synapses", {}).get("S4", {}).get("status") == "MISMATCH"
+                  first_fault = await recv_until(first, saw_s4_fault, "first S4 fault")
+                  second_fault = await recv_until(second, saw_s4_fault, "second S4 fault")
+                  if first_fault["state"]["protected_h256"] != second_fault["state"]["protected_h256"]:
+                      raise AssertionError("shared S4 fault hash differs between clients")
+                  repaired = request_json("/api/repair", method="POST", body={})
+                  if repaired.get("verdict") != "PASS" or not repaired["state"].get("integrity_match"):
+                      raise AssertionError("repair did not restore reference hash")
+                  print("FAULT_S4_SHARED=PASS")
+                  print("REPAIR_HASH_CLOSE=PASS")
+
+          asyncio.run(main())
+          PY
+
+          printf 'NGINX=BLOCKED\n'
           printf 'ROOT_COMMAND_NGINX=merge snippet into antmux.com server block, then nginx -t && systemctl reload nginx\n'
 
           section "final report summary"
