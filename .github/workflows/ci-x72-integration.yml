@@ -63,6 +63,8 @@ jobs:
           test -f deploy/x72-shared-queen/tests/test_trend_analyzer.py
           test -f deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
           test -f deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
+          test -f deploy/x72-shared-queen/decision_candidate/candidate.py
+          test -f deploy/x72-shared-queen/tests/test_decision_candidate.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -81,6 +83,8 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/tests/test_trend_analyzer.py
           python3 -m py_compile deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
           python3 -m py_compile deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
+          python3 -m py_compile deploy/x72-shared-queen/decision_candidate/candidate.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/test_decision_candidate.py
           printf 'PYTHON_COMPILE=PASS\n'
 
   # ──────────────────────────────────────────────
@@ -419,6 +423,12 @@ jobs:
             --module trend_analyzer \
             --class-name X72TrendAnalyzer
           printf 'TREND_ANALYZER_ADVERSARIAL_CANDIDATE=PASS\n'
+
+      - name: Smoke test — decision candidate acceptance
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_decision_candidate.py
+          printf 'DECISION_CANDIDATE_ACCEPTANCE=PASS\n'
 
       - name: Smoke test — state endpoint
         run: |
