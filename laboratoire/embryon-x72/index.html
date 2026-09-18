@@ -16,8 +16,8 @@
         <h1>HORLOGE DE LA VIE — CORE V0.2</h1>
       </div>
       <div class="source-stack">
-        <span class="badge verified">SOURCE: QUEEN CORE V0.2 — VERIFIED REPAIR PATH</span>
-        <span id="runtimeBadge" class="badge web">PORT WEB DU CORE V0.2</span>
+        <span class="badge verified">SOURCE: QUEEN SERVER V0.2 — SERVER AUTHORITATIVE</span>
+        <span id="runtimeBadge" class="badge web">WEBSOCKET VISUALSTATE — SHARED</span>
       </div>
     </header>
 
@@ -80,7 +80,7 @@
     <section class="bottom panel">
       <div>
         <p class="tiny-title">CONTRAT</p>
-        <strong>QueenCore → EventBus → RepairEngine → Telemetry → VisualState → Visual</strong>
+        <strong>QueenCore → EventBus → RepairEngine → Telemetry → API/WebSocket → VisualState → Visual</strong>
       </div>
       <div class="hash-status">
         <span id="referenceCheck">RÉFÉRENCE H256 : vérification…</span>
@@ -88,7 +88,7 @@
     </section>
 
     <footer>
-      <p>Port Web fidèle de la V0.2 Python. Le navigateur reproduit la dynamique et la visualisation; le fichier Python original et le rapport de test sont publiés à côté pour audit.</p>
+      <p>Le Queen Server est l’unique autorité d’état. Le navigateur affiche le VisualState reçu par WebSocket; en cas de coupure, il gèle le dernier état et n’invente aucun tick local.</p>
     </footer>
   </main>
 
