@@ -91,7 +91,7 @@ jobs:
           cp -a deploy/x72-shared-queen/frontend _x72_shared_queen_deploy/
           cp -a _x72_runner_vendor _x72_shared_queen_deploy/vendor
           mv _x72_shared_queen_deploy/tests/run_server_tests.py _x72_shared_queen_deploy/run_server_tests.py
-          rmdir _x72_shared_queen_deploy/tests
+          rm -rf _x72_shared_queen_deploy/tests
           (
             cd _x72_shared_queen_deploy
             find . -type f \
@@ -363,4 +363,3 @@ jobs:
           name: x72-shared-queen-deploy-log
           path: deploy-x72-shared-queen.log
           if-no-files-found: ignore
-
