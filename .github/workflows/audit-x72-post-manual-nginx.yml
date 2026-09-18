@@ -156,10 +156,15 @@ jobs:
           print('NGINX_HTTPS_INCLUDE=PASS')
           PY
 
-          if /usr/sbin/nginx -t; then
-            printf 'NGINX_TEST=PASS\n'
+          if /usr/sbin/nginx -t >/tmp/x72-nginx-test.out 2>/tmp/x72-nginx-test.err; then
+            printf 'NGINX_TEST_NONROOT=PASS\n'
+          elif grep -q 'Permission denied' /tmp/x72-nginx-test.err && grep -q 'cannot load certificate' /tmp/x72-nginx-test.err; then
+            # The active config structure is readable, but rob cannot open the TLS cert/key material.
+            # Do not elevate here and do not print certificate/key contents.
+            printf 'NGINX_TEST_NONROOT=BLOCKED_PERMISSION\n'
           else
-            printf 'NGINX_TEST=FAIL\n'
+            printf 'NGINX_TEST_NONROOT=FAIL\n'
+            sed -n '1,4p' /tmp/x72-nginx-test.err | sed -E 's#(/etc/letsencrypt/[^ ]+)#[TLS_PATH_REDACTED]#g'
             exit 13
           fi
 
