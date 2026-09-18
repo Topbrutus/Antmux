@@ -172,9 +172,14 @@ jobs:
           command -v ss >/dev/null
           command -v curl >/dev/null
           if ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8720$'; then
-            printf 'PORT_8720=FAIL\n'
-            printf 'BLOCKER=PORT_8720_BUSY\n'
-            exit 1
+            if systemctl --user is-active --quiet antmux-x72-queen.service; then
+              systemctl --user stop antmux-x72-queen.service
+              printf 'PORT_8720_EXISTING_USER_SERVICE_STOPPED=PASS\n'
+            else
+              printf 'PORT_8720=FAIL\n'
+              printf 'BLOCKER=PORT_8720_BUSY_UNKNOWN_OWNER\n'
+              exit 1
+            fi
           fi
           printf 'PORT_8720=PASS\n'
           test -d "$TARGET_ROOT"
@@ -386,8 +391,8 @@ jobs:
               if not health.get("ok"):
                   raise AssertionError("health is not ok")
               async with websockets.connect(WS_URL) as first, websockets.connect(WS_URL) as second:
-                  await recv_until(first, lambda msg: msg.get("type") in {"state", "welcome"}, "first initial state")
-                  await recv_until(second, lambda msg: msg.get("type") in {"state", "welcome"}, "second initial state")
+                  await recv_until(first, lambda msg: "tick_count" in msg, "first initial state")
+                  await recv_until(second, lambda msg: "tick_count" in msg, "second initial state")
                   fault = request_json("/api/fault", method="POST", body={"synapse_id": "S4"})
                   if fault["state"]["synapses"]["S4"]["status"] != "MISMATCH":
                       raise AssertionError("S4 did not enter MISMATCH")
