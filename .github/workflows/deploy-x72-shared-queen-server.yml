@@ -125,6 +125,31 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      - name: Recover existing Queen service before upload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          systemctl --user restart antmux-x72-queen.service
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/health >/tmp/x72-recovery-health.json; then
+              cat /tmp/x72-recovery-health.json
+              printf '\nRECOVERY_SERVICE=PASS\n'
+              exit 0
+            fi
+            sleep 0.5
+          done
+          printf 'RECOVERY_SERVICE=FAIL\n' >&2
+          exit 1
+          REMOTE
+
       - name: Upload deployment payload
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
@@ -161,6 +186,7 @@ jobs:
           BACKUP_ROOT="$HOME/antmux-x72-queen-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
           REPORT_PATH="$APP_ROOT/data/ANTMUX_X72_SERVER_SHARED_QUEEN_TEST_REPORT.json"
           TEMP_PID=""
+          SERVICE_WAS_ACTIVE=0
 
           cleanup_temp() {
             if [ -n "${TEMP_PID:-}" ] && kill -0 "$TEMP_PID" >/dev/null 2>&1; then
@@ -168,7 +194,18 @@ jobs:
               wait "$TEMP_PID" >/dev/null 2>&1 || true
             fi
           }
-          trap cleanup_temp EXIT
+
+          on_exit() {
+            rc=$?
+            cleanup_temp
+            if [ "$rc" -ne 0 ] && [ "${SERVICE_WAS_ACTIVE:-0}" -eq 1 ]; then
+              printf 'DEPLOY_FAILSAFE_RESTART=ATTEMPT\n'
+              systemctl --user restart antmux-x72-queen.service >/dev/null 2>&1 || true
+            fi
+            trap - EXIT
+            exit "$rc"
+          }
+          trap on_exit EXIT
 
           section "preflight"
           test "$(hostname)" = "server1.antmux.com"
@@ -178,6 +215,7 @@ jobs:
           command -v curl >/dev/null
           if ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8720$'; then
             if systemctl --user is-active --quiet antmux-x72-queen.service; then
+              SERVICE_WAS_ACTIVE=1
               systemctl --user stop antmux-x72-queen.service
               printf 'PORT_8720_EXISTING_USER_SERVICE_STOPPED=PASS\n'
             else
