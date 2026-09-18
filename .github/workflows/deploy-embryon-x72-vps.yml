@@ -39,6 +39,11 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v6
 
+      - name: Install Tk runtime for Queen Core source validation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
       - name: Validate Queen Core V0.2 and web port
         run: |
           set -euo pipefail
