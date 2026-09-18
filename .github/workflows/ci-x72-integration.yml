@@ -1,0 +1,574 @@
+name: CI X72 Integration Validation
+
+# Worker 5 / worker5/x72-ci-integration
+# Reproducible, evidence-based CI validation of the X72 integration chain.
+# No VPS access. No production deployment. No destructive actions.
+# Runs on push/PR to worker5/x72-ci-integration and on workflow_dispatch.
+
+"on":
+  push:
+    branches:
+      - worker5/x72-ci-integration
+    paths:
+      - 'laboratoire/embryon-x72/**'
+      - 'deploy/x72-shared-queen/**'
+      - '.github/workflows/*x72*.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'laboratoire/embryon-x72/**'
+      - 'deploy/x72-shared-queen/**'
+      - '.github/workflows/*x72*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ci-x72-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+
+  # ──────────────────────────────────────────────
+  # JOB 1: Static syntax and file presence checks
+  # ──────────────────────────────────────────────
+  static-validation:
+    name: Static Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout worker5/x72-ci-integration
+        uses: actions/checkout@v6
+
+      - name: Required file presence
+        run: |
+          set -euo pipefail
+          test -f laboratoire/embryon-x72/index.html
+          test -f laboratoire/embryon-x72/app.js
+          test -f laboratoire/embryon-x72/styles.css
+          test -f laboratoire/embryon-x72/README.md
+          test -f laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
+          test -f laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
+          printf 'FILE_PRESENCE=PASS\n'
+
+      - name: JS syntax check
+        run: |
+          set -euo pipefail
+          node --check laboratoire/embryon-x72/app.js
+          printf 'JS_CHECK=PASS\n'
+
+      - name: Python compile check
+        run: |
+          set -euo pipefail
+          python3 -m py_compile laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
+          printf 'PYTHON_COMPILE=PASS\n'
+
+  # ──────────────────────────────────────────────
+  # JOB 2: Server-authority contract
+  # ──────────────────────────────────────────────
+  server-authority-contract:
+    name: Server Authority Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout worker5/x72-ci-integration
+        uses: actions/checkout@v6
+
+      - name: Frontend server-authority invariants (app.js)
+        run: |
+          set -euo pipefail
+
+          # Queen must NOT exist locally in the browser
+          ! grep -q 'class QueenCore'                 laboratoire/embryon-x72/app.js
+          ! grep -q 'new QueenCore'                   laboratoire/embryon-x72/app.js
+          ! grep -q 'requestAnimationFrame(tickFrame)' laboratoire/embryon-x72/app.js
+
+          # WebSocket must be the authority channel
+          grep -q 'new WebSocket'                     laboratoire/embryon-x72/app.js
+          grep -q 'CORE DISCONNECTED'                 laboratoire/embryon-x72/app.js
+          grep -q 'aucun tick local'                  laboratoire/embryon-x72/app.js
+          grep -q 'QUEEN_SERVER_V0_2'                 laboratoire/embryon-x72/app.js
+
+          printf 'SERVER_AUTHORITY_CONTRACT=PASS\n'
+
+      - name: Frontend server-authority invariants (index.html)
+        run: |
+          set -euo pipefail
+
+          # The page must declare the server as sole authority
+          grep -q 'Queen Server' laboratoire/embryon-x72/index.html
+          grep -q 'autorit' laboratoire/embryon-x72/index.html
+          grep -q 'WebSocket' laboratoire/embryon-x72/index.html
+
+          printf 'INDEX_SERVER_AUTHORITY=PASS\n'
+
+      - name: No local tick mutation in app.js
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path("laboratoire/embryon-x72/app.js").read_text(encoding="utf-8")
+          official_write = re.compile(
+              r"(?:\.|\b)tick_count\s*(?:\+\+|--|[+\-*/]=|(?<!=)=(?!=))"
+          )
+          m = official_write.search(text)
+          if m:
+              raise SystemExit(f"LOCAL_TICK_MUTATION=FAIL at: {text[max(0,m.start()-30):m.end()+30]!r}")
+          print("NO_LOCAL_TICK_MUTATION=PASS")
+          PY
+
+      - name: Run canonical frontend authority contract
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/check_frontend_authority.py
+
+  # ──────────────────────────────────────────────
+  # JOB 3: Python self-tests + hash integrity
+  # ──────────────────────────────────────────────
+  core-tests:
+    name: Core Self-Tests and Hash Integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout worker5/x72-ci-integration
+        uses: actions/checkout@v6
+
+      - name: Install Tk runtime for core import
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Python self-tests
+        run: |
+          set -euo pipefail
+          PYTHONPATH=laboratoire/embryon-x72/core python3 -c '
+          import ANTMUX_X72_LIFE_V02 as m
+          r = m.run_self_tests(verbose=True)
+          if not r["ok"]:
+              raise SystemExit("SERVER_TESTS=FAIL: " + str(r))
+          print("SERVER_TESTS=PASS")
+          '
+
+      - name: Test report JSON integrity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json")
+              .read_text(encoding="utf-8")
+          )
+
+          assert report["seed"] == 72,                                      f"seed={report['seed']}"
+          assert report["synapse_fault"] == "S4",                           f"synapse_fault={report['synapse_fault']}"
+          assert report["repair_steps"] == 134,                             f"repair_steps={report['repair_steps']}"
+          assert report["verdict"] == "PASS",                               f"verdict={report['verdict']}"
+          assert report["before_h256"] == report["reference_h256"],         "before_h256 != reference_h256"
+          assert report["after_h256"] == report["reference_h256"],          "after_h256 != reference_h256"
+          assert report["fault_h256"] != report["reference_h256"],          "fault_h256 should differ from reference_h256"
+          print("HASH_INTEGRITY=PASS")
+          PY
+
+  # ──────────────────────────────────────────────
+  # JOB 4: Workflow audit (stale grep detection)
+  # ──────────────────────────────────────────────
+  workflow-audit:
+    name: Workflow Audit and Stale Pattern Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout worker5/x72-ci-integration
+        uses: actions/checkout@v6
+
+      - name: Verify deploy workflow HTML assertions are current
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          idx = Path("laboratoire/embryon-x72/index.html").read_text(encoding="utf-8")
+          wf = Path(".github/workflows/deploy-embryon-x72-vps.yml").read_text(encoding="utf-8")
+
+          patterns = []
+          for line in wf.splitlines():
+              if "grep -Fq '" not in line:
+                  continue
+              if (
+                  "laboratoire/embryon-x72/index.html" not in line
+                  and "/tmp/embryon-index.html" not in line
+              ):
+                  continue
+              match = re.search(r"grep -Fq '([^']+)'", line)
+              if match:
+                  patterns.append(match.group(1))
+
+          if not patterns:
+              raise SystemExit("WORKFLOW_HTML_ASSERTIONS=FAIL: no Embryon index assertions found")
+
+          stale = [pattern for pattern in patterns if pattern not in idx]
+          for pattern in patterns:
+              print(("STALE" if pattern in stale else "OK") + f": {pattern!r}")
+
+          if stale:
+              raise SystemExit(
+                  "WORKFLOW_HTML_ASSERTIONS=FAIL: stale patterns: " + ", ".join(repr(x) for x in stale)
+              )
+
+          print(f"WORKFLOW_HTML_ASSERTIONS=PASS ({len(patterns)} assertions checked)")
+          PY
+
+      - name: All X72 workflows have set -euo pipefail
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          wf_dir = Path(".github/workflows")
+          x72_wfs = [f for f in wf_dir.glob("*.yml") if "x72" in f.name]
+          failures = []
+          for wf in sorted(x72_wfs):
+              text = wf.read_text(encoding="utf-8")
+              if "set -euo pipefail" not in text:
+                  failures.append(str(wf.name))
+          if failures:
+              print("MISSING_SET_EUO:", failures)
+              raise SystemExit(1)
+          print(f"WORKFLOW_SET_EUO_PIPEFAIL=PASS ({len(x72_wfs)} workflows checked)")
+          PY
+
+      - name: All X72 deploy/audit workflows have timeout-minutes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          wf_dir = Path(".github/workflows")
+          deploy_wfs = [f for f in wf_dir.glob("*.yml") if "x72" in f.name and
+                        any(k in f.name for k in ["deploy", "audit", "expose", "probe"])]
+          missing = []
+          for wf in sorted(deploy_wfs):
+              text = wf.read_text(encoding="utf-8")
+              if "timeout-minutes" not in text:
+                  missing.append(wf.name)
+          if missing:
+              print("MISSING_TIMEOUT:", missing)
+              raise SystemExit(1)
+          print(f"WORKFLOW_TIMEOUTS=PASS ({len(deploy_wfs)} workflows checked)")
+          PY
+
+  # ──────────────────────────────────────────────
+  # JOB 5: Integration smoke test (local server)
+  # ──────────────────────────────────────────────
+  integration-smoke:
+    name: Integration Smoke Test (Local Queen Server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [static-validation, server-authority-contract, core-tests]
+    steps:
+      - name: Checkout worker5/x72-ci-integration
+        uses: actions/checkout@v6
+
+      - name: Prepare isolated CI data directory
+        run: |
+          set -euo pipefail
+          printf 'ANTMUX_X72_DATA_DIR=%s/x72-ci-data\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          rm -rf "$RUNNER_TEMP/x72-ci-data"
+          mkdir -p "$RUNNER_TEMP/x72-ci-data"
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet fastapi uvicorn pydantic websockets
+          python3 -c 'import fastapi, pydantic, uvicorn, websockets; print("QUEEN_SERVER_DEPS=PASS")'
+
+      - name: Resolve Queen server source and runtime contracts
+        run: |
+          set -euo pipefail
+          test -f deploy/x72-shared-queen/app/server.py
+          python3 -m py_compile deploy/x72-shared-queen/app/server.py
+          python3 deploy/x72-shared-queen/tests/check_runtime_metrics.py
+          printf 'QUEEN_SERVER_COMPILE_AND_RUNTIME_CONTRACT=PASS\n'
+
+      - name: Run integrated robustness suite
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/run_robustness_tests.py             --report "$RUNNER_TEMP/ANTMUX_X72_ROBUSTNESS_REPORT.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(
+              Path(os.environ["RUNNER_TEMP"], "ANTMUX_X72_ROBUSTNESS_REPORT.json").read_text(encoding="utf-8")
+          )
+          assert report["verdict"] == "PASS"
+          assert report["tests_total"] == 30
+          assert report["tests_failed"] == 0
+          print("ROBUSTNESS_SUITE_30_OF_30=PASS")
+          PY
+
+      - name: Start local Queen server
+        run: |
+          set -euo pipefail
+          mkdir -p "$ANTMUX_X72_DATA_DIR"
+          python3 -m uvicorn app.server:app             --app-dir deploy/x72-shared-queen             --host 127.0.0.1             --port 8720             --log-level warning             > /tmp/queen_server.log 2>&1 &
+          echo $! > /tmp/queen_server.pid
+
+          ready=0
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8720/api/health > /dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/queen_server.log >&2 || true
+            exit 1
+          fi
+          printf 'QUEEN_SERVER_STARTED=PASS\n'
+
+          curl --fail --silent http://127.0.0.1:8720/api/health | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d["ok"] is True
+          assert d["entity_id"] == "QUEEN-X72-0072"
+          print("LOCAL_HEALTH=PASS")
+          '
+
+      - name: Run shared-Queen baseline suite
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/run_server_tests.py             --base http://127.0.0.1:8720             --report "$RUNNER_TEMP/ANTMUX_X72_SHARED_QUEEN_REPORT.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(
+              Path(os.environ["RUNNER_TEMP"], "ANTMUX_X72_SHARED_QUEEN_REPORT.json").read_text(encoding="utf-8")
+          )
+          assert report["verdict"] == "PASS"
+          assert report["tests_total"] == 40
+          assert report["tests_failed"] == 0
+          print("SHARED_QUEEN_BASELINE_40_OF_40=PASS")
+          PY
+
+      - name: Smoke test — telemetry endpoint
+        run: |
+          set -euo pipefail
+          curl --fail --silent http://127.0.0.1:8720/api/telemetry | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d["schema"] == "ANTMUX-X72-OBSERVABILITY-v1"
+          assert d["authority"] == "QUEEN_SERVER_V0_2"
+          assert d["scope"] == "operational_read_only"
+          assert d["entity_id"] == "QUEEN-X72-0072"
+          assert d["integrity_match"] is True
+          print("TELEMETRY_CONTRACT=PASS")
+          '
+
+      - name: Smoke test — state endpoint
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, time, urllib.request
+
+          base = "http://127.0.0.1:8720"
+          with urllib.request.urlopen(f"{base}/api/state", timeout=5) as r:
+              s1 = json.loads(r.read())
+          time.sleep(0.4)
+          with urllib.request.urlopen(f"{base}/api/state", timeout=5) as r:
+              s2 = json.loads(r.read())
+
+          assert s1["entity_id"] == s2["entity_id"] == "QUEEN-X72-0072", "entity_id mismatch"
+          assert s2["tick_count"] > s1["tick_count"], "tick_count did not advance"
+          assert s1["reference_h256"] == s2["reference_h256"], "reference_h256 changed"
+          assert s1["integrity_match"] is True
+          assert s2["integrity_match"] is True
+          print("STATE_ENDPOINT=PASS")
+          PY
+
+      - name: Smoke test — WebSocket contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import asyncio, json
+          import websockets
+
+          EXPECTED_ENTITY = "QUEEN-X72-0072"
+
+          async def recv_state(ws_url):
+              async with websockets.connect(ws_url, open_timeout=10) as ws:
+                  for _ in range(30):
+                      msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=2))
+                      if msg.get("entity_id") == EXPECTED_ENTITY:
+                          return msg
+              raise AssertionError("no Queen state received")
+
+          async def main():
+              ws_url = "ws://127.0.0.1:8720/ws"
+              a, b = await asyncio.gather(recv_state(ws_url), recv_state(ws_url))
+              assert a["entity_id"] == b["entity_id"] == EXPECTED_ENTITY
+              assert a["reference_h256"] == b["reference_h256"]
+              assert a["integrity_match"] is True
+              assert b["integrity_match"] is True
+              print("WEBSOCKET_CONTRACT=PASS")
+              print("MULTI_CLIENT_SHARED_QUEEN=PASS")
+
+          asyncio.run(main())
+          PY
+
+      - name: Smoke test — fault/repair cycle and hash integrity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, time, urllib.request
+
+          base = "http://127.0.0.1:8720"
+
+          def req(method, path, body=None, ip="127.0.0.1"):
+              data = json.dumps(body).encode() if body else None
+              headers = {"X-Forwarded-For": ip}
+              if data:
+                  headers["Content-Type"] = "application/json"
+              rq = urllib.request.Request(f"{base}{path}", data=data, method=method, headers=headers)
+              try:
+                  with urllib.request.urlopen(rq, timeout=10) as r:
+                      return r.status, json.loads(r.read())
+              except urllib.error.HTTPError as e:
+                  return e.code, json.loads(e.read())
+
+          import urllib.error
+
+          # baseline
+          _, state = req("GET", "/api/state")
+          ref = state["reference_h256"]
+          assert state["integrity_match"] is True
+
+          # inject fault on S4
+          code, fault = req("POST", "/api/fault", {"synapse_id": "S4"}, ip="10.99.0.4")
+          assert code == 200, f"fault returned {code}"
+          assert fault["state"]["protected_h256"] != ref, "fault did not change hash"
+
+          # wait for repair engine
+          time.sleep(3.5)
+
+          # repair
+          code, repair = req("POST", "/api/repair", ip="10.99.1.4")
+          assert code == 200, f"repair returned {code}"
+          assert repair["report"]["verdict"] == "PASS", f"repair verdict: {repair['report']}"
+          assert repair["state"]["protected_h256"] == ref, "repair did not restore reference hash"
+          assert repair["state"]["integrity_match"] is True
+
+          print("FAULT_INJECT=PASS")
+          print("REPAIR_CYCLE=PASS")
+          print("HASH_RESTORE=PASS")
+          PY
+
+      - name: Smoke test — restart behavior (persistence across restart)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, time, urllib.request
+          from pathlib import Path
+
+          base = "http://127.0.0.1:8720"
+
+          with urllib.request.urlopen(f"{base}/api/state", timeout=5) as r:
+              before = json.loads(r.read())
+
+          # Restart the server
+          pid = int(Path("/tmp/queen_server.pid").read_text())
+          subprocess.run(["kill", "-SIGTERM", str(pid)], check=False)
+          time.sleep(1.5)
+
+          # Relaunch through the same ASGI entrypoint used by the first start.
+          proc = subprocess.Popen(
+              [
+                  "python3", "-m", "uvicorn", "app.server:app",
+                  "--app-dir", "deploy/x72-shared-queen",
+                  "--host", "127.0.0.1",
+                  "--port", "8720",
+                  "--log-level", "warning",
+              ],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+          )
+          Path("/tmp/queen_server.pid").write_text(str(proc.pid))
+
+          # Wait for health
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(f"{base}/api/health", timeout=2) as r:
+                      h = json.loads(r.read())
+                      if h.get("ok"):
+                          break
+              except Exception:
+                  pass
+              time.sleep(0.5)
+
+          with urllib.request.urlopen(f"{base}/api/state", timeout=5) as r:
+              after = json.loads(r.read())
+
+          assert after["entity_id"] == before["entity_id"] == "QUEEN-X72-0072"
+          assert after["reference_h256"] == before["reference_h256"], "reference_h256 changed after restart"
+          assert after["integrity_match"] is True
+          print("RESTART=PASS")
+          print("PERSISTENCE=PASS")
+          PY
+
+      - name: Stop Queen server
+        if: always()
+        run: |
+          if [ -f /tmp/queen_server.pid ]; then
+            kill "$(cat /tmp/queen_server.pid)" 2>/dev/null || true
+          fi
+
+  # ──────────────────────────────────────────────
+  # JOB 6: Integration readiness summary
+  # ──────────────────────────────────────────────
+  integration-summary:
+    name: Integration Readiness Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [static-validation, server-authority-contract, core-tests, workflow-audit, integration-smoke]
+    if: always()
+    steps:
+      - name: Emit integration readiness report
+        run: |
+          STATIC="${{ needs.static-validation.result }}"
+          AUTHORITY="${{ needs.server-authority-contract.result }}"
+          CORE="${{ needs.core-tests.result }}"
+          AUDIT="${{ needs.workflow-audit.result }}"
+          SMOKE="${{ needs.integration-smoke.result }}"
+
+          echo "WORKER=5"
+          echo "BRANCH=worker5/x72-ci-integration"
+          echo "SHA=${GITHUB_SHA}"
+          echo ""
+          echo "STATIC_VALIDATION=${STATIC}"
+          echo "SERVER_AUTHORITY_CONTRACT=${AUTHORITY}"
+          echo "CORE_TESTS_HASH_INTEGRITY=${CORE}"
+          echo "WORKFLOW_AUDIT=${AUDIT}"
+          echo "INTEGRATION_SMOKE=${SMOKE}"
+          echo ""
+
+          if [ "$STATIC" = "success" ] && [ "$AUTHORITY" = "success" ] && \
+             [ "$CORE" = "success" ] && [ "$AUDIT" = "success" ] && \
+             [ "$SMOKE" = "success" ]; then
+            echo "INTEGRATION_READINESS=PASS"
+          else
+            echo "INTEGRATION_READINESS=FAIL"
+            exit 1
+          fi
