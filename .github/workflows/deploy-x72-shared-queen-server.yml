@@ -390,13 +390,13 @@ jobs:
           BASE = "http://127.0.0.1:8720"
           WS_URL = "ws://127.0.0.1:8720/ws"
 
-          def request_json(path, method="GET", body=None, allowed=(200,)):
+          def request_json(path, method="GET", body=None, allowed=(200,), ip="10.72.77.1"):
               data = None if body is None else json.dumps(body).encode("utf-8")
               req = urllib.request.Request(
                   BASE + path,
                   data=data,
                   method=method,
-                  headers={"Content-Type": "application/json"},
+                  headers={"Content-Type": "application/json", "X-Forwarded-For": ip},
               )
               try:
                   with urllib.request.urlopen(req, timeout=10) as response:
@@ -429,7 +429,7 @@ jobs:
               async with websockets.connect(WS_URL) as first, websockets.connect(WS_URL) as second:
                   await recv_until(first, lambda msg: "tick_count" in msg, "first initial state")
                   await recv_until(second, lambda msg: "tick_count" in msg, "second initial state")
-                  fault = request_json("/api/fault", method="POST", body={"synapse_id": "S4"})
+                  fault = request_json("/api/fault", method="POST", body={"synapse_id": "S4"}, ip="10.72.77.4")
                   if not synapse_faulted(fault["state"], "S4"):
                       raise AssertionError("S4 did not enter MISMATCH")
                   def saw_s4_fault(msg):
@@ -441,8 +441,8 @@ jobs:
                   second_state = second_fault.get("state", second_fault)
                   if first_state["protected_h256"] != second_state["protected_h256"]:
                       raise AssertionError("shared S4 fault hash differs between clients")
-                  repaired = request_json("/api/repair", method="POST", body={})
-                  if repaired.get("verdict") != "PASS" or not repaired["state"].get("integrity_match"):
+                  repaired = request_json("/api/repair", method="POST", body={}, ip="10.72.77.5")
+                  if repaired.get("report", {}).get("verdict") != "PASS" or not repaired["state"].get("integrity_match"):
                       raise AssertionError("repair did not restore reference hash")
                   print("FAULT_S4_SHARED=PASS")
                   print("REPAIR_HASH_CLOSE=PASS")
