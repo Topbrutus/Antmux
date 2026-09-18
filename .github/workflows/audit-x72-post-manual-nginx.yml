@@ -55,29 +55,23 @@ jobs:
           APP_ROOT="$HOME/antmux-x72-queen"
           SNIPPET="$APP_ROOT/nginx/embryon-x72-shared-queen.conf"
           EXPECTED="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
-          SITE_CONFIG="$(python3 - <<'PY'
-from pathlib import Path
-seen=[]
-for entry in Path('/etc/nginx/sites-enabled').iterdir():
-    try:
-        real=entry.resolve()
-    except Exception:
-        continue
-    if not real.is_file():
-        continue
-    try:
-        text=real.read_text(encoding='utf-8', errors='ignore')
-    except Exception:
-        continue
-    if 'server_name' in text and 'antmux.com' in text:
-        s=str(real)
-        if s not in seen:
-            seen.append(s)
-if len(seen) != 1:
-    raise SystemExit(f'ACTIVE_ANTMUX_CONFIG_DISCOVERY=FAIL count={len(seen)}')
-print(seen[0])
-PY
-          )"
+          SITE_CONFIG=""
+          for candidate in /etc/nginx/sites-enabled/*; do
+            [ -e "$candidate" ] || continue
+            real="$(readlink -f "$candidate" 2>/dev/null || true)"
+            [ -f "$real" ] || continue
+            if grep -qE 'server_name[[:space:]].*antmux\.com' "$real" 2>/dev/null; then
+              if [ -n "$SITE_CONFIG" ] && [ "$SITE_CONFIG" != "$real" ]; then
+                printf 'ACTIVE_ANTMUX_CONFIG_DISCOVERY=FAIL multiple=%s,%s\n' "$SITE_CONFIG" "$real"
+                exit 9
+              fi
+              SITE_CONFIG="$real"
+            fi
+          done
+          if [ -z "$SITE_CONFIG" ]; then
+            printf 'ACTIVE_ANTMUX_CONFIG_DISCOVERY=FAIL none\n'
+            exit 9
+          fi
           printf 'ACTIVE_ANTMUX_CONFIG=%s\n' "$SITE_CONFIG"
 
           printf 'HOSTNAME=%s\n' "$(hostname)"
