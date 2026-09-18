@@ -54,8 +54,31 @@ jobs:
 
           APP_ROOT="$HOME/antmux-x72-queen"
           SNIPPET="$APP_ROOT/nginx/embryon-x72-shared-queen.conf"
-          SITE_CONFIG="/etc/nginx/sites-available/antmux.com"
           EXPECTED="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+          SITE_CONFIG="$(python3 - <<'PY'
+from pathlib import Path
+seen=[]
+for entry in Path('/etc/nginx/sites-enabled').iterdir():
+    try:
+        real=entry.resolve()
+    except Exception:
+        continue
+    if not real.is_file():
+        continue
+    try:
+        text=real.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        continue
+    if 'server_name' in text and 'antmux.com' in text:
+        s=str(real)
+        if s not in seen:
+            seen.append(s)
+if len(seen) != 1:
+    raise SystemExit(f'ACTIVE_ANTMUX_CONFIG_DISCOVERY=FAIL count={len(seen)}')
+print(seen[0])
+PY
+          )"
+          printf 'ACTIVE_ANTMUX_CONFIG=%s\n' "$SITE_CONFIG"
 
           printf 'HOSTNAME=%s\n' "$(hostname)"
           test "$(hostname)" = "server1.antmux.com"
@@ -153,10 +176,10 @@ jobs:
           printf '%s\n' "$public_health" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] is True; assert d["entity_id"]=="QUEEN-X72-0072"; print("PUBLIC_HEALTH=PASS")'
 
           public_state="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state)"
-          printf '%s\n' "$public_state" | python3 - "$EXPECTED" <<'PY'
-          import json,sys
+          PUBLIC_STATE_JSON="$public_state" python3 - "$EXPECTED" <<'PY'
+          import json,os,sys
           expected=sys.argv[1]
-          d=json.load(sys.stdin)
+          d=json.loads(os.environ["PUBLIC_STATE_JSON"])
           assert d["source"]=="QUEEN_SERVER_V0_2"
           assert d["entity_id"]=="QUEEN-X72-0072"
           assert d["reference_h256"]==expected
