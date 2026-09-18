@@ -60,18 +60,7 @@ jobs:
           grep -Fq 'SOURCE: QUEEN CORE V0.2 — VERIFIED REPAIR PATH' laboratoire/embryon-x72/index.html
           grep -Fq 'PORT WEB DU CORE V0.2' laboratoire/embryon-x72/index.html
 
-          python3 - <<'PY'
-          import importlib.util
-          from pathlib import Path
-
-          path = Path("laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py")
-          spec = importlib.util.spec_from_file_location("antmux_x72_v02", path)
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          result = module.run_self_tests(verbose=True)
-          if not result["ok"]:
-              raise SystemExit("Queen Core V0.2 self-tests failed")
-          PY
+          PYTHONPATH=laboratoire/embryon-x72/core python3 -c 'import ANTMUX_X72_LIFE_V02 as m; r=m.run_self_tests(verbose=True); raise SystemExit(0 if r["ok"] else 1)'
 
           python3 - <<'PY'
           import json
