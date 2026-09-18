@@ -1,0 +1,262 @@
+name: Audit X72 After Manual Nginx Fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/audit-x72-post-manual-nginx.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: x72-post-manual-nginx-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only Nginx and public X72 validation
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE' 2>&1 | tee x72-post-manual-nginx-audit.log
+          set -euo pipefail
+
+          APP_ROOT="$HOME/antmux-x72-queen"
+          SNIPPET="$APP_ROOT/nginx/embryon-x72-shared-queen.conf"
+          SITE_CONFIG="/etc/nginx/sites-available/antmux.com"
+          EXPECTED="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+
+          printf 'HOSTNAME=%s\n' "$(hostname)"
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+
+          # Never inspect agent.md. Never inspect TLS certificate/key contents.
+
+          if systemctl is-active --quiet nginx; then
+            printf 'NGINX_ACTIVE=PASS\n'
+          else
+            printf 'NGINX_ACTIVE=FAIL\n'
+            exit 10
+          fi
+
+          # Verify no backup-looking regular file is active in auto-included Nginx dirs.
+          if find /etc/nginx/sites-enabled /etc/nginx/conf.d -maxdepth 1 -type f \
+              \( -name '*.bak' -o -name '*before-x72*' -o -name '*backup*' \) -print -quit 2>/dev/null | grep -q .; then
+            printf 'NGINX_ACTIVE_BACKUP_GUARD=FAIL\n'
+            exit 11
+          else
+            printf 'NGINX_ACTIVE_BACKUP_GUARD=PASS\n'
+          fi
+
+          test -r "$SNIPPET"
+          xreal_count="$(grep -Fc 'proxy_set_header X-Real-IP $remote_addr;' "$SNIPPET" || true)"
+          xff_count="$(grep -Fc 'proxy_set_header X-Forwarded-For $remote_addr;' "$SNIPPET" || true)"
+          bad_xff_count="$(grep -Fc 'proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' "$SNIPPET" || true)"
+          if [ "$xreal_count" -ge 2 ] && [ "$xff_count" -ge 2 ] && [ "$bad_xff_count" -eq 0 ]; then
+            printf 'PROXY_TRUST_HEADERS=PASS\n'
+          else
+            printf 'PROXY_TRUST_HEADERS=FAIL\n'
+            exit 12
+          fi
+
+          python3 - "$SITE_CONFIG" "$SNIPPET" <<'PY'
+          import re, sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          snippet = sys.argv[2]
+          text = path.read_text(encoding='utf-8', errors='ignore')
+
+          blocks = []
+          pos = 0
+          while True:
+              m = re.search(r'(?m)^\s*server\s*\{', text[pos:])
+              if not m:
+                  break
+              start = pos + m.start()
+              open_brace = text.find('{', start)
+              depth = 0
+              close = None
+              for i in range(open_brace, len(text)):
+                  if text[i] == '{':
+                      depth += 1
+                  elif text[i] == '}':
+                      depth -= 1
+                      if depth == 0:
+                          close = i
+                          break
+              if close is None:
+                  raise SystemExit('NGINX_HTTPS_INCLUDE=FAIL malformed server block')
+              blocks.append(text[start:close+1])
+              pos = close + 1
+
+          http_with_x72 = []
+          https_with_x72 = []
+          for block in blocks:
+              if 'server_name' not in block or 'antmux.com' not in block:
+                  continue
+              has_include = snippet in block
+              listens_443 = bool(re.search(r'(?m)^\s*listen\s+[^;]*\b443\b[^;]*;', block))
+              listens_80 = bool(re.search(r'(?m)^\s*listen\s+[^;]*\b80\b[^;]*;', block))
+              if has_include and listens_443:
+                  https_with_x72.append(block)
+              if has_include and listens_80:
+                  http_with_x72.append(block)
+
+          if len(https_with_x72) != 1 or http_with_x72:
+              raise SystemExit(f'NGINX_HTTPS_INCLUDE=FAIL https={len(https_with_x72)} http={len(http_with_x72)}')
+          print('NGINX_HTTPS_INCLUDE=PASS')
+          PY
+
+          if /usr/sbin/nginx -t; then
+            printf 'NGINX_TEST=PASS\n'
+          else
+            printf 'NGINX_TEST=FAIL\n'
+            exit 13
+          fi
+
+          local_health="$(curl --fail --silent --show-error http://127.0.0.1:8720/api/health)"
+          printf '%s\n' "$local_health" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] is True; assert d["entity_id"]=="QUEEN-X72-0072"; print("BACKEND_LOCAL=PASS")'
+
+          public_health="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/health)"
+          printf '%s\n' "$public_health" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] is True; assert d["entity_id"]=="QUEEN-X72-0072"; print("PUBLIC_HEALTH=PASS")'
+
+          public_state="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state)"
+          printf '%s\n' "$public_state" | python3 - "$EXPECTED" <<'PY'
+          import json,sys
+          expected=sys.argv[1]
+          d=json.load(sys.stdin)
+          assert d["source"]=="QUEEN_SERVER_V0_2"
+          assert d["entity_id"]=="QUEEN-X72-0072"
+          assert d["reference_h256"]==expected
+          assert d["integrity_match"] is True
+          print("PUBLIC_STATE=PASS")
+          PY
+
+          PYTHONPATH="$APP_ROOT/vendor" python3 - "$EXPECTED" <<'PY'
+          import asyncio
+          import json
+          import sys
+          import urllib.error
+          import urllib.request
+          import websockets
+
+          EXPECTED = sys.argv[1]
+          BASE = 'https://antmux.com/laboratoire/embryon-x72'
+          WS_URL = 'wss://antmux.com/laboratoire/embryon-x72/ws'
+
+          def request_json(path, method='GET', body=None, forged_ip=None, allowed=(200,)):
+              data = None if body is None else json.dumps(body).encode('utf-8')
+              headers = {'Content-Type': 'application/json'}
+              if forged_ip is not None:
+                  headers['X-Forwarded-For'] = forged_ip
+              req = urllib.request.Request(BASE + path, data=data, method=method, headers=headers)
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      status = r.status
+                      payload = r.read().decode('utf-8')
+              except urllib.error.HTTPError as exc:
+                  status = exc.code
+                  payload = exc.read().decode('utf-8')
+              if status not in allowed:
+                  raise AssertionError(f'{method} {path}: status={status} body={payload}')
+              return status, json.loads(payload)
+
+          def s4_faulted(state):
+              for s in state.get('synapses', []):
+                  if s.get('synapse_id') == 'S4':
+                      return s.get('enabled') is False and s.get('integrity') == 0
+              return False
+
+          async def recv_until(ws, pred, label):
+              for _ in range(100):
+                  msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=2))
+                  if pred(msg):
+                      return msg
+              raise AssertionError(label)
+
+          async def main():
+              _, baseline = request_json('/api/state')
+              assert baseline['entity_id'] == 'QUEEN-X72-0072'
+              assert baseline['reference_h256'] == EXPECTED
+              assert baseline['integrity_match'] is True
+
+              async with websockets.connect(WS_URL, open_timeout=15) as a, websockets.connect(WS_URL, open_timeout=15) as b:
+                  sa = await recv_until(a, lambda m: m.get('entity_id') == 'QUEEN-X72-0072', 'client A initial')
+                  sb = await recv_until(b, lambda m: m.get('entity_id') == 'QUEEN-X72-0072', 'client B initial')
+                  assert sa['entity_id'] == sb['entity_id'] == 'QUEEN-X72-0072'
+                  assert sa['reference_h256'] == sb['reference_h256'] == EXPECTED
+                  print('PUBLIC_WEBSOCKET=PASS')
+                  print('PUBLIC_SHARED_QUEEN=PASS')
+
+                  _, fault = request_json('/api/fault', 'POST', {'synapse_id':'S4'}, forged_ip='198.51.100.10')
+                  assert s4_faulted(fault['state'])
+                  fa = await recv_until(a, s4_faulted, 'client A S4')
+                  fb = await recv_until(b, s4_faulted, 'client B S4')
+                  assert fa['protected_h256'] == fb['protected_h256']
+                  print('FAULT_S4_SHARED=PASS')
+
+                  await asyncio.sleep(3.2)
+                  _, repaired = request_json('/api/repair', 'POST', {}, forged_ip='198.51.100.20')
+                  assert repaired['report']['verdict'] == 'PASS'
+                  ra = await recv_until(a, lambda m: m.get('protected_h256') == EXPECTED and m.get('integrity_match') is True, 'client A repaired')
+                  rb = await recv_until(b, lambda m: m.get('protected_h256') == EXPECTED and m.get('integrity_match') is True, 'client B repaired')
+                  assert ra['protected_h256'] == rb['protected_h256'] == EXPECTED
+                  print('REPAIR_HASH_CLOSE=PASS')
+
+                  await asyncio.sleep(3.2)
+                  request_json('/api/fault', 'POST', {'synapse_id':'S1'}, forged_ip='198.51.100.30')
+                  status, _ = request_json('/api/repair', 'POST', {}, forged_ip='198.51.100.31', allowed=(429,))
+                  assert status == 429
+                  print('PUBLIC_RATE_LIMIT_ANTI_SPOOF=PASS')
+
+                  await asyncio.sleep(3.2)
+                  _, cleanup = request_json('/api/repair', 'POST', {}, forged_ip='198.51.100.32')
+                  assert cleanup['report']['verdict'] == 'PASS'
+                  assert cleanup['state']['protected_h256'] == EXPECTED
+                  assert cleanup['state']['integrity_match'] is True
+
+          asyncio.run(main())
+          PY
+
+          printf 'AUDIT_FINAL=PASS\n'
+          REMOTE
+
+      - name: Upload audit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x72-post-manual-nginx-audit
+          path: x72-post-manual-nginx-audit.log
+          if-no-files-found: ignore
