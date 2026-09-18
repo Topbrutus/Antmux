@@ -7,6 +7,11 @@ on:
         description: 'Type EXPOSE-X72-NGINX to prepare/apply the Nginx exposure'
         required: true
         default: ''
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/expose-x72-nginx.yml'
 
 permissions:
   contents: read
@@ -21,7 +26,7 @@ concurrency:
 
 jobs:
   expose-x72-nginx:
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'EXPOSE-X72-NGINX'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm == 'EXPOSE-X72-NGINX')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -90,7 +95,7 @@ jobs:
 
               proxy_set_header Host $host;
               proxy_set_header X-Real-IP $remote_addr;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-For $remote_addr;
               proxy_set_header X-Forwarded-Proto $scheme;
 
               proxy_connect_timeout 5s;
@@ -106,7 +111,7 @@ jobs:
 
               proxy_set_header Host $host;
               proxy_set_header X-Real-IP $remote_addr;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-For $remote_addr;
               proxy_set_header X-Forwarded-Proto $scheme;
 
               proxy_read_timeout 3600s;
@@ -323,11 +328,30 @@ jobs:
                   fa = await recv_until(a, lambda m: faulted(m, 'S4'), 'client A S4 fault')
                   fb = await recv_until(b, lambda m: faulted(m, 'S4'), 'client B S4 fault')
                   assert fa['protected_h256'] == fb['protected_h256']
+                  await asyncio.sleep(3.2)
                   repaired = request_json('/api/repair', method='POST', body={}, ip='10.72.88.5')
                   assert repaired['report']['verdict'] == 'PASS'
                   await recv_until(a, lambda m: m.get('protected_h256') == EXPECTED and m.get('integrity_match') is True, 'client A repair')
                   await recv_until(b, lambda m: m.get('protected_h256') == EXPECTED and m.get('integrity_match') is True, 'client B repair')
                   print('PUBLIC_SHARED_QUEEN=PASS')
+
+                  # Trust-boundary test: forged client X-Forwarded-For values must
+                  # not create two independent rate-limit identities through Nginx.
+                  await asyncio.sleep(3.2)
+                  request_json('/api/fault', method='POST', body={'synapse_id': 'S1'}, ip='198.51.100.10')
+                  try:
+                      request_json('/api/repair', method='POST', body={}, ip='198.51.100.20')
+                  except urllib.error.HTTPError as exc:
+                      if exc.code != 429:
+                          raise
+                      print('PUBLIC_RATE_LIMIT_FORGED_XFF=PASS')
+                  else:
+                      raise AssertionError('forged X-Forwarded-For bypassed the public rate limit')
+                  await asyncio.sleep(3.2)
+                  cleanup = request_json('/api/repair', method='POST', body={}, ip='198.51.100.30')
+                  assert cleanup['report']['verdict'] == 'PASS'
+                  assert cleanup['state']['protected_h256'] == EXPECTED
+                  assert cleanup['state']['integrity_match'] is True
           asyncio.run(main())
           PY
           printf 'FINAL_STATUS=APPLIED\n'
