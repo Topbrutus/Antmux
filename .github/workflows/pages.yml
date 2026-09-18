@@ -17,6 +17,7 @@ on:
       - 'laboratoire/genesis/V0.1-PUBLIC-RELEASE.md'
       - 'laboratoire/genesis/PUBLIC-CONTRACT-v1.md'
       - 'laboratoire/genesis/demo/**'
+      - 'laboratoire/embryon-x72/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -53,6 +54,7 @@ jobs:
           rm -rf _site
           mkdir -p _site/laboratoire/data
           mkdir -p _site/laboratoire/genesis/demo
+          mkdir -p _site/laboratoire/embryon-x72
 
           cp index.html styles.css app.js _site/
           cp -R generator carrou _site/
@@ -68,12 +70,20 @@ jobs:
           cp laboratoire/genesis/PUBLIC-CONTRACT-v1.md _site/laboratoire/genesis/
           cp laboratoire/genesis/demo/genesis-demo-v1.json _site/laboratoire/genesis/demo/
 
+          cp laboratoire/embryon-x72/index.html _site/laboratoire/embryon-x72/
+          cp laboratoire/embryon-x72/styles.css _site/laboratoire/embryon-x72/
+          cp laboratoire/embryon-x72/app.js _site/laboratoire/embryon-x72/
+          cp laboratoire/embryon-x72/README.md _site/laboratoire/embryon-x72/
+
       - name: Assert laboratory publication boundary
         run: |
           test -f _site/laboratoire/index.html
           test -f _site/laboratoire/genesis/index.html
           test -f _site/laboratoire/genesis/V0.1-PUBLIC-RELEASE.md
           test -f _site/laboratoire/genesis/demo/genesis-demo-v1.json
+          test -f _site/laboratoire/embryon-x72/index.html
+          test -f _site/laboratoire/embryon-x72/styles.css
+          test -f _site/laboratoire/embryon-x72/app.js
           test ! -e _site/laboratoire/genesis/validate-demo.mjs
           test ! -e _site/laboratoire/genesis/test-validator.mjs
           test ! -e _site/laboratoire/genesis/browser-cockpit.mjs
