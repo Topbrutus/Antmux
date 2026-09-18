@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - '.github/workflows/deploy-x72-frontend-server-authority.yml'
+      - 'laboratoire/embryon-x72/app.js'
+      - 'laboratoire/embryon-x72/index.html'
+      - 'deploy/x72-shared-queen/frontend/app.js'
   workflow_dispatch:
 
 permissions:
@@ -32,15 +35,24 @@ jobs:
             "https://raw.githubusercontent.com/Topbrutus/Antmux/${GITHUB_SHA}/laboratoire/embryon-x72/app.js" \
             -o _x72_frontend/app.js
           curl --fail --silent --show-error -L \
+            "https://raw.githubusercontent.com/Topbrutus/Antmux/${GITHUB_SHA}/deploy/x72-shared-queen/frontend/app.js" \
+            -o _x72_frontend/app.deploy.js
+          curl --fail --silent --show-error -L \
             "https://raw.githubusercontent.com/Topbrutus/Antmux/${GITHUB_SHA}/laboratoire/embryon-x72/index.html" \
             -o _x72_frontend/index.html
+          cmp -s _x72_frontend/app.js _x72_frontend/app.deploy.js
+          printf 'FRONTEND_COPIES_MATCH=PASS\n'
 
           node --check _x72_frontend/app.js
           ! grep -q 'class QueenCore' _x72_frontend/app.js
           ! grep -q 'new QueenCore' _x72_frontend/app.js
           ! grep -q 'requestAnimationFrame(tickFrame)' _x72_frontend/app.js
+          grep -q 'requestAnimationFrame(animationLoop)' _x72_frontend/app.js
+          grep -q 'interpolateVisualState' _x72_frontend/app.js
+          grep -q '_visualTick=lerp(previous.tick_count,current.tick_count,alpha)' _x72_frontend/app.js
           grep -q 'new WebSocket' _x72_frontend/app.js
           grep -q 'CORE DISCONNECTED' _x72_frontend/app.js
+          grep -q 'AUCUNE PANNE' _x72_frontend/app.js
           grep -q 'aucun tick local' _x72_frontend/app.js
           grep -q 'QUEEN_SERVER_V0_2' _x72_frontend/app.js
           grep -q 'Queen Server est l’unique autorité' _x72_frontend/index.html
@@ -117,15 +129,21 @@ jobs:
           ! grep -q 'class QueenCore' "$TARGET/app.js"
           ! grep -q 'new QueenCore' "$TARGET/app.js"
           ! grep -q 'requestAnimationFrame(tickFrame)' "$TARGET/app.js"
+          grep -q 'requestAnimationFrame(animationLoop)' "$TARGET/app.js"
+          grep -q 'interpolateVisualState' "$TARGET/app.js"
+          grep -q '_visualTick=lerp(previous.tick_count,current.tick_count,alpha)' "$TARGET/app.js"
           grep -q 'new WebSocket' "$TARGET/app.js"
           grep -q 'CORE DISCONNECTED' "$TARGET/app.js"
+          grep -q 'AUCUNE PANNE' "$TARGET/app.js"
           grep -q 'aucun tick local' "$TARGET/app.js"
           grep -q 'QUEEN_SERVER_V0_2' "$TARGET/app.js"
           printf 'FRONTEND_SERVER_AUTHORITY_STATIC=PASS\n'
 
           PUBLIC_APP="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "https://antmux.com/laboratoire/embryon-x72/app.js?sha=${{ github.sha }}")"
           printf '%s' "$PUBLIC_APP" | grep -q 'new WebSocket'
+          printf '%s' "$PUBLIC_APP" | grep -q 'requestAnimationFrame(animationLoop)'
           printf '%s' "$PUBLIC_APP" | grep -q 'CORE DISCONNECTED'
+          printf '%s' "$PUBLIC_APP" | grep -q 'AUCUNE PANNE'
           if printf '%s' "$PUBLIC_APP" | grep -q 'class QueenCore'; then
             printf 'PUBLIC_FRONTEND_LOCAL_QUEEN=FAIL\n'
             exit 20

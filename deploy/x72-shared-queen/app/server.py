@@ -114,6 +114,7 @@ class QueenCore:
         self.sim_time = 0.0
         self.dt_sim = 1 / 240
         self.started_at = time.monotonic()
+        self.runtime_start_tick = self.tick
         self.repair_active = False
         self.relations = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0], [0, 3], [2, 5], [1, 4]]
         roles = ["INPUT", "MEMORY", "RELATION", "CHOICE", "TEMPORAL", "REPAIR", "AUDIT"]
@@ -262,6 +263,7 @@ class QueenCore:
 
     def visual_state(self) -> dict[str, Any]:
         elapsed = max(0.001, time.monotonic() - self.started_at)
+        runtime_ticks = max(0, self.tick - self.runtime_start_tick)
         active = sum(1 for s in self.synapses if s.enabled)
         activity = sum(s.activity for s in self.synapses) / len(self.synapses)
         memory = sum(s.memory for s in self.synapses) / len(self.synapses)
@@ -277,8 +279,8 @@ class QueenCore:
             "tick_count": self.tick,
             "sim_time": round(self.sim_time, 6),
             "dt_sim": self.dt_sim,
-            "r_exec": round(self.tick / elapsed, 3),
-            "f_rt": round((self.tick * self.dt_sim) / elapsed, 6),
+            "r_exec": round(runtime_ticks / elapsed, 3),
+            "f_rt": round((runtime_ticks * self.dt_sim) / elapsed, 6),
             "event_count": len(self.bus.events),
             "queen_mode": self.mode,
             "generation": self.generation,
@@ -327,6 +329,8 @@ class QueenCore:
         queen.mode = checkpoint["mode"]
         queen.tick = int(checkpoint["tick"])
         queen.sim_time = float(checkpoint["sim_time"])
+        queen.started_at = time.monotonic()
+        queen.runtime_start_tick = queen.tick
         queen.relations = checkpoint["relations"]
         queen.synapses = [SynapseState(**item) for item in checkpoint["synapses"]]
         queen.protected_reference = checkpoint["protected_reference"]
