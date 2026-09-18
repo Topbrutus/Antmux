@@ -92,8 +92,8 @@ jobs:
           set -euo pipefail
 
           TARGET="/var/www/antmux.com/public_html/laboratoire/embryon-x72"
-          STAGE="/tmp/x72-frontend-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          BACKUP="$HOME/antmux-x72-queen-backups/frontend-server-authority-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA}"
+          STAGE="/tmp/x72-frontend-${{ github.run_id }}-${{ github.run_attempt }}"
+          BACKUP="$HOME/antmux-x72-queen-backups/frontend-server-authority-$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
           EXPECTED="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
           APP_ROOT="$HOME/antmux-x72-queen"
 
@@ -123,7 +123,7 @@ jobs:
           grep -q 'QUEEN_SERVER_V0_2' "$TARGET/app.js"
           printf 'FRONTEND_SERVER_AUTHORITY_STATIC=PASS\n'
 
-          PUBLIC_APP="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "https://antmux.com/laboratoire/embryon-x72/app.js?sha=${GITHUB_SHA}")"
+          PUBLIC_APP="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "https://antmux.com/laboratoire/embryon-x72/app.js?sha=${{ github.sha }}")"
           printf '%s' "$PUBLIC_APP" | grep -q 'new WebSocket'
           printf '%s' "$PUBLIC_APP" | grep -q 'CORE DISCONNECTED'
           if printf '%s' "$PUBLIC_APP" | grep -q 'class QueenCore'; then
