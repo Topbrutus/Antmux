@@ -44,7 +44,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-tk
 
-      - name: Validate Queen Core V0.2 and web port
+      - name: Validate Queen Server V0.2 and server-authority UI
         run: |
           set -euo pipefail
 
@@ -57,8 +57,8 @@ jobs:
           test -f laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
 
           grep -Fq 'HORLOGE DE LA VIE — CORE V0.2' laboratoire/embryon-x72/index.html
-          grep -Fq 'SOURCE: QUEEN CORE V0.2 — VERIFIED REPAIR PATH' laboratoire/embryon-x72/index.html
-          grep -Fq 'PORT WEB DU CORE V0.2' laboratoire/embryon-x72/index.html
+          grep -Fq 'SOURCE: QUEEN SERVER V0.2 — SERVER AUTHORITATIVE' laboratoire/embryon-x72/index.html
+          grep -Fq 'Queen Server est l’unique autorité d’état.' laboratoire/embryon-x72/index.html
 
           PYTHONPATH=laboratoire/embryon-x72/core python3 -c 'import ANTMUX_X72_LIFE_V02 as m; r=m.run_self_tests(verbose=True); raise SystemExit(0 if r["ok"] else 1)'
 
@@ -192,7 +192,7 @@ jobs:
 
           grep -Fq 'EMBRYON X72 · HORLOGE DE LA VIE' /tmp/lab-index.html
           grep -Fq 'HORLOGE DE LA VIE — CORE V0.2' /tmp/embryon-index.html
-          grep -Fq 'PORT WEB DU CORE V0.2' /tmp/embryon-index.html
+          grep -Fq 'SOURCE: QUEEN SERVER V0.2 — SERVER AUTHORITATIVE' /tmp/embryon-index.html
           grep -Fq 'QueenCore -> EventBus -> RepairEngine -> Telemetry -> VisualState -> Visual' /tmp/core-v02.py
           node --check /tmp/embryon-app.js
 

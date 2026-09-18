@@ -12,14 +12,14 @@ name: CI X72 Integration Validation
     paths:
       - 'laboratoire/embryon-x72/**'
       - 'deploy/x72-shared-queen/**'
-      - '.github/workflows/ci-x72-integration.yml'
+      - '.github/workflows/*x72*.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'laboratoire/embryon-x72/**'
       - 'deploy/x72-shared-queen/**'
-      - '.github/workflows/ci-x72-integration.yml'
+      - '.github/workflows/*x72*.yml'
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ defaults:
 
 concurrency:
   group: ci-x72-integration-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
 
@@ -136,6 +136,12 @@ jobs:
       - name: Checkout worker5/x72-ci-integration
         uses: actions/checkout@v4
 
+      - name: Install Tk runtime for core import
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
       - name: Python self-tests
         run: |
           set -euo pipefail
@@ -180,43 +186,42 @@ jobs:
       - name: Checkout worker5/x72-ci-integration
         uses: actions/checkout@v4
 
-      - name: Detect stale grep patterns in deploy-embryon-x72-vps.yml
+      - name: Verify deploy workflow HTML assertions are current
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
-          # These three patterns in deploy-embryon-x72-vps.yml no longer match
-          # the current laboratoire/embryon-x72/index.html (as of 2026-09-18).
-          # The HTML uses en-dashes (–) not hyphen-minuses (-), and the badge
-          # text was updated from QUEEN CORE to QUEEN SERVER.
-          # This check is evidence that the workflow needs updating before it
-          # is merged to main.
-
           idx = Path("laboratoire/embryon-x72/index.html").read_text(encoding="utf-8")
-          wf  = Path(".github/workflows/deploy-embryon-x72-vps.yml").read_text(encoding="utf-8")
+          wf = Path(".github/workflows/deploy-embryon-x72-vps.yml").read_text(encoding="utf-8")
 
-          STALE = [
-              "HORLOGE DE LA VIE - CORE V0.2",
-              "SOURCE: QUEEN CORE V0.2 - VERIFIED REPAIR PATH",
-              "PORT WEB DU CORE V0.2",
-          ]
-          failures = []
-          for s in STALE:
-              in_wf  = s in wf
-              in_idx = s in idx
-              if in_wf and not in_idx:
-                  failures.append(f"STALE_GREP in deploy-embryon-x72-vps.yml: {s!r} not in index.html")
-                  print(f"STALE: {s!r}")
-              else:
-                  print(f"OK   : {s!r}")
+          patterns = []
+          for line in wf.splitlines():
+              if "grep -Fq '" not in line:
+                  continue
+              if (
+                  "laboratoire/embryon-x72/index.html" not in line
+                  and "/tmp/embryon-index.html" not in line
+              ):
+                  continue
+              match = re.search(r"grep -Fq '([^']+)'", line)
+              if match:
+                  patterns.append(match.group(1))
 
-          if failures:
-              print("\nWORKFLOW_STALE_GREP=FAIL")
-              for f in failures:
-                  print("  " + f)
-              raise SystemExit(1)
-          print("WORKFLOW_STALE_GREP=PASS")
+          if not patterns:
+              raise SystemExit("WORKFLOW_HTML_ASSERTIONS=FAIL: no Embryon index assertions found")
+
+          stale = [pattern for pattern in patterns if pattern not in idx]
+          for pattern in patterns:
+              print(("STALE" if pattern in stale else "OK") + f": {pattern!r}")
+
+          if stale:
+              raise SystemExit(
+                  "WORKFLOW_HTML_ASSERTIONS=FAIL: stale patterns: " + ", ".join(repr(x) for x in stale)
+              )
+
+          print(f"WORKFLOW_HTML_ASSERTIONS=PASS ({len(patterns)} assertions checked)")
           PY
 
       - name: All X72 workflows have set -euo pipefail
@@ -266,6 +271,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [static-validation, server-authority-contract, core-tests]
+    env:
+      ANTMUX_X72_DATA_DIR: ${{ runner.temp }}/x72-ci-data
     steps:
       - name: Checkout worker5/x72-ci-integration
         uses: actions/checkout@v4
@@ -273,8 +280,8 @@ jobs:
       - name: Install Python dependencies
         run: |
           set -euo pipefail
-          pip install websockets --quiet
-          python3 -c 'import websockets; print("websockets OK")'
+          python3 -m pip install --disable-pip-version-check --quiet fastapi uvicorn pydantic websockets
+          python3 -c 'import fastapi, pydantic, uvicorn, websockets; print("QUEEN_SERVER_DEPS=PASS")'
 
       - name: Resolve Queen server source (from worker3 branch via HEAD)
         run: |
@@ -289,23 +296,44 @@ jobs:
       - name: Start local Queen server
         run: |
           set -euo pipefail
-          cd deploy/x72-shared-queen/app
-          python3 server.py --port 8720 --host 127.0.0.1 &
+          mkdir -p "$ANTMUX_X72_DATA_DIR"
+          python3 -m uvicorn app.server:app             --app-dir deploy/x72-shared-queen             --host 127.0.0.1             --port 8720             --log-level warning             > /tmp/queen_server.log 2>&1 &
           echo $! > /tmp/queen_server.pid
-          # Wait for server to become ready
-          for i in $(seq 1 20); do
+
+          ready=0
+          for i in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:8720/api/health > /dev/null 2>&1; then
-              printf 'QUEEN_SERVER_STARTED=PASS\n'
+              ready=1
               break
             fi
             sleep 0.5
           done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/queen_server.log >&2 || true
+            exit 1
+          fi
+          printf 'QUEEN_SERVER_STARTED=PASS\n'
+
           curl --fail --silent http://127.0.0.1:8720/api/health | python3 -c '
           import json,sys
           d=json.load(sys.stdin)
           assert d["ok"] is True
           assert d["entity_id"] == "QUEEN-X72-0072"
           print("LOCAL_HEALTH=PASS")
+          '
+
+      - name: Smoke test — telemetry endpoint
+        run: |
+          set -euo pipefail
+          curl --fail --silent http://127.0.0.1:8720/api/telemetry | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          assert d["schema"] == "ANTMUX-X72-OBSERVABILITY-v1"
+          assert d["authority"] == "QUEEN_SERVER_V0_2"
+          assert d["scope"] == "operational_read_only"
+          assert d["entity_id"] == "QUEEN-X72-0072"
+          assert d["integrity_match"] is True
+          print("TELEMETRY_CONTRACT=PASS")
           '
 
       - name: Smoke test — state endpoint
@@ -423,10 +451,17 @@ jobs:
           subprocess.run(["kill", "-SIGTERM", str(pid)], check=False)
           time.sleep(1.5)
 
-          # Relaunch
+          # Relaunch through the same ASGI entrypoint used by the first start.
           proc = subprocess.Popen(
-              ["python3", "server.py", "--port", "8720", "--host", "127.0.0.1"],
-              cwd="deploy/x72-shared-queen/app",
+              [
+                  "python3", "-m", "uvicorn", "app.server:app",
+                  "--app-dir", "deploy/x72-shared-queen",
+                  "--host", "127.0.0.1",
+                  "--port", "8720",
+                  "--log-level", "warning",
+              ],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
           )
           Path("/tmp/queen_server.pid").write_text(str(proc.pid))
 
