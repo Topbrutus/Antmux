@@ -1,0 +1,250 @@
+{
+  "branch_role": "worker2/x72-tests-hardening",
+  "categories": {
+    "concurrency": {
+      "failed": 0,
+      "passed": 2
+    },
+    "errors": {
+      "failed": 0,
+      "passed": 3
+    },
+    "fault": {
+      "failed": 0,
+      "passed": 1
+    },
+    "health": {
+      "failed": 0,
+      "passed": 1
+    },
+    "integrity": {
+      "failed": 0,
+      "passed": 3
+    },
+    "multi-client": {
+      "failed": 0,
+      "passed": 2
+    },
+    "persistence": {
+      "failed": 0,
+      "passed": 3
+    },
+    "rate-limit": {
+      "failed": 0,
+      "passed": 1
+    },
+    "repair": {
+      "failed": 0,
+      "passed": 2
+    },
+    "restart": {
+      "failed": 0,
+      "passed": 1
+    },
+    "security": {
+      "failed": 0,
+      "passed": 6
+    },
+    "stress": {
+      "failed": 0,
+      "passed": 1
+    },
+    "websocket": {
+      "failed": 0,
+      "passed": 4
+    }
+  },
+  "elapsed_seconds": 6.156,
+  "final_integrity_match": true,
+  "final_protected_h256": "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9",
+  "queen_entity_id": "QUEEN-X72-0072",
+  "reference_h256": "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9",
+  "schema": "ANTMUX-X72-ROBUSTNESS-v1",
+  "tests": [
+    {
+      "category": "security",
+      "detail": "",
+      "name": "no arbitrary execution/read channel",
+      "ok": true
+    },
+    {
+      "category": "security",
+      "detail": "trusted=True legacy=False",
+      "name": "Nginx X72 overwrites client X-Forwarded-For",
+      "ok": true
+    },
+    {
+      "category": "health",
+      "detail": "source=QUEEN_SERVER_V0_2 entity=QUEEN-X72-0072",
+      "name": "health source/entity",
+      "ok": true
+    },
+    {
+      "category": "integrity",
+      "detail": "",
+      "name": "baseline reference/integrity",
+      "ok": true
+    },
+    {
+      "category": "stress",
+      "detail": "",
+      "name": "120 concurrent state reads",
+      "ok": true
+    },
+    {
+      "category": "errors",
+      "detail": "{'detail': 'fault must be S1..S7 or RANDOM'}",
+      "name": "invalid synapse rejected",
+      "ok": true
+    },
+    {
+      "category": "errors",
+      "detail": "",
+      "name": "unsupported method rejected",
+      "ok": true
+    },
+    {
+      "category": "security",
+      "detail": "",
+      "name": "admin surface absent /api/reset",
+      "ok": true
+    },
+    {
+      "category": "security",
+      "detail": "",
+      "name": "admin surface absent /api/reseed",
+      "ok": true
+    },
+    {
+      "category": "security",
+      "detail": "",
+      "name": "admin surface absent /api/exec",
+      "ok": true
+    },
+    {
+      "category": "security",
+      "detail": "",
+      "name": "admin surface absent /api/shell",
+      "ok": true
+    },
+    {
+      "category": "concurrency",
+      "detail": "[409, 409, 409, 409, 409, 409, 409, 200]",
+      "name": "concurrent faults serialize to one winner",
+      "ok": true
+    },
+    {
+      "category": "concurrency",
+      "detail": "pass_count=1 responses=[(409, None), (409, None), (409, None), (200, 'PASS'), (409, None), (409, None)]",
+      "name": "concurrent repairs produce one PASS and no corrupt result",
+      "ok": true
+    },
+    {
+      "category": "integrity",
+      "detail": "",
+      "name": "concurrent repair final hash closes",
+      "ok": true
+    },
+    {
+      "category": "errors",
+      "detail": "",
+      "name": "clean repair command is explicit INVALID",
+      "ok": true
+    },
+    {
+      "category": "rate-limit",
+      "detail": "{'detail': 'rate limit: one public mutation per IP per 3 seconds'}",
+      "name": "same-IP mutation rate-limited",
+      "ok": true
+    },
+    {
+      "category": "websocket",
+      "detail": "",
+      "name": "16 simultaneous WebSocket clients",
+      "ok": true
+    },
+    {
+      "category": "multi-client",
+      "detail": "",
+      "name": "two clients share entity/reference",
+      "ok": true
+    },
+    {
+      "category": "fault",
+      "detail": "",
+      "name": "S4 mutation accepted",
+      "ok": true
+    },
+    {
+      "category": "multi-client",
+      "detail": "",
+      "name": "S4 fault shared to both WebSockets",
+      "ok": true
+    },
+    {
+      "category": "repair",
+      "detail": "{'verdict': 'PASS', 'reason': 'Protected state restored to reference.', 'changed_synapses': ['S4'], 'before_protected_h256': 'c5f711409cb91e33aee5a977d8d9622f040ae18c537fff3acb86f9ecf4f07861', 'after_protected_h256': '49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9', 'reference_protected_h256': '49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9', 'whole_state_h256': '9934df185d3123e7c8b512a8baed2c06992d43a58a845143644e164c338afd56'}",
+      "name": "repair returns PASS",
+      "ok": true
+    },
+    {
+      "category": "repair",
+      "detail": "",
+      "name": "repair hash closes for both clients",
+      "ok": true
+    },
+    {
+      "category": "websocket",
+      "detail": "before=37 after=42",
+      "name": "closing WebSocket client does not stop Queen",
+      "ok": true
+    },
+    {
+      "category": "restart",
+      "detail": "persisted=72 before=82 after=74",
+      "name": "restart restores latest persisted Queen checkpoint",
+      "ok": true
+    },
+    {
+      "category": "websocket",
+      "detail": "",
+      "name": "WebSocket reconnect after restart",
+      "ok": true
+    },
+    {
+      "category": "persistence",
+      "detail": "queen.db present",
+      "name": "SQLite checkpoint database exists",
+      "ok": true
+    },
+    {
+      "category": "persistence",
+      "detail": "rows=9",
+      "name": "multiple checkpoints persisted",
+      "ok": true
+    },
+    {
+      "category": "persistence",
+      "detail": "entity=QUEEN-X72-0072 integrity=True",
+      "name": "corrupt newest checkpoint is rejected with fallback",
+      "ok": true
+    },
+    {
+      "category": "websocket",
+      "detail": "",
+      "name": "8 simultaneous WebSocket clients",
+      "ok": true
+    },
+    {
+      "category": "integrity",
+      "detail": "",
+      "name": "final protected H256 equals reference",
+      "ok": true
+    }
+  ],
+  "tests_failed": 0,
+  "tests_passed": 30,
+  "tests_total": 30,
+  "timestamp_utc": "2026-09-18T06:46:02Z",
+  "verdict": "PASS"
+}
