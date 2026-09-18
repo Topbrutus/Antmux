@@ -1,0 +1,163 @@
+name: Deploy Embryon X72 to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-embryon-x72-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/embryon-x72/**'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-EMBRYON-X72 to allow the manual VPS deployment'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: embryon-x72-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-embryon-x72:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-EMBRYON-X72'))
+    runs-on: ubuntu-latest
+
+    env:
+      LAB_ROOT: /var/www/antmux.com/public_html/laboratoire
+      TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/embryon-x72
+      REMOTE_STAGE: /tmp/antmux-embryon-x72-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Validate frontend
+        run: |
+          set -euo pipefail
+          node --check laboratoire/embryon-x72/app.js
+          test -f laboratoire/embryon-x72/index.html
+          test -f laboratoire/embryon-x72/styles.css
+          test -f laboratoire/embryon-x72/README.md
+          grep -Fq 'DEMO TELEMETRY — NOT CORE' laboratoire/embryon-x72/index.html
+          grep -Fq 'CORE → TELEMETRY → VisualState → VISUAL' laboratoire/embryon-x72/index.html
+          grep -Fq './live/public-read-only.json' laboratoire/embryon-x72/app.js
+
+      - name: Assemble exact public payload
+        run: |
+          set -euo pipefail
+          rm -rf _embryon_deploy
+          mkdir -p _embryon_deploy/embryon-x72
+
+          cp laboratoire/index.html _embryon_deploy/laboratoire-index.html
+          cp laboratoire/embryon-x72/index.html _embryon_deploy/embryon-x72/
+          cp laboratoire/embryon-x72/styles.css _embryon_deploy/embryon-x72/
+          cp laboratoire/embryon-x72/app.js _embryon_deploy/embryon-x72/
+          cp laboratoire/embryon-x72/README.md _embryon_deploy/embryon-x72/
+
+          (
+            cd _embryon_deploy
+            sha256sum laboratoire-index.html embryon-x72/index.html embryon-x72/styles.css embryon-x72/app.js embryon-x72/README.md > SHA256SUMS
+          )
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          if [ "$actual_public_key" != "$expected_public_key" ]; then
+            echo 'ANTMUX_VPS_SSH_PRIVATE_KEY does not match the pinned deployment identity.' >&2
+            exit 1
+          fi
+
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight VPS access
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "set -e; test -d '$LAB_ROOT'; test -w '$LAB_ROOT'; test \"\$(id -un)\" = '$VPS_USER'"
+
+      - name: Upload staged payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -r _embryon_deploy/. \
+            "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Backup and deploy
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          LAB_ROOT='/var/www/antmux.com/public_html/laboratoire'
+          TARGET_ROOT="$LAB_ROOT/embryon-x72"
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP_ROOT="$HOME/antmux-embryon-x72-deploy-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+
+          mkdir -p "$BACKUP_ROOT/embryon-x72"
+          if test -f "$LAB_ROOT/index.html"; then
+            cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html"
+          fi
+          if test -d "$TARGET_ROOT"; then
+            cp -a "$TARGET_ROOT/." "$BACKUP_ROOT/embryon-x72/"
+          fi
+
+          install -d -m 0755 "$TARGET_ROOT"
+          install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/embryon-x72/index.html" "$TARGET_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/embryon-x72/styles.css" "$TARGET_ROOT/styles.css"
+          install -m 0644 "$REMOTE_STAGE/embryon-x72/app.js" "$TARGET_ROOT/app.js"
+          install -m 0644 "$REMOTE_STAGE/embryon-x72/README.md" "$TARGET_ROOT/README.md"
+
+          rm -rf "$REMOTE_STAGE"
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
+
+      - name: Verify public Antmux endpoints
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/ -o /tmp/embryon-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/app.js -o /tmp/embryon-app.js
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/styles.css >/dev/null
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/README.md >/dev/null
+
+          grep -Fq 'EMBRYON X72 · HORLOGE DE LA VIE' /tmp/lab-index.html
+          grep -Fq 'Horloge de la Vie — Reine' /tmp/embryon-index.html
+          grep -Fq 'DEMO TELEMETRY — NOT CORE' /tmp/embryon-index.html
+          grep -Fq './live/public-read-only.json' /tmp/embryon-app.js
+          node --check /tmp/embryon-app.js
