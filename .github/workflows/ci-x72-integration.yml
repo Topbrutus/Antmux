@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout worker5/x72-ci-integration
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Required file presence
         run: |
@@ -78,7 +78,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout worker5/x72-ci-integration
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Frontend server-authority invariants (app.js)
         run: |
@@ -139,7 +139,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout worker5/x72-ci-integration
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Tk runtime for core import
         run: |
@@ -189,7 +189,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout worker5/x72-ci-integration
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Verify deploy workflow HTML assertions are current
         run: |
@@ -278,7 +278,7 @@ jobs:
     needs: [static-validation, server-authority-contract, core-tests]
     steps:
       - name: Checkout worker5/x72-ci-integration
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare isolated CI data directory
         run: |

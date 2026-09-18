@@ -29,6 +29,7 @@ jobs:
       (github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-EMBRYON-X72'))
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     env:
       LAB_ROOT: /var/www/antmux.com/public_html/laboratoire
