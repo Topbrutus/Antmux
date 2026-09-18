@@ -174,6 +174,9 @@ jobs:
           public_health="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/health)"
           printf '%s\n' "$public_health" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] is True; assert d["entity_id"]=="QUEEN-X72-0072"; print("PUBLIC_HEALTH=PASS")'
 
+          public_telemetry="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/telemetry)"
+          printf '%s\n' "$public_telemetry" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["schema"]=="ANTMUX-X72-OBSERVABILITY-v1"; assert d["authority"]=="QUEEN_SERVER_V0_2"; assert d["scope"]=="operational_read_only"; print("PUBLIC_TELEMETRY=PASS")'
+
           public_state="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state)"
           PUBLIC_STATE_JSON="$public_state" python3 - "$EXPECTED" <<'PY'
           import json,os,sys

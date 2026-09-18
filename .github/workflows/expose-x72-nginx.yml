@@ -284,8 +284,10 @@ jobs:
           section "public api tests"
           HEALTH="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/health)"
           STATE="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state)"
+          TELEMETRY="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/telemetry)"
           printf '%s\n' "$HEALTH"
           printf '%s\n' "$STATE" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["entity_id"]=="QUEEN-X72-0072"; assert data["reference_h256"]=="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"; print("PUBLIC_STATE=PASS")'
+          printf '%s\n' "$TELEMETRY" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["schema"]=="ANTMUX-X72-OBSERVABILITY-v1"; assert data["authority"]=="QUEEN_SERVER_V0_2"; assert data["scope"]=="operational_read_only"; print("PUBLIC_TELEMETRY=PASS")'
           printf 'PUBLIC_HEALTH=PASS\n'
 
           section "public websocket and shared queen tests"
@@ -377,6 +379,7 @@ jobs:
             printf 'NGINX_RELOAD=BLOCKED\n'
             printf 'PUBLIC_HEALTH=BLOCKED\n'
             printf 'PUBLIC_STATE=BLOCKED\n'
+            printf 'PUBLIC_TELEMETRY=BLOCKED\n'
             printf 'PUBLIC_WEBSOCKET=BLOCKED\n'
             printf 'PUBLIC_SHARED_QUEEN=BLOCKED\n'
             printf 'FRONTEND_SERVER_AUTHORITY=NOT_DONE\n'
