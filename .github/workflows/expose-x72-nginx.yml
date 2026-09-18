@@ -1,0 +1,369 @@
+name: Expose X72 Shared Queen Nginx
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type EXPOSE-X72-NGINX to prepare/apply the Nginx exposure'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: x72-final-nginx-exposure
+  cancel-in-progress: false
+
+jobs:
+  expose-x72-nginx:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'EXPOSE-X72-NGINX'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          if [ "$actual_public_key" != "$expected_public_key" ]; then
+            echo 'ANTMUX_VPS_SSH_PRIVATE_KEY does not match the pinned deployment identity.' >&2
+            exit 1
+          fi
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Prepare or apply final X72 Nginx exposure
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE' 2>&1 | tee expose-x72-nginx.log
+          set -euo pipefail
+
+          section() { printf '\n===== %s =====\n' "$1"; }
+
+          APP_ROOT="$HOME/antmux-x72-queen"
+          NGINX_DIR="$APP_ROOT/nginx"
+          SNIPPET="$NGINX_DIR/embryon-x72-shared-queen.conf"
+          ROOT_SCRIPT="$NGINX_DIR/APPLY_X72_NGINX_AS_ROOT.sh"
+          EXPECTED_H256="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+
+          section "readable nginx text inspection"
+          printf 'NGINX_ACTIVE_CONFIG=NOT_ACQUIRED_READABLE_TEXT_ONLY\n'
+          printf 'NGINX_SERVER_BLOCK=NOT_ACQUIRED_READABLE_TEXT_ONLY\n'
+          printf 'NGINX_INCLUDE_PATH=%s\n' "$SNIPPET"
+          for root in /etc/nginx/nginx.conf /etc/nginx/sites-enabled /etc/nginx/sites-available /etc/nginx/conf.d; do
+            if [ -e "$root" ]; then
+              find "$root" -type f \
+                ! -path '/etc/letsencrypt/*' \
+                ! -name '*.pem' ! -name '*.key' \
+                ! -iname '*private_key*' ! -iname '*fullchain*' \
+                -readable -print0 2>/dev/null \
+                | xargs -0 grep -IHnE 'server_name[[:space:]].*(antmux\.com|www\.antmux\.com)|^[[:space:]]*root[[:space:]]|^[[:space:]]*include[[:space:]]|location[[:space:]]+/laboratoire/' 2>/dev/null || true
+            fi
+          done
+
+          section "prepare snippet"
+          mkdir -p "$NGINX_DIR"
+          cat > "$SNIPPET" <<'EOF_SNIPPET'
+          location /laboratoire/embryon-x72/api/ {
+              proxy_pass http://127.0.0.1:8720/api/;
+
+              proxy_http_version 1.1;
+
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+
+              proxy_connect_timeout 5s;
+              proxy_read_timeout 30s;
+          }
+
+          location = /laboratoire/embryon-x72/ws {
+              proxy_pass http://127.0.0.1:8720/ws;
+
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "upgrade";
+
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+
+              proxy_read_timeout 3600s;
+          }
+          EOF_SNIPPET
+          chmod 0644 "$SNIPPET"
+          printf 'SNIPPET=%s\n' "$SNIPPET"
+
+          section "backend local and service"
+          HEALTH_JSON="$(curl --fail --silent --show-error http://127.0.0.1:8720/api/health)"
+          printf '%s\n' "$HEALTH_JSON"
+          if printf '%s' "$HEALTH_JSON" | grep -q '"ok":true'; then
+            printf 'BACKEND_LOCAL=PASS\n'
+          else
+            printf 'BACKEND_LOCAL=FAIL\n'
+            exit 1
+          fi
+          if systemctl --user is-active --quiet antmux-x72-queen.service; then
+            printf 'SYSTEMD_SERVICE=PASS\n'
+            systemctl --user status antmux-x72-queen.service --no-pager || true
+          else
+            printf 'SYSTEMD_SERVICE=FAIL\n'
+            systemctl --user status antmux-x72-queen.service --no-pager || true
+            exit 1
+          fi
+
+          section "prepare root script"
+          cat > "$ROOT_SCRIPT" <<'EOF_ROOT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          section() { printf '\n===== %s =====\n' "$1"; }
+
+          if [ "$(hostname)" != "server1.antmux.com" ]; then
+            echo "REFUSING_HOST=$(hostname)"
+            exit 10
+          fi
+
+          APP_ROOT="/home/rob/antmux-x72-queen"
+          NGINX_DIR="$APP_ROOT/nginx"
+          SNIPPET="$NGINX_DIR/embryon-x72-shared-queen.conf"
+          INCLUDE_LINE="include $SNIPPET;"
+          BACKUP_ROOT="/home/rob/antmux-x72-queen-backups/nginx-$(date -u +%Y%m%d-%H%M%S)"
+          EXPECTED_H256="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+
+          test -f "$SNIPPET"
+          mkdir -p "$BACKUP_ROOT"
+
+          section "discover active antmux nginx config"
+          ACTIVE_CONFIG="$(python3 - <<'PY'
+          from pathlib import Path
+          roots = [Path('/etc/nginx/nginx.conf'), Path('/etc/nginx/sites-enabled'), Path('/etc/nginx/sites-available'), Path('/etc/nginx/conf.d')]
+          blocked_suffixes = {'.pem', '.key'}
+          blocked_names = ('private_key', 'fullchain')
+          candidates = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              paths = [root] if root.is_file() or root.is_symlink() else list(root.rglob('*'))
+              for path in paths:
+                  try:
+                      real = path.resolve()
+                  except Exception:
+                      real = path
+                  s = str(real)
+                  name = real.name.lower()
+                  if '/etc/letsencrypt/' in s or real.suffix.lower() in blocked_suffixes or any(x in name for x in blocked_names):
+                      continue
+                  if not real.is_file():
+                      continue
+                  try:
+                      text = real.read_text(encoding='utf-8', errors='ignore')
+                  except Exception:
+                      continue
+                  if 'server_name' in text and ('antmux.com' in text or 'www.antmux.com' in text):
+                      candidates.append(str(real))
+          seen = []
+          for item in candidates:
+              if item not in seen:
+                  seen.append(item)
+          if not seen:
+              raise SystemExit('NO_ANTMUX_SERVER_BLOCK_FOUND')
+          print(seen[0])
+          PY
+          )"
+          printf 'NGINX_ACTIVE_CONFIG=%s\n' "$ACTIVE_CONFIG"
+          printf 'NGINX_BACKUP=%s\n' "$BACKUP_ROOT"
+
+          section "backup active config"
+          cp -a "$ACTIVE_CONFIG" "$BACKUP_ROOT/$(basename "$ACTIVE_CONFIG").bak"
+
+          section "patch active config"
+          python3 - "$ACTIVE_CONFIG" "$INCLUDE_LINE" <<'PY'
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          include_line = sys.argv[2]
+          text = path.read_text(encoding='utf-8', errors='ignore')
+          if include_line in text or '/laboratoire/embryon-x72/api/' in text:
+              print('NGINX_PATCH=ALREADY_PRESENT')
+              raise SystemExit(0)
+
+          def find_matching_brace(data, open_index):
+              depth = 0
+              for index in range(open_index, len(data)):
+                  char = data[index]
+                  if char == '{':
+                      depth += 1
+                  elif char == '}':
+                      depth -= 1
+                      if depth == 0:
+                          return index
+              return -1
+
+          pos = 0
+          while True:
+              start = text.find('server', pos)
+              if start == -1:
+                  break
+              before = text[start-1:start] if start else ''
+              after = text[start+6:start+7]
+              if (before and (before.isalnum() or before == '_')) or (after and (after.isalnum() or after == '_')):
+                  pos = start + 6
+                  continue
+              open_brace = text.find('{', start)
+              if open_brace == -1:
+                  break
+              header = text[start:open_brace]
+              if header.strip() != 'server':
+                  pos = open_brace + 1
+                  continue
+              close_brace = find_matching_brace(text, open_brace)
+              if close_brace == -1:
+                  break
+              block = text[start:close_brace+1]
+              if 'server_name' in block and ('antmux.com' in block or 'www.antmux.com' in block):
+                  insertion = f'\n    # ANTMUX X72 shared Queen routes\n    {include_line}\n'
+                  text = text[:close_brace] + insertion + text[close_brace:]
+                  path.write_text(text, encoding='utf-8')
+                  print(f'NGINX_SERVER_BLOCK={path}:{text[:start].count(chr(10)) + 1}-{text[:close_brace].count(chr(10)) + 1}')
+                  print('NGINX_PATCH=APPLIED')
+                  raise SystemExit(0)
+              pos = close_brace + 1
+          raise SystemExit('NO_MATCHING_SERVER_BLOCK_PATCHED')
+          PY
+
+          section "nginx test"
+          if nginx -t; then
+            printf 'NGINX_TEST=PASS\n'
+          else
+            printf 'NGINX_TEST=FAIL\n'
+            cp -a "$BACKUP_ROOT/$(basename "$ACTIVE_CONFIG").bak" "$ACTIVE_CONFIG"
+            nginx -t || true
+            exit 20
+          fi
+
+          section "reload nginx"
+          systemctl reload nginx
+          if systemctl is-active --quiet nginx; then
+            printf 'NGINX_RELOAD=PASS\n'
+          else
+            printf 'NGINX_RELOAD=FAIL\n'
+            exit 21
+          fi
+          curl -I --fail --silent --show-error https://antmux.com/ >/tmp/x72-main-site-head.txt
+          printf 'MAIN_SITE=PASS\n'
+
+          section "public api tests"
+          HEALTH="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/health)"
+          STATE="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state)"
+          printf '%s\n' "$HEALTH"
+          printf '%s\n' "$STATE" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["entity_id"]=="QUEEN-X72-0072"; assert data["reference_h256"]=="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"; print("PUBLIC_STATE=PASS")'
+          printf 'PUBLIC_HEALTH=PASS\n'
+
+          section "public websocket and shared queen tests"
+          PYTHONPATH="$APP_ROOT/vendor" python3 - <<'PY'
+          import asyncio
+          import json
+          import urllib.error
+          import urllib.request
+          import websockets
+
+          BASE = 'https://antmux.com/laboratoire/embryon-x72'
+          WS_URL = 'wss://antmux.com/laboratoire/embryon-x72/ws'
+          EXPECTED = '49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9'
+
+          def request_json(path, method='GET', body=None, ip='10.72.88.1'):
+              data = None if body is None else json.dumps(body).encode('utf-8')
+              req = urllib.request.Request(BASE + path, data=data, method=method, headers={'Content-Type': 'application/json', 'X-Forwarded-For': ip})
+              with urllib.request.urlopen(req, timeout=15) as response:
+                  return json.loads(response.read().decode('utf-8'))
+
+          def faulted(state, synapse_id):
+              for synapse in state.get('synapses', []):
+                  if synapse.get('synapse_id') == synapse_id:
+                      return synapse.get('enabled') is False and synapse.get('integrity') == 0
+              raise AssertionError(f'{synapse_id} not found')
+
+          async def recv_until(ws, pred, label):
+              for _ in range(80):
+                  msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=2))
+                  if pred(msg):
+                      return msg
+              raise AssertionError(label)
+
+          async def main():
+              async with websockets.connect(WS_URL, open_timeout=15) as a, websockets.connect(WS_URL, open_timeout=15) as b:
+                  sa = await recv_until(a, lambda m: m.get('entity_id') == 'QUEEN-X72-0072', 'client A initial')
+                  sb = await recv_until(b, lambda m: m.get('entity_id') == 'QUEEN-X72-0072', 'client B initial')
+                  assert sa['reference_h256'] == sb['reference_h256'] == EXPECTED
+                  print('PUBLIC_WEBSOCKET=PASS')
+                  request_json('/api/fault', method='POST', body={'synapse_id': 'S4'}, ip='10.72.88.4')
+                  fa = await recv_until(a, lambda m: faulted(m, 'S4'), 'client A S4 fault')
+                  fb = await recv_until(b, lambda m: faulted(m, 'S4'), 'client B S4 fault')
+                  assert fa['protected_h256'] == fb['protected_h256']
+                  repaired = request_json('/api/repair', method='POST', body={}, ip='10.72.88.5')
+                  assert repaired['report']['verdict'] == 'PASS'
+                  await recv_until(a, lambda m: m.get('protected_h256') == EXPECTED and m.get('integrity_match') is True, 'client A repair')
+                  await recv_until(b, lambda m: m.get('protected_h256') == EXPECTED and m.get('integrity_match') is True, 'client B repair')
+                  print('PUBLIC_SHARED_QUEEN=PASS')
+          asyncio.run(main())
+          PY
+          printf 'FINAL_STATUS=APPLIED\n'
+          EOF_ROOT
+          chmod 0755 "$ROOT_SCRIPT"
+          printf 'ROOT_SCRIPT=%s\n' "$ROOT_SCRIPT"
+
+          section "minimal sudo check"
+          if sudo -n true 2>/tmp/x72-sudo-true.err; then
+            printf 'SUDO_NONINTERACTIVE=PASS\n'
+            if sudo -n nginx -t; then
+              printf 'SUDO_NGINX_TEST_PRECHECK=PASS\n'
+            else
+              printf 'SUDO_NGINX_TEST_PRECHECK=FAIL\n'
+              exit 1
+            fi
+            sudo -n bash "$ROOT_SCRIPT"
+          else
+            printf 'SUDO_NONINTERACTIVE=FAIL\n'
+            printf 'NGINX_PATCH=READY\n'
+            printf 'NGINX_TEST=BLOCKED\n'
+            printf 'NGINX_RELOAD=BLOCKED\n'
+            printf 'PUBLIC_HEALTH=BLOCKED\n'
+            printf 'PUBLIC_STATE=BLOCKED\n'
+            printf 'PUBLIC_WEBSOCKET=BLOCKED\n'
+            printf 'PUBLIC_SHARED_QUEEN=BLOCKED\n'
+            printf 'FRONTEND_SERVER_AUTHORITY=NOT_DONE\n'
+            printf 'BLOCKER=NGINX_ROOT_ACTION_REQUIRED\n'
+            printf 'NEXT_ACTION=run %s as root on server1.antmux.com\n' "$ROOT_SCRIPT"
+          fi
+          REMOTE
+
+      - name: Upload Nginx exposure log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x72-nginx-exposure-log
+          path: expose-x72-nginx.log
+          if-no-files-found: ignore
