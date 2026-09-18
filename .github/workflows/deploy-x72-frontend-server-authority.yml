@@ -1,0 +1,208 @@
+name: Deploy X72 Frontend Server Authority
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-x72-frontend-server-authority.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: x72-frontend-server-authority
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch only X72 frontend files and validate
+        run: |
+          set -euo pipefail
+          mkdir -p _x72_frontend
+          curl --fail --silent --show-error -L \
+            "https://raw.githubusercontent.com/Topbrutus/Antmux/${GITHUB_SHA}/laboratoire/embryon-x72/app.js" \
+            -o _x72_frontend/app.js
+          curl --fail --silent --show-error -L \
+            "https://raw.githubusercontent.com/Topbrutus/Antmux/${GITHUB_SHA}/laboratoire/embryon-x72/index.html" \
+            -o _x72_frontend/index.html
+
+          node --check _x72_frontend/app.js
+          ! grep -q 'class QueenCore' _x72_frontend/app.js
+          ! grep -q 'new QueenCore' _x72_frontend/app.js
+          ! grep -q 'requestAnimationFrame(tickFrame)' _x72_frontend/app.js
+          grep -q 'new WebSocket' _x72_frontend/app.js
+          grep -q 'CORE DISCONNECTED' _x72_frontend/app.js
+          grep -q 'aucun tick local' _x72_frontend/app.js
+          grep -q 'QUEEN_SERVER_V0_2' _x72_frontend/app.js
+          grep -q 'Queen Server est l’unique autorité' _x72_frontend/index.html
+          sha256sum _x72_frontend/app.js _x72_frontend/index.html > _x72_frontend/SHA256SUMS
+          printf 'FRONTEND_STATIC_VALIDATION=PASS\n'
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage X72 frontend files
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          REMOTE_STAGE="/tmp/x72-frontend-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            _x72_frontend/app.js _x72_frontend/index.html _x72_frontend/SHA256SUMS \
+            "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Backup, deploy and validate X72 frontend
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE' 2>&1 | tee x72-frontend-server-authority.log
+          set -euo pipefail
+
+          TARGET="/var/www/antmux.com/public_html/laboratoire/embryon-x72"
+          STAGE="/tmp/x72-frontend-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          BACKUP="$HOME/antmux-x72-queen-backups/frontend-server-authority-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA}"
+          EXPECTED="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+          APP_ROOT="$HOME/antmux-x72-queen"
+
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+          test -d "$TARGET"
+          test -w "$TARGET"
+          test -f "$STAGE/app.js"
+          test -f "$STAGE/index.html"
+
+          mkdir -p "$BACKUP"
+          cp -a "$TARGET/app.js" "$BACKUP/app.js.before" 2>/dev/null || true
+          cp -a "$TARGET/index.html" "$BACKUP/index.html.before" 2>/dev/null || true
+          printf 'FRONTEND_BACKUP=%s\n' "$BACKUP"
+
+          install -m 0644 "$STAGE/app.js" "$TARGET/app.js"
+          install -m 0644 "$STAGE/index.html" "$TARGET/index.html"
+          printf 'FRONTEND_DEPLOY=PASS\n'
+
+          node --check "$TARGET/app.js"
+          ! grep -q 'class QueenCore' "$TARGET/app.js"
+          ! grep -q 'new QueenCore' "$TARGET/app.js"
+          ! grep -q 'requestAnimationFrame(tickFrame)' "$TARGET/app.js"
+          grep -q 'new WebSocket' "$TARGET/app.js"
+          grep -q 'CORE DISCONNECTED' "$TARGET/app.js"
+          grep -q 'aucun tick local' "$TARGET/app.js"
+          grep -q 'QUEEN_SERVER_V0_2' "$TARGET/app.js"
+          printf 'FRONTEND_SERVER_AUTHORITY_STATIC=PASS\n'
+
+          PUBLIC_APP="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "https://antmux.com/laboratoire/embryon-x72/app.js?sha=${GITHUB_SHA}")"
+          printf '%s' "$PUBLIC_APP" | grep -q 'new WebSocket'
+          printf '%s' "$PUBLIC_APP" | grep -q 'CORE DISCONNECTED'
+          if printf '%s' "$PUBLIC_APP" | grep -q 'class QueenCore'; then
+            printf 'PUBLIC_FRONTEND_LOCAL_QUEEN=FAIL\n'
+            exit 20
+          fi
+          printf 'PUBLIC_FRONTEND_SERVER_AUTHORITY=PASS\n'
+
+          PUBLIC_STATE="$(curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state)"
+          PUBLIC_STATE_JSON="$PUBLIC_STATE" python3 - "$EXPECTED" <<'PY'
+          import json,os,sys
+          expected=sys.argv[1]
+          state=json.loads(os.environ['PUBLIC_STATE_JSON'])
+          assert state['entity_id']=='QUEEN-X72-0072'
+          assert state['reference_h256']==expected
+          assert state['integrity_match'] is True
+          print('PUBLIC_STATE_AFTER_FRONTEND=PASS')
+          PY
+
+          BEFORE="$(curl --fail --silent --show-error http://127.0.0.1:8720/api/state)"
+          sleep 2.5
+          systemctl --user restart antmux-x72-queen.service
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/health >/tmp/x72-health-after-restart.json; then
+              break
+            fi
+            sleep 0.5
+          done
+          AFTER="$(curl --fail --silent --show-error http://127.0.0.1:8720/api/state)"
+          BEFORE_JSON="$BEFORE" AFTER_JSON="$AFTER" python3 - "$EXPECTED" <<'PY'
+          import json,os,sys
+          expected=sys.argv[1]
+          before=json.loads(os.environ['BEFORE_JSON'])
+          after=json.loads(os.environ['AFTER_JSON'])
+          assert before['entity_id']==after['entity_id']=='QUEEN-X72-0072'
+          assert before['reference_h256']==after['reference_h256']==expected
+          assert after['tick_count']>0
+          assert after['integrity_match'] is True
+          print(f"RESTART_RESTORE=PASS before={before['tick_count']} after={after['tick_count']}")
+          PY
+
+          PYTHONPATH="$APP_ROOT/vendor" python3 - "$EXPECTED" <<'PY'
+          import asyncio,json,sys
+          import websockets
+
+          expected=sys.argv[1]
+          url='wss://antmux.com/laboratoire/embryon-x72/ws'
+
+          async def one():
+              async with websockets.connect(url,open_timeout=15) as ws:
+                  for _ in range(30):
+                      state=json.loads(await asyncio.wait_for(ws.recv(),timeout=2))
+                      if state.get('entity_id')=='QUEEN-X72-0072':
+                          assert state['reference_h256']==expected
+                          assert state['integrity_match'] is True
+                          return state
+              raise AssertionError('no Queen state')
+
+          async def main():
+              a,b=await asyncio.gather(one(),one())
+              assert a['entity_id']==b['entity_id']
+              assert a['reference_h256']==b['reference_h256']==expected
+              print('FINAL_MULTI_CLIENT=PASS')
+              await asyncio.sleep(0.5)
+              c=await one()
+              assert c['entity_id']=='QUEEN-X72-0072'
+              print('WEBSOCKET_RECONNECT=PASS')
+
+          asyncio.run(main())
+          PY
+
+          printf 'FRONTEND_SERVER_AUTHORITY=PASS\n'
+          printf 'FINAL_FRONTEND_VALIDATION=PASS\n'
+          REMOTE
+
+      - name: Upload frontend deployment log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x72-frontend-server-authority-log
+          path: x72-frontend-server-authority.log
+          if-no-files-found: ignore
