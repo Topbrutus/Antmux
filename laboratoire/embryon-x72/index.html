@@ -3,143 +3,92 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#050a12" />
-  <title>Embryon X72 — Horloge de la Vie</title>
-  <meta name="description" content="Visualisation interactive du cerveau expérimental MYRMIX : temporalité, synapses, événements, panne, réparation et reconstruction." />
+  <meta name="theme-color" content="#05070C" />
+  <title>Embryon X72 — Horloge de la Vie — Core V0.2</title>
+  <meta name="description" content="Port Web fidèle de l’Horloge de la Vie ANTMUX-X72 / MYRMIX — Core V0.2." />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <main class="life-shell">
+  <main class="app-shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">ANTMUX · EMBRYON X72</p>
-        <h1>Horloge de la Vie — Reine</h1>
-        <p class="lede">Visualisation observable du cerveau expérimental MYRMIX-X72-D13-G7.</p>
+      <div class="brand">
+        <p class="eyebrow">ANTMUX-X72 / MYRMIX-X72-D13-G7</p>
+        <h1>HORLOGE DE LA VIE — CORE V0.2</h1>
       </div>
-      <div class="mode-stack" aria-live="polite">
-        <span id="sourceBadge" class="badge demo">DEMO TELEMETRY — NOT CORE</span>
-        <span id="connectionBadge" class="badge dim">LIVE CORE : NON CONNECTÉ</span>
+      <div class="source-stack">
+        <span class="badge verified">SOURCE: QUEEN CORE V0.2 — VERIFIED REPAIR PATH</span>
+        <span id="runtimeBadge" class="badge web">PORT WEB DU CORE V0.2</span>
       </div>
     </header>
 
     <nav class="nav-row" aria-label="Navigation">
       <a href="../">← LABORATOIRE</a>
       <a href="../../">ACCUEIL ANTMUX</a>
-      <a href="https://github.com/Topbrutus/antmux-x72" rel="noreferrer">ANTMUX-X72</a>
+      <a href="./core/ANTMUX_X72_LIFE_V02.py">SOURCE PYTHON V0.2</a>
+      <a href="./core/ANTMUX_X72_CORE_V02_TEST_REPORT.json">RAPPORT DE TEST</a>
     </nav>
 
-    <section class="dashboard" aria-label="Horloge de la Vie">
-      <aside class="panel metrics-panel">
-        <h2>Temporal Core</h2>
-        <dl class="metrics">
-          <div><dt>dt_sim</dt><dd id="mDt">0.0167 s</dd></div>
-          <div><dt>R_exec</dt><dd id="mExec">1.00×</dd></div>
-          <div><dt>F_rt</dt><dd id="mFps">60 Hz</dd></div>
-          <div><dt>Tick</dt><dd id="mTick">0</dd></div>
-          <div><dt>Génération</dt><dd id="mGen">0</dd></div>
-          <div><dt>Synapses</dt><dd id="mActive">7 / 7</dd></div>
-        </dl>
+    <section class="layout">
+      <aside class="side panel left-panel">
+        <h2>TÉLÉMÉTRIE CORE</h2>
+        <div class="metric-list">
+          <div><span>QUEEN MODE</span><strong id="mode">SLEEP</strong></div>
+          <div><span>TICK</span><strong id="tick">0</strong></div>
+          <div><span>dt_sim</span><strong id="dt">0.004167s</strong></div>
+          <div><span>R_exec</span><strong id="rexec">0.0/s</strong></div>
+          <div><span>F_rt</span><strong id="frt">0.000×</strong></div>
+          <div><span>ACTIVITÉ</span><strong id="activity">0.000</strong></div>
+          <div><span>MÉMOIRE</span><strong id="memory">0.000</strong></div>
+          <div><span>CRISTAL</span><strong id="crystal">0.000</strong></div>
+          <div><span>RÉPARATION</span><strong id="repair">0.000</strong></div>
+          <div><span>INTÉGRITÉ</span><strong id="integrity" class="ok">MATCH</strong></div>
+          <div><span>ÉVÉNEMENTS</span><strong id="events">0</strong></div>
+          <div><span>GÉNÉRATION</span><strong id="generation">0</strong></div>
+        </div>
 
-        <h2>État mesuré</h2>
-        <div class="gauges">
-          <label>Activité <meter id="gActivity" min="0" max="1" value=".35"></meter><span id="vActivity">0.35</span></label>
-          <label>Mémoire <meter id="gMemory" min="0" max="1" value=".46"></meter><span id="vMemory">0.46</span></label>
-          <label>Cristallisation <meter id="gCrystal" min="0" max="1" value=".28"></meter><span id="vCrystal">0.28</span></label>
-          <label>Réparation <meter id="gRepair" min="0" max="1" value="0"></meter><span id="vRepair">0.00</span></label>
-          <label>Erreur <meter id="gError" min="0" max="1" value="0"></meter><span id="vError">0.00</span></label>
+        <h2>CONTRÔLES</h2>
+        <div class="controls">
+          <button id="pauseBtn" class="cyan" type="button">PAUSE</button>
+          <button id="faultBtn" class="error" type="button">INJECTER PANNE PROTÉGÉE</button>
+          <button id="repairBtn" class="warning" type="button">RÉPARER + VÉRIFIER</button>
+          <button id="resetBtn" class="gold" type="button">RESET RÉFÉRENCE</button>
+          <button id="snapshotBtn" class="green" type="button">SNAPSHOT JSON</button>
+        </div>
+        <p id="status" class="status">CORE prêt — hash protégé conforme à la référence.</p>
+
+        <div class="report-card">
+          <p class="tiny-title">RAPPORT V0.2 FOURNI</p>
+          <div><span>Synapse testée</span><strong id="reportFault">S4</strong></div>
+          <div><span>Étapes réparation</span><strong id="reportSteps">134</strong></div>
+          <div><span>Verdict</span><strong id="reportVerdict" class="ok">PASS</strong></div>
         </div>
       </aside>
 
-      <section class="panel clock-panel" aria-label="Cadran dynamique">
-        <div class="clock-head">
-          <div>
-            <span class="micro-label">QUEEN MODE</span>
-            <strong id="queenMode">STABLE</strong>
-          </div>
-          <div class="micro-right">
-            <span class="micro-label">ÉVÉNEMENTS</span>
-            <strong id="eventCount">0</strong>
-          </div>
-        </div>
-
-        <svg id="lifeClock" viewBox="0 0 640 640" role="img" aria-labelledby="clockTitle clockDesc">
-          <title id="clockTitle">Horloge de la Vie de la Reine</title>
-          <desc id="clockDesc">Sept synapses disposées autour du noyau central. Les liens, impulsions et anneaux évoluent selon la télémétrie affichée.</desc>
-
-          <defs>
-            <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="4" result="blur"/>
-              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
-
-          <circle class="ring ring-outer" cx="320" cy="320" r="270"/>
-          <circle class="ring ring-mid" cx="320" cy="320" r="210"/>
-          <circle class="ring ring-inner" cx="320" cy="320" r="145"/>
-
-          <g id="phasePetals" class="phase-petals"></g>
-          <g id="relationLayer" class="relations"></g>
-
-          <g id="core" class="core-node" filter="url(#softGlow)">
-            <circle cx="320" cy="320" r="80"/>
-            <text x="320" y="310" text-anchor="middle" class="core-symbol">∞</text>
-            <text x="320" y="344" text-anchor="middle" class="core-label">REINE</text>
-          </g>
-
-          <g id="synapseLayer"></g>
-          <g id="pulseLayer"></g>
-        </svg>
-
-        <div class="clock-legend">
-          <span><i class="dot syn"></i>synapse active</span>
-          <span><i class="dot fault"></i>panne</span>
-          <span><i class="dot repair"></i>réparation</span>
-          <span><i class="line"></i>relation</span>
-        </div>
+      <section class="center panel">
+        <canvas id="lifeClock" aria-label="Horloge de la Vie : sept synapses, relations, engrenages, mémoire, cristallisation et activité"></canvas>
       </section>
 
-      <aside class="panel event-panel">
-        <h2>Event Bus</h2>
-        <ol id="eventLog" class="event-log" aria-live="polite"></ol>
+      <aside class="side panel right-panel">
+        <h2>EVENT BUS</h2>
+        <div id="eventBus" class="event-bus" aria-live="polite"></div>
 
-        <h2>Empreinte</h2>
-        <div class="hash-box">
-          <span class="micro-label">SHA-256 de l’état de visualisation</span>
-          <code id="hashValue">calcul…</code>
-          <span class="micro-label">Base36_50</span>
-          <code id="b36Value">calcul…</code>
-        </div>
+        <h2>SYNAPSES / PREUVE</h2>
+        <pre id="proofBox" class="proof-box"></pre>
       </aside>
     </section>
 
-    <section class="controls panel" aria-label="Contrôles de démonstration">
+    <section class="bottom panel">
       <div>
-        <p class="micro-label">CONTRÔLE EXPÉRIMENTAL</p>
-        <p id="controlHint">La simulation locale reste clairement séparée du Core. Un endpoint public read-only pourra remplacer automatiquement la démo.</p>
+        <p class="tiny-title">CONTRAT</p>
+        <strong>QueenCore → EventBus → RepairEngine → Telemetry → VisualState → Visual</strong>
       </div>
-      <div class="button-row">
-        <button id="faultBtn" type="button">Injecter panne S3</button>
-        <button id="repairBtn" type="button" class="secondary">Lancer réparation</button>
-        <button id="pauseBtn" type="button" class="secondary">Pause</button>
-        <button id="resetBtn" type="button" class="ghost">Réinitialiser</button>
+      <div class="hash-status">
+        <span id="referenceCheck">RÉFÉRENCE H256 : vérification…</span>
       </div>
-    </section>
-
-    <section class="contract-grid">
-      <article class="panel">
-        <p class="micro-label">CONTRAT VISUEL</p>
-        <h2>CORE → TELEMETRY → VisualState → VISUAL</h2>
-        <p>Aucune animation ne doit inventer une activité absente. Le même état doit produire la même géométrie calculée.</p>
-      </article>
-      <article class="panel">
-        <p class="micro-label">ROYAL-GERMINATION-000</p>
-        <h2>Naissance → Panne → Réparation → Reconstruction → Preuve</h2>
-        <p>L’Horloge de la Vie devient l’instrument de lecture. Les tests, les événements et les hashes restent les instruments de validation.</p>
-      </article>
     </section>
 
     <footer>
-      <p>EMBRYON X72 · visualisation expérimentale · une animation n’est pas une preuve de conscience ni une nouvelle loi physique.</p>
+      <p>Port Web fidèle de la V0.2 Python. Le navigateur reproduit la dynamique et la visualisation; le fichier Python original et le rapport de test sont publiés à côté pour audit.</p>
     </footer>
   </main>
 

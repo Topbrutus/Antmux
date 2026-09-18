@@ -39,32 +39,70 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v6
 
-      - name: Validate frontend
+      - name: Validate Queen Core V0.2 and web port
         run: |
           set -euo pipefail
+
           node --check laboratoire/embryon-x72/app.js
+
           test -f laboratoire/embryon-x72/index.html
           test -f laboratoire/embryon-x72/styles.css
           test -f laboratoire/embryon-x72/README.md
-          grep -Fq 'DEMO TELEMETRY — NOT CORE' laboratoire/embryon-x72/index.html
-          grep -Fq 'CORE → TELEMETRY → VisualState → VISUAL' laboratoire/embryon-x72/index.html
-          grep -Fq './live/public-read-only.json' laboratoire/embryon-x72/app.js
+          test -f laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
+          test -f laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
+
+          grep -Fq 'HORLOGE DE LA VIE — CORE V0.2' laboratoire/embryon-x72/index.html
+          grep -Fq 'SOURCE: QUEEN CORE V0.2 — VERIFIED REPAIR PATH' laboratoire/embryon-x72/index.html
+          grep -Fq 'PORT WEB DU CORE V0.2' laboratoire/embryon-x72/index.html
+
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          path = Path("laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py")
+          spec = importlib.util.spec_from_file_location("antmux_x72_v02", path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          result = module.run_self_tests(verbose=True)
+          if not result["ok"]:
+              raise SystemExit("Queen Core V0.2 self-tests failed")
+          PY
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path(
+              "laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json"
+          ).read_text(encoding="utf-8"))
+
+          assert report["seed"] == 72
+          assert report["synapse_fault"] == "S4"
+          assert report["repair_steps"] == 134
+          assert report["verdict"] == "PASS"
+          assert report["before_h256"] == report["reference_h256"]
+          assert report["after_h256"] == report["reference_h256"]
+          assert report["fault_h256"] != report["reference_h256"]
+          print("ANTMUX_X72_V02_REPORT=PASS")
+          PY
 
       - name: Assemble exact public payload
         run: |
           set -euo pipefail
           rm -rf _embryon_deploy
-          mkdir -p _embryon_deploy/embryon-x72
+          mkdir -p _embryon_deploy/embryon-x72/core
 
           cp laboratoire/index.html _embryon_deploy/laboratoire-index.html
           cp laboratoire/embryon-x72/index.html _embryon_deploy/embryon-x72/
           cp laboratoire/embryon-x72/styles.css _embryon_deploy/embryon-x72/
           cp laboratoire/embryon-x72/app.js _embryon_deploy/embryon-x72/
           cp laboratoire/embryon-x72/README.md _embryon_deploy/embryon-x72/
+          cp laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py _embryon_deploy/embryon-x72/core/
+          cp laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json _embryon_deploy/embryon-x72/core/
 
           (
             cd _embryon_deploy
-            sha256sum laboratoire-index.html embryon-x72/index.html embryon-x72/styles.css embryon-x72/app.js embryon-x72/README.md > SHA256SUMS
+            sha256sum               laboratoire-index.html               embryon-x72/index.html               embryon-x72/styles.css               embryon-x72/app.js               embryon-x72/README.md               embryon-x72/core/ANTMUX_X72_LIFE_V02.py               embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json               > SHA256SUMS
           )
 
       - name: Configure pinned SSH identity
@@ -136,12 +174,14 @@ jobs:
             cp -a "$TARGET_ROOT/." "$BACKUP_ROOT/embryon-x72/"
           fi
 
-          install -d -m 0755 "$TARGET_ROOT"
+          install -d -m 0755 "$TARGET_ROOT/core"
           install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/embryon-x72/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/embryon-x72/styles.css" "$TARGET_ROOT/styles.css"
           install -m 0644 "$REMOTE_STAGE/embryon-x72/app.js" "$TARGET_ROOT/app.js"
           install -m 0644 "$REMOTE_STAGE/embryon-x72/README.md" "$TARGET_ROOT/README.md"
+          install -m 0644 "$REMOTE_STAGE/embryon-x72/core/ANTMUX_X72_LIFE_V02.py" "$TARGET_ROOT/core/ANTMUX_X72_LIFE_V02.py"
+          install -m 0644 "$REMOTE_STAGE/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json" "$TARGET_ROOT/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json"
 
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
@@ -153,11 +193,20 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/ -o /tmp/embryon-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/app.js -o /tmp/embryon-app.js
-          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/styles.css >/dev/null
-          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/README.md >/dev/null
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py -o /tmp/core-v02.py
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json -o /tmp/core-report.json
 
           grep -Fq 'EMBRYON X72 · HORLOGE DE LA VIE' /tmp/lab-index.html
-          grep -Fq 'Horloge de la Vie — Reine' /tmp/embryon-index.html
-          grep -Fq 'DEMO TELEMETRY — NOT CORE' /tmp/embryon-index.html
-          grep -Fq './live/public-read-only.json' /tmp/embryon-app.js
+          grep -Fq 'HORLOGE DE LA VIE — CORE V0.2' /tmp/embryon-index.html
+          grep -Fq 'PORT WEB DU CORE V0.2' /tmp/embryon-index.html
+          grep -Fq 'QueenCore -> EventBus -> RepairEngine -> Telemetry -> VisualState -> Visual' /tmp/core-v02.py
           node --check /tmp/embryon-app.js
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("/tmp/core-report.json").read_text(encoding="utf-8"))
+          assert report["verdict"] == "PASS"
+          assert report["after_h256"] == report["reference_h256"]
+          print("ANTMUX_X72_PUBLIC_V02=PASS")
+          PY
