@@ -100,26 +100,70 @@ Before merge, the branch must preserve:
 - Python compile PASS
 - git diff --check PASS
 
-## Current candidate status
+## Real candidate cross-validation
 
-No `decision_candidate` module exists on the verified main baseline.
+The verified main baseline still does not contain `decision_candidate`, so
+PR #57 correctly remains contract-only when tested alone.
 
-The runner therefore reports:
+Worker 1 candidate PR #56 was tested independently at exact SHA:
 
-`CANDIDATE_STATUS=BLOCKER`
+`8d57669bbcc7ebb51018a01bf565b458c6c081ba`
 
-`BLOCKER=DECISION_CANDIDATE_NOT_PRESENT`
+A detached temporary integration worktree was created from that SHA. Only these
+Worker 2 hardening files were copied into it:
 
-This is deliberate. Contract/harness readiness is PASS; real candidate behavior
-has not been claimed or simulated.
+- `decision_candidate_adversarial_contract.py`
+- `run_decision_candidate_adversarial.py`
+
+No DecisionCandidate implementation was copied into PR #57.
+
+Real public API:
+
+`X72DecisionCandidate.generate(history, trend)`
+
+Real adversarial result:
+
+- 21/21 PASS
+- 4 EXPECTED_REJECTION
+- 4 EXPECTED_REJECTION_UPSTREAM
+- candidate failures: 0
+- deterministic: PASS
+- evidence Mapping: PASS
+- evidence traceability: PASS
+- normalization via `to_dict()` before `asdict()`: PASS
+- History immutability: PASS
+- TrendFrame immutability: PASS
+- candidate_h256 stability: PASS
+- no mutation transport: PASS
+- no action execution: PASS
+- no local QueenCore: PASS
+- source guard: PASS
+
+Candidate regressions at the same SHA:
+
+- DecisionCandidate 23/23 PASS
+- TrendAnalyzer 23/23 PASS
+- Trend adversarial 30/30 PASS
+- ObservationHistory 29/29 PASS
+- ObservationAdapter 22/22 PASS
+- Robustness 30/30 PASS
+- Shared Queen 40/40 PASS
+- Server Authority 12/12 PASS
+- Core H256 PASS
+- Python compile PASS
+- git diff --check PASS
 
 ## CI integration
 
 The X72 integration workflow now always runs the DecisionCandidate contract
 self-check.
 
-If a future `decision_candidate` module exists, CI automatically invokes the
-runner with `--require-candidate`. Otherwise it validates contract-only mode.
+If a `decision_candidate` module exists in the branch under test, CI invokes:
+
+`--require-candidate --module decision_candidate --class-name X72DecisionCandidate --method generate`
+
+Otherwise it validates contract-only mode and retains
+`DECISION_CANDIDATE_NOT_PRESENT` as the expected structured blocker.
 
 ## Boundary
 

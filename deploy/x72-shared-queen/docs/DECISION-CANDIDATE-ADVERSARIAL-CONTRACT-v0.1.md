@@ -20,21 +20,19 @@ The Queen Server remains the only state authority.
 
 ## Current candidate binding
 
-The runner defaults to:
+The runner defaults to the real Worker 1 public API:
 
 - module: `decision_candidate`
 - class: `X72DecisionCandidate`
-- method: `analyze`
+- method: `generate`
 
-The runner accepts only public callable shapes that can be inspected without
-private-state manipulation:
+The real invocation is strictly:
 
-- `analyze(source)`
-- `analyze(history, trend)`
-- `analyze(history, trend, source)`
+`generate(history: X72ObservationHistory, trend: X72TrendFrame)`
 
-CLI flags can override module, class, and method when Worker 1 publishes the
-actual public contract.
+The real-candidate path never injects the abstract `decision_source` object
+used by the contract self-check. The abstract source tests remain contract-only
+tests and are not counted as mandatory public-API rejections.
 
 If no module exists, the runner returns:
 
@@ -121,16 +119,33 @@ transport execution therefore fails the adversarial run.
 
 The CandidateFrame must also remain action-free and preserve source provenance.
 
+## Real CandidateFrame normalization
+
+The hardening normalizer uses `to_dict()` before dataclass `asdict()`.
+This is required because the real `X72CandidateFrame` stores `evidence` in a
+`MappingProxyType`.
+
+Real evidence is accepted as a non-empty `Mapping` rather than being forced
+into a list/tuple shape. The runner verifies that the mapping preserves:
+
+- `source_history_h256`;
+- `source_trend_h256`;
+- `records_count`;
+- H256 closure state.
+
 ## Determinism and immutability
 
-For every valid candidate case:
+For every valid real-candidate case:
 
-- the same canonical source is executed twice;
+- the same public History + TrendFrame pair is executed twice;
 - canonical CandidateFrame representations must match;
-- `candidate_h256` must be a valid H256;
+- `candidate_h256` must be a valid and stable H256;
 - History records and deterministic report must be unchanged;
 - TrendFrame must be unchanged;
-- the candidate source object must be unchanged.
+- no private upstream state is altered.
+
+The abstract contract self-check separately verifies immutability and determinism
+of its synthetic decision-source envelope.
 
 ## Current contract result
 
@@ -149,5 +164,27 @@ Contract self-check:
 - no input mutation: PASS
 - source guard self-check: 6/6 PASS
 
-No `decision_candidate` module exists on this baseline, so real-candidate
-execution is correctly blocked until Worker 1 publishes a candidate.
+No `decision_candidate` module exists on this baseline, so PR #57 still runs
+contract-only mode by itself.
+
+Real candidate PR #56 was cross-validated separately at exact SHA:
+
+`8d57669bbcc7ebb51018a01bf565b458c6c081ba`
+
+A detached temporary worktree was created from that SHA, and only the Worker 2
+hardening files were copied into it.
+
+Real candidate result:
+
+- 21/21 adversarial checks PASS
+- 4 EXPECTED_REJECTION
+- 4 EXPECTED_REJECTION_UPSTREAM
+- interface alignment: PASS
+- normalization: TO_DICT_FIRST
+- evidence mapping: PASS
+- evidence traceability: PASS
+- deterministic: PASS
+- no input mutation: PASS
+- no mutation transport: PASS
+- no action execution: PASS
+- source guard: PASS

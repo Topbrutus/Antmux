@@ -432,12 +432,14 @@ jobs:
             python3 deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py \
               --require-candidate \
               --module decision_candidate \
-              --class-name X72DecisionCandidate
+              --class-name X72DecisionCandidate \
+              --method generate
             printf 'DECISION_CANDIDATE_ADVERSARIAL_REAL=PASS\n'
           else
             python3 deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py \
               --module decision_candidate \
-              --class-name X72DecisionCandidate
+              --class-name X72DecisionCandidate \
+              --method generate
             printf 'DECISION_CANDIDATE_ADVERSARIAL_CONTRACT_ONLY=PASS\n'
           fi
 

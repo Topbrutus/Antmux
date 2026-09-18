@@ -245,12 +245,13 @@
     "verdict": "PASS"
   },
   "deterministic": "NOT_RUN",
-  "expected_rejections": 21,
-  "expected_upstream_rejections": 6,
+  "evidence_traceability": "NOT_RUN",
+  "expected_rejections": 0,
+  "expected_upstream_rejections": 0,
   "no_action_execution": "PASS",
   "no_input_mutation": "PASS",
   "no_mutation_transport": "PASS",
-  "schema": "ANTMUX-X72-DECISION-CANDIDATE-ADVERSARIAL-RUN-v0.1",
+  "schema": "ANTMUX-X72-DECISION-CANDIDATE-ADVERSARIAL-RUN-v0.2",
   "source_guard_self_check": {
     "tests_fail": 0,
     "tests_pass": 6,
