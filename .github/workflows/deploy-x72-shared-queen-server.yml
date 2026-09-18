@@ -409,10 +409,10 @@ jobs:
                   raise AssertionError(f"{method} {path} returned {status}: {payload}")
               return json.loads(payload)
 
-          def synapse_status(state, synapse_id):
+          def synapse_faulted(state, synapse_id):
               for synapse in state.get("synapses", []):
-                  if synapse.get("id") == synapse_id:
-                      return synapse.get("status")
+                  if synapse.get("synapse_id") == synapse_id:
+                      return synapse.get("enabled") is False and synapse.get("integrity") == 0
               raise AssertionError(f"{synapse_id} not found")
 
           async def recv_until(ws, predicate, label):
@@ -430,11 +430,11 @@ jobs:
                   await recv_until(first, lambda msg: "tick_count" in msg, "first initial state")
                   await recv_until(second, lambda msg: "tick_count" in msg, "second initial state")
                   fault = request_json("/api/fault", method="POST", body={"synapse_id": "S4"})
-                  if synapse_status(fault["state"], "S4") != "MISMATCH":
+                  if not synapse_faulted(fault["state"], "S4"):
                       raise AssertionError("S4 did not enter MISMATCH")
                   def saw_s4_fault(msg):
                       state = msg.get("state", msg) if isinstance(msg, dict) else None
-                      return isinstance(state, dict) and synapse_status(state, "S4") == "MISMATCH"
+                      return isinstance(state, dict) and synapse_faulted(state, "S4")
                   first_fault = await recv_until(first, saw_s4_fault, "first S4 fault")
                   second_fault = await recv_until(second, saw_s4_fault, "second S4 fault")
                   first_state = first_fault.get("state", first_fault)
