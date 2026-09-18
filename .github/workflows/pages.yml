@@ -48,6 +48,7 @@ jobs:
           node --check generator/antmux-cortex.js
           node --check generator/antmux-worker.js
           node --check generator/verifier.js
+          node --check laboratoire/embryon-x72/app.js
 
       - name: Assemble public site
         run: |
@@ -74,6 +75,9 @@ jobs:
           cp laboratoire/embryon-x72/styles.css _site/laboratoire/embryon-x72/
           cp laboratoire/embryon-x72/app.js _site/laboratoire/embryon-x72/
           cp laboratoire/embryon-x72/README.md _site/laboratoire/embryon-x72/
+          mkdir -p _site/laboratoire/embryon-x72/core
+          cp laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py _site/laboratoire/embryon-x72/core/
+          cp laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json _site/laboratoire/embryon-x72/core/
 
       - name: Assert laboratory publication boundary
         run: |
@@ -84,6 +88,8 @@ jobs:
           test -f _site/laboratoire/embryon-x72/index.html
           test -f _site/laboratoire/embryon-x72/styles.css
           test -f _site/laboratoire/embryon-x72/app.js
+          test -f _site/laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
+          test -f _site/laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
           test ! -e _site/laboratoire/genesis/validate-demo.mjs
           test ! -e _site/laboratoire/genesis/test-validator.mjs
           test ! -e _site/laboratoire/genesis/browser-cockpit.mjs
