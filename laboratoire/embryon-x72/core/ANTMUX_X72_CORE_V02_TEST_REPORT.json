@@ -1,0 +1,12 @@
+{
+  "seed": 72,
+  "synapse_fault": "S4",
+  "reference_h256": "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9",
+  "before_h256": "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9",
+  "fault_h256": "c5f711409cb91e33aee5a977d8d9622f040ae18c537fff3acb86f9ecf4f07861",
+  "after_h256": "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9",
+  "repair_steps": 134,
+  "verdict": "PASS",
+  "reason": "Hash protégé restauré exactement sur la référence autorisée.",
+  "closed": true
+}
