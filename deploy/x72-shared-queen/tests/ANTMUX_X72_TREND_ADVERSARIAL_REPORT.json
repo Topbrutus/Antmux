@@ -1,0 +1,243 @@
+{
+  "blocker": "TREND_ANALYZER_NOT_PRESENT:observation_trend",
+  "candidate": "BLOCKER",
+  "contract": {
+    "bounded": "PASS",
+    "categories": [
+      "disconnect",
+      "entity",
+      "event",
+      "fault_repair",
+      "h256",
+      "history",
+      "memory",
+      "numeric",
+      "order",
+      "reconnect",
+      "synapse",
+      "tick"
+    ],
+    "corpus_cases": 28,
+    "deterministic": "PASS",
+    "disconnect": "PASS",
+    "entity_id": "PASS",
+    "event_discipline": "PASS",
+    "expected_rejections": 18,
+    "fault_repair": "PASS",
+    "h256": "PASS",
+    "manifest_h256": "a7213ca0bd8f0a3e59adafbade427001309ca43078003862142d8c180b4abe8f",
+    "no_input_mutation": "PASS",
+    "numeric_edge_cases": "PASS",
+    "outcomes": [
+      {
+        "case_id": "empty_history",
+        "category": "history",
+        "detail": "EMPTY",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "single_fresh",
+        "category": "history",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "incomplete_history",
+        "category": "history",
+        "detail": "record[0] missing fields: r_exec",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "wrong_entity_id",
+        "category": "entity",
+        "detail": "entity_id must remain QUEEN-X72-0072",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "entity_change_mid_window",
+        "category": "entity",
+        "detail": "entity_id must remain QUEEN-X72-0072",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "tick_regression",
+        "category": "tick",
+        "detail": "FRESH tick_count regressed",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "duplicate_tick",
+        "category": "tick",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "very_large_tick",
+        "category": "tick",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "missing_r_exec",
+        "category": "numeric",
+        "detail": "r_exec must be numeric",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "missing_f_rt",
+        "category": "numeric",
+        "detail": "f_rt must be numeric",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "nan_r_exec",
+        "category": "numeric",
+        "detail": "r_exec must be finite",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "inf_f_rt",
+        "category": "numeric",
+        "detail": "f_rt must be finite",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "numeric_wrong_type",
+        "category": "numeric",
+        "detail": "r_exec must be numeric",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "negative_r_exec",
+        "category": "numeric",
+        "detail": "r_exec must be >= 0",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "negative_f_rt",
+        "category": "numeric",
+        "detail": "f_rt must be >= 0",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "event_count_regression",
+        "category": "event",
+        "detail": "event_count regressed",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "synapse_count_too_high",
+        "category": "synapse",
+        "detail": "active_synapses must be <= 7",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "synapse_count_wrong_type",
+        "category": "synapse",
+        "detail": "active_synapses must be an integer",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "repeated_stale",
+        "category": "disconnect",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "repeated_reconnected",
+        "category": "reconnect",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "fault_without_repair",
+        "category": "fault_repair",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "repair_without_fault",
+        "category": "fault_repair",
+        "detail": "repair observed without prior fault in window",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "h256_incoherent",
+        "category": "h256",
+        "detail": "integrity_match true but H256 values differ",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "fault_then_h256_return",
+        "category": "h256",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "history_order_reversed",
+        "category": "order",
+        "detail": "sequence_id must increase strictly",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "schema_mismatch_unknown",
+        "category": "disconnect",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "bounded_exact_capacity",
+        "category": "memory",
+        "detail": "VALID",
+        "expectation": "PASS",
+        "observed": "PASS"
+      },
+      {
+        "case_id": "over_capacity",
+        "category": "memory",
+        "detail": "window exceeds maximum capacity 32",
+        "expectation": "EXPECTED_REJECTION",
+        "observed": "EXPECTED_REJECTION"
+      }
+    ],
+    "reconnect": "PASS",
+    "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-CONTRACT-v0.1",
+    "synapse_discipline": "PASS",
+    "tests_fail": 0,
+    "tests_pass": 33,
+    "tests_total": 33,
+    "tick_discipline": "PASS",
+    "verdict": "PASS"
+  },
+  "expected_rejections": 18,
+  "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.1",
+  "tests_fail": 0,
+  "tests_pass": 33,
+  "tests_total": 33
+}
