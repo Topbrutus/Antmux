@@ -276,11 +276,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [static-validation, server-authority-contract, core-tests]
-    env:
-      ANTMUX_X72_DATA_DIR: ${{ runner.temp }}/x72-ci-data
     steps:
       - name: Checkout worker5/x72-ci-integration
         uses: actions/checkout@v4
+
+      - name: Prepare isolated CI data directory
+        run: |
+          set -euo pipefail
+          printf 'ANTMUX_X72_DATA_DIR=%s/x72-ci-data\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          rm -rf "$RUNNER_TEMP/x72-ci-data"
+          mkdir -p "$RUNNER_TEMP/x72-ci-data"
 
       - name: Install Python dependencies
         run: |
