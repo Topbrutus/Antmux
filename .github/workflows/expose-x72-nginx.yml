@@ -7,11 +7,6 @@ on:
         description: 'Type EXPOSE-X72-NGINX to prepare/apply the Nginx exposure'
         required: true
         default: ''
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/expose-x72-nginx.yml'
 
 permissions:
   contents: read
@@ -26,7 +21,7 @@ concurrency:
 
 jobs:
   expose-x72-nginx:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm == 'EXPOSE-X72-NGINX')
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'EXPOSE-X72-NGINX'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -158,42 +153,38 @@ jobs:
           EXPECTED_H256="49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
 
           test -f "$SNIPPET"
+          case "$BACKUP_ROOT" in
+            /etc/nginx/*|/etc/letsencrypt/*)
+              echo "REFUSING_BACKUP_PATH=$BACKUP_ROOT"
+              exit 12
+              ;;
+          esac
           mkdir -p "$BACKUP_ROOT"
 
           section "discover active antmux nginx config"
           ACTIVE_CONFIG="$(python3 - <<'PY'
           from pathlib import Path
-          roots = [Path('/etc/nginx/nginx.conf'), Path('/etc/nginx/sites-enabled'), Path('/etc/nginx/sites-available'), Path('/etc/nginx/conf.d')]
-          blocked_suffixes = {'.pem', '.key'}
-          blocked_names = ('private_key', 'fullchain')
-          candidates = []
-          for root in roots:
-              if not root.exists():
-                  continue
-              paths = [root] if root.is_file() or root.is_symlink() else list(root.rglob('*'))
-              for path in paths:
-                  try:
-                      real = path.resolve()
-                  except Exception:
-                      real = path
-                  s = str(real)
-                  name = real.name.lower()
-                  if '/etc/letsencrypt/' in s or real.suffix.lower() in blocked_suffixes or any(x in name for x in blocked_names):
-                      continue
-                  if not real.is_file():
-                      continue
-                  try:
-                      text = real.read_text(encoding='utf-8', errors='ignore')
-                  except Exception:
-                      continue
-                  if 'server_name' in text and ('antmux.com' in text or 'www.antmux.com' in text):
-                      candidates.append(str(real))
+          root = Path('/etc/nginx/sites-enabled')
           seen = []
-          for item in candidates:
-              if item not in seen:
-                  seen.append(item)
-          if not seen:
-              raise SystemExit('NO_ANTMUX_SERVER_BLOCK_FOUND')
+          if not root.exists():
+              raise SystemExit('SITES_ENABLED_NOT_FOUND')
+          for entry in root.iterdir():
+              try:
+                  real = entry.resolve()
+              except Exception:
+                  continue
+              if not real.is_file():
+                  continue
+              try:
+                  text = real.read_text(encoding='utf-8', errors='ignore')
+              except Exception:
+                  continue
+              if 'server_name' in text and ('antmux.com' in text or 'www.antmux.com' in text):
+                  value = str(real)
+                  if value not in seen:
+                      seen.append(value)
+          if len(seen) != 1:
+              raise SystemExit(f'ANTMUX_ACTIVE_CONFIG_COUNT={len(seen)}')
           print(seen[0])
           PY
           )"
@@ -205,58 +196,68 @@ jobs:
 
           section "patch active config"
           python3 - "$ACTIVE_CONFIG" "$INCLUDE_LINE" <<'PY'
+          import re
           import sys
           from pathlib import Path
 
           path = Path(sys.argv[1])
           include_line = sys.argv[2]
           text = path.read_text(encoding='utf-8', errors='ignore')
-          if include_line in text or '/laboratoire/embryon-x72/api/' in text:
-              print('NGINX_PATCH=ALREADY_PRESENT')
-              raise SystemExit(0)
 
           def find_matching_brace(data, open_index):
               depth = 0
               for index in range(open_index, len(data)):
-                  char = data[index]
-                  if char == '{':
+                  if data[index] == '{':
                       depth += 1
-                  elif char == '}':
+                  elif data[index] == '}':
                       depth -= 1
                       if depth == 0:
                           return index
               return -1
 
+          blocks = []
           pos = 0
           while True:
-              start = text.find('server', pos)
-              if start == -1:
+              match = re.search(r'(?m)^\s*server\s*\{', text[pos:])
+              if not match:
                   break
-              before = text[start-1:start] if start else ''
-              after = text[start+6:start+7]
-              if (before and (before.isalnum() or before == '_')) or (after and (after.isalnum() or after == '_')):
-                  pos = start + 6
-                  continue
+              start = pos + match.start()
               open_brace = text.find('{', start)
-              if open_brace == -1:
-                  break
-              header = text[start:open_brace]
-              if header.strip() != 'server':
-                  pos = open_brace + 1
-                  continue
               close_brace = find_matching_brace(text, open_brace)
-              if close_brace == -1:
-                  break
-              block = text[start:close_brace+1]
-              if 'server_name' in block and ('antmux.com' in block or 'www.antmux.com' in block):
-                  insertion = f'\n    # ANTMUX X72 shared Queen routes\n    {include_line}\n'
-                  text = text[:close_brace] + insertion + text[close_brace:]
-                  path.write_text(text, encoding='utf-8')
-                  print(f'NGINX_SERVER_BLOCK={path}:{text[:start].count(chr(10)) + 1}-{text[:close_brace].count(chr(10)) + 1}')
-                  print('NGINX_PATCH=APPLIED')
-                  raise SystemExit(0)
+              if close_brace < 0:
+                  raise SystemExit('MALFORMED_SERVER_BLOCK')
+              block = text[start:close_brace + 1]
+              blocks.append((start, close_brace, block))
               pos = close_brace + 1
-          raise SystemExit('NO_MATCHING_SERVER_BLOCK_PATCHED')
+
+          antmux_blocks = []
+          https_targets = []
+          for start, close, block in blocks:
+              if 'server_name' not in block or ('antmux.com' not in block and 'www.antmux.com' not in block):
+                  continue
+              antmux_blocks.append((start, close, block))
+              listens_443 = bool(re.search(r'(?m)^\s*listen\s+[^;]*\b443\b[^;]*;', block))
+              if listens_443:
+                  https_targets.append((start, close, block))
+
+          if len(https_targets) != 1:
+              raise SystemExit(f'HTTPS_ANTMUX_SERVER_BLOCK_COUNT={len(https_targets)}')
+
+          target_start, target_close, target_block = https_targets[0]
+          include_locations = [(s, e, b) for s, e, b in antmux_blocks if include_line in b]
+
+          if include_line in target_block:
+              print('NGINX_PATCH=ALREADY_PRESENT_HTTPS')
+              raise SystemExit(0)
+
+          if include_locations:
+              raise SystemExit('X72_INCLUDE_PRESENT_OUTSIDE_HTTPS_BLOCK')
+
+          insertion = f'\n    # ANTMUX X72 shared Queen routes\n    {include_line}\n'
+          new_text = text[:target_close] + insertion + text[target_close:]
+          path.write_text(new_text, encoding='utf-8')
+          print(f'NGINX_SERVER_BLOCK={path}:HTTPS_443')
+          print('NGINX_PATCH=APPLIED_HTTPS')
           PY
 
           section "nginx test"
