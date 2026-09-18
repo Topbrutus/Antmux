@@ -19,7 +19,7 @@ import websockets
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from observation_adapter import X72ObservationAdapter, deterministic_report
+from observation_adapter import ObservationEnvelope, X72ObservationAdapter, deterministic_report
 
 EXPECTED_ENTITY = "QUEEN-X72-0072"
 EXPECTED_REFERENCE = "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
@@ -250,6 +250,68 @@ async def invalid_utf8_websocket_acceptance(
             await stream.aclose()
 
 
+async def normal_websocket_close_acceptance(
+    checks: list[dict[str, Any]],
+) -> None:
+    connection_count = 0
+
+    async def handler(websocket: Any) -> None:
+        nonlocal connection_count
+        connection_count += 1
+        payload = {
+            "source": "QUEEN_SERVER_V0_2",
+            "entity_id": EXPECTED_ENTITY,
+            "tick_count": 100 + connection_count,
+            "reference_h256": EXPECTED_REFERENCE,
+            "protected_h256": EXPECTED_REFERENCE,
+            "integrity_match": True,
+        }
+        await websocket.send(json.dumps(payload))
+        await websocket.close(code=1000, reason="normal-close-test")
+
+    port = free_port()
+    async with websockets.serve(handler, "127.0.0.1", port):
+        adapter = X72ObservationAdapter(
+            f"http://127.0.0.1:{port}",
+            timeout_seconds=2.0,
+            reconnect_delay_seconds=0.05,
+        )
+        stream = adapter.stream_state()
+        try:
+            first = await next_with_timeout(stream)
+            frozen = json.loads(json.dumps(first.payload, sort_keys=True))
+            closed = await next_with_timeout(stream)
+            reconnected = await next_with_timeout(stream)
+
+            checks.append(
+                require(
+                    first.status == "FRESH"
+                    and first.condition == "STREAM_STATE"
+                    and first.payload is not None,
+                    "normal-close stream initial state",
+                )
+            )
+            checks.append(
+                require(
+                    closed.status == "STALE"
+                    and closed.condition == "WEBSOCKET_DISCONNECT"
+                    and closed.payload == frozen,
+                    "normal WebSocket close emits one frozen STALE disconnect",
+                )
+            )
+            checks.append(
+                require(
+                    reconnected.status == "FRESH"
+                    and reconnected.condition == "RECONNECTED"
+                    and reconnected.entity_id == EXPECTED_ENTITY
+                    and reconnected.payload is not None,
+                    "normal WebSocket close reconnects as RECONNECTED",
+                )
+            )
+        finally:
+            await stream.aclose()
+
+
 def run() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
@@ -337,6 +399,34 @@ def run() -> dict[str, Any]:
                     "state authority/reference validated",
                 )
             )
+
+            poison_adapter = X72ObservationAdapter(harness.base)
+            poisoned_payload = {
+                "source": "QUEEN_SERVER_V0_2",
+                "entity_id": "QUEEN-X72-POISON",
+            }
+            valid_payload = get_json(f"{harness.base}/api/state")
+            responses = iter(
+                [
+                    ("OK", poisoned_payload, None),
+                    ("OK", valid_payload, None),
+                ]
+            )
+            poison_adapter._request_json = lambda path: next(responses)
+            poisoned = poison_adapter.read_state()
+            recovered = poison_adapter.read_state()
+            checks.append(
+                require(
+                    poisoned.status == "UNKNOWN"
+                    and poisoned.condition == "SCHEMA_MISMATCH"
+                    and poison_adapter._entity_id == EXPECTED_ENTITY
+                    and recovered.status == "FRESH"
+                    and recovered.entity_id == EXPECTED_ENTITY,
+                    "incomplete state cannot poison adapter entity identity",
+                    f"first={poisoned.condition} second={recovered.status}",
+                )
+            )
+
             checks.append(
                 require(
                     before["protected_h256"]
@@ -373,6 +463,37 @@ def run() -> dict[str, Any]:
                 )
             )
 
+            ambiguous_payload = {"same": "payload"}
+            ambiguous_a = ObservationEnvelope(
+                observed_at_utc="2026-09-18T00:00:00.000Z",
+                entity_id="QUEEN-A",
+                source_schema="SCHEMA-B",
+                source_endpoint="/same",
+                freshness_ms=1,
+                status="FRESH",
+                condition="OK",
+                payload=ambiguous_payload,
+            )
+            ambiguous_b = ObservationEnvelope(
+                observed_at_utc="2026-09-18T00:00:01.000Z",
+                entity_id="QUEEN-B",
+                source_schema="SCHEMA-A",
+                source_endpoint="/same",
+                freshness_ms=999,
+                status="FRESH",
+                condition="OK",
+                payload=ambiguous_payload,
+            )
+            ambiguous_forward = deterministic_report([ambiguous_a, ambiguous_b])
+            ambiguous_reverse = deterministic_report([ambiguous_b, ambiguous_a])
+            checks.append(
+                require(
+                    ambiguous_forward == ambiguous_reverse,
+                    "deterministic report sort is input-order independent for ambiguous records",
+                    ambiguous_forward["report_h256"],
+                )
+            )
+
             unavailable = X72ObservationAdapter(
                 f"http://127.0.0.1:{free_port()}",
                 timeout_seconds=0.2,
@@ -402,6 +523,7 @@ def run() -> dict[str, Any]:
             )
 
             asyncio.run(invalid_utf8_websocket_acceptance(checks))
+            asyncio.run(normal_websocket_close_acceptance(checks))
             asyncio.run(websocket_acceptance(harness, adapter, checks))
             asyncio.run(two_client_acceptance(harness, checks))
 

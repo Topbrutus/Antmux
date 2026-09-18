@@ -75,6 +75,8 @@ def deterministic_report(records: Iterable[ObservationEnvelope]) -> dict[str, An
 
     stable_records.sort(
         key=lambda item: (
+            str(item["entity_id"]),
+            str(item["source_schema"]),
             str(item["source_endpoint"]),
             str(item["status"]),
             str(item["condition"]),
@@ -117,16 +119,20 @@ class X72ObservationAdapter:
     def _endpoint_url(self, path: str) -> str:
         return f"{self.base_url}{path}"
 
-    def _remember_entity(self, entity_id: str | None) -> None:
+    def _validate_entity(self, entity_id: str | None) -> str:
         if not entity_id:
             raise ValueError("missing entity_id")
-        if self._entity_id is None:
-            self._entity_id = entity_id
-            return
-        if self._entity_id != entity_id:
+        normalized = str(entity_id)
+        if self._entity_id is not None and self._entity_id != normalized:
             raise ValueError(
-                f"entity_id changed from {self._entity_id} to {entity_id}"
+                f"entity_id changed from {self._entity_id} to {normalized}"
             )
+        return normalized
+
+    def _remember_entity(self, entity_id: str | None) -> None:
+        normalized = self._validate_entity(entity_id)
+        if self._entity_id is None:
+            self._entity_id = normalized
 
     def _fresh(
         self,
@@ -242,7 +248,7 @@ class X72ObservationAdapter:
                 raise ValueError("health ok is not true")
             if payload.get("source") != QUEEN_SOURCE:
                 raise ValueError("unexpected health source")
-            self._remember_entity(str(payload.get("entity_id") or ""))
+            self._validate_entity(payload.get("entity_id"))
 
         return self._read_validated(
             endpoint="/api/health",
@@ -258,7 +264,7 @@ class X72ObservationAdapter:
                 raise ValueError("unexpected observability authority")
             if payload.get("scope") != "operational_read_only":
                 raise ValueError("unexpected observability scope")
-            self._remember_entity(str(payload.get("entity_id") or ""))
+            self._validate_entity(payload.get("entity_id"))
 
         return self._read_validated(
             endpoint="/api/telemetry",
@@ -270,7 +276,7 @@ class X72ObservationAdapter:
         def validate(payload: dict[str, Any]) -> None:
             if payload.get("source") != QUEEN_SOURCE:
                 raise ValueError("unexpected state source")
-            self._remember_entity(str(payload.get("entity_id") or ""))
+            self._validate_entity(payload.get("entity_id"))
             if "tick_count" not in payload:
                 raise ValueError("missing tick_count")
             if "reference_h256" not in payload:
@@ -353,7 +359,7 @@ class X72ObservationAdapter:
                                 raise ValueError("top-level WebSocket JSON must be an object")
                             if payload.get("source") != QUEEN_SOURCE:
                                 raise ValueError("unexpected WebSocket state source")
-                            self._remember_entity(str(payload.get("entity_id") or ""))
+                            self._validate_entity(payload.get("entity_id"))
                             if "tick_count" not in payload or "reference_h256" not in payload:
                                 raise ValueError("incomplete WebSocket VisualState")
                         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -393,6 +399,24 @@ class X72ObservationAdapter:
                             condition="RECONNECTED" if reconnect else "STREAM_STATE",
                         )
                         reconnect = False
+
+                    if not disconnected_emitted:
+                        disconnected_emitted = True
+                        freshness_ms = 0
+                        if last_real_monotonic is not None:
+                            freshness_ms = round(
+                                (time.monotonic() - last_real_monotonic) * 1000
+                            )
+                        yield self._failure(
+                            endpoint="/ws",
+                            schema=QUEEN_SOURCE,
+                            condition="WEBSOCKET_DISCONNECT",
+                            error="normal WebSocket close",
+                            payload=last_payload,
+                            status="STALE" if last_payload is not None else "UNKNOWN",
+                            freshness_ms=freshness_ms,
+                        )
+                    await asyncio.sleep(self.reconnect_delay_seconds)
 
             except asyncio.CancelledError:
                 raise
