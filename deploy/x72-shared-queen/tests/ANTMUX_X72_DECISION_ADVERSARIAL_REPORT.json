@@ -1,0 +1,261 @@
+{
+  "blocker": "DECISION_CANDIDATE_NOT_PRESENT",
+  "candidate_status": "BLOCKER",
+  "candidate_tests_fail": 0,
+  "candidate_tests_pass": 0,
+  "candidate_tests_total": 0,
+  "contract": {
+    "case_count": 32,
+    "contract_tests_fail": 0,
+    "contract_tests_pass": 36,
+    "contract_tests_total": 36,
+    "deterministic": "PASS",
+    "evidence_traceability": "PASS",
+    "expected_rejections": 21,
+    "expected_upstream_rejections": 6,
+    "manifest_h256": "68bd6c5f143e3fc2912a1b5671e36009f445c4ba75175edaa7500e045ae1e58c",
+    "no_input_mutation": "PASS",
+    "outcomes": [
+      {
+        "case_id": "valid_baseline",
+        "category": "baseline",
+        "classification": "PASS",
+        "detail": "bb06ae6c6832f0c29851f472724b95df65dfc5f50881458684eb097ce54d9cf4",
+        "expectation": "PASS"
+      },
+      {
+        "case_id": "empty_history",
+        "category": "history",
+        "classification": "PASS",
+        "detail": "bddbbb5934e8083ce4c8ab77fc05fe665de7dbfef945918ba906856753cfcc41",
+        "expectation": "PASS"
+      },
+      {
+        "case_id": "source_history_h256_absent",
+        "category": "h256",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "source_history_h256 malformed",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "source_trend_h256_absent",
+        "category": "h256",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "source_trend_h256 malformed",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "history_h256_malformed",
+        "category": "h256",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "source_history_h256 malformed",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "trend_h256_malformed",
+        "category": "h256",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "source_trend_h256 malformed",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "history_h256_untraceable",
+        "category": "h256",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "source_history_h256 is not traceable to History",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "trend_h256_untraceable",
+        "category": "h256",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "source_trend_h256 is not traceable to TrendFrame",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "entity_incoherent",
+        "category": "entity",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "entity_id disagrees with TrendFrame",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "partial_trend_source",
+        "category": "trend",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "records_count must be an integer",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "contradictory_records_count",
+        "category": "trend",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "records_count disagrees with TrendFrame",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "unknown_candidate_type",
+        "category": "candidate",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "unknown candidate_type",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "empty_evidence",
+        "category": "evidence",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "evidence must be a non-empty list",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "untraceable_evidence",
+        "category": "evidence",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "evidence[0] is not traceable",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "fault_without_proof",
+        "category": "fault_repair",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "integrity candidate has no H256 fault proof",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "repair_without_fault",
+        "category": "fault_repair",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "repair evidence exists without prior fault evidence",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "disconnect_without_reconnect",
+        "category": "disconnect",
+        "classification": "PASS",
+        "detail": "d01e680055702e71f2899718ad192ddf253f884d2c0c9e09451f172c6f6a789b",
+        "expectation": "PASS"
+      },
+      {
+        "case_id": "reconnect_without_disconnect",
+        "category": "reconnect",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "reconnect evidence exists without disconnect/stale evidence",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "multiple_schema_mismatch",
+        "category": "schema",
+        "classification": "PASS",
+        "detail": "db49fcd7fe901462bc24ef39d853a39a8f26b5188bbfa1f21c50e51a093dcd85",
+        "expectation": "PASS"
+      },
+      {
+        "case_id": "runtime_negative",
+        "category": "numeric",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "r_exec_mean must be >= 0",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "active_synapses_impossible",
+        "category": "numeric",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "active_synapses_mean disagrees with TrendFrame",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "numeric_wrong_type",
+        "category": "numeric",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "f_rt_mean must be numeric",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "records_count_bool",
+        "category": "numeric",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "records_count must be an integer",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "tick_negative",
+        "category": "numeric",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "window_start_tick must be >= 0",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "tick_regressive_source",
+        "category": "numeric",
+        "classification": "EXPECTED_REJECTION",
+        "detail": "tick window disagrees with TrendFrame",
+        "expectation": "EXPECTED_REJECTION"
+      },
+      {
+        "case_id": "evidence_order_reversed",
+        "category": "determinism",
+        "classification": "PASS",
+        "detail": "bb06ae6c6832f0c29851f472724b95df65dfc5f50881458684eb097ce54d9cf4",
+        "expectation": "PASS"
+      },
+      {
+        "case_id": "upstream_entity_change",
+        "category": "upstream",
+        "classification": "EXPECTED_REJECTION_UPSTREAM",
+        "detail": "entity_id changed from QUEEN-X72-0072 to QUEEN-X72-OTHER",
+        "expectation": "EXPECTED_REJECTION_UPSTREAM"
+      },
+      {
+        "case_id": "upstream_tick_regression",
+        "category": "upstream",
+        "classification": "EXPECTED_REJECTION_UPSTREAM",
+        "detail": "official tick regressed from 100 to 99",
+        "expectation": "EXPECTED_REJECTION_UPSTREAM"
+      },
+      {
+        "case_id": "upstream_nan",
+        "category": "upstream",
+        "classification": "EXPECTED_REJECTION_UPSTREAM",
+        "detail": "Out of range float values are not JSON compliant: nan",
+        "expectation": "EXPECTED_REJECTION_UPSTREAM"
+      },
+      {
+        "case_id": "upstream_inf",
+        "category": "upstream",
+        "classification": "EXPECTED_REJECTION_UPSTREAM",
+        "detail": "Out of range float values are not JSON compliant: inf",
+        "expectation": "EXPECTED_REJECTION_UPSTREAM"
+      },
+      {
+        "case_id": "upstream_bool_tick",
+        "category": "upstream",
+        "classification": "EXPECTED_REJECTION_UPSTREAM",
+        "detail": "tick_count must be an integer",
+        "expectation": "EXPECTED_REJECTION_UPSTREAM"
+      },
+      {
+        "case_id": "upstream_numeric_string",
+        "category": "upstream",
+        "classification": "EXPECTED_REJECTION_UPSTREAM",
+        "detail": "r_exec must be numeric",
+        "expectation": "EXPECTED_REJECTION_UPSTREAM"
+      }
+    ],
+    "schema": "ANTMUX-X72-DECISION-CANDIDATE-ADVERSARIAL-CONTRACT-v0.1",
+    "verdict": "PASS"
+  },
+  "deterministic": "NOT_RUN",
+  "evidence_traceability": "NOT_RUN",
+  "expected_rejections": 0,
+  "expected_upstream_rejections": 0,
+  "no_action_execution": "PASS",
+  "no_input_mutation": "PASS",
+  "no_mutation_transport": "PASS",
+  "schema": "ANTMUX-X72-DECISION-CANDIDATE-ADVERSARIAL-RUN-v0.2",
+  "source_guard_self_check": {
+    "tests_fail": 0,
+    "tests_pass": 6,
+    "tests_total": 6,
+    "verdict": "PASS"
+  }
+}

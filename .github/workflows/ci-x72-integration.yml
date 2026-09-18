@@ -65,6 +65,8 @@ jobs:
           test -f deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
           test -f deploy/x72-shared-queen/decision_candidate/candidate.py
           test -f deploy/x72-shared-queen/tests/test_decision_candidate.py
+          test -f deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
+          test -f deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -85,6 +87,8 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
           python3 -m py_compile deploy/x72-shared-queen/decision_candidate/candidate.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_decision_candidate.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py
           printf 'PYTHON_COMPILE=PASS\n'
 
   # ──────────────────────────────────────────────
@@ -429,6 +433,17 @@ jobs:
           set -euo pipefail
           python3 deploy/x72-shared-queen/tests/test_decision_candidate.py
           printf 'DECISION_CANDIDATE_ACCEPTANCE=PASS\n'
+
+      - name: Smoke test — DecisionCandidate adversarial hardening
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
+          python3 deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py \
+            --require-candidate \
+            --module decision_candidate \
+            --class-name X72DecisionCandidate \
+            --method generate
+          printf 'DECISION_CANDIDATE_ADVERSARIAL_REAL=PASS\n'
 
       - name: Smoke test — state endpoint
         run: |
