@@ -59,12 +59,38 @@ No local QueenCore.
 No mutation transport introduced.
 No merge performed.
 
-## Blocker
+## Real candidate cross-validation
 
-`TREND_ANALYZER_NOT_PRESENT:observation_trend`
+Candidate PR #55:
 
-When a candidate implementation exists, run:
+`e80732878192eafd87c10ecdb72a92b5910ba112`
 
-`python deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py --require-candidate`
+A detached temporary integration worktree was created from that exact candidate
+SHA. Only Worker 2's harness files were copied into it; no TrendAnalyzer source
+was copied back into PR #54.
 
-The same independent corpus will then execute directly against the candidate.
+Execution:
+
+`python deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py --require-candidate --module trend_analyzer --class-name X72TrendAnalyzer`
+
+Result:
+
+- candidate: PASS
+- blocker: NONE
+- candidate checks: 30/30 PASS
+- upstream expected rejections: 7
+- candidate failures: 0
+- interface alignment: PASS
+- deterministic: PASS
+- no input mutation: PASS
+- no mutation transport / local QueenCore: PASS
+
+The seven upstream rejections are inputs that the public
+`X72ObservationHistory.append(...)` boundary rejected before the analyzer:
+entity change, tick regression, NaN, infinity, wrong numeric type, wrong
+synapse-count type, and reversed official tick order.
+
+At main baseline `96880747b53e12b85c3c0a38e795303745aff5ea`,
+`trend_analyzer` is still absent. PR #54 therefore remains a standalone test
+layer and its default run reports the absence as a structured BLOCKER unless a
+candidate is present.

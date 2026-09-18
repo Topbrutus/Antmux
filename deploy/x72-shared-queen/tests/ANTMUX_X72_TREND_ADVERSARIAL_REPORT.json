@@ -1,5 +1,5 @@
 {
-  "blocker": "TREND_ANALYZER_NOT_PRESENT:observation_trend",
+  "blocker": "TREND_ANALYZER_NOT_PRESENT:trend_analyzer",
   "candidate": "BLOCKER",
   "contract": {
     "bounded": "PASS",
@@ -236,8 +236,9 @@
     "verdict": "PASS"
   },
   "expected_rejections": 18,
-  "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.1",
+  "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.2",
   "tests_fail": 0,
   "tests_pass": 33,
-  "tests_total": 33
+  "tests_total": 33,
+  "upstream_rejections": 0
 }

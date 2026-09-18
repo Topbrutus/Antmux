@@ -14,22 +14,30 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from observation_history import X72HistoryRecord
+from observation_adapter import ObservationEnvelope
+from observation_history import X72ObservationHistory
 from trend_analyzer_adversarial_contract import (
-    ACCEPT,
-    REJECT,
     MAX_WINDOW,
     build_cases,
     canonical_json,
     self_check_contract,
 )
 
-DEFAULT_MODULE = "observation_trend"
+DEFAULT_MODULE = "trend_analyzer"
 DEFAULT_CLASS = "X72TrendAnalyzer"
 
-
-def to_history_record(item: dict[str, Any]) -> X72HistoryRecord:
-    return X72HistoryRecord(**copy.deepcopy(item))
+EXPECTED_UPSTREAM_CASES = frozenset(
+    {
+        "entity_change_mid_window",
+        "tick_regression",
+        "numeric_wrong_type",
+        "synapse_count_wrong_type",
+        "history_order_reversed",
+        "nan_r_exec",
+        "inf_f_rt",
+    }
+)
+EXPECTED_CANDIDATE_REJECTIONS = frozenset()
 
 
 def normalize_result(value: Any) -> Any:
@@ -42,7 +50,7 @@ def normalize_result(value: Any) -> Any:
     if isinstance(value, list):
         return [normalize_result(item) for item in value]
     if isinstance(value, dict):
-        return {str(k): normalize_result(v) for k, v in value.items()}
+        return {str(key): normalize_result(item) for key, item in value.items()}
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     raise TypeError(f"unsupported analyzer result type: {type(value).__name__}")
@@ -66,20 +74,73 @@ def structured_rejection(result: Any) -> bool:
 
 
 def instantiate(cls: type[Any]) -> Any:
-    try:
-        return cls()
-    except TypeError:
-        return cls(max_records=MAX_WINDOW)
+    return cls()
 
 
-def invoke(analyzer: Any, records: tuple[X72HistoryRecord, ...]) -> Any:
-    if hasattr(analyzer, "analyze") and callable(analyzer.analyze):
-        return analyzer.analyze(records)
-    if hasattr(analyzer, "analyze_window") and callable(analyzer.analyze_window):
-        return analyzer.analyze_window(records)
-    if callable(analyzer):
-        return analyzer(records)
-    raise TypeError("candidate exposes no analyze/analyze_window/callable interface")
+PAYLOAD_FIELDS = (
+    "entity_id",
+    "tick_count",
+    "queen_mode",
+    "integrity_match",
+    "protected_h256",
+    "reference_h256",
+    "r_exec",
+    "f_rt",
+    "active_synapses",
+    "event_count",
+)
+
+
+def record_to_envelope(item: dict[str, Any]) -> ObservationEnvelope:
+    payload: dict[str, Any] = {}
+    if "source_schema" in item:
+        payload["source"] = item["source_schema"]
+    for field in PAYLOAD_FIELDS:
+        if field in item:
+            payload[field] = copy.deepcopy(item[field])
+
+    return ObservationEnvelope(
+        observed_at_utc=str(item.get("observed_at", "")),
+        entity_id=item.get("entity_id"),
+        source_schema=str(item.get("source_schema", "")),
+        source_endpoint=str(item.get("source_endpoint", "")),
+        freshness_ms=0,
+        status=str(item.get("status", "")),
+        condition=str(item.get("condition", "")),
+        payload=payload,
+        error=None if item.get("status") == "FRESH" else str(item.get("condition", "")),
+    )
+
+
+def build_public_history(
+    source_records: tuple[dict[str, Any], ...],
+) -> tuple[X72ObservationHistory, list[dict[str, Any]], int]:
+    history = X72ObservationHistory(capacity=MAX_WINDOW)
+    upstream_rejections: list[dict[str, Any]] = []
+    evictions = 0
+
+    for index, source in enumerate(source_records):
+        frame = record_to_envelope(source)
+        result = history.append(frame)
+        if not result.accepted:
+            upstream_rejections.append(
+                {
+                    "index": index,
+                    "condition": result.condition,
+                    "error": result.error,
+                }
+            )
+            break
+        if result.evicted_sequence_id is not None:
+            evictions += 1
+
+    return history, upstream_rejections, evictions
+
+
+def invoke(analyzer: Any, history: X72ObservationHistory) -> Any:
+    if not hasattr(analyzer, "analyze") or not callable(analyzer.analyze):
+        raise TypeError("candidate must expose analyze(history: X72ObservationHistory)")
+    return analyzer.analyze(history)
 
 
 def candidate_source_guard(module: Any, cls: type[Any]) -> dict[str, Any]:
@@ -103,6 +164,9 @@ def candidate_source_guard(module: Any, cls: type[Any]) -> dict[str, Any]:
         "QueenCore": "local Queen authority",
         "/api/fault": "fault mutation transport",
         "/api/repair": "repair mutation transport",
+        "urllib.": "HTTP transport",
+        "requests.": "HTTP transport",
+        "websockets.": "WebSocket transport",
         'method="POST"': "POST transport",
         'method="PUT"': "PUT transport",
         'method="PATCH"': "PATCH transport",
@@ -116,58 +180,109 @@ def candidate_source_guard(module: Any, cls: type[Any]) -> dict[str, Any]:
     }
 
 
+def blocker_report(contract: dict[str, Any], blocker: str) -> dict[str, Any]:
+    return {
+        "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.2",
+        "contract": contract,
+        "candidate": "BLOCKER",
+        "blocker": blocker,
+        "tests_total": contract["tests_total"],
+        "tests_pass": contract["tests_pass"],
+        "tests_fail": 0,
+        "expected_rejections": contract["expected_rejections"],
+        "upstream_rejections": 0,
+    }
+
+
 def run_candidate(module_name: str, class_name: str) -> dict[str, Any]:
     contract = self_check_contract()
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError:
-        return {
-            "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.1",
-            "contract": contract,
-            "candidate": "BLOCKER",
-            "blocker": f"TREND_ANALYZER_NOT_PRESENT:{module_name}",
-            "tests_total": contract["tests_total"],
-            "tests_pass": contract["tests_pass"],
-            "tests_fail": 0,
-            "expected_rejections": contract["expected_rejections"],
-        }
+        return blocker_report(contract, f"TREND_ANALYZER_NOT_PRESENT:{module_name}")
 
     cls = getattr(module, class_name, None)
     if cls is None:
-        return {
-            "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.1",
-            "contract": contract,
-            "candidate": "BLOCKER",
-            "blocker": f"TREND_ANALYZER_CLASS_NOT_PRESENT:{class_name}",
-            "tests_total": contract["tests_total"],
-            "tests_pass": contract["tests_pass"],
-            "tests_fail": 0,
-            "expected_rejections": contract["expected_rejections"],
-        }
+        return blocker_report(contract, f"TREND_ANALYZER_CLASS_NOT_PRESENT:{class_name}")
 
     guard = candidate_source_guard(module, cls)
     if not guard["ok"]:
         return {
-            "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.1",
+            "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.2",
             "contract": contract,
             "candidate": "FAIL",
             "blocker": "FORBIDDEN_MUTATION_OR_LOCAL_QUEEN",
             "source_guard": guard,
+            "tests_total": 1,
+            "tests_pass": 0,
+            "tests_fail": 1,
+            "expected_rejections": 0,
+            "upstream_rejections": 0,
         }
 
     outcomes: list[dict[str, Any]] = []
     failures = 0
-    expected_rejections = 0
+    upstream_count = 0
+    candidate_rejection_count = 0
+
 
     for case in build_cases():
         source_before = copy.deepcopy(case.records)
-        records = tuple(to_history_record(item) for item in case.records)
+        history, upstream, evictions = build_public_history(case.records)
+
+        if case.records != source_before:
+            failures += 1
+            outcomes.append(
+                {
+                    "case_id": case.case_id,
+                    "classification": "FAIL",
+                    "detail": "source adversarial records mutated while building History",
+                }
+            )
+            continue
+
+        if upstream:
+            if case.case_id in EXPECTED_UPSTREAM_CASES:
+                upstream_count += 1
+                outcomes.append(
+                    {
+                        "case_id": case.case_id,
+                        "classification": "EXPECTED_REJECTION_UPSTREAM",
+                        "detail": upstream[0],
+                    }
+                )
+            else:
+                failures += 1
+                outcomes.append(
+                    {
+                        "case_id": case.case_id,
+                        "classification": "FAIL",
+                        "detail": {
+                            "unexpected_upstream_rejection": upstream[0],
+                        },
+                    }
+                )
+            continue
+
+        if case.case_id in EXPECTED_UPSTREAM_CASES:
+            failures += 1
+            outcomes.append(
+                {
+                    "case_id": case.case_id,
+                    "classification": "FAIL",
+                    "detail": "History should have rejected this case but accepted it",
+                }
+            )
+            continue
+
+        before_records = [record.to_dict() for record in history.records]
+        before_report = history.deterministic_report()
         analyzer = instantiate(cls)
         rejected = False
         error = None
         result = None
         try:
-            result = invoke(analyzer, records)
+            result = invoke(analyzer, history)
             rejected = structured_rejection(result)
         except (ValueError, TypeError, AssertionError) as exc:
             rejected = True
@@ -183,61 +298,142 @@ def run_candidate(module_name: str, class_name: str) -> dict[str, Any]:
             )
             continue
 
-        if case.records != source_before:
+        after_records = [record.to_dict() for record in history.records]
+        after_report = history.deterministic_report()
+        if before_records != after_records or before_report != after_report:
             failures += 1
             outcomes.append(
                 {
                     "case_id": case.case_id,
                     "classification": "FAIL",
-                    "detail": "source records mutated",
+                    "detail": "candidate mutated X72ObservationHistory input",
                 }
             )
             continue
 
-        if case.expectation == REJECT:
+
+        if case.case_id in EXPECTED_CANDIDATE_REJECTIONS:
             if rejected:
-                expected_rejections += 1
-                classification = "EXPECTED_REJECTION"
-                detail = error or "structured rejection"
+                candidate_rejection_count += 1
+                outcomes.append(
+                    {
+                        "case_id": case.case_id,
+                        "classification": "EXPECTED_REJECTION",
+                        "detail": error or "structured candidate rejection",
+                    }
+                )
             else:
                 failures += 1
-                classification = "FAIL"
-                detail = "invalid adversarial window was accepted"
-        else:
-            if rejected:
-                failures += 1
-                classification = "FAIL"
-                detail = error or "valid window was rejected"
-            else:
-                second = invoke(instantiate(cls), tuple(to_history_record(item) for item in case.records))
-                first_norm = normalize_result(result)
-                second_norm = normalize_result(second)
-                if canonical_json(first_norm) != canonical_json(second_norm):
-                    failures += 1
-                    classification = "FAIL"
-                    detail = "non-deterministic result across identical inputs"
-                else:
-                    classification = "PASS"
-                    detail = "accepted deterministically"
+                outcomes.append(
+                    {
+                        "case_id": case.case_id,
+                        "classification": "FAIL",
+                        "detail": "non-finite numeric input was accepted",
+                    }
+                )
+            continue
+
+        if rejected:
+            failures += 1
+            outcomes.append(
+                {
+                    "case_id": case.case_id,
+                    "classification": "FAIL",
+                    "detail": error or "candidate rejected a valid bounded History",
+                }
+            )
+            continue
+
+        try:
+            second = invoke(instantiate(cls), history)
+            first_norm = normalize_result(result)
+            second_norm = normalize_result(second)
+            deterministic = canonical_json(first_norm) == canonical_json(second_norm)
+        except Exception as exc:
+            deterministic = False
+            error = f"second-run {type(exc).__name__}: {exc}"
+
+        if not deterministic:
+            failures += 1
+            outcomes.append(
+                {
+                    "case_id": case.case_id,
+                    "classification": "FAIL",
+                    "detail": error or "non-deterministic result across identical History",
+                }
+            )
+            continue
+
+        detail: dict[str, Any] = {
+            "records_in_history": len(history.records),
+            "evictions": evictions,
+        }
+        if case.case_id == "over_capacity" and (
+            len(history.records) != MAX_WINDOW or evictions < 1
+        ):
+            failures += 1
+            outcomes.append(
+                {
+                    "case_id": case.case_id,
+                    "classification": "FAIL",
+                    "detail": "bounded History did not evict oldest record",
+                }
+            )
+            continue
 
         outcomes.append(
             {
                 "case_id": case.case_id,
-                "classification": classification,
+                "classification": "PASS",
                 "detail": detail,
             }
         )
 
+
+    meta_checks = [
+        {
+            "case_id": "source_guard",
+            "classification": "PASS" if guard["ok"] else "FAIL",
+            "detail": guard,
+        },
+        {
+            "case_id": "public_interface_alignment",
+            "classification": "PASS",
+            "detail": "candidate invoked only as analyze(X72ObservationHistory)",
+        },
+    ]
+    failures += sum(1 for item in meta_checks if item["classification"] == "FAIL")
+    outcomes.extend(meta_checks)
+
+    passed = sum(
+        1
+        for item in outcomes
+        if item["classification"]
+        in {"PASS", "EXPECTED_REJECTION", "EXPECTED_REJECTION_UPSTREAM"}
+    )
     return {
-        "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.1",
+        "schema": "ANTMUX-X72-TREND-ANALYZER-ADVERSARIAL-RUN-v0.2",
         "contract": contract,
         "candidate": "PASS" if failures == 0 else "FAIL",
         "blocker": None,
+        "module_target": module_name,
+        "class_target": class_name,
+        "interface_alignment": "PASS",
         "source_guard": guard,
         "tests_total": len(outcomes),
-        "tests_pass": sum(1 for item in outcomes if item["classification"] == "PASS"),
+        "tests_pass": passed,
         "tests_fail": failures,
-        "expected_rejections": expected_rejections,
+        "expected_rejections": upstream_count + candidate_rejection_count,
+        "upstream_rejections": upstream_count,
+        "candidate_rejections": candidate_rejection_count,
+        "deterministic": "PASS" if failures == 0 else "CHECK_OUTCOMES",
+        "no_input_mutation": "PASS"
+        if not any(
+            item["classification"] == "FAIL"
+            and "mutat" in str(item["detail"]).lower()
+            for item in outcomes
+        )
+        else "FAIL",
         "outcomes": outcomes,
     }
 

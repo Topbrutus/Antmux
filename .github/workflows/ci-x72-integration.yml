@@ -59,6 +59,8 @@ jobs:
           test -f deploy/x72-shared-queen/tests/test_observation_adapter.py
           test -f deploy/x72-shared-queen/observation_history/history.py
           test -f deploy/x72-shared-queen/tests/test_observation_history.py
+          test -f deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
+          test -f deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -73,6 +75,8 @@ jobs:
           python3 -m py_compile laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
           python3 -m py_compile deploy/x72-shared-queen/observation_history/history.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_observation_history.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py
           printf 'PYTHON_COMPILE=PASS\n'
 
   # ──────────────────────────────────────────────
@@ -395,6 +399,23 @@ jobs:
           set -euo pipefail
           python3 deploy/x72-shared-queen/tests/test_observation_history.py
           printf 'OBSERVATION_HISTORY_ACCEPTANCE=PASS\n'
+
+      - name: Smoke test — TrendAnalyzer adversarial hardening
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/trend_analyzer_adversarial_contract.py
+          if [ -f deploy/x72-shared-queen/trend_analyzer/analyzer.py ]; then
+            python3 deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py \
+              --require-candidate \
+              --module trend_analyzer \
+              --class-name X72TrendAnalyzer
+            printf 'TREND_ANALYZER_ADVERSARIAL_CANDIDATE=PASS\n'
+          else
+            python3 deploy/x72-shared-queen/tests/run_trend_analyzer_adversarial.py \
+              --module trend_analyzer \
+              --class-name X72TrendAnalyzer
+            printf 'TREND_ANALYZER_ADVERSARIAL_CONTRACT_ONLY=PASS\n'
+          fi
 
       - name: Smoke test — state endpoint
         run: |

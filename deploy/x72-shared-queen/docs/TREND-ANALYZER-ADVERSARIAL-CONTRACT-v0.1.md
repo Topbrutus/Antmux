@@ -8,11 +8,17 @@ This suite is intentionally separate from the future X72TrendAnalyzer implementa
 It defines adversarial windows and expected dispositions without importing Worker 1 code.
 
 Target binding expected by the runner:
-- module: `observation_trend`
+- module: `trend_analyzer`
 - class: `X72TrendAnalyzer`
-- callable surface: `analyze(records)`, `analyze_window(records)`, or callable instance.
+- callable surface: `analyze(history: X72ObservationHistory)`
 
-If the target is absent, the runner returns a structured BLOCKER rather than inventing a pass.
+The harness builds every candidate input through the public
+`X72ObservationHistory.append(ObservationEnvelope)` interface. It never
+constructs private invalid History state. Invalid adversarial inputs rejected
+there are classified `EXPECTED_REJECTION_UPSTREAM`.
+
+If the target is absent, the runner returns a structured BLOCKER rather than
+inventing an implementation-level pass.
 
 ## Read-only boundary
 
@@ -52,11 +58,18 @@ The corpus self-check verifies:
 - deterministic manifest independent of construction order;
 - bounded maximum input window.
 
-When a candidate exists, accepted cases are executed twice on deep-copied inputs.
-Byte-equivalent canonical outputs are required.
+When a candidate exists, accepted bounded Histories are analyzed twice through
+`X72TrendAnalyzer.analyze(history)`. Byte-equivalent canonical outputs are
+required, and History records plus its deterministic report must remain
+unchanged before/after analysis.
 
 ## Current blocker
 
 At baseline `96880747b53e12b85c3c0a38e795303745aff5ea`,
-`observation_trend.X72TrendAnalyzer` is not present on main.
-The validation layer is ready, but implementation-level adversarial execution is therefore blocked until a candidate exists.
+`trend_analyzer.X72TrendAnalyzer` is not present on main, so PR #54 remains a
+standalone hardening layer.
+
+A temporary detached integration worktree was built from candidate PR #55 at
+`e80732878192eafd87c10ecdb72a92b5910ba112`, with only this harness copied
+into it. Real candidate cross-validation passed 30/30 checks with seven
+`EXPECTED_REJECTION_UPSTREAM` cases and no candidate failure.
