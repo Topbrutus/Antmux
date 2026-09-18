@@ -1,6 +1,6 @@
 # X72 — Next Module Integration v1
 
-Status: design contract / not yet a new runtime module.
+Status: contract implemented by the read-only `X72ObservationAdapter` candidate; Queen authority remains unchanged.
 
 ## Goal
 
