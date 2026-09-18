@@ -22,9 +22,12 @@
 
   const ctx = els.canvas.getContext("2d");
   let lastState = null;
+  let previousState = null;
   let connected = false;
   let socket = null;
   let reconnectTimer = null;
+  let lastMessageAt = 0;
+  let messageIntervalMs = 250;
   let stars = [];
 
   function api(path){ return new URL(path, window.location.href).toString(); }
@@ -35,8 +38,50 @@
   }
   function clamp(v,a=0,b=1){ return Math.max(a,Math.min(b,Number(v)||0)); }
   function fmt(v,n=3){ return Number(v || 0).toFixed(n); }
+  function lerp(a,b,t){ return Number(a||0)+(Number(b||0)-Number(a||0))*t; }
   function phaseFromState(state, scale=0.01){
-    return state ? Number(state.tick_count || 0) * scale : 0;
+    return state ? Number(state._visualTick ?? state.tick_count ?? 0) * scale : 0;
+  }
+
+  function interpolateVisualState(previous,current,alpha){
+    if(!current) return null;
+    if(!previous) return current;
+    const out={...current};
+    out._visualTick=lerp(previous.tick_count,current.tick_count,alpha);
+    for(const field of ["activity_level","memory_level","crystallization_level","repair_level","error_level"]){
+      out[field]=lerp(previous[field],current[field],alpha);
+    }
+    const previousById=new Map((previous.synapses||[]).map(s=>[s.synapse_id,s]));
+    out.synapses=(current.synapses||[]).map(s=>{
+      const before=previousById.get(s.synapse_id);
+      if(!before) return s;
+      return {
+        ...s,
+        activity:lerp(before.activity,s.activity,alpha),
+        memory:lerp(before.memory,s.memory,alpha),
+        crystal:lerp(before.crystal,s.crystal,alpha),
+        repair_progress:lerp(before.repair_progress,s.repair_progress,alpha)
+      };
+    });
+    return out;
+  }
+
+  function visualStateForFrame(now){
+    if(!lastState) return null;
+    if(!connected || !previousState) return lastState;
+    const interval=Math.max(80,Math.min(1000,messageIntervalMs||250));
+    const alpha=Math.max(0,Math.min(1,(now-lastMessageAt)/interval));
+    return interpolateVisualState(previousState,lastState,alpha);
+  }
+
+  function repairDisplay(state){
+    const raw=String(state?.repair_verdict||"").toUpperCase();
+    if(state?.queen_mode==="AUTO_REPAIR") return {label:"REPAIRING",detail:"RÉPARATION EN COURS",ok:true};
+    if(!state?.integrity_match) return {label:raw==="INVALID"?"FAULT ACTIVE":(raw||"FAULT"),detail:"PANNE ACTIVE",ok:false};
+    if(raw==="INVALID") return {label:"READY",detail:"AUCUNE PANNE",ok:true};
+    if(raw==="PASS") return {label:"PASS",detail:"RÉPARATION VÉRIFIÉE",ok:true};
+    if(raw==="FAIL") return {label:"FAIL",detail:"RÉPARATION ÉCHOUÉE",ok:false};
+    return {label:raw||"READY",detail:"AUCUNE PANNE",ok:true};
   }
 
   async function postJson(path, body){
@@ -123,6 +168,7 @@
 
     const cx=w*.5, cy=h*.5, r=Math.min(w,h)*.34;
     const phase=phaseFromState(state,.012);
+    const visualTick=state ? Number(state._visualTick ?? state.tick_count ?? 0) : 0;
     const synapses=state?.synapses || [];
     const relations=state?.relations || [];
 
@@ -151,7 +197,7 @@
       ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
 
       if(intensity>.25&&sa.enabled&&sb.enabled){
-        const q=((Number(state?.tick_count||0)*.011)+a*.19+b*.07)%1;
+        const q=((visualTick*.011)+a*.19+b*.07)%1;
         const px=x1+(x2-x1)*q, py=y1+(y2-y1)*q;
         ctx.fillStyle=THEME.gold2;
         ctx.beginPath();
@@ -247,8 +293,9 @@
     ctx.fillText("HORLOGE DE LA VIE — REINE",cx,cy-r*1.23);
     ctx.fillStyle=THEME.text;
     ctx.font="bold 12px Consolas";
+    const repairUi=repairDisplay(state);
     ctx.fillText(
-      `TICK ${Number(state?.tick_count||0).toLocaleString("fr-CA")}  •  GEN ${state?.generation ?? "—"}  •  SYNAPSES ${state?.active_synapses ?? 0}/7  •  REPAIR ${state?.repair_verdict ?? "—"}`,
+      `TICK ${Number(state?.tick_count||0).toLocaleString("fr-CA")}  •  GEN ${state?.generation ?? "—"}  •  SYNAPSES ${state?.active_synapses ?? 0}/7  •  REPAIR ${repairUi.label}`,
       cx,cy+r*1.24
     );
 
@@ -297,14 +344,15 @@
     (state.synapses||[]).forEach(s=>{
       proof += `${String(s.synapse_id).padEnd(3)} ${String(s.role).padEnd(9)} ${fmt(s.activity)} ${fmt(s.memory)} ${fmt(s.crystal)} ${String(s.integrity).padStart(4)}  ${s.enabled?"ON":"FAULT"}\n`;
     });
-    proof += `\nWHOLE H256\n${state.whole_h256||"—"}\n\nB36_50\n${state.b36_view||"—"}\n\nPROTECTED CURRENT\n${state.protected_h256||"—"}\n\nPROTECTED REFERENCE\n${state.reference_h256||"—"}\n\nVERDICT: ${state.repair_verdict||"—"}\n${state.repair_reason||""}\n`;
+    const repairUi=repairDisplay(state);
+    proof += `\nWHOLE H256\n${state.whole_h256||"—"}\n\nB36_50\n${state.b36_view||"—"}\n\nPROTECTED CURRENT\n${state.protected_h256||"—"}\n\nPROTECTED REFERENCE\n${state.reference_h256||"—"}\n\nÉTAT INTERFACE: ${repairUi.label} / ${repairUi.detail}\nVERDICT SERVEUR: ${state.repair_verdict||"—"}\n${state.repair_reason||""}\n`;
     els.proofBox.textContent=proof;
 
     els.referenceCheck.textContent=`RÉFÉRENCE H256 : ${state.integrity_match?"MATCH":"MISMATCH"}`;
     els.referenceCheck.className=state.integrity_match?"ok":"bad";
-    els.reportVerdict.textContent=state.repair_verdict||"INVALID";
-    els.reportVerdict.className=state.repair_verdict==="PASS"?"ok":"bad";
-    els.reportSteps.textContent="SERVER";
+    els.reportVerdict.textContent=repairUi.label;
+    els.reportVerdict.className=repairUi.ok?"ok":"bad";
+    els.reportSteps.textContent=repairUi.detail||"SERVER";
 
     if(connected){
       setStatus("QUEEN SERVER CONNECTED — VisualState partagé, serveur autoritaire.");
@@ -338,28 +386,37 @@
       try{
         const incoming=JSON.parse(event.data);
         if(!incoming || incoming.source!=="QUEEN_SERVER_V0_2") throw new Error("source inattendue");
+        const now=performance.now();
+        if(lastMessageAt>0){
+          const observed=Math.max(80,Math.min(1000,now-lastMessageAt));
+          messageIntervalMs=messageIntervalMs*.7+observed*.3;
+        }
+        previousState=lastState;
         lastState=incoming;
+        lastMessageAt=now;
         connected=true;
         updateDom(lastState);
-        draw(lastState);
       }catch{
         connected=false;
+        previousState=null;
+        lastMessageAt=0;
         updateDom(lastState);
-        draw(lastState);
       }
     });
 
     socket.addEventListener("close",()=>{
       connected=false;
+      previousState=null;
+      lastMessageAt=0;
       updateDom(lastState);
-      draw(lastState);
       scheduleReconnect();
     });
 
     socket.addEventListener("error",()=>{
       connected=false;
+      previousState=null;
+      lastMessageAt=0;
       updateDom(lastState);
-      draw(lastState);
       try{socket.close();}catch{}
     });
   }
@@ -401,11 +458,16 @@
 
   window.addEventListener("resize",()=>{
     stars=[];
-    draw(lastState);
   });
+
+  function animationLoop(now){
+    draw(connected?visualStateForFrame(now):lastState);
+    requestAnimationFrame(animationLoop);
+  }
 
   connected=false;
   updateDom(lastState);
   draw(lastState);
+  requestAnimationFrame(animationLoop);
   connect();
 })();
