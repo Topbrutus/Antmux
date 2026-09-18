@@ -183,7 +183,7 @@ class X72ObservationAdapter:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                raw = response.read().decode("utf-8")
+                raw_bytes = response.read()
         except urllib.error.HTTPError as exc:
             return "HTTP_ERROR", None, f"HTTP {exc.code}"
         except urllib.error.URLError as exc:
@@ -194,8 +194,9 @@ class X72ObservationAdapter:
             return "HTTP_IO_ERROR", None, str(exc)
 
         try:
+            raw = raw_bytes.decode("utf-8")
             payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             return "INVALID_JSON", None, str(exc)
 
         if not isinstance(payload, dict):
@@ -255,6 +256,8 @@ class X72ObservationAdapter:
                 raise ValueError("unexpected observability schema")
             if payload.get("authority") != QUEEN_SOURCE:
                 raise ValueError("unexpected observability authority")
+            if payload.get("scope") != "operational_read_only":
+                raise ValueError("unexpected observability scope")
             self._remember_entity(str(payload.get("entity_id") or ""))
 
         return self._read_validated(
@@ -353,7 +356,7 @@ class X72ObservationAdapter:
                             self._remember_entity(str(payload.get("entity_id") or ""))
                             if "tick_count" not in payload or "reference_h256" not in payload:
                                 raise ValueError("incomplete WebSocket VisualState")
-                        except json.JSONDecodeError as exc:
+                        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                             yield self._failure(
                                 endpoint="/ws",
                                 schema=QUEEN_SOURCE,

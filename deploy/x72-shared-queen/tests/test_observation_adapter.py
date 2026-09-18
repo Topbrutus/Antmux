@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import http.server
 import json
 import os
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+import websockets
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -30,6 +34,40 @@ def free_port() -> int:
 def get_json(url: str) -> dict[str, Any]:
     with urllib.request.urlopen(url, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+class InvalidUtf8Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"\xff\xfe")
+
+    def log_message(self, format: str, *args: Any) -> None:
+        return
+
+
+class InvalidUtf8HttpHarness:
+    def __init__(self) -> None:
+        self.server = http.server.ThreadingHTTPServer(
+            ("127.0.0.1", 0),
+            InvalidUtf8Handler,
+        )
+        self.base = f"http://127.0.0.1:{self.server.server_port}"
+        self.thread = threading.Thread(
+            target=self.server.serve_forever,
+            daemon=True,
+        )
+
+    def __enter__(self) -> "InvalidUtf8HttpHarness":
+        self.thread.start()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
 
 
 class ServerHarness:
@@ -183,6 +221,35 @@ async def two_client_acceptance(
         await stream_b.aclose()
 
 
+async def invalid_utf8_websocket_acceptance(
+    checks: list[dict[str, Any]],
+) -> None:
+    async def handler(websocket: Any) -> None:
+        await websocket.send(b"\xff\xfe")
+        await asyncio.sleep(0.2)
+
+    port = free_port()
+    async with websockets.serve(handler, "127.0.0.1", port):
+        adapter = X72ObservationAdapter(
+            f"http://127.0.0.1:{port}",
+            timeout_seconds=2.0,
+            reconnect_delay_seconds=0.1,
+        )
+        stream = adapter.stream_state()
+        try:
+            observation = await next_with_timeout(stream)
+            checks.append(
+                require(
+                    observation.status == "UNKNOWN"
+                    and observation.condition == "WEBSOCKET_INVALID_JSON",
+                    "invalid UTF-8 WebSocket frame classified INVALID_JSON",
+                    observation.condition,
+                )
+            )
+        finally:
+            await stream.aclose()
+
+
 def run() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
@@ -235,9 +302,33 @@ def run() -> dict[str, Any]:
                     and telemetry.payload["schema"] == "ANTMUX-X72-OBSERVABILITY-v1"
                     and telemetry.payload["authority"] == "QUEEN_SERVER_V0_2"
                     and telemetry.payload["scope"] == "operational_read_only",
-                    "telemetry authority/schema validated",
+                    "telemetry authority/schema/scope validated",
                 )
             )
+
+            for bad_scope in (None, "mutating"):
+                bad_adapter = X72ObservationAdapter(harness.base)
+                bad_payload = {
+                    "schema": "ANTMUX-X72-OBSERVABILITY-v1",
+                    "authority": "QUEEN_SERVER_V0_2",
+                    "entity_id": EXPECTED_ENTITY,
+                }
+                if bad_scope is not None:
+                    bad_payload["scope"] = bad_scope
+                bad_adapter._request_json = lambda path, payload=bad_payload: (
+                    "OK",
+                    dict(payload),
+                    None,
+                )
+                rejected = bad_adapter.read_telemetry()
+                checks.append(
+                    require(
+                        rejected.status == "UNKNOWN"
+                        and rejected.condition == "SCHEMA_MISMATCH",
+                        f"telemetry scope rejected: {bad_scope!r}",
+                        rejected.condition,
+                    )
+                )
             checks.append(
                 require(
                     state.payload is not None
@@ -296,6 +387,21 @@ def run() -> dict[str, Any]:
                 )
             )
 
+            with InvalidUtf8HttpHarness() as invalid_http:
+                invalid_utf8_http = X72ObservationAdapter(
+                    invalid_http.base,
+                    timeout_seconds=1.0,
+                ).read_health()
+            checks.append(
+                require(
+                    invalid_utf8_http.status == "UNKNOWN"
+                    and invalid_utf8_http.condition == "INVALID_JSON",
+                    "invalid UTF-8 HTTP body classified INVALID_JSON",
+                    invalid_utf8_http.condition,
+                )
+            )
+
+            asyncio.run(invalid_utf8_websocket_acceptance(checks))
             asyncio.run(websocket_acceptance(harness, adapter, checks))
             asyncio.run(two_client_acceptance(harness, checks))
 
