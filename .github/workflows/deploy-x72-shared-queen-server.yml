@@ -236,6 +236,36 @@ jobs:
           printf 'HEALTH_API=PASS\n'
           printf 'STATE_API=PASS\n'
 
+          section "ensure clean baseline before backend tests"
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          def get(path):
+              with urllib.request.urlopen("http://127.0.0.1:8720" + path, timeout=10) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          def post(path):
+              req = urllib.request.Request(
+                  "http://127.0.0.1:8720" + path,
+                  data=b"{}",
+                  method="POST",
+                  headers={"Content-Type": "application/json", "X-Forwarded-For": "10.72.250.250"},
+              )
+              with urllib.request.urlopen(req, timeout=10) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          state = get("/api/state")
+          if not state.get("integrity_match", False):
+              repaired = post("/api/repair")
+              report = repaired.get("report", {})
+              if report.get("verdict") != "PASS" or not repaired.get("state", {}).get("integrity_match"):
+                  raise SystemExit(f"clean baseline repair failed: {repaired}")
+              print("CLEAN_BASELINE_REPAIR=PASS")
+          else:
+              print("CLEAN_BASELINE=PASS")
+          PY
+
           PYTHONPATH="$APP_ROOT/vendor" \
           python3 "$APP_ROOT/run_server_tests.py" \
             --base http://127.0.0.1:8720 \
