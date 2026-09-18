@@ -67,6 +67,9 @@ jobs:
           test -f deploy/x72-shared-queen/tests/test_decision_candidate.py
           test -f deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
           test -f deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py
+          test -f deploy/x72-shared-queen/ternary_echo/echo.py
+          test -f deploy/x72-shared-queen/tests/test_ternary_echo.py
+          test -f deploy/x72-shared-queen/tests/benchmark_ternary_echo.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -89,6 +92,9 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/tests/test_decision_candidate.py
           python3 -m py_compile deploy/x72-shared-queen/tests/decision_candidate_adversarial_contract.py
           python3 -m py_compile deploy/x72-shared-queen/tests/run_decision_candidate_adversarial.py
+          python3 -m py_compile deploy/x72-shared-queen/ternary_echo/echo.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/test_ternary_echo.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/benchmark_ternary_echo.py
           printf 'PYTHON_COMPILE=PASS\n'
 
   # ──────────────────────────────────────────────
@@ -444,6 +450,12 @@ jobs:
             --class-name X72DecisionCandidate \
             --method generate
           printf 'DECISION_CANDIDATE_ADVERSARIAL_REAL=PASS\n'
+
+      - name: Smoke test — ternary echo matrix acceptance
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_ternary_echo.py
+          printf 'TERNARY_ECHO_ACCEPTANCE=PASS\n'
 
       - name: Smoke test — state endpoint
         run: |
