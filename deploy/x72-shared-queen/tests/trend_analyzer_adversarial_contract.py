@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import copy
 import hashlib
@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 ENTITY = "QUEEN-X72-0072"
-REFERENCE_H256 = "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+REFERENCE_H256 = "54d4cee87f7e5feed1a0735a0b8431a2dc67b1bda0492c78a6c7274109c13180"
 FAULT_H256 = "f" * 64
 SOURCE_SCHEMA = "QUEEN_SERVER_V0_2"
 MAX_WINDOW = 32
