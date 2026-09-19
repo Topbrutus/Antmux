@@ -715,6 +715,214 @@ jobs:
           REMOTE
 
 
+
+
+  relation-runtime-live:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'RELATION-RUNTIME-LIVE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v6
+
+      - name: Validate relation-runtime payload
+        env:
+          ANTMUX_X72_DATA_DIR: ${{ runner.temp }}/x72-relation-runtime-validation
+        run: |
+          set -euo pipefail
+          python3 -m py_compile deploy/x72-shared-queen/app/server.py
+          python3 -m py_compile deploy/x72-shared-queen/app/relation_runtime.py
+          node --check laboratoire/embryon-x72/app.js
+          cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
+          cmp -s laboratoire/embryon-x72/index.html deploy/x72-shared-queen/frontend/index.html
+          grep -q 'relation_runtime' deploy/x72-shared-queen/app/server.py
+          grep -q 'RELATIONS' laboratoire/embryon-x72/index.html
+          printf 'RELATION_RUNTIME_PAYLOAD=PASS\n'
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage minimal relation-runtime payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          STAGE="/tmp/x72-relation-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "rm -rf '$STAGE' && mkdir -p '$STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            deploy/x72-shared-queen/app/server.py \
+            deploy/x72-shared-queen/app/relation_runtime.py \
+            laboratoire/embryon-x72/app.js \
+            laboratoire/embryon-x72/index.html \
+            "$VPS_USER@$VPS_HOST:$STAGE/"
+
+      - name: Install without clean birth and verify
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          STAGE="/tmp/x72-relation-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "STAGE='$STAGE' GITHUB_SHA='${GITHUB_SHA}' bash -se" <<'REMOTE' 2>&1 | tee relation-runtime-live.log
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+
+          APP_ROOT="$HOME/antmux-x72-queen"
+          DATA_DIR="$APP_ROOT/data"
+          TARGET="/var/www/antmux.com/public_html/laboratoire/embryon-x72"
+          BACKUP="$HOME/antmux-x72-queen-backups/relation-runtime-$(date -u +%Y%m%d-%H%M%S)-$GITHUB_SHA"
+          mkdir -p "$BACKUP"
+          test -f "$STAGE/server.py"
+          test -f "$STAGE/relation_runtime.py"
+          test -f "$STAGE/app.js"
+          test -f "$STAGE/index.html"
+          test -f "$APP_ROOT/app/server.py"
+          test -d "$DATA_DIR"
+          test -d "$TARGET"
+
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/pre-state.json"
+
+          systemctl --user stop antmux-x72-queen.service
+          cp -a "$APP_ROOT/app/server.py" "$BACKUP/server.py.before"
+          if [ -f "$APP_ROOT/app/relation_runtime.py" ]; then
+            cp -a "$APP_ROOT/app/relation_runtime.py" "$BACKUP/relation_runtime.py.before"
+            touch "$BACKUP/had-relation-runtime"
+          fi
+          cp -a "$TARGET/app.js" "$BACKUP/app.js.before"
+          cp -a "$TARGET/index.html" "$BACKUP/index.html.before"
+          for f in "$DATA_DIR"/queen.db "$DATA_DIR"/queen.db-wal "$DATA_DIR"/queen.db-shm; do
+            [ -e "$f" ] && cp -a "$f" "$BACKUP/"
+          done
+
+          rollback() {
+            set +e
+            systemctl --user stop antmux-x72-queen.service
+            cp -a "$BACKUP/server.py.before" "$APP_ROOT/app/server.py"
+            if [ -f "$BACKUP/had-relation-runtime" ]; then
+              cp -a "$BACKUP/relation_runtime.py.before" "$APP_ROOT/app/relation_runtime.py"
+            else
+              rm -f "$APP_ROOT/app/relation_runtime.py"
+            fi
+            cp -a "$BACKUP/app.js.before" "$TARGET/app.js"
+            cp -a "$BACKUP/index.html.before" "$TARGET/index.html"
+            rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
+            for f in "$BACKUP"/queen.db "$BACKUP"/queen.db-wal "$BACKUP"/queen.db-shm; do
+              [ -e "$f" ] && cp -a "$f" "$DATA_DIR/"
+            done
+            systemctl --user start antmux-x72-queen.service
+          }
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then rollback; fi; exit "$rc"' EXIT
+
+          install -m 0644 "$STAGE/server.py" "$APP_ROOT/app/server.py"
+          install -m 0644 "$STAGE/relation_runtime.py" "$APP_ROOT/app/relation_runtime.py"
+          install -m 0644 "$STAGE/app.js" "$TARGET/app.js"
+          install -m 0644 "$STAGE/index.html" "$TARGET/index.html"
+
+          PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 -m py_compile "$APP_ROOT/app/server.py" "$APP_ROOT/app/relation_runtime.py"
+          systemctl --user start antmux-x72-queen.service
+
+          ready=0
+          for _ in $(seq 1 80); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/post-state.json"; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          test "$ready" -eq 1
+          sleep 3
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/post-state-3s.json"
+
+          python3 - "$BACKUP/pre-state.json" "$BACKUP/post-state-3s.json" <<'PY'
+          import json, sys
+          before = json.load(open(sys.argv[1], encoding="utf-8"))
+          after = json.load(open(sys.argv[2], encoding="utf-8"))
+
+          assert after["source"] == "QUEEN_SERVER_V0_2"
+          assert after["integrity_match"] is True
+          assert after["protected_h256"] == before["protected_h256"] == after["reference_h256"]
+          assert after["relation_topology"] == "K7-COMPLETE-v1"
+          assert after["relation_count"] == after["relation_possible"] == 21
+          assert after["relation_complete"] is True
+
+          # This deployment must preserve the existing Queen rather than
+          # perform another clean birth. Checkpoint cadence is 2 s, so allow
+          # a small rollback in tick while requiring the prior generation.
+          assert int(after["generation"]) >= max(1, int(before["generation"]) - 1)
+          assert int(after["tick_count"]) >= max(1, int(before["tick_count"]) - 600)
+
+          rel = after["relation_runtime"]
+          assert rel["schema"] == "ANTMUX-X72-RELATION-RUNTIME-v0.1"
+          assert rel["authority"] == "OBSERVATION_ONLY"
+          assert rel["physical_claim"] is False
+          assert rel["mutates_queen"] is False
+          assert rel["relation_count"] == 21
+          assert len(rel["relations"]) == 21
+          assert int(rel["last_sample_tick"]) > 0
+          assert int(rel["pulse_total"]) >= 0
+          print("RELATION_RUNTIME_LIVE=PASS")
+          print(f"PRE_GENERATION={before['generation']}")
+          print(f"POST_GENERATION={after['generation']}")
+          print(f"PRE_TICK={before['tick_count']}")
+          print(f"POST_TICK={after['tick_count']}")
+          print(f"PULSE_TOTAL={rel['pulse_total']}")
+          PY
+
+          rm -rf "$STAGE"
+          trap - EXIT
+          printf 'RELATION_RUNTIME_INSTALL=PASS\n'
+          printf 'BACKUP=%s\n' "$BACKUP"
+          REMOTE
+
+      - name: Verify public relation runtime
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state > /tmp/public-relation-runtime.json
+          python3 - /tmp/public-relation-runtime.json <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert state["integrity_match"] is True
+          assert state["relation_topology"] == "K7-COMPLETE-v1"
+          assert state["relation_count"] == 21
+          assert state["relation_complete"] is True
+          rel = state["relation_runtime"]
+          assert rel["schema"] == "ANTMUX-X72-RELATION-RUNTIME-v0.1"
+          assert rel["relation_count"] == 21
+          assert rel["physical_claim"] is False
+          assert rel["mutates_queen"] is False
+          print("PUBLIC_RELATION_RUNTIME=PASS")
+          PY
+
+      - name: Upload relation-runtime deployment log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x72-relation-runtime-live-log
+          path: relation-runtime-live.log
+          if-no-files-found: ignore
+
+
   final-z3-live-birth:
     if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'Z3-FINAL-BIRTH'
     runs-on: ubuntu-latest
