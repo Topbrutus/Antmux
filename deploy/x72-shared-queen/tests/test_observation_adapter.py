@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import http.server
@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 from observation_adapter import ObservationEnvelope, X72ObservationAdapter, deterministic_report
 
 EXPECTED_ENTITY = "QUEEN-X72-0072"
-EXPECTED_REFERENCE = "49e75d92d8fde33f402c3b60482bc5dcf13c12f09bd8c07c7937961d42ceaff9"
+EXPECTED_REFERENCE = "54d4cee87f7e5feed1a0735a0b8431a2dc67b1bda0492c78a6c7274109c13180"
 
 
 def free_port() -> int:

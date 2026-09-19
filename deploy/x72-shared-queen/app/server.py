@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from .relation_runtime import RelationRuntime
 from .z3_runtime import Z3RuntimeBridge
 
 
@@ -23,6 +24,29 @@ BASE36_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 CANON_SCHEMA = "ANTMUX-X72-CANON-v1"
 PROTECTED_SCHEMA = "ANTMUX-X72-PROTECTED-STATE-v1"
 ALLOWED_FAULTS = {"S1", "S2", "S3", "S4", "S5", "S6", "S7", "RANDOM"}
+RELATION_TOPOLOGY_VERSION = "K7-COMPLETE-v1"
+COMPLETE_RELATIONS_K7: tuple[tuple[int, int], ...] = tuple(
+    (left, right)
+    for left in range(7)
+    for right in range(left + 1, 7)
+)
+RELATION_COUNT_K7 = len(COMPLETE_RELATIONS_K7)
+
+
+def relations_are_complete_k7(relations: Any) -> bool:
+    if not isinstance(relations, list) or len(relations) != RELATION_COUNT_K7:
+        return False
+    normalized: set[tuple[int, int]] = set()
+    for edge in relations:
+        if not isinstance(edge, (list, tuple)) or len(edge) != 2:
+            return False
+        left, right = edge
+        if type(left) is not int or type(right) is not int:
+            return False
+        if left == right or not (0 <= left < 7 and 0 <= right < 7):
+            return False
+        normalized.add(tuple(sorted((left, right))))
+    return normalized == set(COMPLETE_RELATIONS_K7)
 
 
 def canonical_bytes(obj: dict[str, Any]) -> bytes:
@@ -120,7 +144,7 @@ class QueenCore:
         self.started_at = time.monotonic()
         self.runtime_start_tick = self.tick
         self.repair_active = False
-        self.relations = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0], [0, 3], [2, 5], [1, 4]]
+        self.relations = [list(edge) for edge in COMPLETE_RELATIONS_K7]
         roles = ["INPUT", "MEMORY", "RELATION", "CHOICE", "TEMPORAL", "REPAIR", "AUDIT"]
         self.synapses = [
             SynapseState(
@@ -138,12 +162,14 @@ class QueenCore:
         self.protected_reference = self.protected_projection()
         self.last_repair_report = RepairReport(reference_protected_h256=self.reference_h256())
         self.z3_runtime = Z3RuntimeBridge()
+        self.relation_runtime = RelationRuntime()
 
     def protected_projection(self) -> dict[str, Any]:
         return {
             "schema": PROTECTED_SCHEMA,
             "entity_id": self.entity_id,
             "queen_epoch": self.queen_epoch,
+            "relation_topology": RELATION_TOPOLOGY_VERSION,
             "relations": self.relations,
             "synapses": [
                 {
@@ -167,6 +193,7 @@ class QueenCore:
             "tick": self.tick,
             "sim_time": round(self.sim_time, 6),
             "dt_sim": self.dt_sim,
+            "relation_topology": RELATION_TOPOLOGY_VERSION,
             "relations": self.relations,
             "synapses": [asdict(s) for s in self.synapses],
             "events_tail": self.bus.events[-32:],
@@ -241,6 +268,12 @@ class QueenCore:
             tick=self.tick,
             generation=self.generation,
             synapses=self.synapses,
+        )
+        self.relation_runtime.observe(
+            tick=self.tick,
+            generation=self.generation,
+            synapses=self.synapses,
+            relations=self.relations,
         )
         if z3_updated and self.tick % 240 == 0:
             latest = self.z3_runtime.latest
@@ -343,6 +376,10 @@ class QueenCore:
             "queen_mode": self.mode,
             "generation": self.generation,
             "active_synapses": active,
+            "relation_topology": RELATION_TOPOLOGY_VERSION,
+            "relation_count": len(self.relations),
+            "relation_possible": RELATION_COUNT_K7,
+            "relation_complete": relations_are_complete_k7(self.relations),
             "repair_level": round(repair, 6),
             "crystallization_level": round(crystal, 6),
             "memory_level": round(memory, 6),
@@ -357,6 +394,12 @@ class QueenCore:
             "repair_reason": self.last_repair_report.reason,
             "repair_changed_synapses": list(self.last_repair_report.changed_synapses),
             "z3_runtime": self.z3_runtime.visual_state(),
+            "relation_runtime": self.relation_runtime.visual_state(
+                tick=self.tick,
+                generation=self.generation,
+                synapses=self.synapses,
+                relations=self.relations,
+            ),
             "synapses": [asdict(s) for s in self.synapses],
             "relations": self.relations,
             "recent_events": self.bus.labels(),
@@ -372,6 +415,7 @@ class QueenCore:
             "mode": self.mode,
             "tick": self.tick,
             "sim_time": self.sim_time,
+            "relation_topology": RELATION_TOPOLOGY_VERSION,
             "relations": self.relations,
             "synapses": [asdict(s) for s in self.synapses],
             "protected_reference": self.protected_reference,
@@ -379,10 +423,15 @@ class QueenCore:
             "next_event_id": self.bus.next_id,
             "last_repair_report": asdict(self.last_repair_report),
             "z3_runtime": self.z3_runtime.to_checkpoint(),
+            "relation_runtime": self.relation_runtime.to_checkpoint(),
         }
 
     @classmethod
     def from_checkpoint(cls, checkpoint: dict[str, Any]) -> "QueenCore":
+        if checkpoint.get("relation_topology") != RELATION_TOPOLOGY_VERSION:
+            raise ValueError("checkpoint relation topology is not K7-COMPLETE-v1")
+        if not relations_are_complete_k7(checkpoint.get("relations")):
+            raise ValueError("checkpoint relation graph is incomplete or malformed")
         queen = cls(int(checkpoint["seed"]))
         queen.entity_id = checkpoint["entity_id"]
         queen.queen_epoch = int(checkpoint["queen_epoch"])
@@ -403,6 +452,9 @@ class QueenCore:
             checkpoint.get("z3_runtime"),
             tick=queen.tick,
             generation=queen.generation,
+        )
+        queen.relation_runtime = RelationRuntime.from_checkpoint(
+            checkpoint.get("relation_runtime")
         )
         return queen
 

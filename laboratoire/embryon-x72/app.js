@@ -13,6 +13,7 @@
     canvas:$("lifeClock"), mode:$("mode"), tick:$("tick"), dt:$("dt"), rexec:$("rexec"),
     frt:$("frt"), activity:$("activity"), memory:$("memory"), crystal:$("crystal"),
     repair:$("repair"), integrity:$("integrity"), events:$("events"), generation:$("generation"),
+    relationCount:$("relationCount"), relationActive:$("relationActive"), relationPulses:$("relationPulses"),
     eventBus:$("eventBus"), proofBox:$("proofBox"), status:$("status"),
     pauseBtn:$("pauseBtn"), faultBtn:$("faultBtn"), repairBtn:$("repairBtn"),
     resetBtn:$("resetBtn"), snapshotBtn:$("snapshotBtn"), referenceCheck:$("referenceCheck"),
@@ -132,6 +133,11 @@
     return [cx+Math.cos(a)*r*.76,cy+Math.sin(a)*r*.76];
   }
 
+  function relationId(a,b){
+    const left=Math.min(a,b), right=Math.max(a,b);
+    return `S${left+1}-S${right+1}`;
+  }
+
   function drawGear(cx,cy,radius,teeth,angle,color,width=2){
     ctx.beginPath();
     for(let i=0;i<teeth*2;i++){
@@ -173,6 +179,10 @@
     const visualTick=state ? Number(state._visualTick ?? state.tick_count ?? 0) : 0;
     const synapses=state?.synapses || [];
     const relations=state?.relations || [];
+    const relationRuntime=state?.relation_runtime || null;
+    const relationMetrics=new Map(
+      (relationRuntime?.relations||[]).map(item=>[item.relation_id,item])
+    );
 
     ctx.strokeStyle=THEME.grid;
     ctx.lineWidth=1;
@@ -191,15 +201,20 @@
       const sa=synapses[a], sb=synapses[b];
       if(!sa||!sb) return;
       const [x1,y1]=nodePos(a,cx,cy,r), [x2,y2]=nodePos(b,cx,cy,r);
-      const intensity=(Number(sa.activity||0)+Number(sb.activity||0))/2;
+      const metric=relationMetrics.get(relationId(a,b));
+      const fallback=(Number(sa.activity||0)+Number(sb.activity||0))/2;
+      const intensity=Number(metric?.signal_level ?? fallback);
       let color=intensity>.45?THEME.cyan:THEME.blue;
       if(!(sa.enabled&&sb.enabled)) color=THEME.error;
       ctx.strokeStyle=color;
       ctx.lineWidth=1+3*clamp(intensity);
       ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
 
-      if(intensity>.25&&sa.enabled&&sb.enabled){
-        const q=((visualTick*.011)+a*.19+b*.07)%1;
+      const pulseActive=metric ? Boolean(metric.pulse_active) : (intensity>.25&&sa.enabled&&sb.enabled);
+      if(pulseActive){
+        let q=((visualTick*.011)+a*.19+b*.07)%1;
+        const direction=String(metric?.activity_gradient_direction||"");
+        if(direction===`S${b+1}_TO_S${a+1}`) q=1-q;
         const px=x1+(x2-x1)*q, py=y1+(y2-y1)*q;
         ctx.fillStyle=THEME.gold2;
         ctx.beginPath();
@@ -300,6 +315,12 @@
       `TICK ${Number(state?.tick_count||0).toLocaleString("fr-CA")}  •  GEN ${state?.generation ?? "—"}  •  SYNAPSES ${state?.active_synapses ?? 0}/7  •  REPAIR ${repairUi.label}`,
       cx,cy+r*1.24
     );
+    ctx.fillStyle=THEME.cyan;
+    ctx.font="bold 10px Consolas";
+    ctx.fillText(
+      `REL ${relationRuntime?.relation_count ?? relations.length}/21  •  ACTIVE ${relationRuntime?.active_relation_count ?? 0}  •  PULSES ${Number(relationRuntime?.pulse_total||0).toLocaleString("fr-CA")}`,
+      cx,cy+r*1.24+16
+    );
 
     ctx.textAlign="left";
     ctx.fillStyle=state?.integrity_match?THEME.green:THEME.error;
@@ -334,6 +355,10 @@
     els.integrity.className=state.integrity_match?"ok":"bad";
     els.events.textContent=Number(state.event_count||0).toLocaleString("fr-CA");
     els.generation.textContent=String(state.generation ?? "—");
+    const relationRuntime=state.relation_runtime||null;
+    els.relationCount.textContent=`${relationRuntime?.relation_count ?? state.relation_count ?? 0} / ${state.relation_possible ?? 21}`;
+    els.relationActive.textContent=String(relationRuntime?.active_relation_count ?? 0);
+    els.relationPulses.textContent=Number(relationRuntime?.pulse_total||0).toLocaleString("fr-CA");
 
     const z3=state.z3_runtime||null;
     const z3Latest=z3?.latest||null;
@@ -372,6 +397,7 @@
       proof += `${String(s.synapse_id).padEnd(3)} ${String(s.role).padEnd(9)} ${fmt(s.activity)} ${fmt(s.memory)} ${fmt(s.crystal)} ${String(s.integrity).padStart(4)}  ${s.enabled?"ON":"FAULT"}\n`;
     });
     const repairUi=repairDisplay(state);
+    proof += `\nRELATION RUNTIME\n${relationRuntime?.relation_count ?? 0}/21 relations | actives ${relationRuntime?.active_relation_count ?? 0} | pulses ${relationRuntime?.pulse_total ?? 0}\n`;
     proof += `\nWHOLE H256\n${state.whole_h256||"—"}\n\nB36_50\n${state.b36_view||"—"}\n\nPROTECTED CURRENT\n${state.protected_h256||"—"}\n\nPROTECTED REFERENCE\n${state.reference_h256||"—"}\n\nÉTAT INTERFACE: ${repairUi.label} / ${repairUi.detail}\nVERDICT SERVEUR: ${state.repair_verdict||"—"}\n${state.repair_reason||""}\n`;
     els.proofBox.textContent=proof;
 
