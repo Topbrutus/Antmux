@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import os
 import random
 import sqlite3
@@ -179,20 +180,57 @@ class QueenCore:
     def integrity_match(self) -> bool:
         return self.protected_h256() == self.reference_h256()
 
+    def _mode_for_tick(self) -> str:
+        if not self.integrity_match():
+            return "AUTO_REPAIR" if self.repair_active else "FAULT"
+        phase = self.tick % 1800
+        if phase < 260:
+            return "SLEEP"
+        if phase < 420:
+            return "EVENT"
+        if phase < 760:
+            return "BURST"
+        return "STABLE"
+
     def step(self) -> None:
         self.tick += 1
         self.sim_time += self.dt_sim
-        wave = (self.tick % 240) / 240
-        enabled = [s for s in self.synapses if s.enabled]
-        self.mode = "FAULT" if not self.integrity_match() and not self.repair_active else self.mode
-        if self.integrity_match() and self.mode in {"FAULT", "AUTO_REPAIR"}:
-            self.mode = "STABLE" if self.tick > 24 else "SLEEP"
+        self.mode = self._mode_for_tick()
+
+        mode_gain = {
+            "SLEEP": 0.16,
+            "EVENT": 0.56,
+            "BURST": 0.88,
+            "STABLE": 0.38,
+            "FAULT": 0.22,
+            "AUTO_REPAIR": 0.70,
+        }[self.mode]
+
         for index, synapse in enumerate(self.synapses):
-            phase = (wave + index / 7) % 1
-            pulse = 0.5 + 0.5 * __import__("math").sin(phase * __import__("math").tau)
-            synapse.activity = round((0.05 + 0.75 * pulse) if synapse.enabled else 0.01, 6)
-            synapse.memory = round(min(1.0, synapse.memory + (0.0007 if synapse.enabled else -0.0002)), 6)
-            synapse.crystal = round(min(1.0, synapse.crystal + 0.00035 * len(enabled) / 7), 6)
+            phase = self.sim_time * (1.5 + index * 0.11) + index * 0.9
+            oscillation = 0.5 + 0.5 * math.sin(phase)
+            target = mode_gain * (0.55 + 0.45 * oscillation)
+            if not synapse.enabled or synapse.integrity <= 0:
+                target = 0.0
+            synapse.activity += (target - synapse.activity) * 0.055
+            synapse.activity = max(0.0, min(1.0, synapse.activity))
+
+            if synapse.enabled and synapse.activity > 0.48:
+                synapse.memory += 0.00020 * synapse.activity
+            synapse.memory -= 0.000015 * max(0.0, synapse.memory - 0.08)
+            synapse.memory = max(0.0, min(0.92, synapse.memory))
+
+            if synapse.memory > 0.18:
+                synapse.crystal += 0.000075 * synapse.memory
+            synapse.crystal -= 0.000005 * max(0.0, synapse.crystal - 0.05)
+            synapse.crystal = max(0.0, min(0.90, synapse.crystal))
+
+        if self.tick % 360 == 0:
+            self.bus.emit(self.tick, "MODE", mode=self.mode)
+
+        if self.tick % 7200 == 0:
+            self.generation += 1
+            self.bus.emit(self.tick, "GENERATION_ADVANCED", generation=self.generation)
 
     def inject_fault(self, synapse_id: str) -> str:
         if synapse_id == "RANDOM":
@@ -297,6 +335,7 @@ class QueenCore:
             "integrity_match": protected == self.reference_h256(),
             "repair_verdict": self.last_repair_report.verdict,
             "repair_reason": self.last_repair_report.reason,
+            "repair_changed_synapses": list(self.last_repair_report.changed_synapses),
             "synapses": [asdict(s) for s in self.synapses],
             "relations": self.relations,
             "recent_events": self.bus.labels(),
@@ -440,15 +479,27 @@ def observability_snapshot() -> dict[str, Any]:
         "event_count": state["event_count"],
         "websocket_clients": active_websocket_clients,
         "websocket_messages_sent": websocket_messages_sent,
-        "cadence_seconds": {"tick": 0.05, "checkpoint": 2.0, "websocket": 0.25},
+        "cadence_seconds": {"tick": 1.0 / 240.0, "scheduler": 0.005, "checkpoint": 2.0, "websocket": 0.25},
     }
 
 
 async def tick_loop() -> None:
+    target_hz = 240.0
+    scheduler_sleep = 0.005
+    max_catchup_steps = 96
+    started = time.monotonic()
+    base_tick = queen.tick
+
     while True:
+        elapsed = max(0.0, time.monotonic() - started)
+        target_tick = base_tick + int(elapsed * target_hz)
+
         async with state_lock:
-            queen.step()
-        await asyncio.sleep(0.05)
+            due_steps = max(0, target_tick - queen.tick)
+            for _ in range(min(due_steps, max_catchup_steps)):
+                queen.step()
+
+        await asyncio.sleep(scheduler_sleep)
 
 
 async def checkpoint_loop() -> None:

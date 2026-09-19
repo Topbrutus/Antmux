@@ -353,6 +353,15 @@
     els.reportVerdict.textContent=repairUi.label;
     els.reportVerdict.className=repairUi.ok?"ok":"bad";
     els.reportSteps.textContent=repairUi.detail||"SERVER";
+    const activeFaults=(state.synapses||[])
+      .filter(s=>!s.enabled||Number(s.integrity)<=0)
+      .map(s=>s.synapse_id);
+    const repaired=Array.isArray(state.repair_changed_synapses)
+      ? state.repair_changed_synapses
+      : [];
+    els.reportFault.textContent=activeFaults.length
+      ? activeFaults.join(", ")
+      : (repaired.length ? repaired.join(", ") : "—");
 
     if(connected){
       setStatus("QUEEN SERVER CONNECTED — VisualState partagé, serveur autoritaire.");
