@@ -1,3 +1,4 @@
+from .echo_domain import Z3EchoTransfer, apply_echo_transfer
 from .math_core import (
     CHANNELS_PER_TRIAD,
     PERIPHERAL_NODE_COUNT,
@@ -26,6 +27,8 @@ __all__ = [
     "FiniteZTriad",
     "Matrix3",
     "Triad3",
+    "Z3EchoTransfer",
+    "apply_echo_transfer",
     "apply_matrix3",
     "beta_y_to_zero_z",
     "determinant3",
