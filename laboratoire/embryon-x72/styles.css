@@ -33,7 +33,9 @@ h1{margin:.3rem 0 0;font-family:Georgia,serif;font-size:clamp(1.5rem,3vw,2.8rem)
 .badge.verified{color:var(--green);border-color:rgba(92,255,177,.35)}
 .badge.web{color:var(--cyan);border-color:rgba(57,216,255,.35)}
 .nav-row{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0}
-.nav-row a{border:1px solid var(--grid);padding:8px 10px;background:var(--panel);font-size:.78rem}
+.nav-row form{margin:0}
+.nav-row a,.nav-row button{border:1px solid var(--grid);padding:8px 10px;background:var(--panel);color:var(--cyan);font:inherit;font-size:.78rem;cursor:pointer}
+.nav-row button:hover,.nav-row a:hover{border-color:var(--cyan)}
 .layout{display:grid;grid-template-columns:285px minmax(480px,1fr) 345px;gap:8px;min-height:720px}
 .panel{background:var(--panel);border:1px solid var(--grid)}
 .side{padding:10px;min-width:0}
