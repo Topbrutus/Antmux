@@ -15,6 +15,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from .z3_runtime import Z3RuntimeBridge
+
 
 BASE36_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 CANON_SCHEMA = "ANTMUX-X72-CANON-v1"
@@ -123,9 +125,9 @@ class QueenCore:
             SynapseState(
                 synapse_id=f"S{i + 1}",
                 role=role,
-                activity=0.08 + 0.03 * i,
-                memory=0.07 + 0.02 * i,
-                crystal=0.04 + 0.015 * i,
+                activity=0.0,
+                memory=0.0,
+                crystal=0.0,
             )
             for i, role in enumerate(roles)
         ]
@@ -134,6 +136,7 @@ class QueenCore:
         self.bus.emit(self.tick, "QUEEN_BORN", entity_id=self.entity_id)
         self.protected_reference = self.protected_projection()
         self.last_repair_report = RepairReport(reference_protected_h256=self.reference_h256())
+        self.z3_runtime = Z3RuntimeBridge()
 
     def protected_projection(self) -> dict[str, Any]:
         return {
@@ -166,6 +169,7 @@ class QueenCore:
             "relations": self.relations,
             "synapses": [asdict(s) for s in self.synapses],
             "events_tail": self.bus.events[-32:],
+            "z3_runtime": self.z3_runtime.whole_projection(),
         }
 
     def protected_h256(self) -> str:
@@ -231,6 +235,21 @@ class QueenCore:
         if self.tick % 7200 == 0:
             self.generation += 1
             self.bus.emit(self.tick, "GENERATION_ADVANCED", generation=self.generation)
+
+        z3_updated = self.z3_runtime.observe(
+            tick=self.tick,
+            generation=self.generation,
+            synapses=self.synapses,
+        )
+        if z3_updated and self.tick % 240 == 0:
+            latest = self.z3_runtime.latest
+            if latest is not None:
+                self.bus.emit(
+                    self.tick,
+                    "Z3_RUNTIME_FRAME",
+                    center_h256=latest.center_provenance_h256,
+                    verified=latest.fast_verified,
+                )
 
     def inject_fault(self, synapse_id: str) -> str:
         if synapse_id == "RANDOM":
@@ -336,6 +355,7 @@ class QueenCore:
             "repair_verdict": self.last_repair_report.verdict,
             "repair_reason": self.last_repair_report.reason,
             "repair_changed_synapses": list(self.last_repair_report.changed_synapses),
+            "z3_runtime": self.z3_runtime.visual_state(),
             "synapses": [asdict(s) for s in self.synapses],
             "relations": self.relations,
             "recent_events": self.bus.labels(),
@@ -357,6 +377,7 @@ class QueenCore:
             "events": self.bus.events[-512:],
             "next_event_id": self.bus.next_id,
             "last_repair_report": asdict(self.last_repair_report),
+            "z3_runtime": self.z3_runtime.to_checkpoint(),
         }
 
     @classmethod
@@ -377,6 +398,11 @@ class QueenCore:
         queen.bus.events = checkpoint.get("events", [])[-512:]
         queen.bus.next_id = int(checkpoint.get("next_event_id", len(queen.bus.events) + 1))
         queen.last_repair_report = RepairReport(**checkpoint.get("last_repair_report", {}))
+        queen.z3_runtime = Z3RuntimeBridge.from_checkpoint(
+            checkpoint.get("z3_runtime"),
+            tick=queen.tick,
+            generation=queen.generation,
+        )
         return queen
 
 
