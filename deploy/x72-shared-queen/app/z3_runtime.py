@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .stereo27 import Stereo27Frame
+
 from z3_echo import (
     CenterCoupling12,
     CenterSummary3WithResidual,
@@ -96,6 +98,7 @@ class Z3RuntimeSnapshot:
     coupled_state_h256: str
     center_provenance_h256: str
     echo_provenance_h256: tuple[str, str, str, str]
+    stereo27: Stereo27Frame
     fast_verified: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -111,6 +114,7 @@ class Z3RuntimeSnapshot:
             "coupled_state_h256": self.coupled_state_h256,
             "center_provenance_h256": self.center_provenance_h256,
             "echo_provenance_h256": list(self.echo_provenance_h256),
+            "stereo27": self.stereo27.to_dict(),
             "fast_verified": self.fast_verified,
         }
 
@@ -212,6 +216,11 @@ class Z3RuntimeBridge:
             for value in residual.samples[-1].as_tuple()
         )
         center_energy = math.fsum(abs(value) ** 2 for value in center_now.as_tuple())
+        stereo27 = Stereo27Frame.from_z3(
+            source=source,
+            coupled=coupled,
+            center=center_now,
+        )
 
         return Z3RuntimeSnapshot(
             tick=tick,
@@ -225,7 +234,13 @@ class Z3RuntimeBridge:
             coupled_state_h256=center_frame.coupled_state_h256,
             center_provenance_h256=center_frame.provenance_h256,
             echo_provenance_h256=tuple(echo_hashes),  # type: ignore[arg-type]
-            fast_verified=bool(echo_verified and center_verified),
+            stereo27=stereo27,
+            fast_verified=bool(
+                echo_verified
+                and center_verified
+                and stereo27.verify()
+                and stereo27.plouf
+            ),
         )
 
     def visual_state(self) -> dict[str, Any]:
@@ -254,6 +269,12 @@ class Z3RuntimeBridge:
 
     def whole_projection(self) -> dict[str, Any]:
         payload = self.visual_state()
+        # stereo27 is a deterministic observation-only derivative. Keep it out
+        # of the authoritative whole-state hash so existing v0.1 checkpoints
+        # remain hash-compatible across this observational extension.
+        latest = payload.get("latest")
+        if isinstance(latest, dict):
+            latest.pop("stereo27", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
 

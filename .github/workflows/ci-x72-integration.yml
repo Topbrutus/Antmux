@@ -71,9 +71,11 @@ jobs:
           test -f deploy/x72-shared-queen/tests/test_ternary_echo.py
           test -f deploy/x72-shared-queen/tests/benchmark_ternary_echo.py
           test -f deploy/x72-shared-queen/app/z3_runtime.py
+          test -f deploy/x72-shared-queen/app/stereo27.py
           test -f deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
           test -f deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
           test -f deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
+          test -f deploy/x72-shared-queen/tests/test_stereo27.py
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -100,9 +102,11 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/tests/test_ternary_echo.py
           python3 -m py_compile deploy/x72-shared-queen/tests/benchmark_ternary_echo.py
           python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
+          python3 -m py_compile deploy/x72-shared-queen/app/stereo27.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/test_stereo27.py
           printf 'PYTHON_COMPILE=PASS\n'
 
   # ──────────────────────────────────────────────
@@ -482,6 +486,12 @@ jobs:
           set -euo pipefail
           python3 deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
           printf 'Z3_CLEAN_BIRTH_LIFECYCLE_15_OF_15=PASS\n'
+
+      - name: Smoke test — Stereo-27 mirror and zero plane
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_stereo27.py
+          printf 'STEREO27_13_OF_13=PASS\n'
 
       - name: Smoke test — state endpoint
         run: |
