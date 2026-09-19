@@ -42,11 +42,16 @@ jobs:
           set -euo pipefail
           python3 -m py_compile \
             deploy/x72-shared-queen/app/server.py \
+            deploy/x72-shared-queen/app/relation_runtime.py \
             deploy/x72-shared-queen/tests/run_server_tests.py \
+            deploy/x72-shared-queen/tests/test_relation_runtime.py \
             deploy/x72-shared-queen/tests/check_frontend_authority.py \
             deploy/x72-shared-queen/tests/check_runtime_metrics.py
           node --check deploy/x72-shared-queen/frontend/app.js
+          cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
+          cmp -s laboratoire/embryon-x72/index.html deploy/x72-shared-queen/frontend/index.html
           python3 deploy/x72-shared-queen/tests/check_frontend_authority.py
+          python3 deploy/x72-shared-queen/tests/test_relation_runtime.py
 
           rm -rf _x72_runner_vendor _x72_runner_data
           python3 -m pip install --target _x72_runner_vendor fastapi 'uvicorn[standard]' websockets
@@ -248,6 +253,10 @@ jobs:
           cp -a "$REMOTE_STAGE/app/." "$APP_ROOT/app/"
           cp -a "$REMOTE_STAGE/vendor" "$APP_ROOT/vendor"
           install -m 0644 "$REMOTE_STAGE/run_server_tests.py" "$APP_ROOT/run_server_tests.py"
+          test -f "$REMOTE_STAGE/frontend/app.js"
+          test -f "$REMOTE_STAGE/frontend/index.html"
+          install -m 0644 "$REMOTE_STAGE/frontend/app.js" "$TARGET_ROOT/app.js"
+          install -m 0644 "$REMOTE_STAGE/frontend/index.html" "$TARGET_ROOT/index.html"
 
           section "VPS vendor import"
           cd "$APP_ROOT"
@@ -725,7 +734,9 @@ jobs:
           set -euo pipefail
           python3 -m py_compile deploy/x72-shared-queen/app/server.py
           python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
+          python3 -m py_compile deploy/x72-shared-queen/app/relation_runtime.py
           python3 -m py_compile deploy/x72-shared-queen/z3_echo/*.py
+          python3 deploy/x72-shared-queen/tests/test_relation_runtime.py
           python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
           python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
           python3 deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
@@ -893,6 +904,10 @@ jobs:
           assert z3["history_count"] == z3["history_size"] == 32
           assert z3["latest"]["fast_verified"] is True
           assert z3["latest"]["tick"] > 0
+          rel = state["relation_runtime"]
+          assert rel["relation_count"] == 21
+          assert rel["last_sample_tick"] > 0
+          assert rel["pulse_total"] >= 0
           kinds = {event["event_type"] for event in events}
           assert "GENERATION_ADVANCED" in kinds
           assert "Z3_RUNTIME_FRAME" in kinds
@@ -959,6 +974,10 @@ jobs:
           assert z3["authority"] == "OBSERVATION_ONLY"
           assert z3["history_count"] == 32
           assert z3["latest"]["fast_verified"] is True
+          rel = state["relation_runtime"]
+          assert rel["relation_count"] == 21
+          assert rel["physical_claim"] is False
+          assert rel["mutates_queen"] is False
           print("PUBLIC_Z3_LIVE_BIRTH=PASS")
           PY
 

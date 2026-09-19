@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from .relation_runtime import RelationRuntime
 from .z3_runtime import Z3RuntimeBridge
 
 
@@ -161,6 +162,7 @@ class QueenCore:
         self.protected_reference = self.protected_projection()
         self.last_repair_report = RepairReport(reference_protected_h256=self.reference_h256())
         self.z3_runtime = Z3RuntimeBridge()
+        self.relation_runtime = RelationRuntime()
 
     def protected_projection(self) -> dict[str, Any]:
         return {
@@ -266,6 +268,12 @@ class QueenCore:
             tick=self.tick,
             generation=self.generation,
             synapses=self.synapses,
+        )
+        self.relation_runtime.observe(
+            tick=self.tick,
+            generation=self.generation,
+            synapses=self.synapses,
+            relations=self.relations,
         )
         if z3_updated and self.tick % 240 == 0:
             latest = self.z3_runtime.latest
@@ -386,6 +394,12 @@ class QueenCore:
             "repair_reason": self.last_repair_report.reason,
             "repair_changed_synapses": list(self.last_repair_report.changed_synapses),
             "z3_runtime": self.z3_runtime.visual_state(),
+            "relation_runtime": self.relation_runtime.visual_state(
+                tick=self.tick,
+                generation=self.generation,
+                synapses=self.synapses,
+                relations=self.relations,
+            ),
             "synapses": [asdict(s) for s in self.synapses],
             "relations": self.relations,
             "recent_events": self.bus.labels(),
@@ -409,6 +423,7 @@ class QueenCore:
             "next_event_id": self.bus.next_id,
             "last_repair_report": asdict(self.last_repair_report),
             "z3_runtime": self.z3_runtime.to_checkpoint(),
+            "relation_runtime": self.relation_runtime.to_checkpoint(),
         }
 
     @classmethod
@@ -437,6 +452,9 @@ class QueenCore:
             checkpoint.get("z3_runtime"),
             tick=queen.tick,
             generation=queen.generation,
+        )
+        queen.relation_runtime = RelationRuntime.from_checkpoint(
+            checkpoint.get("relation_runtime")
         )
         return queen
 
