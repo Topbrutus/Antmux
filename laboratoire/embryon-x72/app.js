@@ -17,6 +17,8 @@
     pauseBtn:$("pauseBtn"), faultBtn:$("faultBtn"), repairBtn:$("repairBtn"),
     resetBtn:$("resetBtn"), snapshotBtn:$("snapshotBtn"), referenceCheck:$("referenceCheck"),
     reportFault:$("reportFault"), reportSteps:$("reportSteps"), reportVerdict:$("reportVerdict"),
+    z3Topology:$("z3Topology"), z3History:$("z3History"), z3Center:$("z3Center"),
+    z3Theta:$("z3Theta"), z3Verify:$("z3Verify"), z3Hash:$("z3Hash"),
     runtimeBadge:$("runtimeBadge")
   };
 
@@ -333,6 +335,31 @@
     els.events.textContent=Number(state.event_count||0).toLocaleString("fr-CA");
     els.generation.textContent=String(state.generation ?? "—");
 
+    const z3=state.z3_runtime||null;
+    const z3Latest=z3?.latest||null;
+    if(z3){
+      const topology=z3.topology||{};
+      els.z3Topology.textContent=`${topology.total_nodes||13} NODES / ${topology.peripheral_channels||12} CH`;
+      els.z3History.textContent=`${z3.history_count||0} / ${z3.history_size||32}`;
+    }else{
+      els.z3Topology.textContent="NON CONNECTÉ";
+      els.z3History.textContent="0 / 32";
+    }
+    if(z3Latest){
+      const c=Array.isArray(z3Latest.center)?z3Latest.center:[0,0,0];
+      els.z3Center.textContent=`[${c.map(v=>fmt(v,3)).join(", ")}]`;
+      els.z3Theta.textContent=`${fmt(z3Latest.theta,4)} rad`;
+      els.z3Verify.textContent=z3Latest.fast_verified?"PASS":"FAIL";
+      els.z3Verify.className=z3Latest.fast_verified?"ok":"bad";
+      els.z3Hash.textContent=String(z3Latest.center_provenance_h256||"—").slice(0,12);
+    }else{
+      els.z3Center.textContent="EN ATTENTE";
+      els.z3Theta.textContent="—";
+      els.z3Verify.textContent="EN ATTENTE";
+      els.z3Verify.className="";
+      els.z3Hash.textContent="—";
+    }
+
     els.eventBus.replaceChildren(...(state.recent_events||[]).slice().reverse().map(label=>{
       const div=document.createElement("div");
       div.textContent=`• ${label}`;
@@ -353,6 +380,15 @@
     els.reportVerdict.textContent=repairUi.label;
     els.reportVerdict.className=repairUi.ok?"ok":"bad";
     els.reportSteps.textContent=repairUi.detail||"SERVER";
+    const activeFaults=(state.synapses||[])
+      .filter(s=>!s.enabled||Number(s.integrity)<=0)
+      .map(s=>s.synapse_id);
+    const repaired=Array.isArray(state.repair_changed_synapses)
+      ? state.repair_changed_synapses
+      : [];
+    els.reportFault.textContent=activeFaults.length
+      ? activeFaults.join(", ")
+      : (repaired.length ? repaired.join(", ") : "—");
 
     if(connected){
       setStatus("QUEEN SERVER CONNECTED — VisualState partagé, serveur autoritaire.");
