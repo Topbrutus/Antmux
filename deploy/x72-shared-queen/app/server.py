@@ -8,6 +8,7 @@ import os
 import random
 import sqlite3
 import time
+from contextlib import closing
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -410,7 +411,7 @@ class Persistence:
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS checkpoints ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -423,7 +424,7 @@ class Persistence:
 
     def save(self, queen: QueenCore) -> None:
         state_json = json.dumps(queen.to_checkpoint(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db:
             db.execute("BEGIN IMMEDIATE")
             db.execute(
                 "INSERT INTO checkpoints(created_at, state_json, protected_h256, whole_h256) VALUES (?, ?, ?, ?)",
@@ -432,7 +433,7 @@ class Persistence:
             db.commit()
 
     def load_latest(self) -> QueenCore | None:
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db:
             rows = db.execute(
                 "SELECT state_json, protected_h256, whole_h256 "
                 "FROM checkpoints ORDER BY id DESC LIMIT 20"
