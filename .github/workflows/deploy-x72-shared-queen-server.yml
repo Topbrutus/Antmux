@@ -527,3 +527,109 @@ jobs:
           name: x72-shared-queen-deploy-log
           path: deploy-x72-shared-queen.log
           if-no-files-found: ignore
+
+
+  reset-x72-zero:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'RESET-X72-ZERO'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          if [ "$actual_public_key" != "$expected_public_key" ]; then
+            echo 'ANTMUX_VPS_SSH_PRIVATE_KEY does not match the pinned deployment identity.' >&2
+            exit 1
+          fi
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Archive current Queen and reset to deterministic zero
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+
+          APP_ROOT="$HOME/antmux-x72-queen"
+          DATA_DIR="$APP_ROOT/data"
+          BACKUP_ROOT="$HOME/antmux-x72-queen-backups/reset-zero-$(date -u +%Y%m%d-%H%M%S)"
+
+          test -d "$APP_ROOT"
+          test -d "$DATA_DIR"
+          mkdir -p "$BACKUP_ROOT"
+
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP_ROOT/pre-reset-state.json"
+
+          systemctl --user stop antmux-x72-queen.service
+
+          for f in "$DATA_DIR"/queen.db "$DATA_DIR"/queen.db-wal "$DATA_DIR"/queen.db-shm; do
+            if [ -e "$f" ]; then
+              cp -a "$f" "$BACKUP_ROOT/"
+            fi
+          done
+
+          if [ -f "$BACKUP_ROOT/queen.db" ]; then
+            (
+              cd "$BACKUP_ROOT"
+              sha256sum queen.db* > SHA256SUMS
+            )
+          fi
+
+          rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
+
+          systemctl --user start antmux-x72-queen.service
+
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP_ROOT/post-reset-state.json"; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          test "$ready" -eq 1
+
+          python3 - "$BACKUP_ROOT/post-reset-state.json" <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1], encoding="utf-8"))
+          summary = {
+              "source": state.get("source"),
+              "tick_count": state.get("tick_count"),
+              "generation": state.get("generation"),
+              "event_count": state.get("event_count"),
+              "queen_mode": state.get("queen_mode"),
+              "integrity_match": state.get("integrity_match"),
+              "memory_level": state.get("memory_level"),
+              "crystallization_level": state.get("crystallization_level"),
+          }
+          print(json.dumps(summary, sort_keys=True))
+          if state.get("source") != "QUEEN_SERVER_V0_2":
+              raise SystemExit("unexpected source after reset")
+          if state.get("generation") != 0:
+              raise SystemExit("generation is not zero after reset")
+          if not state.get("integrity_match"):
+              raise SystemExit("integrity mismatch after reset")
+          if int(state.get("event_count", 999999)) > 4:
+              raise SystemExit("event history was not reset")
+          PY
+
+          printf 'RESET_ZERO=PASS\n'
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
