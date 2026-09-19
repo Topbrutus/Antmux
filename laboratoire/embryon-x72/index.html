@@ -58,9 +58,9 @@
 
         <div class="report-card">
           <p class="tiny-title">RAPPORT V0.2 FOURNI</p>
-          <div><span>Synapse testée</span><strong id="reportFault">S4</strong></div>
-          <div><span>Étapes réparation</span><strong id="reportSteps">134</strong></div>
-          <div><span>Verdict</span><strong id="reportVerdict" class="ok">PASS</strong></div>
+          <div><span>Synapse testée</span><strong id="reportFault">—</strong></div>
+          <div><span>État réparation</span><strong id="reportSteps">AUCUNE PANNE</strong></div>
+          <div><span>Verdict</span><strong id="reportVerdict" class="ok">READY</strong></div>
         </div>
       </aside>
 
@@ -72,6 +72,16 @@
         <h2>EVENT BUS</h2>
         <div id="eventBus" class="event-bus" aria-live="polite"></div>
 
+        <h2>Z3 RUNTIME — CANDIDAT</h2>
+        <div class="report-card">
+          <div><span>Topologie</span><strong id="z3Topology">13 NODES</strong></div>
+          <div><span>Historique</span><strong id="z3History">0 / 32</strong></div>
+          <div><span>Centre</span><strong id="z3Center">—</strong></div>
+          <div><span>Phase θ</span><strong id="z3Theta">—</strong></div>
+          <div><span>Vérification</span><strong id="z3Verify">EN ATTENTE</strong></div>
+          <div><span>Provenance</span><strong id="z3Hash">—</strong></div>
+        </div>
+
         <h2>SYNAPSES / PREUVE</h2>
         <pre id="proofBox" class="proof-box"></pre>
       </aside>
@@ -80,7 +90,7 @@
     <section class="bottom panel">
       <div>
         <p class="tiny-title">CONTRAT</p>
-        <strong>QueenCore → EventBus → RepairEngine → Telemetry → API/WebSocket → VisualState → Visual</strong>
+        <strong>QueenCore → Z3 Runtime (observation) → EventBus → RepairEngine → Telemetry → API/WebSocket → VisualState → Visual</strong>
       </div>
       <div class="hash-status">
         <span id="referenceCheck">RÉFÉRENCE H256 : vérification…</span>

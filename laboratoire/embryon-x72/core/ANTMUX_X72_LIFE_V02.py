@@ -261,9 +261,9 @@ class QueenCore:
                     integrity=1000,
                     enabled=True,
                     generation=0,
-                    activity=0.08 + 0.03 * i,
-                    memory=0.07 + 0.02 * i,
-                    crystal=0.04 + 0.015 * i,
+                    activity=0.0,
+                    memory=0.0,
+                    crystal=0.0,
                 )
             )
 
