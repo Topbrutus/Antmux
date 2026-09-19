@@ -701,3 +701,263 @@ jobs:
           printf 'HOTFIX_X72_LIVE=PASS\n'
           printf 'BACKUP=%s\n' "$BACKUP"
           REMOTE
+
+
+  final-z3-live-birth:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'Z3-FINAL-BIRTH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v6
+
+      - name: Validate final-birth payload
+        run: |
+          set -euo pipefail
+          python3 -m py_compile deploy/x72-shared-queen/app/server.py
+          python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
+          python3 -m py_compile deploy/x72-shared-queen/z3_echo/*.py
+          python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
+          python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
+          python3 deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
+          node --check laboratoire/embryon-x72/app.js
+          cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
+          grep -q 'Z3 RUNTIME' laboratoire/embryon-x72/index.html
+          printf 'Z3_FINAL_BIRTH_PAYLOAD=PASS\n'
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage Z3 final-birth payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          STAGE="/tmp/x72-z3-birth-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tar -czf /tmp/x72-z3-birth.tgz \
+            deploy/x72-shared-queen/app \
+            deploy/x72-shared-queen/z3_echo \
+            laboratoire/embryon-x72/app.js \
+            laboratoire/embryon-x72/index.html
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "rm -rf '$STAGE' && mkdir -p '$STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            /tmp/x72-z3-birth.tgz "$VPS_USER@$VPS_HOST:$STAGE/payload.tgz"
+
+      - name: Backup install reset and certify Z3 live birth
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          STAGE="/tmp/x72-z3-birth-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "STAGE='$STAGE' GITHUB_SHA='${GITHUB_SHA}' bash -se" <<'REMOTE' 2>&1 | tee deploy-x72-shared-queen.log
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+
+          APP_ROOT="$HOME/antmux-x72-queen"
+          DATA_DIR="$APP_ROOT/data"
+          TARGET="/var/www/antmux.com/public_html/laboratoire/embryon-x72"
+          BACKUP="$HOME/antmux-x72-queen-backups/z3-final-birth-$(date -u +%Y%m%d-%H%M%S)-$GITHUB_SHA"
+          PAYLOAD_ROOT="$STAGE/unpacked"
+          mkdir -p "$BACKUP" "$PAYLOAD_ROOT"
+          tar -xzf "$STAGE/payload.tgz" -C "$PAYLOAD_ROOT"
+          test -d "$APP_ROOT/app"
+          test -d "$DATA_DIR"
+          test -d "$TARGET"
+          test -d "$PAYLOAD_ROOT/deploy/x72-shared-queen/app"
+          test -d "$PAYLOAD_ROOT/deploy/x72-shared-queen/z3_echo"
+          test -f "$PAYLOAD_ROOT/laboratoire/embryon-x72/app.js"
+          test -f "$PAYLOAD_ROOT/laboratoire/embryon-x72/index.html"
+
+          cp -a "$APP_ROOT/app" "$BACKUP/app.before"
+          if [ -d "$APP_ROOT/z3_echo" ]; then
+            cp -a "$APP_ROOT/z3_echo" "$BACKUP/z3_echo.before"
+            touch "$BACKUP/had-z3-echo"
+          fi
+          cp -a "$TARGET/app.js" "$BACKUP/app.js.before"
+          cp -a "$TARGET/index.html" "$BACKUP/index.html.before"
+          for f in "$DATA_DIR"/queen.db "$DATA_DIR"/queen.db-wal "$DATA_DIR"/queen.db-shm; do
+            [ -e "$f" ] && cp -a "$f" "$BACKUP/"
+          done
+
+          rollback() {
+            set +e
+            systemctl --user stop antmux-x72-queen.service
+            rm -rf "$APP_ROOT/app" "$APP_ROOT/z3_echo"
+            cp -a "$BACKUP/app.before" "$APP_ROOT/app"
+            if [ -f "$BACKUP/had-z3-echo" ]; then
+              cp -a "$BACKUP/z3_echo.before" "$APP_ROOT/z3_echo"
+            fi
+            cp -a "$BACKUP/app.js.before" "$TARGET/app.js"
+            cp -a "$BACKUP/index.html.before" "$TARGET/index.html"
+            rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
+            for f in "$BACKUP"/queen.db "$BACKUP"/queen.db-wal "$BACKUP"/queen.db-shm; do
+              [ -e "$f" ] && cp -a "$f" "$DATA_DIR/"
+            done
+            systemctl --user start antmux-x72-queen.service
+          }
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then rollback; fi; exit "$rc"' EXIT
+
+          systemctl --user stop antmux-x72-queen.service
+          rm -rf "$APP_ROOT/app" "$APP_ROOT/z3_echo"
+          cp -a "$PAYLOAD_ROOT/deploy/x72-shared-queen/app" "$APP_ROOT/app"
+          cp -a "$PAYLOAD_ROOT/deploy/x72-shared-queen/z3_echo" "$APP_ROOT/z3_echo"
+          install -m 0644 "$PAYLOAD_ROOT/laboratoire/embryon-x72/app.js" "$TARGET/app.js"
+          install -m 0644 "$PAYLOAD_ROOT/laboratoire/embryon-x72/index.html" "$TARGET/index.html"
+
+          python3 -m py_compile "$APP_ROOT/app/server.py" "$APP_ROOT/app/z3_runtime.py"
+          PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 - <<'PY'
+          from app.server import QueenCore
+          q = QueenCore(seed=72)
+          assert q.tick == 0 and q.generation == 0
+          assert q.z3_runtime.visual_state()["latest"] is None
+          assert [s.synapse_id for s in q.synapses] == [f"S{i}" for i in range(1, 8)]
+          print("INSTALLED_CLEAN_BIRTH_IMPORT=PASS")
+          PY
+
+          rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
+          systemctl --user start antmux-x72-queen.service
+          ready=0
+          for _ in $(seq 1 80); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/state-birth.json"; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          test "$ready" -eq 1
+
+          python3 - "$BACKUP/state-birth.json" <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert state["source"] == "QUEEN_SERVER_V0_2"
+          assert state["generation"] == 0
+          assert state["integrity_match"] is True
+          assert state["active_synapses"] == 7
+          assert [s["synapse_id"] for s in state["synapses"]] == [f"S{i}" for i in range(1, 8)]
+          assert state["memory_level"] < 0.10
+          assert state["crystallization_level"] < 0.10
+          z3 = state.get("z3_runtime")
+          assert isinstance(z3, dict)
+          assert z3["authority"] == "OBSERVATION_ONLY"
+          assert z3["mutates_queen"] is False
+          print("PUBLIC_BIRTH_ZERO_GATE=PASS")
+          PY
+
+          sleep 35
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/state-generation1.json"
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/events > "$BACKUP/events-generation1.json"
+          python3 - "$BACKUP/state-generation1.json" "$BACKUP/events-generation1.json" <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1], encoding="utf-8"))
+          events = json.load(open(sys.argv[2], encoding="utf-8"))["events"]
+          assert state["generation"] >= 1
+          assert state["integrity_match"] is True
+          assert state["active_synapses"] == 7
+          assert float(state["r_exec"]) > 200.0
+          assert float(state["f_rt"]) > 0.85
+          assert float(state["memory_level"]) < 0.92
+          assert float(state["crystallization_level"]) < 0.90
+          z3 = state["z3_runtime"]
+          assert z3["history_count"] == z3["history_size"] == 32
+          assert z3["latest"]["fast_verified"] is True
+          assert z3["latest"]["tick"] > 0
+          kinds = {event["event_type"] for event in events}
+          assert "GENERATION_ADVANCED" in kinds
+          assert "Z3_RUNTIME_FRAME" in kinds
+          print("PUBLIC_GENERATION1_GATE=PASS")
+          PY
+
+          systemctl --user stop antmux-x72-queen.service
+          PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 - "$DATA_DIR/queen.db" <<'PY'
+          import sys
+          from pathlib import Path
+          from app.server import Persistence
+          queen = Persistence(Path(sys.argv[1])).load_latest()
+          assert queen is not None
+          assert queen.generation >= 1
+          assert queen.integrity_match() is True
+          z3 = queen.z3_runtime.visual_state()
+          assert z3["history_count"] == 32
+          assert z3["latest"]["fast_verified"] is True
+          print("PERSISTED_Z3_CHECKPOINT=PASS")
+          print(f"PERSISTED_GENERATION={queen.generation}")
+          print(f"PERSISTED_TICK={queen.tick}")
+          PY
+
+          systemctl --user start antmux-x72-queen.service
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/state-after-restart.json"; then
+              break
+            fi
+            sleep 0.5
+          done
+
+          python3 - "$BACKUP/state-generation1.json" "$BACKUP/state-after-restart.json" <<'PY'
+          import json, sys
+          before = json.load(open(sys.argv[1], encoding="utf-8"))
+          after = json.load(open(sys.argv[2], encoding="utf-8"))
+          assert after["tick_count"] >= before["tick_count"]
+          assert after["generation"] >= before["generation"]
+          assert after["integrity_match"] is True
+          assert after["z3_runtime"]["history_count"] == 32
+          assert after["z3_runtime"]["latest"]["fast_verified"] is True
+          print("SERVICE_RESTART_Z3_RESTORE=PASS")
+          PY
+
+          rm -rf "$STAGE"
+          trap - EXIT
+          printf 'Z3_FINAL_BIRTH=PASS\n'
+          printf 'BACKUP=%s\n' "$BACKUP"
+          REMOTE
+
+
+      - name: Verify public Z3 live birth
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state > /tmp/public-z3-state.json
+          python3 - /tmp/public-z3-state.json <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert state["source"] == "QUEEN_SERVER_V0_2"
+          assert state["integrity_match"] is True
+          assert state["active_synapses"] == 7
+          assert state["generation"] >= 1
+          z3 = state.get("z3_runtime")
+          assert isinstance(z3, dict)
+          assert z3["authority"] == "OBSERVATION_ONLY"
+          assert z3["history_count"] == 32
+          assert z3["latest"]["fast_verified"] is True
+          print("PUBLIC_Z3_LIVE_BIRTH=PASS")
+          PY
+
+      - name: Upload final-birth log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x72-z3-final-birth-log
+          path: deploy-x72-shared-queen.log
+          if-no-files-found: ignore
