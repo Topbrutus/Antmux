@@ -63,6 +63,13 @@ def _triad_groups_from_synapses(synapses: list[Any]) -> Channels12:
     if len(synapses) != 7:
         raise ValueError("Z3 runtime adapter requires exactly seven Queen synapses")
 
+    expected_ids = tuple(f"S{index}" for index in range(1, 8))
+    observed_ids = tuple(getattr(item, "synapse_id", None) for item in synapses)
+    if observed_ids != expected_ids:
+        raise ValueError(
+            "Z3 runtime adapter requires Queen synapses ordered exactly S1..S7"
+        )
+
     values: list[float] = []
     for _, indices in GROUPS:
         group = [synapses[index] for index in indices]

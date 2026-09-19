@@ -38,7 +38,7 @@ y = memory
 z = crystal
 ```
 
-The seven Queen synapses are grouped deterministically:
+The seven Queen synapses are grouped deterministically and must arrive in the exact semantic order `S1..S7`:
 
 ```text
 G0 = mean(S1,S2)
@@ -46,6 +46,8 @@ G1 = mean(S3,S4)
 G2 = mean(S5,S6)
 G3 = S7
 ```
+
+The runtime adapter rejects reordered or mislabeled synapse lists instead of silently changing channel meaning.
 
 This grouping is a **project integration choice**, not a physical law or scientific claim.
 
@@ -151,6 +153,7 @@ Z3 history = 32/32
 Z3 fast verification = PASS
 Queen Server regression = 40/40 PASS
 Z3 runtime bridge test = 10/10 PASS
+Z3 runtime bridge adversarial = 11/11 PASS
 ```
 
 These are local integration measurements, not production measurements.
