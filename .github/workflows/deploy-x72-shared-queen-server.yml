@@ -51,7 +51,6 @@ jobs:
           cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
           cmp -s laboratoire/embryon-x72/index.html deploy/x72-shared-queen/frontend/index.html
           python3 deploy/x72-shared-queen/tests/check_frontend_authority.py
-          python3 deploy/x72-shared-queen/tests/test_relation_runtime.py
 
           rm -rf _x72_runner_vendor _x72_runner_data
           python3 -m pip install --target _x72_runner_vendor fastapi 'uvicorn[standard]' websockets
@@ -61,6 +60,8 @@ jobs:
           import websockets
           print("VENDOR_IMPORT_PASS")
           PY
+          PYTHONPATH="$PWD/_x72_runner_vendor" \
+          python3 deploy/x72-shared-queen/tests/test_relation_runtime.py
           PYTHONPATH="$PWD/_x72_runner_vendor" \
           python3 deploy/x72-shared-queen/tests/check_runtime_metrics.py
 
