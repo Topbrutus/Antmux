@@ -719,6 +719,8 @@ jobs:
           python3 -c 'import fastapi, pydantic, uvicorn, websockets; print("FINAL_BIRTH_RUNNER_DEPS=PASS")'
 
       - name: Validate final-birth payload
+        env:
+          ANTMUX_X72_DATA_DIR: ${{ runner.temp }}/x72-final-birth-validation
         run: |
           set -euo pipefail
           python3 -m py_compile deploy/x72-shared-queen/app/server.py
