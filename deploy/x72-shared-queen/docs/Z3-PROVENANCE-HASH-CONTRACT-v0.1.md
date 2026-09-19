@@ -293,12 +293,55 @@ These results establish implementation/test evidence for the current branch only
 
 They do not establish physical novelty or producer authenticity.
 
+## Measured provenance benchmark — 2026-09-19
+
+Method:
+
+```text
+clock = time.perf_counter_ns
+calls per repetition = 200
+repetitions = 5
+summary = median wall time per call
+series sizes = 8, 32, 128 triad coefficients
+```
+
+Measured results:
+
+```text
+8 triads / 24 scalar coefficients:
+seal        162.656 us/call
+fast verify 172.985 us/call
+deep verify 312.3535 us/call
+deep vs fast overhead +80.57%
+
+32 triads / 96 scalar coefficients:
+seal        384.724 us/call
+fast verify 391.48 us/call
+deep verify 851.1115 us/call
+deep vs fast overhead +117.41%
+
+128 triads / 384 scalar coefficients:
+seal        1337.182 us/call
+fast verify 1311.39 us/call
+deep verify 2871.755 us/call
+deep vs fast overhead +118.99%
+```
+
+Interpretation:
+
+- fast verification still hashes the supplied source and echoed coefficient bodies;
+- it does not recompute `transfer.apply(source)`;
+- deep verification adds the semantic transfer recomputation;
+- current measurements show deep verification is materially more expensive than fast verification for these synthetic series sizes;
+- this is not a whole-system speedup claim.
+
+Source report:
+
+`reports/Z3-PROVENANCE-BENCHMARK-2026-09-19.json`
+
 ## Next measured step
 
-After integration of the adversarial tests into the Worker 1 candidate branch:
-
-1. rerun complete Z3 + X72 regressions;
-2. benchmark fast provenance verification versus deep verification;
-3. record event/sample sizes and repetitions;
-4. do not claim a speedup without a measured baseline;
-5. leave PR #59 unmerged until explicit review/authorization.
+1. rerun complete Z3 + X72 regressions after the provenance/adversarial merge;
+2. keep PR #59 unmerged until explicit review/authorization;
+3. after correctness remains green, design the next center-coupling brick;
+4. do not claim invertibility for any future 12→3 center compression without preserved side information or proof.
