@@ -60,6 +60,8 @@ jobs:
           import websockets
           print("VENDOR_IMPORT_PASS")
           PY
+          mkdir -p _x72_runner_data
+          ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data" \
           PYTHONPATH="$PWD/_x72_runner_vendor" \
           python3 deploy/x72-shared-queen/tests/test_relation_runtime.py
           PYTHONPATH="$PWD/_x72_runner_vendor" \
