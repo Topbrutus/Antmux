@@ -712,6 +712,12 @@ jobs:
       - name: Checkout requested ref
         uses: actions/checkout@v6
 
+      - name: Install final-birth runner dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet fastapi uvicorn pydantic websockets
+          python3 -c 'import fastapi, pydantic, uvicorn, websockets; print("FINAL_BIRTH_RUNNER_DEPS=PASS")'
+
       - name: Validate final-birth payload
         run: |
           set -euo pipefail
