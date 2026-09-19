@@ -74,3 +74,23 @@ Z3 runtime bridge regression: 10/10 PASS
 No production deployment is authorized by this document. The next safe step is
 CI validation on the isolated stereo branch, followed by review before any
 live integration.
+
+
+## Complete seven-synapse relation graph
+
+The seven Queen synapses now use the complete undirected graph K7.
+
+```text
+possible unordered pairs = C(7,2) = 21
+relations present        = 21
+degree of each synapse   = 6
+```
+
+The previous live topology contained 10 relations, so 11 pairwise links were
+missing. The complete topology is versioned as `K7-COMPLETE-v1` and is part
+of protected integrity. Incomplete/legacy relation checkpoints are rejected
+instead of silently restoring the old 10-edge graph.
+
+The frontend already renders every relation supplied by the server, so the
+complete K7 topology automatically produces all 21 visible connection lines
+and their activity markers without adding client-side invented state.
