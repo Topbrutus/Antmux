@@ -220,6 +220,46 @@ def orthogonality_error12(matrix: Matrix12) -> float:
     )
 
 
+def _scaled_real_sum(values: Iterable[float]) -> float:
+    items = tuple(values)
+    if not items:
+        return 0.0
+    scale = max(abs(value) for value in items)
+    if scale == 0.0:
+        return 0.0
+    normalized = math.fsum(value / scale for value in items)
+    result = normalized * scale
+    if not math.isfinite(result):
+        raise OverflowError("scaled real sum exceeds binary64 range")
+    return result
+
+
+def _scaled_real_mean4(values: tuple[float, float, float, float]) -> float:
+    scale = max(abs(value) for value in values)
+    if scale == 0.0:
+        return 0.0
+    normalized_mean = math.fsum(value / scale for value in values) / 4.0
+    result = normalized_mean * scale
+    if not math.isfinite(result):
+        raise OverflowError("scaled real mean exceeds binary64 range")
+    return result
+
+
+def _complex_fsum(values: Iterable[complex]) -> complex:
+    items = tuple(values)
+    return complex(
+        _scaled_real_sum(value.real for value in items),
+        _scaled_real_sum(value.imag for value in items),
+    )
+
+
+def _stable_mean4(values: tuple[complex, complex, complex, complex]) -> complex:
+    return complex(
+        _scaled_real_mean4(tuple(value.real for value in values)),
+        _scaled_real_mean4(tuple(value.imag for value in values)),
+    )
+
+
 @dataclass(frozen=True)
 class CenterCoupling12:
     theta: float
@@ -229,13 +269,10 @@ class CenterCoupling12:
         angle = _finite_real(self.theta, "theta")
         _validate_matrix12(self.matrix)
         expected = build_center_coupling_matrix(angle)
-        delta = max(
-            abs(self.matrix[row][col] - expected[row][col])
-            for row in range(CHANNEL_COUNT)
-            for col in range(CHANNEL_COUNT)
-        )
-        if delta > 1e-12:
-            raise ValueError("matrix does not match the v0.1 center coupling schedule")
+        if self.matrix != expected:
+            raise ValueError(
+                "matrix does not match the canonical v0.1 center coupling schedule exactly"
+            )
         if orthogonality_error12(self.matrix) > 1e-10:
             raise ValueError("center coupling matrix must be orthogonal")
         object.__setattr__(self, "theta", angle)
@@ -293,7 +330,12 @@ class CenterSummary3WithResidual:
                 for group in range(4)
             ]
             center_values = tuple(
-                sum(triad_values[group][channel] for group in range(4)) / 4
+                _stable_mean4(
+                    tuple(
+                        triad_values[group][channel]
+                        for group in range(4)
+                    )
+                )
                 for channel in range(3)
             )
             center_sample = Triad3(*center_values)
@@ -339,8 +381,14 @@ class CenterSummary3WithResidual:
             grouped[3].append(
                 Triad3(
                     *(
-                        center_values[channel]
-                        - sum(residual_values[group][channel] for group in range(3))
+                        _complex_fsum(
+                            (
+                                center_values[channel],
+                                -residual_values[0][channel],
+                                -residual_values[1][channel],
+                                -residual_values[2][channel],
+                            )
+                        )
                         for channel in range(3)
                     )
                 )

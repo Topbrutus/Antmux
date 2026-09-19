@@ -233,8 +233,8 @@ def run() -> dict[str, object]:
         "checks_passed": sum(1 for item in checks if item["ok"]),
         "checks": checks,
         "falsification_note": (
-            "a 3-value center summary alone is many-to-one; exact reconstruction "
-            "requires the retained 9 residual degrees of freedom"
+            "a 3-value center summary alone is many-to-one; 3+9 is algebraically "
+            "complete but binary64 reconstruction is not bit-exact at all scales"
         ),
     }
     print(json.dumps(report, sort_keys=True))

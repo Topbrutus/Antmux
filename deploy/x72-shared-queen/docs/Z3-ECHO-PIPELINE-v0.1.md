@@ -226,7 +226,7 @@ Allowed v0.1 claims after tests:
 
 - finite Z coefficient sequence can be reconstructed exactly from its stored coefficients;
 - proper Euler rotations are reversible by transpose/inverse;
-- nonzero numerical gain is reversible by division;
+- nonzero numerical gain is algebraically reversible by division, subject to declared binary64 underflow/overflow limits;
 - discrete delay is reversible when the delay value is known and the delayed prefix is preserved;
 - a 12→3 summary is not generally reversible without side information.
 
@@ -248,7 +248,7 @@ The mathematical core must test:
 10. finite-value validation;
 11. transformed-domain delay semantics;
 12. transformed-domain echo round trip for nonzero gain;
-13. explicit failure/non-invertibility for zero gain;
+13. explicit failure/non-invertibility for zero gain and rejection of destructive nonzero-gain underflow;
 14. no mutation of the original transformed state;
 15. existing X72 Echo acceptance remains 31/31 or better.
 

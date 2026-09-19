@@ -209,7 +209,7 @@ def run() -> dict[str, object]:
         "checks": checks,
         "architecture": (
             "one 13-node system; reversible 12-to-12 center coupling; "
-            "3-value center summary is lossless only with 9 residual side values"
+            "3+9 is algebraically complete but binary64 reconstruction is approximate"
         ),
     }
     print(json.dumps(report, sort_keys=True))

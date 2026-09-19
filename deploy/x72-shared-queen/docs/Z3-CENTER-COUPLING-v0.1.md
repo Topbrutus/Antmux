@@ -20,10 +20,11 @@ The design goal is:
         3-value center summary
              + 9 residuals
                   ↓
-        exact reconstruction
+        algebraic reconstruction
+        (binary64 error is measured explicitly)
 ```
 
-The center does not silently destroy nine degrees of freedom.
+The authoritative coupled 12-channel state is retained. The 3+9 form preserves twelve algebraic degrees of freedom, but it is **not** a bit-preserving binary64 encoding for every finite input.
 
 ## 2. One system, not two systems
 
@@ -129,6 +130,17 @@ mirror coupling + four-triad ring coupling
 
 The exact order is part of the v0.1 contract because the overlapping rotations are generally non-commutative.
 
+### v0.1 invariant subspaces
+
+The routing graph has two connected components:
+
+```text
+{0,2,3,5,6,8,9,11}   # x/z component
+{1,4,7,10}           # y component
+```
+
+Therefore v0.1 is reversible but does **not** provide full 12-way mixing: y channels do not mix into x/z through this schedule. If full connectivity is required, that is a schedule change and must receive a new schedule version.
+
 ## 6. Full-turn closure
 
 For:
@@ -147,7 +159,17 @@ C(2πk) = I
 
 within numerical tolerance.
 
-This gives the requested multiple-of-360-degree closure as a mathematical property of the candidate coupling.
+This is **direct parameter closure**: constructing the matrix with an angle represented as `2πk` approaches identity to the accuracy of the supplied binary64 angle.
+
+It is not incremental group closure for this ordered non-commuting schedule. In general:
+
+```text
+C(a+b) != C(a) C(b)
+C(-a) != C(a)^T
+C(π/2)^4 != I
+```
+
+Very large `k` also loses phase precision during floating-point argument reduction. Therefore no unbounded large-turn numerical closure claim is made.
 
 ## 7. Norm preservation
 
@@ -232,13 +254,15 @@ T_2,c = s_c + r_2,c
 T_3,c = s_c - r_0,c - r_1,c - r_2,c
 ```
 
-Thus:
+Thus, in exact arithmetic:
 
 ```text
-3 center + 9 residual = exact 12-value representation
+3 center + 9 residual = 12 algebraic values
 ```
 
-subject only to ordinary floating-point numerical tolerance.
+In binary64 this transform is **not injective for all finite inputs** because forming the mean and residuals can round away low-order information. For example, the x-channel quartets `(1e16,0,0,0)` and `(1e16,0,0,1)` can collapse to the same stored 3+9 representation.
+
+Therefore the coupled 12-channel body/hash remains the exact provenance authority. The 3+9 form is a numerical derived representation with an explicit error budget, not a bit-exact replacement for the 12-channel state.
 
 ## 11. Relation to the user's "two bodies together"
 
@@ -246,7 +270,7 @@ The current mathematical implementation interprets the two mirrored visual bodie
 
 The reversible center matrix mixes mirror positions and then links corresponding x/y/z positions across all four triads.
 
-The center summary then exposes one 3-vector while the nine residual degrees remain available for exact reconstruction.
+The center summary exposes one 3-vector while nine residual values support algebraic reconstruction. In binary64, the authoritative coupled 12-channel state remains necessary whenever bit-exact provenance matters.
 
 This is a project architecture interpretation of the drawing.
 
@@ -307,7 +331,7 @@ Covered:
 - source immutability;
 - 360-degree closure;
 - nontrivial channel mixing;
-- 3+9 exact reconstruction;
+- 3+9 reconstruction on the tested numerical range;
 - center mean;
 - derived fourth residual;
 - proof-by-test that center-only is not reconstruction;
@@ -342,7 +366,11 @@ The current implementation does not prove:
 - that the mean is the best possible center observable;
 - that 3 center values alone contain all information;
 - producer authenticity;
-- physical novelty.
+- physical novelty;
+- bit-exact 3+9 reconstruction for every finite binary64 input;
+- full mixing between the y component and the x/z component;
+- incremental closure such as `C(π/2)^4 = I`;
+- numerically exact direct closure for arbitrarily large `2πk` angles.
 
 The exact mathematical statements tested above are the only current claims.
 

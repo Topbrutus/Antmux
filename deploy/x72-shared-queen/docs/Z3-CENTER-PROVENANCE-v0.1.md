@@ -86,29 +86,29 @@ expected_summary = decompose(expected_coupled)
 
 and verifies that both agree with the sealed coupled state and summary.
 
-It also reconstructs the coupled state from:
+It also reconstructs a numerical approximation of the coupled state from:
 
 ```text
 3 center values + 9 residual side values
 ```
 
-and requires numerical agreement with the coupled state.
+and requires agreement with the coupled state under the declared reconstruction tolerance.
 
 ## Floating-point reconstruction rule
 
 The stored source/coupled/summary bodies are hashed exactly.
 
-However, reconstruction from the 3+9 representation involves additional floating-point subtraction/addition, so a mathematically equivalent reconstruction may differ by the final binary floating-point rounding bit.
+However, the 3+9 transform is only algebraically invertible. In binary64, mean/residual formation can be ill-conditioned and can round away low-order information. The error is not limited to the final bit and can depend strongly on dynamic range.
 
-Therefore the deep 3+9 reconstruction check uses:
+For example, distinct quartets such as `(1e16,0,0,0)` and `(1e16,0,0,1)` can produce the same stored center/residual values. Therefore the 3+9 representation is not the exact provenance authority.
+
+The current deep 3+9 reconstruction check uses:
 
 ```text
 absolute tolerance = 1e-10 per complex channel value
 ```
 
-This is deliberate.
-
-It does not weaken body-hash integrity checks. It only applies to the independently recomputed reconstruction equality test.
+This threshold is an acceptance budget for the derived numerical representation, not a proof of bit-exact invertibility. Exact provenance remains anchored by the separately sealed coupled 12-channel state body/hash.
 
 ## 3+9 information accounting
 
@@ -124,11 +124,13 @@ The retained residual state contains:
 9 values
 ```
 
-Total:
+Total, in exact arithmetic:
 
 ```text
-3 + 9 = 12 degrees of representation
+3 + 9 = 12 algebraic degrees of representation
 ```
+
+This count does not imply a one-to-one binary64 encoding at all scales. The coupled 12-channel state remains authoritative for exact hashing and audit.
 
 The fourth residual is derived from the first three because the center is defined as the four-triad mean:
 
@@ -240,13 +242,83 @@ It remains read-only.
 
 No Queen mutation, action execution, or production deployment is introduced.
 
+## Measured center-provenance benchmark — 2026-09-19
+
+Method:
+
+```text
+clock = time.perf_counter_ns
+calls per repetition = 100
+repetitions = 5
+summary = median wall time per call
+sizes = 8, 32, 128 coefficients per triad
+```
+
+Measured results:
+
+```text
+8 coefficients / triad, 96 complex channel values:
+seal        918.701 us/call
+fast verify 6917.128 us/call
+deep verify 15209.783 us/call
+deep vs fast overhead +119.89%
+
+32 coefficients / triad, 384 complex channel values:
+seal        2839.595 us/call
+fast verify 9127.581 us/call
+deep verify 21033.159 us/call
+deep vs fast overhead +130.44%
+
+128 coefficients / triad, 1536 complex channel values:
+seal        11421.317 us/call
+fast verify 16870.884 us/call
+deep verify 47078.221 us/call
+deep vs fast overhead +179.05%
+```
+
+Interpretation:
+
+- fast center verification still hashes the sealed source, coupled, center and residual bodies;
+- it does not rerun `coupling.apply(source)` or the center decomposition;
+- deep verification adds those semantic recomputations;
+- these measurements show deep verification is materially more expensive for the measured synthetic sizes;
+- this is not a whole-system speedup claim.
+
+Source report:
+
+`reports/Z3-CENTER-PROVENANCE-BENCHMARK-2026-09-19.json`
+
+## Independent numerical hardening evidence — 2026-09-19
+
+A dedicated regression battery now covers the edge cases discovered during independent falsification:
+
+```text
+test_z3_codex_audit_regressions.py
+14/14 PASS
+```
+
+It includes:
+
+- finite `1e308` center means without naive-sum overflow;
+- preservation of equal smallest subnormals in the center mean;
+- large-cancellation reconstruction;
+- rejection of a noncanonical theta-zero shear;
+- rejection of complex norm-changing matrices as spatial rotations;
+- copying caller-owned mutable rotation/sample storage;
+- rejection of destructive whole and partial complex underflow;
+- scaled complex division/multiplication when the representable result would otherwise overflow intermediate arithmetic;
+- the known binary64 3+9 collision boundary;
+- explicit v0.1 routing invariant subspaces;
+- explicit distinction between direct full-turn parameter closure and repeated quarter-turn composition.
+
+The coupled 12-channel body/hash remains the exact provenance authority. The 3+9 representation remains a derived numerical view with an explicit binary64 limitation.
+
 ## Next safe step
 
-After integrating the adversarial test into the Worker 1 branch:
-
-1. run all Z3 and X72 regressions;
-2. benchmark fast center provenance verification versus deep center verification;
-3. update PR #59 with measured evidence;
-4. keep PR #59 unmerged until explicit authorization;
-5. only then design the combined execution frame that chains:
+1. commit the audited numerical hardening and its regression evidence atomically;
+2. commit the benchmark script/report and this measured evidence;
+3. push only `worker1/z3-echo-pipeline-v0.1`;
+4. update PR #59 with the new head, limits, tests and benchmark;
+5. wait for CI and keep PR #59 draft/unmerged;
+6. only after the branch is green, decide whether v0.2 should connect the y and x/z routing components before designing the combined execution frame:
    `Z transform → Euler → Echo_Z → center coupling → 3+9 → provenance`.

@@ -16,6 +16,31 @@ Matrix3 = tuple[
 ]
 
 
+def canonical_real_matrix3(matrix: object) -> Matrix3:
+    """Copy a finite real 3x3 matrix into an immutable canonical tuple."""
+    if not isinstance(matrix, (tuple, list)) or len(matrix) != 3:
+        raise ValueError("matrix must be exactly 3x3")
+
+    rows: list[tuple[float, float, float]] = []
+    for row_index, row in enumerate(matrix):
+        if not isinstance(row, (tuple, list)) or len(row) != 3:
+            raise ValueError("matrix must be exactly 3x3")
+        values: list[float] = []
+        for col_index, value in enumerate(row):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError(
+                    f"matrix[{row_index}][{col_index}] must be a real number"
+                )
+            out = float(value)
+            if not math.isfinite(out):
+                raise ValueError(
+                    f"matrix[{row_index}][{col_index}] must be finite"
+                )
+            values.append(out)
+        rows.append((values[0], values[1], values[2]))
+    return (rows[0], rows[1], rows[2])
+
+
 def _finite_complex(value: complex | float | int, field: str) -> complex:
     if isinstance(value, bool) or not isinstance(value, (int, float, complex)):
         raise TypeError(f"{field} must be a real or complex number")
@@ -50,10 +75,12 @@ class FiniteZTriad:
     samples: tuple[Triad3, ...]
 
     def __post_init__(self) -> None:
-        if not self.samples:
+        samples = tuple(self.samples)
+        if not samples:
             raise ValueError("samples must contain at least one triad")
-        if any(type(item) is not Triad3 for item in self.samples):
+        if any(type(item) is not Triad3 for item in samples):
             raise TypeError("samples must contain exactly Triad3 values")
+        object.__setattr__(self, "samples", samples)
 
     @classmethod
     def from_samples(cls, samples: Iterable[Triad3]) -> "FiniteZTriad":
@@ -171,7 +198,11 @@ def beta_y_to_zero_z(triad: Triad3) -> float:
 
 
 def is_rotation_matrix(matrix: Matrix3, *, tolerance: float = 1e-12) -> bool:
+    try:
+        canonical = canonical_real_matrix3(matrix)
+    except (TypeError, ValueError):
+        return False
     return (
-        orthogonality_error(matrix) <= tolerance
-        and abs(determinant3(matrix) - 1.0) <= tolerance
+        orthogonality_error(canonical) <= tolerance
+        and abs(determinant3(canonical) - 1.0) <= tolerance
     )
