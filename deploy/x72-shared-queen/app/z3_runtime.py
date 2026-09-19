@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .eye_render import EyeLightControls, EyePairRenderFrame
 from .hemisphere4 import Hemisphere4Frame
 from .stereo27 import Stereo27Frame
 
@@ -101,6 +102,7 @@ class Z3RuntimeSnapshot:
     echo_provenance_h256: tuple[str, str, str, str]
     stereo27: Stereo27Frame
     hemisphere4: Hemisphere4Frame
+    eye_render: EyePairRenderFrame
     fast_verified: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -118,6 +120,7 @@ class Z3RuntimeSnapshot:
             "echo_provenance_h256": list(self.echo_provenance_h256),
             "stereo27": self.stereo27.to_dict(),
             "hemisphere4": self.hemisphere4.to_dict(),
+            "eye_render": self.eye_render.to_dict(),
             "fast_verified": self.fast_verified,
         }
 
@@ -229,6 +232,11 @@ class Z3RuntimeBridge:
             coupled=coupled,
             center=center_now,
         )
+        eye_render = EyePairRenderFrame.from_hemisphere(
+            hemisphere4,
+            theta=theta,
+            controls=EyeLightControls(),
+        )
 
         return Z3RuntimeSnapshot(
             tick=tick,
@@ -244,6 +252,7 @@ class Z3RuntimeBridge:
             echo_provenance_h256=tuple(echo_hashes),  # type: ignore[arg-type]
             stereo27=stereo27,
             hemisphere4=hemisphere4,
+            eye_render=eye_render,
             fast_verified=bool(
                 echo_verified
                 and center_verified
@@ -286,6 +295,7 @@ class Z3RuntimeBridge:
         if isinstance(latest, dict):
             latest.pop("stereo27", None)
             latest.pop("hemisphere4", None)
+            latest.pop("eye_render", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
 
