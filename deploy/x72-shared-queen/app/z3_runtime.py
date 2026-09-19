@@ -257,6 +257,9 @@ class Z3RuntimeBridge:
             "history_size": self.history_size,
             "history": [list(row) for row in self.history],
             "last_sample_tick": self.last_sample_tick,
+            "latest_generation": (
+                self.latest.generation if self.latest is not None else None
+            ),
         }
 
     @classmethod
@@ -273,5 +276,19 @@ class Z3RuntimeBridge:
             bridge.history.append(tuple(float(value.real) for value in channels.values))
         bridge.last_sample_tick = int(payload.get("last_sample_tick", -1))
         if bridge.history:
-            bridge.latest = bridge._build_snapshot(tick=tick, generation=generation)
+            latest_tick = (
+                bridge.last_sample_tick
+                if bridge.last_sample_tick >= 0
+                else tick
+            )
+            raw_latest_generation = payload.get("latest_generation")
+            latest_generation = (
+                int(raw_latest_generation)
+                if raw_latest_generation is not None
+                else generation
+            )
+            bridge.latest = bridge._build_snapshot(
+                tick=latest_tick,
+                generation=latest_generation,
+            )
         return bridge

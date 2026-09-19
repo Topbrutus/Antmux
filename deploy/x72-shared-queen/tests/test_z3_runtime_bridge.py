@@ -97,6 +97,8 @@ def run() -> dict[str, object]:
         )
     )
 
+    for _ in range(17):
+        queen.step()
     checkpoint = queen.to_checkpoint()
     restored = QueenCore.from_checkpoint(checkpoint)
     restored_z3 = restored.z3_runtime.visual_state()
