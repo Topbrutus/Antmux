@@ -23,7 +23,7 @@
     runtimeBadge:$("runtimeBadge"), viewBtn:$("viewBtn"), catControls:$("catControls"),
     yellowBoost:$("yellowBoost"), blueBoost:$("blueBoost"), mauveBoost:$("mauveBoost"),
     roseBoost:$("roseBoost"), eyeSpacing:$("eyeSpacing"), catLockBtn:$("catLockBtn"),
-    catCoords:$("catCoords")
+    catCoords:$("catCoords"), emotionControls:$("emotionControls"), emotionSummary:$("emotionSummary")
   };
 
   const ctx = els.canvas.getContext("2d");
@@ -39,7 +39,8 @@
   const CAT_CAL_KEY = "antmux_x72_cat_calibration_v01";
   const CAT_CAL_DEFAULT = {
     x:0, y:0, scale:1, spacing:1, locked:false,
-    boosts:{yellow_outer:0,blue_second:0,mauve_third:0,rose_inner:0}
+    boosts:{yellow_outer:0,blue_second:0,mauve_third:0,rose_inner:0},
+    emotions:window.X72EmotionMap?.defaults?.() || {}
   };
   let catCal = loadCatCalibration();
 
@@ -63,7 +64,8 @@
       return {
         ...structuredClone(CAT_CAL_DEFAULT),
         ...raw,
-        boosts:{...CAT_CAL_DEFAULT.boosts,...(raw.boosts||{})}
+        boosts:{...CAT_CAL_DEFAULT.boosts,...(raw.boosts||{})},
+        emotions:{...CAT_CAL_DEFAULT.emotions,...(raw.emotions||{})}
       };
     }catch{
       return structuredClone(CAT_CAL_DEFAULT);
@@ -72,6 +74,61 @@
 
   function saveCatCalibration(){
     localStorage.setItem(CAT_CAL_KEY,JSON.stringify(catCal));
+  }
+
+  function buildEmotionControls(){
+    if(!els.emotionControls || !window.X72EmotionMap?.groups) return;
+    els.emotionControls.replaceChildren();
+    for(const group of window.X72EmotionMap.groups){
+      const section=document.createElement("section");
+      section.className="emotion-group";
+      const title=document.createElement("h3");
+      title.textContent=group.label+(group.status==="CANDIDATE_LABELS"?" • CANDIDAT":"");
+      section.appendChild(title);
+
+      for(const state of group.states){
+        const label=document.createElement("label");
+        label.className="emotion-control";
+        const name=document.createElement("span");
+        name.textContent=state.label;
+        const input=document.createElement("input");
+        input.type="range";
+        input.min="0";
+        input.max="100";
+        input.step="1";
+        input.dataset.emotionState=state.id;
+        const value=document.createElement("output");
+        value.dataset.emotionValue=state.id;
+        value.textContent="0%";
+        input.addEventListener("input",()=>{
+          catCal.emotions[state.id]=clamp(Number(input.value)/100);
+          saveCatCalibration();
+          syncEmotionControls();
+        });
+        label.append(name,input,value);
+        section.appendChild(label);
+      }
+      els.emotionControls.appendChild(section);
+    }
+  }
+
+  function syncEmotionControls(){
+    if(!els.emotionControls || !window.X72EmotionMap?.blend) return;
+    els.emotionControls.querySelectorAll("[data-emotion-state]").forEach(input=>{
+      const id=input.dataset.emotionState;
+      const value=clamp(catCal.emotions?.[id]||0);
+      input.value=String(Math.round(value*100));
+      const output=els.emotionControls.querySelector('[data-emotion-value="'+id+'"]');
+      if(output) output.textContent=Math.round(value*100)+"%";
+    });
+    const mix=window.X72EmotionMap.blend(catCal.emotions||{});
+    els.emotionSummary.textContent=
+      "J "+Math.round(mix.yellow_outer*100)
+      +" • B "+Math.round(mix.blue_second*100)
+      +" • M "+Math.round(mix.mauve_third*100)
+      +" • R "+Math.round(mix.rose_inner*100)
+      +" • ROUGE "+Math.round(mix.red_tint*100)
+      +" • GRIS "+Math.round(mix.gray_filter*100);
   }
 
   function syncCatControls(){
@@ -88,6 +145,7 @@
       +" • Y "+Number(catCal.y||0).toFixed(1)
       +" • SCALE "+Number(catCal.scale||1).toFixed(3)
       +" • ESP "+Number(catCal.spacing||1).toFixed(3);
+    syncEmotionControls();
   }
 
   function interpolateVisualState(previous,current,alpha){
@@ -571,6 +629,7 @@
     syncCatControls();
   });
 
+  buildEmotionControls();
   syncCatControls();
 
   els.pauseBtn.disabled=true;

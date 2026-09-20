@@ -22,9 +22,10 @@ def run() -> dict[str, object]:
     checks: list[dict[str, object]] = []
     lab_app = text(LAB / "app.js")
     lab_cat = text(LAB / "cat_mode.js")
+    lab_emotion = text(LAB / "emotion_map.js")
     lab_html = text(LAB / "index.html")
     lab_css = text(LAB / "styles.css")
-    for name in ("app.js", "cat_mode.js", "index.html", "styles.css"):
+    for name in ("app.js", "cat_mode.js", "emotion_map.js", "index.html", "styles.css"):
         checks.append(check(
             f"deploy copy matches lab for {name}",
             text(LAB / name) == text(DEPLOY / name),
@@ -42,6 +43,31 @@ def run() -> dict[str, object]:
             f"native light control {control_id} exists",
             f'id="{control_id}"' in lab_html,
         ))
+
+    checks.append(check(
+        "emotion map loads before cat renderer and app",
+        lab_html.index("./emotion_map.js")
+        < lab_html.index("./cat_mode.js")
+        < lab_html.index("./app.js"),
+    ))
+    checks.append(check(
+        "emotion map exposes four triads and twelve state IDs",
+        lab_emotion.count('states:[') == 4
+        and lab_emotion.count('id:"') >= 16
+        and 'schema:"ANTMUX-X72-EMOTION-MAP-v0.1"' in lab_emotion,
+    ))
+    checks.append(check(
+        "emotion controls are generated and persisted separately",
+        'id="emotionControls"' in lab_html
+        and "buildEmotionControls" in lab_app
+        and "catCal.emotions[state.id]" in lab_app,
+    ))
+    checks.append(check(
+        "cat renderer consumes blended emotion channels",
+        "window.X72EmotionMap.blend" in lab_cat
+        and "emotion.yellow_outer" in lab_cat
+        and "emotion.red_tint" in lab_cat,
+    ))
 
     checks.append(check(
         "calibration offers six requested direction/size buttons",

@@ -1199,3 +1199,246 @@ jobs:
           name: x72-z3-final-birth-log
           path: deploy-x72-shared-queen.log
           if-no-files-found: ignore
+
+
+  cat-mode-live:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'CAT-MODE-LIVE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v6
+
+      - name: Validate CAT mode payload
+        env:
+          ANTMUX_X72_DATA_DIR: ${{ runner.temp }}/x72-cat-mode-validation
+        run: |
+          set -euo pipefail
+          python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
+          python3 -m py_compile deploy/x72-shared-queen/app/hemisphere4.py
+          python3 -m py_compile deploy/x72-shared-queen/app/eye_render.py
+          python3 -m pip install --disable-pip-version-check -q fastapi
+          python3 deploy/x72-shared-queen/tests/test_hemisphere4.py
+          python3 deploy/x72-shared-queen/tests/test_eye_render.py
+          node --check laboratoire/embryon-x72/app.js
+          node --check laboratoire/embryon-x72/cat_mode.js
+          node --check laboratoire/embryon-x72/emotion_map.js
+          node deploy/x72-shared-queen/tests/test_emotion_map.js
+          cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
+          cmp -s laboratoire/embryon-x72/index.html deploy/x72-shared-queen/frontend/index.html
+          cmp -s laboratoire/embryon-x72/styles.css deploy/x72-shared-queen/frontend/styles.css
+          cmp -s laboratoire/embryon-x72/cat_mode.js deploy/x72-shared-queen/frontend/cat_mode.js
+          cmp -s laboratoire/embryon-x72/emotion_map.js deploy/x72-shared-queen/frontend/emotion_map.js
+          printf 'CAT_MODE_PAYLOAD=PASS\n'
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage CAT mode payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          STAGE="/tmp/x72-cat-mode-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "rm -rf '$STAGE' && mkdir -p '$STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            deploy/x72-shared-queen/app/z3_runtime.py \
+            deploy/x72-shared-queen/app/hemisphere4.py \
+            deploy/x72-shared-queen/app/eye_render.py \
+            laboratoire/embryon-x72/app.js \
+            laboratoire/embryon-x72/index.html \
+            laboratoire/embryon-x72/styles.css \
+            laboratoire/embryon-x72/cat_mode.js \
+            laboratoire/embryon-x72/emotion_map.js \
+            "$VPS_USER@$VPS_HOST:$STAGE/"
+
+      - name: Install CAT mode without clean birth
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          STAGE="/tmp/x72-cat-mode-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "STAGE='$STAGE' GITHUB_SHA='${GITHUB_SHA}' bash -se" <<'REMOTE' 2>&1 | tee cat-mode-live.log
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+
+          APP_ROOT="$HOME/antmux-x72-queen"
+          DATA_DIR="$APP_ROOT/data"
+          TARGET="/var/www/antmux.com/public_html/laboratoire/embryon-x72"
+          BACKUP="$HOME/antmux-x72-queen-backups/cat-mode-$(date -u +%Y%m%d-%H%M%S)-$GITHUB_SHA"
+          mkdir -p "$BACKUP"
+
+          for f in z3_runtime.py hemisphere4.py eye_render.py app.js index.html styles.css cat_mode.js emotion_map.js; do
+            test -f "$STAGE/$f"
+          done
+          test -d "$APP_ROOT/app"
+          test -d "$DATA_DIR"
+          test -d "$TARGET"
+
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/pre-state.json"
+
+          backup_one() {
+            src="$1"; key="$2"
+            if [ -f "$src" ]; then
+              cp -a "$src" "$BACKUP/$key.before"
+              touch "$BACKUP/$key.had"
+            fi
+          }
+          restore_one() {
+            dst="$1"; key="$2"
+            if [ -f "$BACKUP/$key.had" ]; then
+              cp -a "$BACKUP/$key.before" "$dst"
+            else
+              rm -f "$dst"
+            fi
+          }
+
+          systemctl --user stop antmux-x72-queen.service
+          backup_one "$APP_ROOT/app/z3_runtime.py" z3_runtime.py
+          backup_one "$APP_ROOT/app/hemisphere4.py" hemisphere4.py
+          backup_one "$APP_ROOT/app/eye_render.py" eye_render.py
+          backup_one "$TARGET/app.js" frontend-app.js
+          backup_one "$TARGET/index.html" frontend-index.html
+          backup_one "$TARGET/styles.css" frontend-styles.css
+          backup_one "$TARGET/cat_mode.js" frontend-cat_mode.js
+          backup_one "$TARGET/emotion_map.js" frontend-emotion_map.js
+          for f in "$DATA_DIR"/queen.db "$DATA_DIR"/queen.db-wal "$DATA_DIR"/queen.db-shm; do
+            [ -e "$f" ] && cp -a "$f" "$BACKUP/"
+          done
+
+          rollback() {
+            set +e
+            systemctl --user stop antmux-x72-queen.service
+            restore_one "$APP_ROOT/app/z3_runtime.py" z3_runtime.py
+            restore_one "$APP_ROOT/app/hemisphere4.py" hemisphere4.py
+            restore_one "$APP_ROOT/app/eye_render.py" eye_render.py
+            restore_one "$TARGET/app.js" frontend-app.js
+            restore_one "$TARGET/index.html" frontend-index.html
+            restore_one "$TARGET/styles.css" frontend-styles.css
+            restore_one "$TARGET/cat_mode.js" frontend-cat_mode.js
+            restore_one "$TARGET/emotion_map.js" frontend-emotion_map.js
+            rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
+            for f in "$BACKUP"/queen.db "$BACKUP"/queen.db-wal "$BACKUP"/queen.db-shm; do
+              [ -e "$f" ] && cp -a "$f" "$DATA_DIR/"
+            done
+            systemctl --user start antmux-x72-queen.service
+          }
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then rollback; fi; exit "$rc"' EXIT
+
+          install -m 0644 "$STAGE/z3_runtime.py" "$APP_ROOT/app/z3_runtime.py"
+          install -m 0644 "$STAGE/hemisphere4.py" "$APP_ROOT/app/hemisphere4.py"
+          install -m 0644 "$STAGE/eye_render.py" "$APP_ROOT/app/eye_render.py"
+          install -m 0644 "$STAGE/app.js" "$TARGET/app.js"
+          install -m 0644 "$STAGE/index.html" "$TARGET/index.html"
+          install -m 0644 "$STAGE/styles.css" "$TARGET/styles.css"
+          install -m 0644 "$STAGE/cat_mode.js" "$TARGET/cat_mode.js"
+          install -m 0644 "$STAGE/emotion_map.js" "$TARGET/emotion_map.js"
+
+          PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 -m py_compile \
+            "$APP_ROOT/app/z3_runtime.py" "$APP_ROOT/app/hemisphere4.py" "$APP_ROOT/app/eye_render.py"
+          node --check "$TARGET/app.js"
+          node --check "$TARGET/cat_mode.js"
+          node --check "$TARGET/emotion_map.js"
+
+          systemctl --user start antmux-x72-queen.service
+          ready=0
+          for _ in $(seq 1 80); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/post-state.json"; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          test "$ready" -eq 1
+          sleep 2
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/post-state-2s.json"
+
+          python3 - "$BACKUP/pre-state.json" "$BACKUP/post-state-2s.json" <<'PY'
+          import json, sys
+          before=json.load(open(sys.argv[1], encoding="utf-8"))
+          after=json.load(open(sys.argv[2], encoding="utf-8"))
+          assert after["source"] == "QUEEN_SERVER_V0_2"
+          assert after["integrity_match"] is True
+          assert after["protected_h256"] == before["protected_h256"] == after["reference_h256"]
+          assert int(after["generation"]) >= max(1, int(before["generation"]) - 1)
+          assert int(after["tick_count"]) >= max(1, int(before["tick_count"]) - 600)
+          latest=after["z3_runtime"]["latest"]
+          assert latest["fast_verified"] is True
+          hemi=latest["hemisphere4"]
+          assert hemi["authority"] == "OBSERVATION_ONLY"
+          assert hemi["verified"] is True
+          eye=latest["eye_render"]
+          assert eye["authority"] == "OBSERVATION_ONLY"
+          assert eye["mutates_queen"] is False
+          assert eye["physical_claim"] is False
+          print("CAT_MODE_STATE_PRESERVE=PASS")
+          print(f"PRE_GENERATION={before['generation']}")
+          print(f"POST_GENERATION={after['generation']}")
+          print(f"PRE_TICK={before['tick_count']}")
+          print(f"POST_TICK={after['tick_count']}")
+          PY
+
+          rm -rf "$STAGE"
+          trap - EXIT
+          printf 'CAT_MODE_INSTALL=PASS\n'
+          printf 'BACKUP=%s\n' "$BACKUP"
+          REMOTE
+
+      - name: Verify public CAT mode
+        run: |
+          set -euo pipefail
+          BASE='https://antmux.com/laboratoire/embryon-x72'
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$BASE/?sha=${GITHUB_SHA}" > /tmp/cat-index.html
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$BASE/app.js?sha=${GITHUB_SHA}" > /tmp/cat-app.js
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$BASE/cat_mode.js?sha=${GITHUB_SHA}" > /tmp/cat-mode.js
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$BASE/emotion_map.js?sha=${GITHUB_SHA}" > /tmp/emotion-map.js
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$BASE/styles.css?sha=${GITHUB_SHA}" > /tmp/cat-styles.css
+          grep -q 'id="viewBtn"' /tmp/cat-index.html
+          grep -q 'emotion_map.js' /tmp/cat-index.html
+          grep -q 'MODE CHAT' /tmp/cat-index.html
+          grep -q 'X72CatMode' /tmp/cat-mode.js
+          grep -q 'ANTMUX-X72-EMOTION-MAP-v0.1' /tmp/emotion-map.js
+          node --check /tmp/cat-app.js
+          node --check /tmp/cat-mode.js
+          node --check /tmp/emotion-map.js
+
+          curl --fail --silent --show-error "$BASE/api/state" > /tmp/public-cat-state.json
+          python3 - /tmp/public-cat-state.json <<'PY'
+          import json, sys
+          state=json.load(open(sys.argv[1], encoding="utf-8"))
+          assert state["integrity_match"] is True
+          latest=state["z3_runtime"]["latest"]
+          assert latest["hemisphere4"]["verified"] is True
+          assert latest["eye_render"]["authority"] == "OBSERVATION_ONLY"
+          print("PUBLIC_CAT_MODE=PASS")
+          PY
+
+      - name: Upload CAT mode deployment log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x72-cat-mode-live-log
+          path: cat-mode-live.log
+          if-no-files-found: ignore
