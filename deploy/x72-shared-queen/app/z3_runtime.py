@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .daat_gate import DaatGateFrame
 from .eye_render import EyeLightControls, EyePairRenderFrame
 from .hemisphere4 import Hemisphere4Frame
 from .stereo27 import Stereo27Frame
@@ -104,6 +105,7 @@ class Z3RuntimeSnapshot:
     stereo27: Stereo27Frame
     hemisphere4: Hemisphere4Frame
     stereo_source: StereoZSourceFrame
+    daat_gate: DaatGateFrame
     eye_render: EyePairRenderFrame
     fast_verified: bool
 
@@ -123,6 +125,7 @@ class Z3RuntimeSnapshot:
             "stereo27": self.stereo27.to_dict(),
             "hemisphere4": self.hemisphere4.to_dict(),
             "stereo_source": self.stereo_source.to_dict(),
+            "daat_gate": self.daat_gate.to_dict(),
             "eye_render": self.eye_render.to_dict(),
             "fast_verified": self.fast_verified,
         }
@@ -239,6 +242,11 @@ class Z3RuntimeBridge:
             source=echoed_state,
             theta=theta,
         )
+        daat_gate = DaatGateFrame.from_stereo_source(
+            stereo_source,
+            tick=tick,
+            generation=generation,
+        )
         eye_render = EyePairRenderFrame.from_stereo_source(
             stereo_source,
             controls=EyeLightControls(),
@@ -259,6 +267,7 @@ class Z3RuntimeBridge:
             stereo27=stereo27,
             hemisphere4=hemisphere4,
             stereo_source=stereo_source,
+            daat_gate=daat_gate,
             eye_render=eye_render,
             fast_verified=bool(
                 echo_verified
@@ -267,6 +276,7 @@ class Z3RuntimeBridge:
                 and stereo27.plouf
                 and hemisphere4.verify()
                 and stereo_source.verify()
+                and daat_gate.verify()
             ),
         )
 
@@ -304,6 +314,7 @@ class Z3RuntimeBridge:
             latest.pop("stereo27", None)
             latest.pop("hemisphere4", None)
             latest.pop("stereo_source", None)
+            latest.pop("daat_gate", None)
             latest.pop("eye_render", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
