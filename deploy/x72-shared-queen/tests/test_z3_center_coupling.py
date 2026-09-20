@@ -74,6 +74,13 @@ def run() -> dict[str, object]:
     source = make_state()
     snapshot = source.triads
     coupling = CenterCoupling12.from_theta(0.37)
+    coupling_cached = CenterCoupling12.from_theta(0.37)
+    checks.append(
+        check(
+            "canonical center coupling reuses immutable cached angle",
+            coupling_cached is coupling,
+        )
+    )
 
     checks.append(
         check(
