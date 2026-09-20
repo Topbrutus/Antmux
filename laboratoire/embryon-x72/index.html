@@ -56,8 +56,29 @@
           <button id="repairBtn" class="warning" type="button">RÉPARER + VÉRIFIER</button>
           <button id="resetBtn" class="gold" type="button">RESET RÉFÉRENCE</button>
           <button id="snapshotBtn" class="green" type="button">SNAPSHOT JSON</button>
+          <button id="viewBtn" class="cyan" type="button">MODE CHAT</button>
         </div>
         <p id="status" class="status">CORE prêt — hash protégé conforme à la référence.</p>
+
+        <div id="catControls" class="cat-controls" hidden>
+          <p class="tiny-title">MODE CHAT — CALIBRATION VISUELLE</p>
+          <label>JAUNE <input id="yellowBoost" type="range" min="0" max="100" value="0" /></label>
+          <label>BLEU <input id="blueBoost" type="range" min="0" max="100" value="0" /></label>
+          <label>MAUVE <input id="mauveBoost" type="range" min="0" max="100" value="0" /></label>
+          <label>ROSE <input id="roseBoost" type="range" min="0" max="100" value="0" /></label>
+          <label>ESPACEMENT <input id="eyeSpacing" type="range" min="65" max="145" value="100" /></label>
+          <div class="calibration-grid">
+            <button type="button" data-cat-adjust="left">←</button>
+            <button type="button" data-cat-adjust="right">→</button>
+            <button type="button" data-cat-adjust="up">↑</button>
+            <button type="button" data-cat-adjust="down">↓</button>
+            <button type="button" data-cat-adjust="smaller">−</button>
+            <button type="button" data-cat-adjust="larger">+</button>
+          </div>
+          <button id="catLockBtn" type="button">LOCK</button>
+          <output id="catCoords">X 0 • Y 0 • SCALE 1.000 • ESP 1.000</output>
+          <p class="calibration-note">Prévisualisation seulement — aucune mutation de la Queen.</p>
+        </div>
 
         <div class="report-card">
           <p class="tiny-title">RAPPORT V0.2 FOURNI</p>
@@ -105,6 +126,7 @@
     </footer>
   </main>
 
+  <script src="./cat_mode.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
