@@ -248,13 +248,15 @@ class QueenCore:
             synapse.activity = max(0.0, min(1.0, synapse.activity))
 
             if synapse.enabled and synapse.activity > 0.48:
-                synapse.memory += 0.00020 * synapse.activity
-            synapse.memory -= 0.000015 * max(0.0, synapse.memory - 0.08)
+                memory_headroom = max(0.0, 1.0 - synapse.memory / 0.92)
+                synapse.memory += 0.00020 * synapse.activity * memory_headroom
+            synapse.memory -= 0.000030 * max(0.0, synapse.memory - 0.08)
             synapse.memory = max(0.0, min(0.92, synapse.memory))
 
             if synapse.memory > 0.18:
-                synapse.crystal += 0.000075 * synapse.memory
-            synapse.crystal -= 0.000005 * max(0.0, synapse.crystal - 0.05)
+                crystal_headroom = max(0.0, 1.0 - synapse.crystal / 0.90)
+                synapse.crystal += 0.000075 * synapse.memory * crystal_headroom
+            synapse.crystal -= 0.000030 * max(0.0, synapse.crystal - 0.05)
             synapse.crystal = max(0.0, min(0.90, synapse.crystal))
 
         if self.tick % 360 == 0:

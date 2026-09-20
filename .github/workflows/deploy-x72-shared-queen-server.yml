@@ -951,6 +951,17 @@ jobs:
           python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
           python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
           python3 deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
+          python3 deploy/x72-shared-queen/tests/test_stereo_source.py
+          python3 deploy/x72-shared-queen/tests/test_daat_gate.py
+          python3 deploy/x72-shared-queen/tests/test_daat_evidence.py
+          python3 deploy/x72-shared-queen/tests/test_daat_link.py
+          python3 deploy/x72-shared-queen/tests/test_hopscotch_paths.py
+          python3 deploy/x72-shared-queen/tests/test_oscillator_modes.py
+          python3 deploy/x72-shared-queen/tests/test_coupled_field.py
+          python3 deploy/x72-shared-queen/tests/test_graph_geometry.py
+          python3 deploy/x72-shared-queen/tests/test_path_capacity.py
+          python3 deploy/x72-shared-queen/tests/test_path_capacity_sweep.py
+          python3 deploy/x72-shared-queen/tests/test_long_run_homeostasis.py
           node --check laboratoire/embryon-x72/app.js
           cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
           grep -q 'Z3 RUNTIME' laboratoire/embryon-x72/index.html
@@ -1184,12 +1195,27 @@ jobs:
           assert isinstance(z3, dict)
           assert z3["authority"] == "OBSERVATION_ONLY"
           assert z3["history_count"] == 32
-          assert z3["latest"]["fast_verified"] is True
+          latest = z3["latest"]
+          assert latest["fast_verified"] is True
+          for key in (
+              "stereo_source",
+              "daat_gate",
+              "daat_link",
+              "hopscotch",
+              "oscillator",
+              "coupled_field",
+              "graph_geometry",
+              "path_capacity",
+          ):
+              assert key in latest
+              assert latest[key]["verified"] is True
+          assert latest["path_capacity"]["complete_path_space"] == 479001600
+          assert latest["path_capacity"]["sampled_route_count"] == 64
           rel = state["relation_runtime"]
           assert rel["relation_count"] == 21
           assert rel["physical_claim"] is False
           assert rel["mutates_queen"] is False
-          print("PUBLIC_Z3_LIVE_BIRTH=PASS")
+          print("PUBLIC_X72_DAAT_PATH_CAPACITY_BIRTH=PASS")
           PY
 
       - name: Upload final-birth log
