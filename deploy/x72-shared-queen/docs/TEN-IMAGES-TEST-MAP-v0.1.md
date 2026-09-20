@@ -46,11 +46,13 @@ Current result: route geometry distinguishes traversal families (`11, 11, 23, 21
 
 Exit criterion passed: definitions are explicit, graph-metric axioms are tested exhaustively, relabeling invariance is verified, and route families are measurably distinguished.
 
-## Stage 6 — Finite state / expanding path space
+## Stage 6 — Finite state / expanding path space — IMPLEMENTED v0.1
 
-The Gabriel's Horn image is used only as an analogy for testing whether a bounded state representation can support a rapidly growing route space. This is a combinatorics/capacity question, not the mathematical Gabriel's Horn itself.
+The Gabriel's Horn image is used only as a prompt for a finite combinatorics/capacity question. With 12 channels, the complete route space is counted exactly as `12! = 479001600`, while a deterministic SHA-256-ranked beam retains at most 64 prefixes/routes per depth instead of materializing the full space.
 
-Exit criterion: memory and runtime remain bounded under a stated route-growth policy.
+The policy is explicit about its limitation: it counts the whole route space and samples it reproducibly, but does not claim lossless storage or full coverage of all routes.
+
+Exit criterion passed: across a full 7200-tick sweep, retained state stayed capped at 64 prefixes, stored channel slots at 768, generated candidates at no more than 640 per stage, while the exact theoretical path count remained available.
 
 ## Supporting prompts
 
