@@ -18,11 +18,15 @@ Current result: because the complement-product `Lc` is commutative, all complete
 
 Exit criterion passed: route identity, ordering, source/tick equality, final invariance, and reproducible traces are tested.
 
-## Stage 3 — Bounded oscillator modes
+## Stage 3 — Bounded oscillator modes — IMPLEMENTED v0.1
 
-Use the harmonic-oscillator image as a prompt to test whether bounded periodic modes are useful for internal state transitions. Start with ordinary discrete oscillators; no quantum interpretation is assumed.
+The harmonic-oscillator image is used only as a prompt for ordinary bounded software modes. Twelve deterministic modes derive amplitude from the explicit Da'at `B/A` pair and phase from the existing runtime `theta`.
 
-Exit criterion: boundedness, deterministic phase, and stable mode transitions.
+Current invariant: `x_i^2 + y_i^2 = a_i^2`, with `a_i=clamp(hypot(B_i,A_i),0,1)` and `phi_i=remainder((i+1)*theta,2*pi)`.
+
+No quantum energy levels, Planck constant, or physical-frequency meaning are imported.
+
+Exit criterion passed: boundedness, deterministic phase, deterministic reconstruction, and full-cycle evolution are tested.
 
 ## Stage 4 — Coupled-field analogy
 
