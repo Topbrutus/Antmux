@@ -36,11 +36,15 @@ The ring is an operational test topology only; it has no spatial, anatomical, el
 
 Exit criterion passed: X/Y sums are conserved, squared software norm never increases, component spans remain non-expanding, causal update order is explicit, and Queen authority remains untouched over a full 7200-tick sweep.
 
-## Stage 5 — Geometry of the graph
+## Stage 5 — Geometry of the graph — IMPLEMENTED v0.1
 
-The Riemann image suggests measuring path length, local distortion, and graph curvature-like quantities on the candidate topology. Begin with graph metrics before considering continuous manifolds.
+The Riemann image is used only as a prompt to measure the current discrete topology rigorously. The temporary operational graph is the unweighted cycle `C12`; no continuous-manifold or physical-space meaning is assigned.
 
-Exit criterion: metric definitions are explicit, invariant under node relabeling where appropriate, and useful for distinguishing routes.
+Shortest-path distance, diameter, mean pair distance, route walk length, hop lengths, endpoint efficiency, and a simple unweighted Forman edge diagnostic are explicit. Cycle rotations and reflections preserve route metrics as required.
+
+Current result: route geometry distinguishes traversal families (`11, 11, 23, 21` total walk lengths) even though the current commutative `Lc` ends at the same value.
+
+Exit criterion passed: definitions are explicit, graph-metric axioms are tested exhaustively, relabeling invariance is verified, and route families are measurably distinguished.
 
 ## Stage 6 — Finite state / expanding path space
 
