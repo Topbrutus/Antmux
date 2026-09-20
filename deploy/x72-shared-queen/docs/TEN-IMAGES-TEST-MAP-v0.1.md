@@ -28,11 +28,13 @@ No quantum energy levels, Planck constant, or physical-frequency meaning are imp
 
 Exit criterion passed: boundedness, deterministic phase, deterministic reconstruction, and full-cycle evolution are tested.
 
-## Stage 4 — Coupled-field analogy
+## Stage 4 — Coupled-field analogy — IMPLEMENTED v0.1
 
-The electromagnetism images suggest testing paired/orthogonal channels and local propagation rules. Treat these as software fields only. No electromagnetic claim is made.
+The electromagnetism images are used only as a prompt for paired software components, local flux, and strict accounting. Oscillator X/Y coordinates propagate synchronously on a temporary channel-index ring with `F_i=kappa(v_i-v_(i+1))` and a read-all/write-all update.
 
-Exit criterion: conservation/accounting rules, causal update order, and no hidden mutation of Queen state.
+The ring is an operational test topology only; it has no spatial, anatomical, electromagnetic, Tree, vertical, or depth meaning.
+
+Exit criterion passed: X/Y sums are conserved, squared software norm never increases, component spans remain non-expanding, causal update order is explicit, and Queen authority remains untouched over a full 7200-tick sweep.
 
 ## Stage 5 — Geometry of the graph
 
