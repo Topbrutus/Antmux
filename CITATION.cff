@@ -1,17 +1,18 @@
 cff-version: 1.2.0
 message: "If you use or discuss this software or its documented XYZ/stereo-Z architecture, please cite this repository and the archived release DOI when available."
-title: "ANTMUX-X72: XYZ / Stereo-Z Experimental Architecture"
+title: "ANTMUX-X72: XYZ / Stereo-Z and Da'at Path Experimental Architecture"
 type: software
 authors:
   - family-names: "Topbrutus"
-version: "0.1.0"
+version: "0.2.0"
 date-released: "2026-09-20"
 repository-code: "https://github.com/Topbrutus/Antmux"
 url: "https://github.com/Topbrutus/Antmux"
 abstract: >-
   Reproducible software implementation of a 12-channel ordered Givens coupling,
   center-plus-residual representation, synchronized bilateral stereo-Z source
-  using +theta/-theta, and a bounded visual-state mixing layer.
+  using +theta/-theta, reversible Da'at center/differential processing, and
+  bounded observation-only path, oscillator, field, graph, and capacity layers.
 keywords:
   - ANTMUX-X72
   - XYZ

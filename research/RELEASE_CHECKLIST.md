@@ -15,7 +15,7 @@ No institutional affiliation is required to obtain an ORCID iD.
 - [ ] Rerun `research/REPRODUCIBILITY.md`.
 - [ ] Record Python, Node and OS versions.
 - [ ] Confirm `git status` is clean.
-- [ ] Create a version tag, candidate: `x72-xyz-stereo-v0.1.0`.
+- [ ] Create a version tag, candidate: `x72-daat-paths-v0.2.0`.
 - [ ] Create a GitHub Release from that exact tag.
 
 Do not retag a different commit after a DOI has been created.
@@ -68,7 +68,7 @@ Before publishing the preprint:
 
 A citable release should contain at least:
 
-- `research/PREPRINT_X72_XYZ_STEREO_v0.1.md`
+- `research/PREPRINT_X72_DAAT_PATHS_v0.2.md`
 - `research/REPRODUCIBILITY.md`
 - `CITATION.cff`
 - `.zenodo.json`

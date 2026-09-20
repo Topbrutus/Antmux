@@ -17,6 +17,22 @@ COMMANDS = [
     [sys.executable, str(TESTS / "test_z3_runtime_bridge.py")],
     [sys.executable, str(TESTS / "test_eye_render.py")],
     [sys.executable, str(TESTS / "test_cat_mode_ui.py")],
+    [sys.executable, str(TESTS / "test_daat_gate.py")],
+    [sys.executable, str(TESTS / "test_daat_gate_sweep.py")],
+    [sys.executable, str(TESTS / "test_daat_link.py")],
+    [sys.executable, str(TESTS / "test_daat_link_sweep.py")],
+    [sys.executable, str(TESTS / "test_daat_evidence.py")],
+    [sys.executable, str(TESTS / "test_hopscotch_paths.py")],
+    [sys.executable, str(TESTS / "test_hopscotch_sweep.py")],
+    [sys.executable, str(TESTS / "test_oscillator_modes.py")],
+    [sys.executable, str(TESTS / "test_oscillator_sweep.py")],
+    [sys.executable, str(TESTS / "test_coupled_field.py")],
+    [sys.executable, str(TESTS / "test_coupled_field_sweep.py")],
+    [sys.executable, str(TESTS / "test_graph_geometry.py")],
+    [sys.executable, str(TESTS / "test_graph_geometry_sweep.py")],
+    [sys.executable, str(TESTS / "test_path_capacity.py")],
+    [sys.executable, str(TESTS / "test_path_capacity_sweep.py")],
+    [sys.executable, str(TESTS / "test_long_run_homeostasis.py")],
 ]
 
 
@@ -49,9 +65,10 @@ def run_one(command: list[str]) -> dict[str, object]:
 def main() -> int:
     results = [run_one(command) for command in COMMANDS]
     report = {
-        "schema": "ANTMUX-X72-REPRODUCIBILITY-v0.1",
+        "schema": "ANTMUX-X72-REPRODUCIBILITY-v0.2",
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "git_head": git_head(),
+        "source_baseline": "197b450",
         "python": sys.version,
         "platform": platform.platform(),
         "tests_total": len(results),

@@ -1,6 +1,6 @@
-# Reproducibility — ANTMUX-X72 v0.1
+# Reproducibility — ANTMUX-X72 v0.2
 
-**Baseline tested:** `8e05e2b85a16f311ebe832d6c201bd901c66f61f`  
+**Baseline tested:** `197b450`  
 **Date:** 2026-09-20
 
 ## Scope
@@ -12,9 +12,16 @@ This protocol verifies the current software claims used by the technical preprin
 - algebraic completeness of the 3+9 center/residual representation;
 - adversarial checks on invalid angles, order sensitivity and non-invertibility of center-only 12→3;
 - synchronized left/right Stereo Source from one Z input;
+- reversible Da'at center/differential reconstruction and link invariants;
+- evidence-ledger isolation;
+- Hopscotch route invariance and full-cycle traces;
+- bounded oscillator radius identity;
+- coupled-field accounting invariants;
+- C12 graph metric invariants;
+- bounded path-capacity sampler and exact 12! route count;
 - no visual eye rotation or mirror;
 - runtime checkpoint reconstruction;
-- visual layer isolation from authoritative Queen state.
+- visual/experimental layer isolation from authoritative Queen state.
 
 It does **not** validate biological, psychological or physical interpretations.
 
@@ -39,6 +46,22 @@ python "$T\test_stereo_source.py"
 python "$T\test_z3_runtime_bridge.py"
 python "$T\test_eye_render.py"
 python "$T\test_cat_mode_ui.py"
+python "$T\test_daat_gate.py"
+python "$T\test_daat_gate_sweep.py"
+python "$T\test_daat_link.py"
+python "$T\test_daat_link_sweep.py"
+python "$T\test_daat_evidence.py"
+python "$T\test_hopscotch_paths.py"
+python "$T\test_hopscotch_sweep.py"
+python "$T\test_oscillator_modes.py"
+python "$T\test_oscillator_sweep.py"
+python "$T\test_coupled_field.py"
+python "$T\test_coupled_field_sweep.py"
+python "$T\test_graph_geometry.py"
+python "$T\test_graph_geometry_sweep.py"
+python "$T\test_path_capacity.py"
+python "$T\test_path_capacity_sweep.py"
+python "$T\test_long_run_homeostasis.py"
 
 node --check ".\laboratoire\embryon-x72\app.js"
 node --check ".\laboratoire\embryon-x72\cat_mode.js"
@@ -57,6 +80,7 @@ Stereo Source                      10/10 PASS
 Z3 runtime bridge                  10/10 PASS
 Eye Render                         12/12 PASS
 CAT Mode UI                        22/22 PASS
+Extended reproducibility runner    22/22 test programs PASS
 ```
 
 Any future release intended for scientific citation should rerun these tests and preserve the resulting logs.
