@@ -8,6 +8,7 @@ from typing import Any, Iterable
 
 from .daat_evidence import DaatEvidenceTracker
 from .daat_gate import DaatGateFrame
+from .daat_link import DaatLinkFrame
 from .eye_render import EyeLightControls, EyePairRenderFrame
 from .hemisphere4 import Hemisphere4Frame
 from .stereo27 import Stereo27Frame
@@ -107,6 +108,7 @@ class Z3RuntimeSnapshot:
     hemisphere4: Hemisphere4Frame
     stereo_source: StereoZSourceFrame
     daat_gate: DaatGateFrame
+    daat_link: DaatLinkFrame
     eye_render: EyePairRenderFrame
     fast_verified: bool
 
@@ -127,6 +129,7 @@ class Z3RuntimeSnapshot:
             "hemisphere4": self.hemisphere4.to_dict(),
             "stereo_source": self.stereo_source.to_dict(),
             "daat_gate": self.daat_gate.to_dict(),
+            "daat_link": self.daat_link.to_dict(),
             "eye_render": self.eye_render.to_dict(),
             "fast_verified": self.fast_verified,
         }
@@ -254,6 +257,7 @@ class Z3RuntimeBridge:
             tick=tick,
             generation=generation,
         )
+        daat_link = DaatLinkFrame.from_gate(daat_gate)
         eye_render = EyePairRenderFrame.from_stereo_source(
             stereo_source,
             controls=EyeLightControls(),
@@ -275,6 +279,7 @@ class Z3RuntimeBridge:
             hemisphere4=hemisphere4,
             stereo_source=stereo_source,
             daat_gate=daat_gate,
+            daat_link=daat_link,
             eye_render=eye_render,
             fast_verified=bool(
                 echo_verified
@@ -284,6 +289,7 @@ class Z3RuntimeBridge:
                 and hemisphere4.verify()
                 and stereo_source.verify()
                 and daat_gate.verify()
+                and daat_link.verify()
             ),
         )
 
@@ -324,6 +330,7 @@ class Z3RuntimeBridge:
             latest.pop("hemisphere4", None)
             latest.pop("stereo_source", None)
             latest.pop("daat_gate", None)
+            latest.pop("daat_link", None)
             latest.pop("eye_render", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
