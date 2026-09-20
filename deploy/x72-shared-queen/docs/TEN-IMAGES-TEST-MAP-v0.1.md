@@ -10,11 +10,13 @@ Use a Beta(1,1) ledger per explicit invariant rather than a single yes/no verdic
 
 This measures **software repeatability**, not truth about nature.
 
-## Stage 2 — Path ensemble — NEXT CANDIDATE
+## Stage 2 — Path ensemble — IMPLEMENTED AS HOPSCOTCH v0.1
 
-Inspired by the path-integral image only at the algorithmic level: define several legal routes between known nodes, run them under identical inputs, and compare their measurable outputs. Do not copy quantum amplitudes or Planck constants unless an independent model justifies them.
+Inspired by the path-integral image only at the algorithmic level: four legal channel-order permutations run from the same Da'at Link frame. They keep identical source/tick/input while recording different cumulative traversal histories.
 
-Exit criterion: route identity, ordering, and result must be reproducible under a fixed seed and tick.
+Current result: because the complement-product `Lc` is commutative, all complete paths end at the same final score, while their intermediate histories differ. A future path-dependent final outcome would therefore require an explicitly stateful/non-commutative hop rule; none is assumed yet.
+
+Exit criterion passed: route identity, ordering, source/tick equality, final invariance, and reproducible traces are tested.
 
 ## Stage 3 — Bounded oscillator modes
 
