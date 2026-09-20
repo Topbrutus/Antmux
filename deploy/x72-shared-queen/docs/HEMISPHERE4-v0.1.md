@@ -40,18 +40,11 @@ It is not yet an autonomous control law.
 
 Every carrier can therefore be identified by both side and polarity:
 `G_POS`, `G_NEG`, `D_POS`, `D_NEG`, or `BOTH`.
-## Eye render contract
+## Compatibility note
 
-The two eye motifs are intentionally not duplicated animations.
+Hemisphere4 is retained as a legacy sign-mirror diagnostic only. It is **not** the eye-render stereo source.
 
-- left motif: `COUNTERCLOCKWISE`
-- right motif: `CLOCKWISE`
-- right visual: horizontal mirror enabled
-- rotation relationship: opposite directions
-- visual goal: paired inward/outward motion, never two motifs drifting in the same screen direction
-
-The color basis is bilateral: the exported `bilateral_mean` combines the left and right positive
-lanes so the two eyes can receive the same tone while retaining different internal animations.
+The eye path now uses the dedicated Stereo Source module, which calculates a true left/right pair from the same Z input with opposite calculation angles. No visual mirror and no negative-eye mapping are used by the eye renderer.
 ## Authority and compatibility
 
 `hemisphere4` is derived telemetry only.

@@ -1217,9 +1217,11 @@ jobs:
           set -euo pipefail
           python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
           python3 -m py_compile deploy/x72-shared-queen/app/hemisphere4.py
+          python3 -m py_compile deploy/x72-shared-queen/app/stereo_source.py
           python3 -m py_compile deploy/x72-shared-queen/app/eye_render.py
           python3 -m pip install --disable-pip-version-check -q fastapi
           python3 deploy/x72-shared-queen/tests/test_hemisphere4.py
+          python3 deploy/x72-shared-queen/tests/test_stereo_source.py
           python3 deploy/x72-shared-queen/tests/test_eye_render.py
           node --check laboratoire/embryon-x72/app.js
           node --check laboratoire/embryon-x72/cat_mode.js
@@ -1262,6 +1264,7 @@ jobs:
           scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
             deploy/x72-shared-queen/app/z3_runtime.py \
             deploy/x72-shared-queen/app/hemisphere4.py \
+            deploy/x72-shared-queen/app/stereo_source.py \
             deploy/x72-shared-queen/app/eye_render.py \
             laboratoire/embryon-x72/app.js \
             laboratoire/embryon-x72/index.html \
@@ -1290,7 +1293,7 @@ jobs:
           BACKUP="$HOME/antmux-x72-queen-backups/cat-mode-$(date -u +%Y%m%d-%H%M%S)-$GITHUB_SHA"
           mkdir -p "$BACKUP"
 
-          for f in z3_runtime.py hemisphere4.py eye_render.py app.js index.html styles.css cat_mode.js emotion_map.js; do
+          for f in z3_runtime.py hemisphere4.py stereo_source.py eye_render.py app.js index.html styles.css cat_mode.js emotion_map.js; do
             test -f "$STAGE/$f"
           done
           test -d "$APP_ROOT/app"
@@ -1318,6 +1321,7 @@ jobs:
           systemctl --user stop antmux-x72-queen.service
           backup_one "$APP_ROOT/app/z3_runtime.py" z3_runtime.py
           backup_one "$APP_ROOT/app/hemisphere4.py" hemisphere4.py
+          backup_one "$APP_ROOT/app/stereo_source.py" stereo_source.py
           backup_one "$APP_ROOT/app/eye_render.py" eye_render.py
           backup_one "$TARGET/app.js" frontend-app.js
           backup_one "$TARGET/index.html" frontend-index.html
@@ -1333,6 +1337,7 @@ jobs:
             systemctl --user stop antmux-x72-queen.service
             restore_one "$APP_ROOT/app/z3_runtime.py" z3_runtime.py
             restore_one "$APP_ROOT/app/hemisphere4.py" hemisphere4.py
+            restore_one "$APP_ROOT/app/stereo_source.py" stereo_source.py
             restore_one "$APP_ROOT/app/eye_render.py" eye_render.py
             restore_one "$TARGET/app.js" frontend-app.js
             restore_one "$TARGET/index.html" frontend-index.html
@@ -1349,6 +1354,7 @@ jobs:
 
           install -m 0644 "$STAGE/z3_runtime.py" "$APP_ROOT/app/z3_runtime.py"
           install -m 0644 "$STAGE/hemisphere4.py" "$APP_ROOT/app/hemisphere4.py"
+          install -m 0644 "$STAGE/stereo_source.py" "$APP_ROOT/app/stereo_source.py"
           install -m 0644 "$STAGE/eye_render.py" "$APP_ROOT/app/eye_render.py"
           install -m 0644 "$STAGE/app.js" "$TARGET/app.js"
           install -m 0644 "$STAGE/index.html" "$TARGET/index.html"
@@ -1357,7 +1363,7 @@ jobs:
           install -m 0644 "$STAGE/emotion_map.js" "$TARGET/emotion_map.js"
 
           PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 -m py_compile \
-            "$APP_ROOT/app/z3_runtime.py" "$APP_ROOT/app/hemisphere4.py" "$APP_ROOT/app/eye_render.py"
+            "$APP_ROOT/app/z3_runtime.py" "$APP_ROOT/app/hemisphere4.py" "$APP_ROOT/app/stereo_source.py" "$APP_ROOT/app/eye_render.py"
           node --check "$TARGET/app.js"
           node --check "$TARGET/cat_mode.js"
           node --check "$TARGET/emotion_map.js"
@@ -1389,6 +1395,11 @@ jobs:
           hemi=latest["hemisphere4"]
           assert hemi["authority"] == "OBSERVATION_ONLY"
           assert hemi["verified"] is True
+          stereo=latest["stereo_source"]
+          assert stereo["verified"] is True
+          assert stereo["render_contract"]["visible_rotation"] is False
+          assert stereo["render_contract"]["mirror_x"] is False
+          assert stereo["render_contract"]["negative_eye"] is False
           eye=latest["eye_render"]
           assert eye["authority"] == "OBSERVATION_ONLY"
           assert eye["mutates_queen"] is False
@@ -1431,6 +1442,9 @@ jobs:
           assert state["integrity_match"] is True
           latest=state["z3_runtime"]["latest"]
           assert latest["hemisphere4"]["verified"] is True
+          assert latest["stereo_source"]["verified"] is True
+          assert latest["stereo_source"]["render_contract"]["visible_rotation"] is False
+          assert latest["stereo_source"]["render_contract"]["mirror_x"] is False
           assert latest["eye_render"]["authority"] == "OBSERVATION_ONLY"
           print("PUBLIC_CAT_MODE=PASS")
           PY

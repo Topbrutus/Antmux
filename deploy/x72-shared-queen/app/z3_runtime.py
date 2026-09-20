@@ -9,6 +9,7 @@ from typing import Any, Iterable
 from .eye_render import EyeLightControls, EyePairRenderFrame
 from .hemisphere4 import Hemisphere4Frame
 from .stereo27 import Stereo27Frame
+from .stereo_source import StereoZSourceFrame
 
 from z3_echo import (
     CenterCoupling12,
@@ -102,6 +103,7 @@ class Z3RuntimeSnapshot:
     echo_provenance_h256: tuple[str, str, str, str]
     stereo27: Stereo27Frame
     hemisphere4: Hemisphere4Frame
+    stereo_source: StereoZSourceFrame
     eye_render: EyePairRenderFrame
     fast_verified: bool
 
@@ -120,6 +122,7 @@ class Z3RuntimeSnapshot:
             "echo_provenance_h256": list(self.echo_provenance_h256),
             "stereo27": self.stereo27.to_dict(),
             "hemisphere4": self.hemisphere4.to_dict(),
+            "stereo_source": self.stereo_source.to_dict(),
             "eye_render": self.eye_render.to_dict(),
             "fast_verified": self.fast_verified,
         }
@@ -232,9 +235,12 @@ class Z3RuntimeBridge:
             coupled=coupled,
             center=center_now,
         )
-        eye_render = EyePairRenderFrame.from_hemisphere(
-            hemisphere4,
+        stereo_source = StereoZSourceFrame.from_source(
+            source=echoed_state,
             theta=theta,
+        )
+        eye_render = EyePairRenderFrame.from_stereo_source(
+            stereo_source,
             controls=EyeLightControls(),
         )
 
@@ -252,6 +258,7 @@ class Z3RuntimeBridge:
             echo_provenance_h256=tuple(echo_hashes),  # type: ignore[arg-type]
             stereo27=stereo27,
             hemisphere4=hemisphere4,
+            stereo_source=stereo_source,
             eye_render=eye_render,
             fast_verified=bool(
                 echo_verified
@@ -259,6 +266,7 @@ class Z3RuntimeBridge:
                 and stereo27.verify()
                 and stereo27.plouf
                 and hemisphere4.verify()
+                and stereo_source.verify()
             ),
         )
 
@@ -295,6 +303,7 @@ class Z3RuntimeBridge:
         if isinstance(latest, dict):
             latest.pop("stereo27", None)
             latest.pop("hemisphere4", None)
+            latest.pop("stereo_source", None)
             latest.pop("eye_render", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload

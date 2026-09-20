@@ -71,7 +71,7 @@
     ctx.restore();
   }
 
-  function drawWeb(ctx,radius,color,boost,mirror){
+  function drawWeb(ctx,radius,color,boost){
     const alpha=.20+boost*.70;
     ctx.save();
     ctx.strokeStyle=rgba(color,alpha);
@@ -84,7 +84,7 @@
       const b=((i*5)%points)*Math.PI*2/points;
       ctx.beginPath();
       ctx.moveTo(Math.cos(a)*radius,Math.sin(a)*radius);
-      ctx.lineTo(Math.cos(b)*radius*(mirror?.94:1),Math.sin(b)*radius);
+      ctx.lineTo(Math.cos(b)*radius,Math.sin(b)*radius);
       ctx.stroke();
     }
     ctx.restore();
@@ -142,18 +142,16 @@
     ctx.restore();
   }
 
-  function drawEye(ctx,cx,cy,radius,rotation,mirror,boosts,overlays,phase,seed){
+  function drawEye(ctx,cx,cy,radius,boosts,overlays,phase,seed){
     ctx.save();
     ctx.translate(cx,cy);
-    ctx.scale(mirror?-1:1,1);
-    ctx.rotate(rotation);
     ctx.save();
     ctx.scale(1.46,.88);
     drawCrystals(ctx,radius*1.02,COLORS.yellow,boosts.yellow_outer,seed+11);
     drawCrystals(ctx,radius*.86,COLORS.blue,boosts.blue_second,seed+29);
     drawRing(ctx,radius,6,COLORS.yellow,.42,boosts.yellow_outer);
     drawRing(ctx,radius*.78,5,COLORS.blue,.30,boosts.blue_second);
-    drawWeb(ctx,radius*.72,COLORS.blue,boosts.blue_second,mirror);
+    drawWeb(ctx,radius*.72,COLORS.blue,boosts.blue_second);
     drawRing(ctx,radius*.56,4,COLORS.mauve,.24,boosts.mauve_third);
     drawRing(ctx,radius*.34,3,COLORS.rose,.18,boosts.rose_inner);
     if(overlays.red_tint>0){
@@ -208,22 +206,20 @@
     const overlays=overlayValues(state,cal);
     const render=serverRender(state);
 
-    const leftRotation=Number.isFinite(Number(render?.left_eye?.rotation_rad))
-      ? Number(render.left_eye.rotation_rad)
-      : -phase;
-    const rightRotation=Number.isFinite(Number(render?.right_eye?.rotation_rad))
-      ? Number(render.right_eye.rotation_rad)
-      : phase;
-
-    drawEye(ctx,cx-eyeGap,cy,baseR,leftRotation,false,boosts,overlays,phase,72);
-    drawEye(ctx,cx+eyeGap,cy,baseR,rightRotation,true,boosts,overlays,phase,144);
+    drawEye(ctx,cx-eyeGap,cy,baseR,boosts,overlays,phase,72);
+    drawEye(ctx,cx+eyeGap,cy,baseR,boosts,overlays,phase,144);
     ctx.fillStyle=COLORS.text;
     ctx.font="bold 18px Georgia";
     ctx.textAlign="center";
     ctx.fillText("MODE CHAT — CALIBRATION OCULAIRE",cx,54);
     ctx.fillStyle=COLORS.muted;
     ctx.font="11px Consolas";
-    ctx.fillText("Deux animations stéréo • couleur bilatérale • rendu visuel uniquement",cx,74);
+    const leftCalc=render?.left_eye?.calculation_direction || "G";
+    const rightCalc=render?.right_eye?.calculation_direction || "D";
+    ctx.fillText(
+      "Image stable • calcul stéréo "+leftCalc+" / "+rightCalc+" • couleur bilatérale",
+      cx,74
+    );
 
     ctx.fillStyle=COLORS.yellow;
     ctx.font="bold 10px Consolas";
