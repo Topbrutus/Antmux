@@ -24,24 +24,31 @@
     return state?.z3_runtime?.latest?.eye_render || null;
   }
 
+  function emotionMix(cal){
+    if(!window.X72EmotionMap?.blend) return {};
+    return window.X72EmotionMap.blend(cal?.emotions || {});
+  }
+
   function mergedBoosts(state,cal){
     const native=serverRender(state)?.native_boosts || {};
     const preview=cal?.boosts || {};
+    const emotion=emotionMix(cal);
     return {
-      yellow_outer:Math.max(clamp01(native.yellow_outer),clamp01(preview.yellow_outer)),
-      blue_second:Math.max(clamp01(native.blue_second),clamp01(preview.blue_second)),
-      mauve_third:Math.max(clamp01(native.mauve_third),clamp01(preview.mauve_third)),
-      rose_inner:Math.max(clamp01(native.rose_inner),clamp01(preview.rose_inner))
+      yellow_outer:Math.max(clamp01(native.yellow_outer),clamp01(preview.yellow_outer),clamp01(emotion.yellow_outer)),
+      blue_second:Math.max(clamp01(native.blue_second),clamp01(preview.blue_second),clamp01(emotion.blue_second)),
+      mauve_third:Math.max(clamp01(native.mauve_third),clamp01(preview.mauve_third),clamp01(emotion.mauve_third)),
+      rose_inner:Math.max(clamp01(native.rose_inner),clamp01(preview.rose_inner),clamp01(emotion.rose_inner))
     };
   }
 
-  function overlayValues(state){
+  function overlayValues(state,cal){
     const overlays=serverRender(state)?.overlays || {};
+    const emotion=emotionMix(cal);
     return {
-      red_tint:clamp01(overlays.red_tint),
-      gray_filter:clamp01(overlays.gray_filter),
-      white_reflection:clamp01(overlays.white_reflection ?? .35),
-      black_stripes:clamp01(overlays.black_stripes ?? .20)
+      red_tint:Math.max(clamp01(overlays.red_tint),clamp01(emotion.red_tint)),
+      gray_filter:Math.max(clamp01(overlays.gray_filter),clamp01(emotion.gray_filter)),
+      white_reflection:Math.max(clamp01(overlays.white_reflection ?? .35),clamp01(emotion.white_reflection)),
+      black_stripes:Math.max(clamp01(overlays.black_stripes ?? .20),clamp01(emotion.black_stripes))
     };
   }
 
@@ -198,7 +205,7 @@
     const baseR=Math.min(w,h)*.145*scale;
     const eyeGap=Math.min(w,h)*.205*spacing;
     const boosts=mergedBoosts(state,cal);
-    const overlays=overlayValues(state);
+    const overlays=overlayValues(state,cal);
     const render=serverRender(state);
 
     const leftRotation=Number.isFinite(Number(render?.left_eye?.rotation_rad))

@@ -66,6 +66,12 @@
           <label>BLEU <input id="blueBoost" type="range" min="0" max="100" value="0" /></label>
           <label>MAUVE <input id="mauveBoost" type="range" min="0" max="100" value="0" /></label>
           <label>ROSE <input id="roseBoost" type="range" min="0" max="100" value="0" /></label>
+
+          <p class="tiny-title emotion-title">12 ÉTATS → LUMIÈRE</p>
+          <div id="emotionControls" class="emotion-controls"></div>
+          <output id="emotionSummary" class="emotion-summary">J 0 • B 0 • M 0 • R 0</output>
+          <p class="calibration-note">Les libellés marqués CANDIDAT restent renommables sans changer le moteur.</p>
+
           <label>ESPACEMENT <input id="eyeSpacing" type="range" min="65" max="145" value="100" /></label>
           <div class="calibration-grid">
             <button type="button" data-cat-adjust="left">←</button>
@@ -126,6 +132,7 @@
     </footer>
   </main>
 
+  <script src="./emotion_map.js" defer></script>
   <script src="./cat_mode.js" defer></script>
   <script src="./app.js" defer></script>
 </body>

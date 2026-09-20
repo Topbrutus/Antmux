@@ -95,3 +95,12 @@ footer{color:var(--muted);font-size:.73rem;line-height:1.5;padding:14px 2px}
 #catLockBtn.locked{color:var(--green);border-color:rgba(92,255,177,.35)}
 #catCoords{display:block;margin-top:8px;color:var(--cyan);font-size:.68rem;line-height:1.4}
 .calibration-note{margin:7px 0 0;color:var(--muted);font-size:.64rem;line-height:1.4}
+
+.emotion-title{margin-top:14px!important;color:var(--gold2)}
+.emotion-controls{display:grid;gap:7px;margin:6px 0 8px}
+.emotion-group{border:1px solid var(--grid);background:rgba(5,7,12,.35);padding:7px}
+.emotion-group h3{margin:0 0 6px;color:var(--gold);font-size:.66rem;letter-spacing:.06em}
+.emotion-control{display:grid!important;grid-template-columns:74px 1fr 34px!important;gap:7px!important;margin:4px 0!important}
+.emotion-control span{color:var(--text);font-size:.68rem}
+.emotion-control output{color:var(--cyan);font-size:.65rem;text-align:right}
+.emotion-summary{display:block;color:var(--gold2);font-size:.66rem;line-height:1.45;margin:6px 0 10px}
