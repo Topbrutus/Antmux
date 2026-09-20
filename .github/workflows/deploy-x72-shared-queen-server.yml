@@ -1113,6 +1113,8 @@ jobs:
           install -m 0644 "$PAYLOAD_ROOT/laboratoire/embryon-x72/app.js" "$TARGET/app.js"
           install -m 0644 "$PAYLOAD_ROOT/laboratoire/embryon-x72/index.html" "$TARGET/index.html"
 
+          # Clean-birth validation must not import app.server through an old or malformed DB.
+          rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
           python3 -m py_compile "$APP_ROOT/app/server.py" "$APP_ROOT/app/z3_runtime.py"
           PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 - <<'PY'
           from app.server import QueenCore
