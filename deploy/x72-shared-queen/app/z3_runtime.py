@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .coupled_field import CoupledFieldFrame
 from .daat_evidence import DaatEvidenceTracker
 from .daat_gate import DaatGateFrame
 from .daat_link import DaatLinkFrame
@@ -113,6 +114,7 @@ class Z3RuntimeSnapshot:
     daat_link: DaatLinkFrame
     hopscotch: HopscotchEnsembleFrame
     oscillator: BoundedOscillatorFrame
+    coupled_field: CoupledFieldFrame
     eye_render: EyePairRenderFrame
     fast_verified: bool
 
@@ -136,6 +138,7 @@ class Z3RuntimeSnapshot:
             "daat_link": self.daat_link.to_dict(),
             "hopscotch": self.hopscotch.to_dict(),
             "oscillator": self.oscillator.to_dict(),
+            "coupled_field": self.coupled_field.to_dict(),
             "eye_render": self.eye_render.to_dict(),
             "fast_verified": self.fast_verified,
         }
@@ -269,6 +272,7 @@ class Z3RuntimeBridge:
             daat_link,
             theta=theta,
         )
+        coupled_field = CoupledFieldFrame.from_oscillator(oscillator)
         eye_render = EyePairRenderFrame.from_stereo_source(
             stereo_source,
             controls=EyeLightControls(),
@@ -293,6 +297,7 @@ class Z3RuntimeBridge:
             daat_link=daat_link,
             hopscotch=hopscotch,
             oscillator=oscillator,
+            coupled_field=coupled_field,
             eye_render=eye_render,
             fast_verified=bool(
                 echo_verified
@@ -305,6 +310,7 @@ class Z3RuntimeBridge:
                 and daat_link.verify()
                 and hopscotch.verify()
                 and oscillator.verify()
+                and coupled_field.verify()
             ),
         )
 
@@ -348,6 +354,7 @@ class Z3RuntimeBridge:
             latest.pop("daat_link", None)
             latest.pop("hopscotch", None)
             latest.pop("oscillator", None)
+            latest.pop("coupled_field", None)
             latest.pop("eye_render", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
