@@ -1,0 +1,29 @@
+{
+  "title": "ANTMUX-X72: XYZ / Stereo-Z Experimental Architecture",
+  "upload_type": "software",
+  "description": "Reproducible software artifact documenting a 12-channel ordered Givens coupling, center-plus-residual representation, synchronized bilateral stereo-Z source using +theta/-theta, and a bounded visual-state mixing layer. The artifact documents an experimental architecture and does not claim a new biological or physical law.",
+  "creators": [
+    {
+      "name": "Topbrutus"
+    }
+  ],
+  "publication_date": "2026-09-20",
+  "version": "0.1.0",
+  "keywords": [
+    "ANTMUX-X72",
+    "XYZ",
+    "stereo-Z",
+    "Givens rotations",
+    "orthogonal coupling",
+    "reproducibility",
+    "artificial life"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Topbrutus/Antmux",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "access_right": "open"
+}
