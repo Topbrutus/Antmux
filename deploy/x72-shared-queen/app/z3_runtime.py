@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .daat_evidence import DaatEvidenceTracker
 from .daat_gate import DaatGateFrame
 from .eye_render import EyeLightControls, EyePairRenderFrame
 from .hemisphere4 import Hemisphere4Frame
@@ -154,6 +155,7 @@ class Z3RuntimeBridge:
         self.history: list[tuple[float, ...]] = []
         self.last_sample_tick = -1
         self.latest: Z3RuntimeSnapshot | None = None
+        self.daat_evidence = DaatEvidenceTracker()
 
     def observe(self, *, tick: int, generation: int, synapses: list[Any]) -> bool:
         if tick <= 0 or tick % self.sample_interval_ticks != 0:
@@ -166,6 +168,11 @@ class Z3RuntimeBridge:
         self.history = self.history[-self.history_size :]
         self.last_sample_tick = tick
         self.latest = self._build_snapshot(tick=tick, generation=generation)
+        self.daat_evidence.observe(
+            stereo=self.latest.stereo_source,
+            daat=self.latest.daat_gate,
+            tick=tick,
+        )
         return True
 
     def _build_snapshot(self, *, tick: int, generation: int) -> Z3RuntimeSnapshot:
@@ -301,6 +308,7 @@ class Z3RuntimeBridge:
             "sample_interval_ticks": self.sample_interval_ticks,
             "history_size": self.history_size,
             "history_count": len(self.history),
+            "daat_evidence": self.daat_evidence.visual_state(),
             "latest": latest.to_dict() if latest is not None else None,
         }
 
@@ -309,6 +317,7 @@ class Z3RuntimeBridge:
         # stereo27 is a deterministic observation-only derivative. Keep it out
         # of the authoritative whole-state hash so existing v0.1 checkpoints
         # remain hash-compatible across this observational extension.
+        payload.pop("daat_evidence", None)
         latest = payload.get("latest")
         if isinstance(latest, dict):
             latest.pop("stereo27", None)
@@ -326,6 +335,7 @@ class Z3RuntimeBridge:
             "history_size": self.history_size,
             "history": [list(row) for row in self.history],
             "last_sample_tick": self.last_sample_tick,
+            "daat_evidence": self.daat_evidence.to_checkpoint(),
             "latest_generation": (
                 self.latest.generation if self.latest is not None else None
             ),
@@ -344,6 +354,9 @@ class Z3RuntimeBridge:
             channels = Channels12.from_values(row)
             bridge.history.append(tuple(float(value.real) for value in channels.values))
         bridge.last_sample_tick = int(payload.get("last_sample_tick", -1))
+        bridge.daat_evidence = DaatEvidenceTracker.from_checkpoint(
+            payload.get("daat_evidence")
+        )
         if bridge.history:
             latest_tick = (
                 bridge.last_sample_tick
