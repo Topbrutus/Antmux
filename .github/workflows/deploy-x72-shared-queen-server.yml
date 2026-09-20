@@ -1218,6 +1218,7 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
           python3 -m py_compile deploy/x72-shared-queen/app/hemisphere4.py
           python3 -m py_compile deploy/x72-shared-queen/app/eye_render.py
+          python3 -m pip install --disable-pip-version-check -q fastapi
           python3 deploy/x72-shared-queen/tests/test_hemisphere4.py
           python3 deploy/x72-shared-queen/tests/test_eye_render.py
           node --check laboratoire/embryon-x72/app.js
