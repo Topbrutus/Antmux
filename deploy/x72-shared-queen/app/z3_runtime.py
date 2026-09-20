@@ -15,6 +15,7 @@ from .graph_geometry import GraphGeometryFrame
 from .hemisphere4 import Hemisphere4Frame
 from .hopscotch_paths import HopscotchEnsembleFrame
 from .oscillator_modes import BoundedOscillatorFrame
+from .path_capacity import PathCapacityFrame
 from .stereo27 import Stereo27Frame
 from .stereo_source import StereoZSourceFrame
 
@@ -117,6 +118,7 @@ class Z3RuntimeSnapshot:
     oscillator: BoundedOscillatorFrame
     coupled_field: CoupledFieldFrame
     graph_geometry: GraphGeometryFrame
+    path_capacity: PathCapacityFrame
     eye_render: EyePairRenderFrame
     fast_verified: bool
 
@@ -142,6 +144,7 @@ class Z3RuntimeSnapshot:
             "oscillator": self.oscillator.to_dict(),
             "coupled_field": self.coupled_field.to_dict(),
             "graph_geometry": self.graph_geometry.to_dict(),
+            "path_capacity": self.path_capacity.to_dict(),
             "eye_render": self.eye_render.to_dict(),
             "fast_verified": self.fast_verified,
         }
@@ -277,6 +280,7 @@ class Z3RuntimeBridge:
         )
         coupled_field = CoupledFieldFrame.from_oscillator(oscillator)
         graph_geometry = GraphGeometryFrame.from_hopscotch(hopscotch)
+        path_capacity = PathCapacityFrame.from_link(daat_link)
         eye_render = EyePairRenderFrame.from_stereo_source(
             stereo_source,
             controls=EyeLightControls(),
@@ -303,6 +307,7 @@ class Z3RuntimeBridge:
             oscillator=oscillator,
             coupled_field=coupled_field,
             graph_geometry=graph_geometry,
+            path_capacity=path_capacity,
             eye_render=eye_render,
             fast_verified=bool(
                 echo_verified
@@ -317,6 +322,7 @@ class Z3RuntimeBridge:
                 and oscillator.verify()
                 and coupled_field.verify()
                 and graph_geometry.verify()
+                and path_capacity.verify()
             ),
         )
 
@@ -362,6 +368,7 @@ class Z3RuntimeBridge:
             latest.pop("oscillator", None)
             latest.pop("coupled_field", None)
             latest.pop("graph_geometry", None)
+            latest.pop("path_capacity", None)
             latest.pop("eye_render", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
