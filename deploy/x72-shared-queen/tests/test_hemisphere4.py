@@ -70,18 +70,11 @@ def run() -> dict[str, object]:
             "RIGHT_NEGATIVE", "CENTER",
         ],
     ))
-    render = hemi["eye_render_contract"]
+    legacy = hemi["legacy_diagnostic"]
     checks.append(check(
-        "left and right eye motifs rotate in opposite directions",
-        render["left_eye"]["motif_rotation"] == "COUNTERCLOCKWISE"
-        and render["right_eye"]["motif_rotation"] == "CLOCKWISE"
-        and render["rotation_relation"] == "OPPOSITE_DIRECTIONS",
-    ))
-    checks.append(check(
-        "right eye is mirrored while both eyes share one bilateral color basis",
-        render["left_eye"]["mirror_x"] is False
-        and render["right_eye"]["mirror_x"] is True
-        and render["color_sync"] == "SAME_TONE_BOTH_EYES_FROM_BILATERAL_MEAN",
+        "hemisphere4 sign-mirror layer is retained only as a legacy diagnostic",
+        legacy["used_by_eye_render"] is False
+        and "compatibility" in legacy["note"],
     ))
     routes = hemi["carrier_routes"]
     checks.append(check(

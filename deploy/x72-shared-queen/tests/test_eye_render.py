@@ -23,10 +23,9 @@ def run() -> dict[str, object]:
     for _ in range(60):
         queen.step()
 
-    hemi = queen.z3_runtime.latest.hemisphere4
-    frame = EyePairRenderFrame.from_hemisphere(
-        hemi,
-        theta=queen.z3_runtime.latest.theta,
+    stereo = queen.z3_runtime.latest.stereo_source
+    frame = EyePairRenderFrame.from_stereo_source(
+        stereo,
         controls=PRESETS["mouse_alert"],
     )
     payload = frame.to_dict()
@@ -64,19 +63,26 @@ def run() -> dict[str, object]:
     left = payload["left_eye"]
     right = payload["right_eye"]
     checks.append(check(
-        "left and right motifs rotate oppositely",
-        left["rotation"] == "COUNTERCLOCKWISE"
-        and right["rotation"] == "CLOCKWISE"
-        and left["rotation_rad"] == -right["rotation_rad"],
+        "visible eye render stays stable on both sides",
+        left["visible_rotation"] == "NONE"
+        and right["visible_rotation"] == "NONE"
+        and left["visible_rotation_rad"] == 0.0
+        and right["visible_rotation_rad"] == 0.0,
     ))
     checks.append(check(
-        "right eye is mirrored instead of copied",
-        left["mirror_x"] is False and right["mirror_x"] is True,
+        "neither eye is mirrored",
+        left["mirror_x"] is False and right["mirror_x"] is False,
+    ))
+    checks.append(check(
+        "left and right calculations run in opposite directions at source",
+        left["calculation_direction"] == "COUNTERCLOCKWISE"
+        and right["calculation_direction"] == "CLOCKWISE"
+        and left["calculation_theta"] == -right["calculation_theta"],
     ))
     checks.append(check(
         "both eyes retain one bilateral color basis",
         payload["shared_color_basis"] == "BILATERAL_MEAN"
-        and payload["bilateral_signal"] == list(hemi.bilateral_mean),
+        and payload["bilateral_signal"] == list(stereo.bilateral_mean),
     ))
     mouse = PRESETS["mouse_alert"].native_boosts()
     checks.append(check(
@@ -93,8 +99,8 @@ def run() -> dict[str, object]:
         mauve_third=1,
         rose_inner=1,
     )
-    all_frame = EyePairRenderFrame.from_hemisphere(
-        hemi, theta=0.5, controls=all_on
+    all_frame = EyePairRenderFrame.from_stereo_source(
+        stereo, controls=all_on
     ).to_dict()
     checks.append(check(
         "all four native channels may coexist",

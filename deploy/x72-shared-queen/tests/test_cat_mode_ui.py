@@ -100,12 +100,13 @@ def run() -> dict[str, object]:
         < lab_cat.index("COLORS.rose,.18"),
     ))
     checks.append(check(
-        "stereo eyes use opposite rotations and mirrored right eye",
-        "leftRotation" in lab_cat
-        and "rightRotation" in lab_cat
+        "eye image is stable with no visual rotation or mirror",
+        "ctx.rotate(" not in lab_cat
+        and "mirror?" not in lab_cat
+        and "leftRotation" not in lab_cat
+        and "rightRotation" not in lab_cat
         and "drawEye(ctx,cx-eyeGap" in lab_cat
-        and "drawEye(ctx,cx+eyeGap" in lab_cat
-        and "rightRotation,true" in lab_cat,
+        and "drawEye(ctx,cx+eyeGap" in lab_cat,
     ))
 
     checks.append(check(

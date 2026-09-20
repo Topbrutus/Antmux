@@ -157,20 +157,9 @@ class Hemisphere4Frame:
                 "center": "center3 / BOTH",
                 "eye_color_basis": "bilateral mean of left/right positive lanes",
             },
-            "eye_render_contract": {
-                "color_sync": "SAME_TONE_BOTH_EYES_FROM_BILATERAL_MEAN",
-                "left_eye": {
-                    "data_side": "G",
-                    "motif_rotation": "COUNTERCLOCKWISE",
-                    "mirror_x": False,
-                },
-                "right_eye": {
-                    "data_side": "D",
-                    "motif_rotation": "CLOCKWISE",
-                    "mirror_x": True,
-                },
-                "rotation_relation": "OPPOSITE_DIRECTIONS",
-                "visual_goal": "INWARD_OR_OUTWARD_PAIR_NOT_SAME_DIRECTION",
+            "legacy_diagnostic": {
+                "used_by_eye_render": False,
+                "note": "four-corner sign-mirror diagnostic retained for compatibility only",
             },
             "figure8_route_candidate": [
                 "LEFT_POSITIVE", "CENTER", "RIGHT_POSITIVE", "CENTER",

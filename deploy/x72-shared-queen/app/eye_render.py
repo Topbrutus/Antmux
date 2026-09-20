@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .hemisphere4 import Hemisphere4Frame
+from .stereo_source import StereoZSourceFrame
 
 EYE_RENDER_SCHEMA = "ANTMUX-X72-EYE-RENDER-v0.1"
 EYE_RENDER_STATUS = "CANDIDATE"
@@ -103,39 +103,31 @@ PRESETS: dict[str, EyeLightControls] = {
 @dataclass(frozen=True)
 class EyePairRenderFrame:
     controls: EyeLightControls
-    left_rotation_rad: float
-    right_rotation_rad: float
-    left_mirror_x: bool
-    right_mirror_x: bool
+    left_calculation_theta: float
+    right_calculation_theta: float
     center_filter_alpha: float
     edge_filter_alpha: float
     bilateral_signal: tuple[float, ...]
 
     @classmethod
-    def from_hemisphere(
+    def from_stereo_source(
         cls,
-        hemisphere: Hemisphere4Frame,
+        stereo: StereoZSourceFrame,
         *,
-        theta: float,
         controls: EyeLightControls,
     ) -> "EyePairRenderFrame":
-        if type(hemisphere) is not Hemisphere4Frame:
-            raise TypeError("hemisphere must be exactly Hemisphere4Frame")
-        if not math.isfinite(float(theta)):
-            raise ValueError("theta must be finite")
-        if not hemisphere.verify():
-            raise ValueError("hemisphere frame must verify")
+        if type(stereo) is not StereoZSourceFrame:
+            raise TypeError("stereo must be exactly StereoZSourceFrame")
+        if not stereo.verify():
+            raise ValueError("stereo source frame must verify")
 
-        phase = float(theta)
         return cls(
             controls=controls,
-            left_rotation_rad=-phase,
-            right_rotation_rad=phase,
-            left_mirror_x=False,
-            right_mirror_x=True,
+            left_calculation_theta=stereo.left_theta,
+            right_calculation_theta=stereo.right_theta,
             center_filter_alpha=0.10,
             edge_filter_alpha=0.34,
-            bilateral_signal=hemisphere.bilateral_mean,
+            bilateral_signal=stereo.bilateral_mean,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -168,18 +160,22 @@ class EyePairRenderFrame:
                 "center_is_clearer": self.center_filter_alpha < self.edge_filter_alpha,
             },
             "left_eye": {
-                "rotation_rad": self.left_rotation_rad,
-                "rotation": "COUNTERCLOCKWISE",
-                "mirror_x": self.left_mirror_x,
+                "visible_rotation_rad": 0.0,
+                "visible_rotation": "NONE",
+                "mirror_x": False,
                 "signal_side": "G",
+                "calculation_theta": self.left_calculation_theta,
+                "calculation_direction": "COUNTERCLOCKWISE",
             },
             "right_eye": {
-                "rotation_rad": self.right_rotation_rad,
-                "rotation": "CLOCKWISE",
-                "mirror_x": self.right_mirror_x,
+                "visible_rotation_rad": 0.0,
+                "visible_rotation": "NONE",
+                "mirror_x": False,
                 "signal_side": "D",
+                "calculation_theta": self.right_calculation_theta,
+                "calculation_direction": "CLOCKWISE",
             },
-            "stereo_relation": "OPPOSITE_ROTATION_MIRRORED_RIGHT",
+            "stereo_relation": "OPPOSITE_CALCULATION_DIRECTION_STABLE_RENDER",
             "bilateral_signal": list(self.bilateral_signal),
             "all_native_channels_may_coexist": True,
         }

@@ -32,14 +32,15 @@ Mauve and rose keep their own native ring/accent regions.
 Several channels may be bright at the same time; this is intentionally allowed for mixed states.
 ## Stereo eye behavior
 
-Both eyes share one bilateral color basis, but their internal motion is not copied.
+Both eyes share one bilateral color basis, but the visible image remains stable.
 
-- left motif: counterclockwise
-- right motif: clockwise
-- right eye: horizontally mirrored
-- left/right rotation magnitudes are equal and opposite for the same frame
+- no visible rotation is applied to either eye;
+- neither eye is mirrored;
+- left Z calculation uses `+theta`;
+- right Z calculation uses `-theta`;
+- the opposite direction exists in the source calculation, not in the rendered motif.
 
-The bilateral signal comes from the Hemisphere4 left/right mean so both eyes can keep the same overall tone while preserving independent stereo geometry.
+The bilateral signal comes from the dedicated Stereo Source left/right mean so both eyes can keep the same overall tone while the two Z paths are calculated independently.
 ## Crystal / transparency rule
 
 The optical filter is clearer in the center than at the edge.
