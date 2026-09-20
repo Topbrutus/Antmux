@@ -20,7 +20,10 @@
     reportFault:$("reportFault"), reportSteps:$("reportSteps"), reportVerdict:$("reportVerdict"),
     z3Topology:$("z3Topology"), z3History:$("z3History"), z3Center:$("z3Center"),
     z3Theta:$("z3Theta"), z3Verify:$("z3Verify"), z3Hash:$("z3Hash"),
-    runtimeBadge:$("runtimeBadge")
+    runtimeBadge:$("runtimeBadge"), viewBtn:$("viewBtn"), catControls:$("catControls"),
+    yellowBoost:$("yellowBoost"), blueBoost:$("blueBoost"), mauveBoost:$("mauveBoost"),
+    roseBoost:$("roseBoost"), eyeSpacing:$("eyeSpacing"), catLockBtn:$("catLockBtn"),
+    catCoords:$("catCoords")
   };
 
   const ctx = els.canvas.getContext("2d");
@@ -32,6 +35,13 @@
   let lastMessageAt = 0;
   let messageIntervalMs = 250;
   let stars = [];
+  let viewMode = "clock";
+  const CAT_CAL_KEY = "antmux_x72_cat_calibration_v01";
+  const CAT_CAL_DEFAULT = {
+    x:0, y:0, scale:1, spacing:1, locked:false,
+    boosts:{yellow_outer:0,blue_second:0,mauve_third:0,rose_inner:0}
+  };
+  let catCal = loadCatCalibration();
 
   function api(path){ return new URL(path, window.location.href).toString(); }
   function wsUrl(){
@@ -44,6 +54,40 @@
   function lerp(a,b,t){ return Number(a||0)+(Number(b||0)-Number(a||0))*t; }
   function phaseFromState(state, scale=0.01){
     return state ? Number(state._visualTick ?? state.tick_count ?? 0) * scale : 0;
+  }
+
+  function loadCatCalibration(){
+    try{
+      const raw=JSON.parse(localStorage.getItem(CAT_CAL_KEY)||"null");
+      if(!raw || typeof raw!=="object") return structuredClone(CAT_CAL_DEFAULT);
+      return {
+        ...structuredClone(CAT_CAL_DEFAULT),
+        ...raw,
+        boosts:{...CAT_CAL_DEFAULT.boosts,...(raw.boosts||{})}
+      };
+    }catch{
+      return structuredClone(CAT_CAL_DEFAULT);
+    }
+  }
+
+  function saveCatCalibration(){
+    localStorage.setItem(CAT_CAL_KEY,JSON.stringify(catCal));
+  }
+
+  function syncCatControls(){
+    if(!els.catControls) return;
+    els.yellowBoost.value=String(Math.round(clamp(catCal.boosts.yellow_outer)*100));
+    els.blueBoost.value=String(Math.round(clamp(catCal.boosts.blue_second)*100));
+    els.mauveBoost.value=String(Math.round(clamp(catCal.boosts.mauve_third)*100));
+    els.roseBoost.value=String(Math.round(clamp(catCal.boosts.rose_inner)*100));
+    els.eyeSpacing.value=String(Math.round(Number(catCal.spacing||1)*100));
+    els.catLockBtn.textContent=catCal.locked?"LOCKED":"LOCK";
+    els.catLockBtn.classList.toggle("locked",Boolean(catCal.locked));
+    els.catCoords.textContent=
+      "X "+Number(catCal.x||0).toFixed(1)
+      +" • Y "+Number(catCal.y||0).toFixed(1)
+      +" • SCALE "+Number(catCal.scale||1).toFixed(3)
+      +" • ESP "+Number(catCal.spacing||1).toFixed(3);
   }
 
   function interpolateVisualState(previous,current,alpha){
@@ -439,7 +483,7 @@
     }catch{
       connected=false;
       updateDom(lastState);
-      draw(lastState);
+      drawFrame(lastState);
       scheduleReconnect();
       return;
     }
@@ -483,6 +527,52 @@
     });
   }
 
+  function setBoostFromInput(key,input){
+    catCal.boosts[key]=clamp(Number(input.value)/100);
+    saveCatCalibration();
+    syncCatControls();
+  }
+
+  els.viewBtn.addEventListener("click",()=>{
+    viewMode=viewMode==="clock"?"chat":"clock";
+    els.catControls.hidden=viewMode!=="chat";
+    els.viewBtn.textContent=viewMode==="chat"?"MODE HORLOGE":"MODE CHAT";
+    syncCatControls();
+  });
+
+  els.yellowBoost.addEventListener("input",()=>setBoostFromInput("yellow_outer",els.yellowBoost));
+  els.blueBoost.addEventListener("input",()=>setBoostFromInput("blue_second",els.blueBoost));
+  els.mauveBoost.addEventListener("input",()=>setBoostFromInput("mauve_third",els.mauveBoost));
+  els.roseBoost.addEventListener("input",()=>setBoostFromInput("rose_inner",els.roseBoost));
+  els.eyeSpacing.addEventListener("input",()=>{
+    catCal.spacing=Math.max(.65,Math.min(1.45,Number(els.eyeSpacing.value)/100));
+    saveCatCalibration();
+    syncCatControls();
+  });
+
+  document.querySelectorAll("[data-cat-adjust]").forEach(button=>{
+    button.addEventListener("click",()=>{
+      if(catCal.locked) return;
+      const action=button.dataset.catAdjust;
+      if(action==="left") catCal.x-=2;
+      if(action==="right") catCal.x+=2;
+      if(action==="up") catCal.y-=2;
+      if(action==="down") catCal.y+=2;
+      if(action==="smaller") catCal.scale=Math.max(.55,catCal.scale-.015);
+      if(action==="larger") catCal.scale=Math.min(1.75,catCal.scale+.015);
+      saveCatCalibration();
+      syncCatControls();
+    });
+  });
+
+  els.catLockBtn.addEventListener("click",()=>{
+    catCal.locked=!catCal.locked;
+    saveCatCalibration();
+    syncCatControls();
+  });
+
+  syncCatControls();
+
   els.pauseBtn.disabled=true;
   els.pauseBtn.textContent="SERVEUR";
   els.resetBtn.disabled=true;
@@ -522,14 +612,30 @@
     stars=[];
   });
 
+  function drawFrame(state){
+    if(viewMode==="chat" && window.X72CatMode){
+      resizeCanvas();
+      window.X72CatMode.draw(
+        ctx,
+        els.canvas._cssW,
+        els.canvas._cssH,
+        state,
+        catCal,
+        connected
+      );
+      return;
+    }
+    draw(state);
+  }
+
   function animationLoop(now){
-    draw(connected?visualStateForFrame(now):lastState);
+    drawFrame(connected?visualStateForFrame(now):lastState);
     requestAnimationFrame(animationLoop);
   }
 
   connected=false;
   updateDom(lastState);
-  draw(lastState);
+  drawFrame(lastState);
   requestAnimationFrame(animationLoop);
   connect();
 })();

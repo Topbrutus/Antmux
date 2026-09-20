@@ -27,7 +27,7 @@ results.append(require("class QueenCore" not in deploy_text, "no frontend QueenC
 results.append(require("new QueenCore" not in deploy_text, "no frontend QueenCore instance"))
 results.append(require('incoming.source!=="QUEEN_SERVER_V0_2"' in deploy_text, "server source authority"))
 results.append(require('ctx.fillText("CORE DISCONNECTED",cx,cy);' in deploy_text, "disconnect overlay"))
-results.append(require("draw(connected?visualStateForFrame(now):lastState);" in deploy_text, "disconnect freezes last state"))
+results.append(require("drawFrame(connected?visualStateForFrame(now):lastState);" in deploy_text, "disconnect freezes last state"))
 results.append(require('return {label:"READY",detail:"AUCUNE PANNE",ok:true};' in deploy_text, "healthy INVALID maps to READY"))
 results.append(require("previousState=lastState;" in deploy_text and "lastState=incoming;" in deploy_text, "reconnect resumes server state"))
 
