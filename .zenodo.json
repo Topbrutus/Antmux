@@ -1,0 +1,31 @@
+{
+  "title": "ANTMUX-X72: XYZ / Stereo-Z and Da'at Path Experimental Architecture",
+  "upload_type": "software",
+  "description": "Reproducible software artifact documenting a 12-channel ordered Givens coupling, center-plus-residual representation, synchronized bilateral stereo-Z source using +theta/-theta, reversible Da'at center/differential processing, and bounded observation-only experiments for traversal, oscillator modes, conservative coupled-field propagation, discrete graph geometry, and path-capacity sampling. The artifact documents an experimental architecture and does not claim a new biological, religious, neurological, or physical law.",
+  "creators": [
+    {
+      "name": "Topbrutus"
+    }
+  ],
+  "publication_date": "2026-09-20",
+  "version": "0.2.0",
+  "keywords": [
+    "ANTMUX-X72",
+    "XYZ",
+    "stereo-Z",
+    "Da'at",
+    "Givens rotations",
+    "orthogonal coupling",
+    "graph geometry",
+    "reproducibility",
+    "artificial life"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Topbrutus/Antmux",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "access_right": "open"
+}

@@ -1,0 +1,232 @@
+{
+  "schema": "ANTMUX-X72-REPRODUCIBILITY-v0.2",
+  "timestamp_utc": "2026-09-20T22:22:54.804285+00:00",
+  "git_head": "0b7e0ddeaea3d6760363de965cd65d53bcaaa533",
+  "source_baseline": "197b450",
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "tests_total": 22,
+  "tests_passed": 22,
+  "results": [
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_z3_center_coupling.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"architecture\": \"one 13-node system; reversible 12-to-12 center coupling; 3+9 is algebraically complete but binary64 reconstruction is approximate\", \"checks\": [{\"name\": \"12 channels split as 3 center + 9 residual\", \"ok\": true}, {\"name\": \"canonical center coupling reuses immutable cached angle\", \"ok\": true}, {\"name\": \"center coupling matrix is orthogonal\", \"ok\": true}, {\"name\": \"12-to-12 coupling round trip reconstructs source\", \"ok\": true}, {\"name\": \"center coupling preserves coefficient count\", \"ok\": true}, {\"name\": \"12-channel coupling preserves norm\", \"ok\": true}, {\"name\": \"center coupling does not mutate source\", \"ok\": true}, {\"name\": \"360-degree center schedule closes to identity\", \"ok\": true}, {\"name\": \"nonzero center angle mixes channels\", \"ok\": true}, {\"name\": \"3-center plus 9-residual representation is reconstructible\", \"ok\": true}, {\"name\": \"center 3-vector is four-triad channel mean\", \"ok\": true}, {\"name\": \"fourth residual is exactly derivable from first three\", \"ok\": true}, {\"name\": \"center-only 12-to-3 summary is not a reconstruction\", \"ok\": true}, {\"name\": \"zero center angle is identity\", \"ok\": true}, {\"name\": \"complex coefficients survive coupling and reconstruction\", \"ok\": true}], \"checks_passed\": 15, \"checks_total\": 15, \"schema\": \"ANTMUX-Z3-CENTER-COUPLING-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_z3_center_coupling_adversarial.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"invalid center angles rejected\", \"ok\": true}, {\"name\": \"round trip survives adversarial center angles\", \"ok\": true}, {\"name\": \"orthogonality survives adversarial center angles\", \"ok\": true}, {\"name\": \"norm survives adversarial center angles\", \"ok\": true}, {\"name\": \"integer 360-degree center turns close\", \"ok\": true}, {\"name\": \"overlapping center rotation schedule is order-sensitive\", \"ok\": true}, {\"name\": \"center coupling propagates one input beyond a mirror pair\", \"ok\": true}, {\"name\": \"center summary plus residuals round trip under complex load\", \"ok\": true}, {\"name\": \"different 12-channel states can share the same 3-value center\", \"ok\": true}, {\"name\": \"residual side information distinguishes same-center states\", \"ok\": true}, {\"name\": \"unequal triad coefficient lengths rejected\", \"ok\": true}, {\"name\": \"non-12 channel vector rejected\", \"ok\": true}, {\"name\": \"theta/matrix mismatch rejected\", \"ok\": true}, {\"name\": \"center operations leave source immutable\", \"ok\": true}, {\"name\": \"center matrix construction deterministic\", \"ok\": true}], \"checks_passed\": 15, \"checks_total\": 15, \"falsification_note\": \"a 3-value center summary alone is many-to-one; 3+9 is algebraically complete but binary64 reconstruction is not bit-exact at all scales\", \"schema\": \"ANTMUX-Z3-CENTER-COUPLING-ADVERSARIAL-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_stereo_source.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"stereo source is verified observation-only\", \"ok\": true}, {\"name\": \"left and right are explicit G and D sides\", \"ok\": true}, {\"name\": \"Z calculation direction is opposite at the stereo source\", \"ok\": true}, {\"name\": \"left and right each carry twelve calculated channels\", \"ok\": true}, {\"name\": \"bilateral mean is calculated from both sides\", \"ok\": true}, {\"name\": \"render contract forbids visual rotation mirror and negative eye\", \"ok\": true}, {\"name\": \"stereo source does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"stereo source stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint rebuilds same stereo source projection\", \"ok\": true}, {\"name\": \"checkpoint keeps authoritative whole hash unchanged\", \"ok\": true}], \"checks_passed\": 10, \"checks_total\": 10, \"schema\": \"ANTMUX-X72-STEREO-SOURCE-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_z3_runtime_bridge.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"clean birth has zero learned observable state\", \"ok\": true}, {\"name\": \"Z3 runtime starts empty\", \"ok\": true}, {\"name\": \"Z3 runtime respects 60-tick sampling cadence\", \"ok\": true}, {\"name\": \"first Z3 runtime frame is sealed and verified\", \"ok\": true}, {\"name\": \"Z3 runtime topology is explicit 13-node candidate\", \"ok\": true}, {\"name\": \"Z3 observation does not mutate protected Queen structure\", \"ok\": true}, {\"name\": \"Z3 runtime history advances while bounded\", \"ok\": true}, {\"name\": \"Z3 frame event is present at one-second cadence\", \"ok\": true}, {\"name\": \"checkpoint restores Z3 runtime history and provenance\", \"ok\": true}, {\"name\": \"whole-state hash survives checkpoint round trip\", \"ok\": true}], \"checks_passed\": 10, \"checks_total\": 10, \"schema\": \"ANTMUX-X72-Z3-RUNTIME-BRIDGE-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_eye_render.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"native channels are additive boost controls only\", \"ok\": true}, {\"name\": \"blue ring, web lines, and blue crystals share one boost\", \"ok\": true}, {\"name\": \"yellow outer ring and yellow crystals share one boost\", \"ok\": true}, {\"name\": \"mauve and rose preserve their native clock regions\", \"ok\": true}, {\"name\": \"clear crystal center uses less filter alpha than the edge\", \"ok\": true}, {\"name\": \"visible eye render stays stable on both sides\", \"ok\": true}, {\"name\": \"neither eye is mirrored\", \"ok\": true}, {\"name\": \"left and right calculations run in opposite directions at source\", \"ok\": true}, {\"name\": \"both eyes retain one bilateral color basis\", \"ok\": true}, {\"name\": \"combined alert can illuminate several native channels together\", \"ok\": true}, {\"name\": \"all four native channels may coexist\", \"ok\": true}, {\"name\": \"eye renderer remains observation-only\", \"ok\": true}], \"checks_passed\": 12, \"checks_total\": 12, \"schema\": \"ANTMUX-X72-EYE-RENDER-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_cat_mode_ui.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"deploy copy matches lab for app.js\", \"ok\": true}, {\"name\": \"deploy copy matches lab for cat_mode.js\", \"ok\": true}, {\"name\": \"deploy copy matches lab for emotion_map.js\", \"ok\": true}, {\"name\": \"deploy copy matches lab for index.html\", \"ok\": true}, {\"name\": \"deploy copy matches lab for styles.css\", \"ok\": true}, {\"name\": \"chat view toggle is present\", \"ok\": true}, {\"name\": \"native light control yellowBoost exists\", \"ok\": true}, {\"name\": \"native light control blueBoost exists\", \"ok\": true}, {\"name\": \"native light control mauveBoost exists\", \"ok\": true}, {\"name\": \"native light control roseBoost exists\", \"ok\": true}, {\"name\": \"emotion map loads before cat renderer and app\", \"ok\": true}, {\"name\": \"emotion map exposes four triads and twelve state IDs\", \"ok\": true}, {\"name\": \"emotion controls are generated and persisted separately\", \"ok\": true}, {\"name\": \"cat renderer consumes blended emotion channels\", \"ok\": true}, {\"name\": \"calibration offers six requested direction/size buttons\", \"ok\": true}, {\"name\": \"calibration persists as visual-only browser state\", \"ok\": true}, {\"name\": \"blue illumination links ring web and crystals\", \"ok\": true}, {\"name\": \"cat renderer draws yellow and blue crystal families\", \"ok\": true}, {\"name\": \"four native rings preserve their fixed order\", \"ok\": true}, {\"name\": \"eye image is stable with no visual rotation or mirror\", \"ok\": true}, {\"name\": \"cat view consumes server eye_render metadata\", \"ok\": true}, {\"name\": \"frontend keeps authoritative tick immutable\", \"ok\": true}], \"checks_passed\": 22, \"checks_total\": 22, \"schema\": \"ANTMUX-X72-CAT-MODE-UI-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_daat_gate.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"Da'at gate consumes synchronized G/D stereo source\", \"ok\": true}, {\"name\": \"current candidate maps only left-right and leaves remaining axes open\", \"ok\": true}, {\"name\": \"Da'at center is exact bilateral mean\", \"ok\": true}, {\"name\": \"Da'at residual preserves left-right difference\", \"ok\": true}, {\"name\": \"left side is losslessly reconstructable from Da'at\", \"ok\": true}, {\"name\": \"right side is losslessly reconstructable from Da'at\", \"ok\": true}, {\"name\": \"energy identity is preserved by center-residual transform\", \"ok\": true}, {\"name\": \"hopscotch route is ordered and side identity survives until Da'at\", \"ok\": true}, {\"name\": \"Da'at candidate remains observation-only\", \"ok\": true}, {\"name\": \"Da'at observation does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"Da'at candidate stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint reconstructs identical Da'at gate\", \"ok\": true}, {\"name\": \"checkpoint preserves authoritative whole hash\", \"ok\": true}], \"checks_passed\": 13, \"checks_total\": 13, \"schema\": \"ANTMUX-X72-DAAT-GATE-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_daat_gate_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 synchronized Da'at samples\", \"ok\": true}, {\"name\": \"all stereo and Da'at frames verify over the full cycle\", \"ok\": true}, {\"name\": \"left/right calculation angle stays opposite over the full cycle\", \"ok\": true}, {\"name\": \"Da'at frame stays on the same sampled tick\", \"ok\": true}, {\"name\": \"Da'at frame keeps the same pre-stereo source identity\", \"ok\": true}, {\"name\": \"energy identity error remains finite and negligible\", \"ok\": true}], \"checks_passed\": 6, \"checks_total\": 6, \"max_energy_identity_error\": 8.881784197001252e-16, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-DAAT-GATE-SWEEP-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_daat_link.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"B is the explicit common Da'at component\", \"ok\": true}, {\"name\": \"A is the explicit differential Da'at component\", \"ok\": true}, {\"name\": \"B/A still reconstruct G and D through the gate\", \"ok\": true}, {\"name\": \"default link score is bounded\", \"ok\": true}, {\"name\": \"zero weights produce zero central link\", \"ok\": true}, {\"name\": \"increasing all nonnegative weights cannot reduce Lc\", \"ok\": true}, {\"name\": \"Lc implements the declared complement-product formula\", \"ok\": true}, {\"name\": \"normalization is explicit and bounded per B channel\", \"ok\": true}, {\"name\": \"Bayesian evidence update does not alter Z stereo\", \"ok\": true}, {\"name\": \"Bayesian evidence update does not alter Da'at B/A\", \"ok\": true}, {\"name\": \"Bayesian evidence update does not alter Lc\", \"ok\": true}, {\"name\": \"link candidate remains observation-only\", \"ok\": true}, {\"name\": \"link calculation does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"link candidate stays outside authoritative whole-state hash\", \"ok\": true}], \"checks_passed\": 14, \"checks_total\": 14, \"link_score\": 0.39613349960146005, \"schema\": \"ANTMUX-X72-DAAT-LINK-TEST-v0.2\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_daat_link_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 link frames\", \"ok\": true}, {\"name\": \"all link frames verify\", \"ok\": true}, {\"name\": \"all link scores remain finite\", \"ok\": true}, {\"name\": \"all link scores remain in unit interval\", \"ok\": true}, {\"name\": \"B/A reconstruct G/D over the full cycle\", \"ok\": true}], \"checks_passed\": 5, \"checks_total\": 5, \"max_link_score\": 0.9940634144493038, \"min_link_score\": 0.3132435786105804, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-DAAT-LINK-SWEEP-TEST-v0.2\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_daat_evidence.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"evidence ledger receives one sample per Z3 observation\", \"ok\": true}, {\"name\": \"all six invariant criteria are tracked separately\", \"ok\": true}, {\"name\": \"uniform Beta(1,1) prior produces 11/12 posterior after ten passes\", \"ok\": true}, {\"name\": \"confidence floor is conservative minimum across criteria\", \"ok\": true}, {\"name\": \"evidence ledger stays observation-only\", \"ok\": true}, {\"name\": \"evidence ledger does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"evidence ledger stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint preserves evidence counts without changing whole hash\", \"ok\": true}, {\"name\": \"contradictory tick evidence lowers only the same_tick posterior\", \"ok\": true}], \"checks_passed\": 9, \"checks_total\": 9, \"schema\": \"ANTMUX-X72-DAAT-EVIDENCE-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_hopscotch_paths.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"ensemble reuses the same source and tick as Da'at link\", \"ok\": true}, {\"name\": \"four deterministic legal routes are exposed\", \"ok\": true}, {\"name\": \"every route visits each channel exactly once\", \"ok\": true}, {\"name\": \"all legal paths finish at the same commutative Lc\", \"ok\": true}, {\"name\": \"each route trace is monotonic and bounded\", \"ok\": true}, {\"name\": \"route order changes traversal history when channel contributions differ\", \"ok\": true}, {\"name\": \"route semantics do not invent geometry\", \"ok\": true}, {\"name\": \"invalid route with repeated channel is rejected\", \"ok\": true}, {\"name\": \"Bayesian evidence update does not alter hopscotch paths\", \"ok\": true}, {\"name\": \"hopscotch layer is observation-only\", \"ok\": true}, {\"name\": \"hopscotch calculation does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"hopscotch stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint reconstructs same hopscotch ensemble\", \"ok\": true}, {\"name\": \"checkpoint preserves authoritative whole hash\", \"ok\": true}], \"checks_passed\": 14, \"checks_total\": 14, \"schema\": \"ANTMUX-X72-HOPSCOTCH-TEST-v0.1\", \"target_link_score\": 0.39613349960146005}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_hopscotch_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 hopscotch frames\", \"ok\": true}, {\"name\": \"all hopscotch frames verify\", \"ok\": true}, {\"name\": \"all route permutations preserve final Lc over full cycle\", \"ok\": true}, {\"name\": \"all route traces remain monotonic\", \"ok\": true}, {\"name\": \"route order produces distinct traversal histories on observed frames\", \"ok\": true}, {\"name\": \"target Lc remains finite and bounded over cycle\", \"ok\": true}], \"checks_passed\": 6, \"checks_total\": 6, \"frames_with_distinct_histories\": 120, \"max_target_link\": 0.9940634144493038, \"min_target_link\": 0.3132435786105804, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-HOPSCOTCH-SWEEP-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_oscillator_modes.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"oscillator reuses the same source/tick as Daat Link\", \"ok\": true}, {\"name\": \"twelve bounded modes are exposed\", \"ok\": true}, {\"name\": \"amplitude is derived only from explicit B/A components\", \"ok\": true}, {\"name\": \"state is bounded on the mode circle\", \"ok\": true}, {\"name\": \"radius invariant holds per mode\", \"ok\": true}, {\"name\": \"same source and theta reproduce identical oscillator hash\", \"ok\": true}, {\"name\": \"phase rule is deterministic mode_number times theta\", \"ok\": true}, {\"name\": \"Bayes update cannot alter oscillator frame\", \"ok\": true}, {\"name\": \"oscillator layer is explicitly non-quantum and observation-only\", \"ok\": true}, {\"name\": \"oscillator does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"oscillator stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint reconstructs same oscillator frame\", \"ok\": true}, {\"name\": \"checkpoint preserves authoritative whole hash\", \"ok\": true}], \"checks_passed\": 13, \"checks_total\": 13, \"max_radius_error\": 6.938893903907228e-18, \"schema\": \"ANTMUX-X72-OSCILLATOR-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_oscillator_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 oscillator frames\", \"ok\": true}, {\"name\": \"all oscillator frames verify\", \"ok\": true}, {\"name\": \"all modes remain bounded over full cycle\", \"ok\": true}, {\"name\": \"mode phases follow the deterministic theta rule\", \"ok\": true}, {\"name\": \"radius identity remains numerically tight\", \"ok\": true}, {\"name\": \"oscillator evolves across the sampled cycle\", \"ok\": true}], \"checks_passed\": 6, \"checks_total\": 6, \"distinct_frame_hashes\": 120, \"max_radius_error\": 2.220446049250313e-16, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-OSCILLATOR-SWEEP-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_coupled_field.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"field reuses oscillator source/tick/generation\", \"ok\": true}, {\"name\": \"two software field components expose twelve lanes\", \"ok\": true}, {\"name\": \"X and Y sums are conserved by synchronous propagation\", \"ok\": true}, {\"name\": \"software energy cannot increase under candidate diffusion\", \"ok\": true}, {\"name\": \"component spans do not expand\", \"ok\": true}, {\"name\": \"causal update is read-all then write-all\", \"ok\": true}, {\"name\": \"zero coupling is exact identity\", \"ok\": true}, {\"name\": \"same oscillator and coupling reproduce identical field hash\", \"ok\": true}, {\"name\": \"non-convex coupling above one-half is rejected\", \"ok\": true}, {\"name\": \"Bayes update cannot alter coupled field\", \"ok\": true}, {\"name\": \"field is explicitly software-only and not electromagnetic\", \"ok\": true}, {\"name\": \"field calculation does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"coupled field stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint reconstructs same field frame\", \"ok\": true}, {\"name\": \"checkpoint preserves authoritative whole hash\", \"ok\": true}], \"checks_passed\": 15, \"checks_total\": 15, \"schema\": \"ANTMUX-X72-COUPLED-FIELD-TEST-v0.1\", \"software_dissipation\": 0.022162010737828683}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_coupled_field_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 coupled-field frames\", \"ok\": true}, {\"name\": \"all coupled-field frames verify\", \"ok\": true}, {\"name\": \"X/Y sums remain conserved over full cycle\", \"ok\": true}, {\"name\": \"software energy never increases over full cycle\", \"ok\": true}, {\"name\": \"field spans remain nonexpanding over full cycle\", \"ok\": true}, {\"name\": \"field evolves across sampled cycle\", \"ok\": true}, {\"name\": \"numerical accounting errors remain finite\", \"ok\": true}], \"checks_passed\": 7, \"checks_total\": 7, \"distinct_field_hashes\": 120, \"max_energy_increase\": 0.0, \"max_sum_error\": 2.220446049250313e-16, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-COUPLED-FIELD-SWEEP-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_graph_geometry.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"geometry reuses Hopscotch source/tick/generation\", \"ok\": true}, {\"name\": \"candidate graph is exactly an operational C12 cycle\", \"ok\": true}, {\"name\": \"mean pair distance matches exact C12 value\", \"ok\": true}, {\"name\": \"unweighted Forman diagnostic is uniformly zero on C12\", \"ok\": true}, {\"name\": \"shortest-path distance satisfies symmetry and triangle inequality\", \"ok\": true}, {\"name\": \"cycle rotations and reflections preserve each route metric\", \"ok\": true}, {\"name\": \"route lengths distinguish at least two traversal families\", \"ok\": true}, {\"name\": \"forward and reverse have identical graph length\", \"ok\": true}, {\"name\": \"Bayes update cannot alter graph geometry\", \"ok\": true}, {\"name\": \"graph layer makes no continuous or physical curvature claim\", \"ok\": true}, {\"name\": \"graph calculation does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"graph geometry stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint reconstructs identical graph geometry\", \"ok\": true}, {\"name\": \"checkpoint preserves authoritative whole hash\", \"ok\": true}], \"checks_passed\": 14, \"checks_total\": 14, \"route_lengths\": {\"EVEN_THEN_ODD\": 23, \"FORWARD\": 11, \"ODD_THEN_EVEN\": 21, \"REVERSE\": 11}, \"schema\": \"ANTMUX-X72-GRAPH-GEOMETRY-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_graph_geometry_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 graph-geometry frames\", \"ok\": true}, {\"name\": \"all graph-geometry frames verify\", \"ok\": true}, {\"name\": \"candidate C12 metric invariants remain stable\", \"ok\": true}, {\"name\": \"route-length geometry remains stable across changing values\", \"ok\": true}, {\"name\": \"geometry frame provenance evolves with source/tick\", \"ok\": true}], \"checks_passed\": 5, \"checks_total\": 5, \"distinct_geometry_hashes\": 120, \"route_lengths\": {\"EVEN_THEN_ODD\": 23, \"FORWARD\": 11, \"ODD_THEN_EVEN\": 21, \"REVERSE\": 11}, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-GRAPH-GEOMETRY-SWEEP-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_path_capacity.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"capacity frame reuses Daat Link source/tick/generation\", \"ok\": true}, {\"name\": \"complete 12-channel permutation space is counted exactly\", \"ok\": true}, {\"name\": \"theoretical prefix counts are exact permutations\", \"ok\": true}, {\"name\": \"bounded beam never retains more than configured width\", \"ok\": true}, {\"name\": \"stored channel slots have a hard finite bound\", \"ok\": true}, {\"name\": \"per-stage candidate generation is also bounded\", \"ok\": true}, {\"name\": \"all retained complete routes are unique legal permutations\", \"ok\": true}, {\"name\": \"bounded sample does not pretend to materialize or cover all routes\", \"ok\": true}, {\"name\": \"sampled routes span more than one graph walk length\", \"ok\": true}, {\"name\": \"same source and beam policy reproduce identical capacity hash\", \"ok\": true}, {\"name\": \"invalid zero-width beam is rejected\", \"ok\": true}, {\"name\": \"Bayes update cannot alter path-capacity frame\", \"ok\": true}, {\"name\": \"capacity layer is observation-only and makes no Gabriel Horn claim\", \"ok\": true}, {\"name\": \"capacity calculation does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"path capacity stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint reconstructs identical capacity frame\", \"ok\": true}, {\"name\": \"checkpoint preserves authoritative whole hash\", \"ok\": true}], \"checks_passed\": 17, \"checks_total\": 17, \"complete_path_space\": 479001600, \"max_generated_candidates\": 640, \"sampled_route_count\": 64, \"schema\": \"ANTMUX-X72-PATH-CAPACITY-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_path_capacity_sweep.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"full cycle yields 120 path-capacity frames\", \"ok\": true}, {\"name\": \"all path-capacity frames verify\", \"ok\": true}, {\"name\": \"beam memory/runtime policy remains bounded\", \"ok\": true}, {\"name\": \"theoretical complete path count stays exactly 12 factorial\", \"ok\": true}, {\"name\": \"retained complete-route sample stays fixed at beam width\", \"ok\": true}, {\"name\": \"capacity provenance evolves across the sampled cycle\", \"ok\": true}, {\"name\": \"source-dependent deterministic sampling explores multiple route samples\", \"ok\": true}], \"checks_passed\": 7, \"checks_total\": 7, \"complete_path_space\": 479001600, \"distinct_capacity_hashes\": 120, \"distinct_route_samples\": 120, \"max_generated_candidates\": 640, \"retained_per_frame\": 64, \"sampled_frames\": 120, \"schema\": \"ANTMUX-X72-PATH-CAPACITY-SWEEP-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.2\\deploy\\x72-shared-queen\\tests\\test_long_run_homeostasis.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"generations\": 20, \"integrity_match\": true, \"max_crystal\": 0.54624990733839, \"max_memory\": 0.5025911912583866, \"schema\": \"ANTMUX-X72-LONG-RUN-HOMEOSTASIS-v0.1\", \"verdict\": \"PASS\"}",
+      "stderr": "",
+      "passed": true
+    }
+  ]
+}

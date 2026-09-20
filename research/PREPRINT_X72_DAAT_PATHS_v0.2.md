@@ -1,0 +1,452 @@
+# ANTMUX-X72: A Reproducible 12-Channel Orthogonal Coupling, Bilateral Stereo-Z, and Da'at Path Architecture
+
+**Version:** 0.2  
+**Author:** Topbrutus  
+**Date:** 2026-09-20  
+**Status:** Technical preprint draft / candidate architecture  
+**Repository:** https://github.com/Topbrutus/Antmux
+
+## Abstract
+
+This technical preprint documents the current mathematical and software state of ANTMUX-X72. The system extracts four triads from a 72-dimensional runtime state, yielding a 12-channel representation. A candidate 12×12 orthogonal coupling is constructed as an ordered product of Givens plane rotations. The coupled state supports a three-value center summary together with nine residual values, preserving twelve algebraic degrees of freedom while explicitly acknowledging floating-point reconstruction error.
+
+A bilateral stereo layer then evaluates the same pre-stereo Z state through two synchronized source calculations with opposite scalar phase angles, +theta and -theta. The visible eye renderer does not rotate or mirror the rendered image; the left/right distinction exists in the numerical path.
+
+The current update adds a reversible Da'at center/differential transform, a bounded central link score, an evidence ledger, ordered path ensembles, bounded oscillator modes, a conservative coupled software field, discrete graph-geometry diagnostics, and a bounded deterministic sampler over the 12! complete channel-order space. These layers are observation-only and intentionally separated from physical, biological, religious, or anatomical interpretation.
+
+The contribution claimed here is the documented project architecture, routing schedule, integration choices, implementation and reproducibility package. This document does **not** claim that Givens rotations, bilateral averaging, noisy-OR-like bounded unions, quaternion methods, or affective computing are themselves new. It also does not claim a biological or physical law of life.
+
+## 1. Problem statement
+
+The project investigates whether a compact, reversible and inspectable state transformation can support:
+
+1. a structured 12-channel representation derived from four triads;
+2. reversible channel mixing with explicit mathematical invariants;
+3. a compact center representation without falsely claiming that 12 independent values can be reconstructed from only 3;
+4. synchronized left/right numerical paths computed from the same source state;
+5. a reversible center/differential representation of synchronized left/right outputs;
+6. explicit traversal, oscillator, field, graph, and path-capacity experiments that remain bounded and observation-only;
+7. a stable visual interface whose geometry does not fabricate the left/right distinction;
+8. reproducible tests separating proven implementation properties from semantic hypotheses.
+
+The central engineering requirement is that a visually evocative interface must remain downstream from the mathematical state and must not redefine the mathematics.
+
+## 2. Representation
+
+At a finite Z coefficient index, the current four transformed triads are flattened as
+
+```text
+v =
+[T0.x, T0.y, T0.z,
+ T1.x, T1.y, T1.z,
+ T2.x, T2.y, T2.z,
+ T3.x, T3.y, T3.z]^T
+```
+
+so that
+
+```text
+v ∈ C^12
+```
+
+The implementation currently groups the project state into four triads of three channels. The labels used by the visual layer are project semantics; the mathematical layer is the 12-channel vector itself.
+## 3. Orthogonal center coupling
+
+The candidate center coupling is a real orthogonal matrix
+
+```text
+C(theta) ∈ R^(12×12)
+```
+
+applied coefficient-wise:
+
+```text
+v_c = C(theta) v
+```
+
+Each factor is a Givens plane rotation. Therefore, in exact arithmetic,
+
+```text
+C(theta)^T C(theta) = I
+C(theta)^(-1) = C(theta)^T
+```
+
+and reconstruction is
+
+```text
+v = C(theta)^T v_c
+```
+
+The current ordered routing schedule is:
+
+```text
+(0,11) (1,10) (2,9) (3,8) (4,7) (5,6)
+(0,3)  (3,6)  (6,9) (9,0)
+(1,4)  (4,7)  (7,10) (10,1)
+(2,5)  (5,8)  (8,11) (11,2)
+```
+
+The order is part of the v0.1 contract because overlapping rotations are generally non-commutative.
+
+### 3.1 Verified mathematical properties
+
+The test suite verifies numerically that the implemented matrix is orthogonal within tolerance, preserves the Euclidean norm within tolerance, reconstructs the source through the transpose, and closes to the identity for direct construction at integer full turns within floating-point tolerance.
+
+The implementation does **not** claim the stronger group identity
+
+```text
+C(a+b) = C(a)C(b)
+```
+
+for this ordered overlapping schedule. In general that identity does not hold.
+
+## 4. Center summary and residuals
+
+For channel c in {x,y,z}, the center summary is
+
+```text
+s_c = (T0_c + T1_c + T2_c + T3_c) / 4
+```
+
+giving
+
+```text
+s = [s_x, s_y, s_z]^T
+```
+
+A 12-to-3 map alone is many-to-one and is **not** a reversible encoding. The current implementation therefore retains nine residual values:
+
+```text
+r_g,c = T_g,c - s_c     for g ∈ {0,1,2}
+```
+
+with the fourth residual constrained by
+
+```text
+r_3,c = -(r_0,c + r_1,c + r_2,c)
+```
+
+Thus, in exact arithmetic,
+
+```text
+3 center values + 9 residual values = 12 algebraic degrees of freedom
+```
+
+Binary64 reconstruction is measured and is not claimed to be bit-exact for every finite input.
+## 5. Stereo-Z at the source
+
+The current stereo rule is calculated before rendering. A single pre-stereo Z state enters two synchronized calculations on the same runtime frame:
+
+```text
+left  / G : Z_G = C(+theta) Z
+right / D : Z_D = C(-theta) Z
+```
+
+The two branches share the same source state and the same tick, while the scalar phase sign is opposite.
+
+A bilateral output may be formed component-wise:
+
+```text
+B_i = (G_i + D_i) / 2
+```
+
+or vectorially:
+
+```text
+B = (Z_G + Z_D) / 2
+```
+
+Importantly, the renderer is constrained by:
+
+```text
+visible_rotation_left  = 0
+visible_rotation_right = 0
+mirror_left            = false
+mirror_right           = false
+```
+
+The opposite direction belongs to the numerical calculation, not to a rotated or mirrored image.
+
+## 6. Da'at center and link layer
+
+The synchronized stereo pair is transformed into an explicit common and differential representation for each channel:
+
+```text
+B_i = (G_i + D_i) / 2
+A_i = (G_i - D_i) / 2
+```
+
+Both sides remain reconstructable:
+
+```text
+G_i = B_i + A_i
+D_i = B_i - A_i
+```
+
+This gives a reversible center/differential transform. It also satisfies the pair-energy identity
+
+```text
+||G||^2 + ||D||^2 = 2(||B||^2 + ||A||^2)
+```
+
+within floating-point tolerance.
+
+A bounded software link score is then defined as
+
+```text
+Lc = 1 - product_i(1 - s_i*w_i)
+s_i = clamp(abs(B_i), 0, 1)
+0 <= w_i <= 1
+```
+
+The current default is `w_i = 1` for all twelve channels. This score is an observation-only software quantity; it is not assigned biological, physical, religious, or probabilistic meaning.
+
+A separate Beta(1,1) evidence ledger tracks repeatability of explicit software invariants. Its posterior means summarize observed pass/fail history only; they are not probabilities that a wider interpretation is true.
+
+## 7. Bounded path and geometry experiments
+
+The current update adds five downstream observation-only experiments, all consuming already-derived state without feeding back into Queen authority.
+
+### 7.1 Hopscotch path ensemble
+
+Four deterministic permutations of the twelve channel indices are evaluated from the same Da'at Link frame: forward, reverse, even-then-odd, and odd-then-even.
+
+For contributions `c_i = s_i*w_i`, each prefix records
+
+```text
+L_k = 1 - product_(visited i through step k)(1 - c_i)
+```
+
+Because the final complement-product is commutative, complete permutations end at the same final `Lc`; only intermediate traversal history changes in v0.1.
+
+### 7.2 Bounded oscillator modes
+
+One deterministic software mode is assigned to each channel:
+
+```text
+a_i   = clamp(hypot(B_i, A_i), 0, 1)
+phi_i = remainder((i+1)*theta, 2*pi)
+x_i   = a_i*cos(phi_i)
+y_i   = a_i*sin(phi_i)
+```
+
+with invariant
+
+```text
+x_i^2 + y_i^2 = a_i^2
+```
+
+within numerical tolerance. These are software oscillators, not quantum or physical oscillators.
+
+### 7.3 Conservative coupled software field
+
+The oscillator coordinates are propagated synchronously on a temporary periodic index ring `C12`.
+
+For either component `v`:
+
+```text
+F_i  = kappa*(v_i - v_(i+1))
+v'_i = v_i - F_i + F_(i-1)
+```
+
+equivalently,
+
+```text
+v'_i = (1 - 2*kappa)v_i + kappa*v_(i-1) + kappa*v_(i+1)
+```
+
+with `0 <= kappa <= 0.5` and current default `kappa = 0.125`.
+
+The implementation verifies conservation of component sums and non-increase of the squared software norm. These are software-accounting properties, not physical-energy claims.
+
+### 7.4 Discrete graph geometry
+
+The temporary operational graph is the unweighted cycle
+
+```text
+C12 = 0-1-2-...-11-0
+```
+
+with shortest-path metric
+
+```text
+d(i,j) = min(|i-j|, 12-|i-j|)
+```
+
+The graph has 12 nodes, 12 edges, degree 2 at every node, diameter 6, and mean unordered-pair distance `36/11`. No continuous-manifold, anatomical, Tree-of-Life, vertical, or depth interpretation is assigned.
+
+### 7.5 Bounded path-capacity sampler
+
+The exact number of complete channel-order permutations is
+
+```text
+12! = 479001600
+```
+
+and the exact number of prefixes at depth `d` is
+
+```text
+P(12,d) = 12!/(12-d)!
+```
+
+The implementation does not materialize the full route space. Instead, a deterministic SHA-256-ranked beam keeps at most 64 prefixes/routes per depth. This preserves exact combinatorial counts plus a reproducible bounded sample; it is not lossless compression or full coverage.
+
+## 8. Phase convention
+
+The current runtime phase convention is
+
+```text
+theta(t) = 2*pi*((t mod 7200)/7200)
+```
+
+with one nominal cycle per 7200 ticks.
+
+### Terminology note
+
+In public-facing material the project has sometimes used the phrase **“angle d'Euler”**. For academic precision, the current implementation should be described as a **scalar phase angle used to parameterize an ordered product of Givens rotations**. It is not presently the classical three-angle Euler parameterization of a 3-D rigid rotation.
+
+## 9. Visual-state combination
+
+The visual layer exposes twelve continuous state controls. For one output channel c, simultaneous state contributions are combined by
+
+```text
+L_c = 1 - product_i(1 - s_i*w_i,c)
+```
+
+with
+
+```text
+s_i ∈ [0,1]
+w_i,c ∈ [0,1]
+```
+
+which guarantees
+
+```text
+0 <= L_c <= 1
+```
+
+for valid inputs.
+
+This law is used as a bounded monotonic union. Its algebraic form is related to noisy-OR constructions, but the current project does **not** assign a probabilistic causal interpretation to the weights. The twelve labels are calibration semantics, not validated measurements of human or animal emotion.
+## 10. Implementation boundary
+
+The mathematical and runtime layers are separated from the renderer.
+
+**Mathematical/runtime path:**
+- four triads / twelve channels;
+- ordered Givens coupling;
+- center plus residual decomposition;
+- synchronized stereo source;
+- reversible Da'at center/differential transform;
+- bounded Da'at Link and evidence ledger;
+- Hopscotch path ensemble;
+- bounded oscillator modes;
+- conservative coupled software field;
+- discrete C12 graph geometry;
+- bounded deterministic path-capacity sampler;
+- provenance and checkpoint verification.
+
+**Visual-only path:**
+- four light channels (yellow/orange, blue/turquoise, mauve, rose);
+- red/gray/reflection/stripe overlays;
+- twelve tunable state controls;
+- stable eye rendering without visual rotation or mirror.
+
+The visual controls are observation/calibration tools and do not mutate the protected Queen state.
+
+## 11. Reproducibility evidence at baseline HEAD
+
+Baseline source HEAD tested for this draft:
+
+```text
+197b450
+```
+
+Verified locally on 2026-09-20:
+
+```text
+Z3 center coupling                 14/14 PASS
+Z3 center coupling adversarial     15/15 PASS
+Stereo Source                      10/10 PASS
+Z3 runtime bridge                  10/10 PASS
+Eye Render                         12/12 PASS
+CAT Mode UI                        22/22 PASS
+Da'at Gate / Link / Evidence       PASS
+Hopscotch + full-cycle sweep       PASS
+Oscillator + full-cycle sweep      PASS
+Coupled Field + full-cycle sweep   PASS
+Graph Geometry + full-cycle sweep  PASS
+Path Capacity + full-cycle sweep   PASS
+```
+
+The reproducibility commands are documented in `research/REPRODUCIBILITY.md`.
+
+## 12. Related work and positioning
+
+### 12.1 Givens rotations
+
+Givens rotations are established numerical-linear-algebra tools. Wallace Givens described unitary plane rotations for matrix transformations in 1958. Later numerical work studied reliable and efficient computation of these rotations.
+
+ANTMUX-X72 does not claim invention of Givens rotations. The project-specific element is the particular ordered 12-channel routing schedule and its integration into the runtime architecture.
+
+### 12.2 Quaternion-valued neural methods
+
+Quaternion neural networks are an established field for representing internally related multidimensional features. The current ANTMUX-X72 implementation should **not** be described as a quaternion neural network unless quaternion algebra and quaternion products are explicitly implemented and tested. The present four-triad Z structure is compared to that literature only as related multidimensional representation work.
+
+### 12.3 Noisy-OR-like bounded combination
+
+The formula used by the visual-state mixer has the same multiplicative complement shape that appears in noisy-OR models. The current implementation uses it as a bounded deterministic mixer. It does not currently define probabilities, conditional independence, or a causal Bayesian network.
+
+### 12.4 Affective computing
+
+Affective computing contains categorical and dimensional emotion models and a large literature on multimodal recognition. The twelve labels in ANTMUX-X72 are currently tunable interface states. They are not validated affect-recognition outputs and should not be presented as biological measurements without a separate empirical study.
+## 13. Limitations
+
+1. The 12-channel routing graph in v0.1 has two connected components; it is reversible but does not provide full 12-way mixing.
+2. Binary64 reconstruction is approximate rather than universally bit-exact.
+3. The stereo +theta/-theta construction is an engineering architecture; no biological hemispheric equivalence is claimed.
+4. The bilateral mean is a chosen aggregation operator, not a demonstrated optimal estimator.
+5. The twelve visual-state labels and weights are candidates awaiting empirical calibration.
+6. No physical-energy conservation claim follows from Euclidean norm preservation alone.
+7. The temporary C12 ring is an operational software topology only; it is not yet a justified spatial, anatomical, sefirotic, vertical, or depth geometry.
+8. The current Hopscotch final score is commutative, so route order changes traversal history but not final Lc.
+9. The path-capacity layer preserves exact combinatorial counts plus a bounded sample, not the identity of all 479,001,600 routes.
+10. No claim of novelty over all prior literature has yet been established by a systematic prior-art search.
+
+## 14. Falsifiable next experiments
+
+The next scientific stage should test:
+
+1. numerical reconstruction error as a function of scale, phase and coefficient distribution;
+2. norm error across large randomized and adversarial test sets;
+3. sensitivity to ordering of the 18 Givens rotations;
+4. comparison of the current routing schedule with alternative fully connected schedules;
+5. stereo-source divergence as a function of theta;
+6. whether bilateral aggregation provides measurable benefit for a defined downstream task;
+7. whether the 12-state visual mapping can be tied to externally measurable signals without circular calibration;
+8. whether a justified non-commutative path transform yields measurable route-dependent outcomes;
+9. whether alternative graph topologies outperform the temporary C12 ring on a defined task;
+10. whether the bounded path sampler preserves useful statistics relative to controlled exact enumerations on smaller path spaces.
+
+A candidate interpretation should be rejected or revised when these tests contradict it.
+
+## 15. Conclusion
+
+ANTMUX-X72 currently provides a reproducible software implementation of a 12-channel orthogonal coupling, an algebraically complete center-plus-residual representation, a synchronized bilateral stereo-Z calculation, a reversible Da'at center/differential layer, and a sequence of bounded observation-only experiments for traversal, oscillation, local propagation, graph geometry, and path capacity. The strongest present claims are implementation and numerical properties verified by tests. Semantic, affective, biological, religious, geometrical, and physical interpretations remain explicitly separated as hypotheses.
+
+## References
+
+[1] W. Givens. *Computation of Plain Unitary Rotations Transforming a General Matrix to Triangular Form*. Journal of the Society for Industrial and Applied Mathematics, 6:26–50, 1958. DOI: 10.1137/0106004.
+
+[2] D. Bindel, J. Demmel, W. Kahan, O. Marques. *On computing Givens rotations reliably and efficiently*. ACM Transactions on Mathematical Software, 28:206–238, 2002.
+
+[3] T. Parcollet, M. Ravanelli, M. Morchid, G. Linarès, C. Trabelsi, R. Mori, Y. Bengio. *Quaternion Recurrent Neural Networks*. arXiv:1806.04418, 2018.
+
+[4] S. Srinivas. *A Generalization of the Noisy-Or Model*. 1993, pp. 208–218.
+
+[5] Y. Wang et al. *A Systematic Review on Affective Computing: Emotion Models, Databases, and Recent Advances*. arXiv:2203.06935, 2022.
+
+## Acknowledgement
+
+Development, calculation checks, documentation assistance and testing support were performed with AI assistance, including ChatGPT/OpenAI. Scientific claims in this document are limited to what the source code, tests and cited literature presently support.
