@@ -1,0 +1,71 @@
+{
+  "schema": "ANTMUX-X72-REPRODUCIBILITY-v0.1",
+  "timestamp_utc": "2026-09-20T19:14:55.915018+00:00",
+  "git_head": "8e05e2b85a16f311ebe832d6c201bd901c66f61f",
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "tests_total": 6,
+  "tests_passed": 6,
+  "results": [
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.1\\deploy\\x72-shared-queen\\tests\\test_z3_center_coupling.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"architecture\": \"one 13-node system; reversible 12-to-12 center coupling; 3+9 is algebraically complete but binary64 reconstruction is approximate\", \"checks\": [{\"name\": \"12 channels split as 3 center + 9 residual\", \"ok\": true}, {\"name\": \"center coupling matrix is orthogonal\", \"ok\": true}, {\"name\": \"12-to-12 coupling round trip reconstructs source\", \"ok\": true}, {\"name\": \"center coupling preserves coefficient count\", \"ok\": true}, {\"name\": \"12-channel coupling preserves norm\", \"ok\": true}, {\"name\": \"center coupling does not mutate source\", \"ok\": true}, {\"name\": \"360-degree center schedule closes to identity\", \"ok\": true}, {\"name\": \"nonzero center angle mixes channels\", \"ok\": true}, {\"name\": \"3-center plus 9-residual representation is reconstructible\", \"ok\": true}, {\"name\": \"center 3-vector is four-triad channel mean\", \"ok\": true}, {\"name\": \"fourth residual is exactly derivable from first three\", \"ok\": true}, {\"name\": \"center-only 12-to-3 summary is not a reconstruction\", \"ok\": true}, {\"name\": \"zero center angle is identity\", \"ok\": true}, {\"name\": \"complex coefficients survive coupling and reconstruction\", \"ok\": true}], \"checks_passed\": 14, \"checks_total\": 14, \"schema\": \"ANTMUX-Z3-CENTER-COUPLING-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.1\\deploy\\x72-shared-queen\\tests\\test_z3_center_coupling_adversarial.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"invalid center angles rejected\", \"ok\": true}, {\"name\": \"round trip survives adversarial center angles\", \"ok\": true}, {\"name\": \"orthogonality survives adversarial center angles\", \"ok\": true}, {\"name\": \"norm survives adversarial center angles\", \"ok\": true}, {\"name\": \"integer 360-degree center turns close\", \"ok\": true}, {\"name\": \"overlapping center rotation schedule is order-sensitive\", \"ok\": true}, {\"name\": \"center coupling propagates one input beyond a mirror pair\", \"ok\": true}, {\"name\": \"center summary plus residuals round trip under complex load\", \"ok\": true}, {\"name\": \"different 12-channel states can share the same 3-value center\", \"ok\": true}, {\"name\": \"residual side information distinguishes same-center states\", \"ok\": true}, {\"name\": \"unequal triad coefficient lengths rejected\", \"ok\": true}, {\"name\": \"non-12 channel vector rejected\", \"ok\": true}, {\"name\": \"theta/matrix mismatch rejected\", \"ok\": true}, {\"name\": \"center operations leave source immutable\", \"ok\": true}, {\"name\": \"center matrix construction deterministic\", \"ok\": true}], \"checks_passed\": 15, \"checks_total\": 15, \"falsification_note\": \"a 3-value center summary alone is many-to-one; 3+9 is algebraically complete but binary64 reconstruction is not bit-exact at all scales\", \"schema\": \"ANTMUX-Z3-CENTER-COUPLING-ADVERSARIAL-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.1\\deploy\\x72-shared-queen\\tests\\test_stereo_source.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"stereo source is verified observation-only\", \"ok\": true}, {\"name\": \"left and right are explicit G and D sides\", \"ok\": true}, {\"name\": \"Z calculation direction is opposite at the stereo source\", \"ok\": true}, {\"name\": \"left and right each carry twelve calculated channels\", \"ok\": true}, {\"name\": \"bilateral mean is calculated from both sides\", \"ok\": true}, {\"name\": \"render contract forbids visual rotation mirror and negative eye\", \"ok\": true}, {\"name\": \"stereo source does not mutate protected Queen state\", \"ok\": true}, {\"name\": \"stereo source stays outside authoritative whole-state hash\", \"ok\": true}, {\"name\": \"checkpoint rebuilds same stereo source projection\", \"ok\": true}, {\"name\": \"checkpoint keeps authoritative whole hash unchanged\", \"ok\": true}], \"checks_passed\": 10, \"checks_total\": 10, \"schema\": \"ANTMUX-X72-STEREO-SOURCE-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.1\\deploy\\x72-shared-queen\\tests\\test_z3_runtime_bridge.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"clean birth has zero learned observable state\", \"ok\": true}, {\"name\": \"Z3 runtime starts empty\", \"ok\": true}, {\"name\": \"Z3 runtime respects 60-tick sampling cadence\", \"ok\": true}, {\"name\": \"first Z3 runtime frame is sealed and verified\", \"ok\": true}, {\"name\": \"Z3 runtime topology is explicit 13-node candidate\", \"ok\": true}, {\"name\": \"Z3 observation does not mutate protected Queen structure\", \"ok\": true}, {\"name\": \"Z3 runtime history advances while bounded\", \"ok\": true}, {\"name\": \"Z3 frame event is present at one-second cadence\", \"ok\": true}, {\"name\": \"checkpoint restores Z3 runtime history and provenance\", \"ok\": true}, {\"name\": \"whole-state hash survives checkpoint round trip\", \"ok\": true}], \"checks_passed\": 10, \"checks_total\": 10, \"schema\": \"ANTMUX-X72-Z3-RUNTIME-BRIDGE-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.1\\deploy\\x72-shared-queen\\tests\\test_eye_render.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"native channels are additive boost controls only\", \"ok\": true}, {\"name\": \"blue ring, web lines, and blue crystals share one boost\", \"ok\": true}, {\"name\": \"yellow outer ring and yellow crystals share one boost\", \"ok\": true}, {\"name\": \"mauve and rose preserve their native clock regions\", \"ok\": true}, {\"name\": \"clear crystal center uses less filter alpha than the edge\", \"ok\": true}, {\"name\": \"visible eye render stays stable on both sides\", \"ok\": true}, {\"name\": \"neither eye is mirrored\", \"ok\": true}, {\"name\": \"left and right calculations run in opposite directions at source\", \"ok\": true}, {\"name\": \"both eyes retain one bilateral color basis\", \"ok\": true}, {\"name\": \"combined alert can illuminate several native channels together\", \"ok\": true}, {\"name\": \"all four native channels may coexist\", \"ok\": true}, {\"name\": \"eye renderer remains observation-only\", \"ok\": true}], \"checks_passed\": 12, \"checks_total\": 12, \"schema\": \"ANTMUX-X72-EYE-RENDER-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "command": [
+        "C:\\Users\\casho\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\casho\\OneDrive\\Documents\\ChatGPT\\Antmux-open-science-v0.1\\deploy\\x72-shared-queen\\tests\\test_cat_mode_ui.py"
+      ],
+      "returncode": 0,
+      "stdout": "{\"checks\": [{\"name\": \"deploy copy matches lab for app.js\", \"ok\": true}, {\"name\": \"deploy copy matches lab for cat_mode.js\", \"ok\": true}, {\"name\": \"deploy copy matches lab for emotion_map.js\", \"ok\": true}, {\"name\": \"deploy copy matches lab for index.html\", \"ok\": true}, {\"name\": \"deploy copy matches lab for styles.css\", \"ok\": true}, {\"name\": \"chat view toggle is present\", \"ok\": true}, {\"name\": \"native light control yellowBoost exists\", \"ok\": true}, {\"name\": \"native light control blueBoost exists\", \"ok\": true}, {\"name\": \"native light control mauveBoost exists\", \"ok\": true}, {\"name\": \"native light control roseBoost exists\", \"ok\": true}, {\"name\": \"emotion map loads before cat renderer and app\", \"ok\": true}, {\"name\": \"emotion map exposes four triads and twelve state IDs\", \"ok\": true}, {\"name\": \"emotion controls are generated and persisted separately\", \"ok\": true}, {\"name\": \"cat renderer consumes blended emotion channels\", \"ok\": true}, {\"name\": \"calibration offers six requested direction/size buttons\", \"ok\": true}, {\"name\": \"calibration persists as visual-only browser state\", \"ok\": true}, {\"name\": \"blue illumination links ring web and crystals\", \"ok\": true}, {\"name\": \"cat renderer draws yellow and blue crystal families\", \"ok\": true}, {\"name\": \"four native rings preserve their fixed order\", \"ok\": true}, {\"name\": \"eye image is stable with no visual rotation or mirror\", \"ok\": true}, {\"name\": \"cat view consumes server eye_render metadata\", \"ok\": true}, {\"name\": \"frontend keeps authoritative tick immutable\", \"ok\": true}], \"checks_passed\": 22, \"checks_total\": 22, \"schema\": \"ANTMUX-X72-CAT-MODE-UI-TEST-v0.1\"}",
+      "stderr": "",
+      "passed": true
+    }
+  ]
+}
