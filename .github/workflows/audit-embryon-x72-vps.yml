@@ -88,6 +88,8 @@ jobs:
           run_readonly 'df -h' df -h
           run_readonly 'ss -ltnp' ss -ltnp
           run_readonly 'systemctl --type=service --state=running' systemctl --type=service --state=running
+          run_readonly 'systemctl --user status antmux-x72-queen.service' systemctl --user status antmux-x72-queen.service --no-pager -n 80
+          run_readonly 'journalctl --user antmux-x72-queen.service' journalctl --user -u antmux-x72-queen.service --no-pager -n 120
 
           TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/embryon-x72'
           section "inspect $TARGET_ROOT without reading agent.md"
