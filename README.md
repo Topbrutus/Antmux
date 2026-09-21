@@ -7,6 +7,60 @@
 
 ---
 
+## Barrière de rôle — Fourmi / Arène ↔ Reine
+
+Cette barrière est une **barrière de responsabilité**, pas une interdiction de visibilité. Les Fourmis ont évolué et peuvent être réutilisées dans d’autres expériences, arènes ou environnements. La Reine peut être documentée publiquement lorsque cela sert la reproductibilité, l’antériorité ou la compréhension du projet.
+
+### Côté Fourmi / Arène
+
+Quand on programme une Fourmi, une colonie ou une arène :
+
+- penser d’abord **agent local, interaction, stigmergie, routage, compétition/cooperation et environnement** ;
+- une Fourmi peut connaître le **contrat d’interface** de la Reine, mais ne doit pas devenir silencieusement la Reine ;
+- si une modification de l’arène change ce que la Reine reçoit, mesure ou commande, marquer explicitement l’impact **REINE** ;
+- les comportements de Fourmi doivent rester assez modulaires pour être réutilisés dans d’autres arènes ou expériences ;
+- une logique expérimentale propre à une Fourmi ne devient pas automatiquement un invariant global de X72.
+
+### Rappel vers la Reine
+
+Si un changement public touche :
+
+```text
+autorité
+état maître
+synchronisation globale
+persistance
+checkpoint
+réparation globale
+décision globale
+protocole Fourmi <-> Reine
+```
+
+alors vérifier le dépôt **`Topbrutus/antmux-x72`** avant de figer l’interface.
+
+La règle de programmation est :
+
+```text
+FOURMI / ARÈNE
+    -> agit localement
+    -> produit des observations
+    -> applique les règles de son environnement
+    -> peut être réutilisée ailleurs
+
+REINE
+    -> coordonne l’état global lorsqu’un module lui délègue cette autorité
+    -> reçoit / agrège / arbitre selon un contrat explicite
+    -> ne doit pas être confondue avec une Fourmi ordinaire
+```
+
+Une expérience peut volontairement brouiller cette frontière, mais elle doit alors être étiquetée comme telle et testée explicitement.
+
+### Public ne veut pas dire secret
+
+Le projet peut exposer du code de Reine ou des protocoles lorsque ce choix est volontaire. En revanche, **aucun mot de passe, jeton, clé privée, secret d’infrastructure ou identifiant sensible ne doit être publié**, même si le code qui les utilise est public.
+
+---
+
 ## Le thème d’Antmux
 
 Au commencement, il n’y avait ni laboratoire géant, ni calculatrice, ni machine assez puissante pour contenir toute l’idée. Il y avait une intuition : une architecture pouvait peut-être naître d’un très petit nombre de règles et reconstruire, à partir d’elles, une structure beaucoup plus vaste. Antmux part de cette graine.
