@@ -51,6 +51,10 @@ Construire. Vérifier. Retourner. Reconstruire. Évoluer. Recommencer.
 
 ## Noyau mathématique canonique
 
+Le noyau ci-dessous sépare les **identités arithmétiques exactes** des interprétations expérimentales d’Antmux. Les nombres et bijections peuvent être recalculés indépendamment; leur rôle dans l’architecture reste un choix de conception falsifiable.
+
+### 1. Paramètres fondamentaux et formule fondatrice
+
 ```text
 T = 3
 S_indépendantes = 6
@@ -61,39 +65,191 @@ K = 10
 barrières = 9
 O = 13
 
+FORMULE_FONDATRICE
+= T × S_total × P × B × barrières × K × O
+= 3 × (6 + 1) × 7 × 7 × 9 × 10 × 13
+= 1 203 930
+```
+
+Cette formule relie explicitement **tous les paramètres canoniques** déclarés au sommet du noyau.
+
+### 2. Structure combinatoire heptapolaire
+
+```text
 P × B = 49
 C(7,2) = 21
+
 21 × 7 = 147
 21 × 7 × 7 = 1029
 2 × 1029 = 2058
+
 7³ = 343
 49² = 7⁴ = 2401
 2058 + 343 = 2401
+```
 
+La dernière identité possède une lecture combinatoire exacte si les 49 positions sont indexées par un couple `(pôle, branche)` avec 7 choix pour chacun :
+
+```text
+positions internes au même pôle
+= 7 × 7 × 7
+= 343
+
+positions orientées entre deux pôles distincts
+= 7 × 6 × 7 × 7
+= 2058
+
+total
+= 343 + 2058
+= 2401
+= 49²
+= 7⁴
+```
+
+Autrement dit, les `2401` couples ordonnés de la matrice `49 × 49` se partitionnent exactement en `343` couples dont les deux extrémités appartiennent au même pôle et `2058` couples reliant deux pôles distincts.
+
+### 3. Cycle canonique 3 × 7 × 13
+
+```text
 ppcm(7,13) = 91
 ppcm(3,7,13) = 273
 13 × 7 × 7 = 637
+```
 
+Pour
+
+```text
+t ∈ Z3
+b ∈ Z7
+o ∈ Z13
+```
+
+on définit :
+
+```text
+R(t,b,o) = (91t + 39b + 21o) mod 273
+Phi(t,b,o) = 2πR / 273
+```
+
+Les `3 × 7 × 13 = 273` triplets produisent exactement **273 résidus distincts**. L’encodage est donc bijectif et réversible.
+
+Les coordonnées peuvent être récupérées directement depuis `R` :
+
+```text
+t = R mod 3
+b = (2R) mod 7
+o = (5R) mod 13
+```
+
+En effet :
+
+```text
+91 ≡ 1 (mod 3)
+39 ≡ 4 (mod 7), avec 4⁻¹ ≡ 2 (mod 7)
+21 ≡ 8 (mod 13), avec 8⁻¹ ≡ 5 (mod 13)
+```
+
+Les autres coefficients s’annulent modulo la base considérée. Ainsi :
+
+```text
+Z3 × Z7 × Z13  <->  Z273
+```
+
+et `Phi` associe ces 273 états à 273 phases uniformément espacées sur un tour.
+
+### 4. Mémoire, cohérence et respiration
+
+```text
 M = 9/10 = 0.900
 C = 47/50 = 0.940
 V = 3/50 = 0.060
+
 C + V = 1
+```
 
-R(t,b,o) = (91t + 39b + 21o) mod 273
-Phi(t,b,o) = 2πR / 273
+`M`, `C` et `V` sont des paramètres internes d’Antmux. L’identité `C + V = 1` est exacte; l’interprétation de `C` comme cohérence et de `V` comme respiration est architecturale, non une loi physique.
 
+### 5. Famille cyclique de 1/7 et constante interne NEO
+
+```text
 rho = (10^6 - 1) / 7 = 142857
-NEO_num = (1/7) × somme[k=1..7](k × rho + 1)
-NEO_num = 4 × rho + 1 = 571429
+
+NEO_num
+= (1/7) × somme[k=1..7](k × rho + 1)
+= 4 × rho + 1
+= 571429
+
 NEO = 571429 / 999999
 NEO = 0.(571429)
 NEO = 4/7 + 1/999999
-
-adresse(a,b,c,d) = a + 7b + 49c + 343d
-(a,b,c,d) ∈ Z7^4
-0 <= adresse <= 2400
-x ∈ F2^2401
 ```
+
+La réduction de la moyenne est exacte puisque :
+
+```text
+(1/7) × somme[k=1..7] k
+= (1/7) × 28
+= 4
+```
+
+**NEO est une constante structurelle interne d’Antmux.** Elle n’est pas présentée comme une constante fondamentale de la nature.
+
+### 6. Adressage canonique en base sept
+
+Pour `(a,b,c,d) ∈ Z7^4` :
+
+```text
+adresse(a,b,c,d)
+= a + 7b + 49c + 343d
+
+0 <= adresse <= 2400
+7⁴ = 2401
+```
+
+L’adressage est une bijection exacte :
+
+```text
+Z7^4  <->  {0,1,...,2400}
+```
+
+Pour une adresse `n`, les quatre chiffres se reconstruisent par :
+
+```text
+a = n mod 7
+b = floor(n / 7) mod 7
+c = floor(n / 49) mod 7
+d = floor(n / 343) mod 7
+```
+
+Le noyau peut alors distinguer explicitement deux types d’état :
+
+```text
+m ∈ F2^2401     # masque / état strictement binaire
+X ∈ R^2401      # état numérique réel, lorsque les cellules portent des amplitudes
+```
+
+Cette séparation évite de confondre la topologie binaire de `2401` cellules avec les valeurs numériques continues utilisées par les modules expérimentaux.
+
+### 7. Résumé des invariants exacts
+
+```text
+3 × (6 + 1) × 7 × 7 × 9 × 10 × 13 = 1 203 930
+
+7⁴ = 2401
+2058 + 343 = 2401
+
+ppcm(3,7,13) = 273
+|Z3 × Z7 × Z13| = 273
+R : Z3 × Z7 × Z13 <-> Z273
+
+rho = 142857
+NEO_num = 571429
+NEO = 0.(571429)
+
+adresse : Z7^4 <-> {0,...,2400}
+```
+
+Ces invariants forment le **socle canonique recalculable**. Les interprétations narratives, cognitives ou physiques placées au-dessus de ce socle doivent rester séparées des identités mathématiques elles-mêmes.
 
 ---
 
