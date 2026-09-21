@@ -61,6 +61,95 @@ Le projet peut exposer du code de Reine ou des protocoles lorsque ce choix est v
 
 ---
 
+## 🚧 ANTMUX v0.3 — D13 / Base Code 13 — en fabrication
+
+**Début du chantier : 2026-09-21**
+
+La prochaine évolution d’ANTMUX commence avec un objectif précis : faire de **D13** un véritable contrat de représentation interne en **base 13**, et non simplement une étiquette dans le nom de l’architecture.
+
+La version v0.3 est actuellement **en fabrication**. Elle doit prolonger la lignée X72 sans effacer les versions précédentes, en séparant clairement :
+
+```text
+X ∈ R^72
+= espace d’état X72
+
+D13
+= représentation / encodage radix-13
+
+Z13
+= cycle de 13 états : {0,1,...,12}
+
+13 nodes
+= matérialisation runtime candidate de ces 13 états
+```
+
+Le projet étudiera notamment une couche D13 capable de convertir, transporter, restaurer et comparer des états dans un format radix-13 reproductible. L’alphabet exact, la sérialisation, les fractions, les nombres négatifs et la forme finale des éventuels 13 nodes doivent encore être spécifiés et testés.
+
+### Nouvelle porte expérimentale
+
+Dans le langage du projet, cette étape doit permettre d’ouvrir de **nouvelles dimensions de représentation et d’exploration** — pas de nouvelles dimensions physiques démontrées. Le but est d’offrir à la Reine et aux Fourmis de nouveaux espaces de codage, de routage et de reconstruction.
+
+ANTMUX explore aussi l’idée d’un **encodage cristallin multi-monde** : chaque monde paramétrique pourrait produire sa propre empreinte, son propre cristal de données ou sa propre graine vérifiable, puis être traduit dans un contrat commun D13.
+
+```text
+monde paramétrique
+      ↓
+état / propriétés / observations
+      ↓
+encodage D13
+      ↓
+cristal de données
+      ↓
+comparaison / mémoire / reconstruction
+```
+
+Le terme **« chiffrement cristallin »** est pour l’instant un nom de travail expérimental. Il ne désigne pas encore un système cryptographique validé. Pour qu’il devienne un véritable mécanisme de chiffrement, il devra disposer d’un modèle de menace, de clés, d’algorithmes définis et d’une analyse de sécurité indépendante.
+
+### Continuité avec le noyau canonique
+
+La couche D13 doit rester compatible avec le cycle canonique déjà défini :
+
+```text
+t ∈ Z3
+b ∈ Z7
+o ∈ Z13
+
+R(t,b,o) = (91t + 39b + 21o) mod 273
+```
+
+avec :
+
+```text
+3 × 7 × 13 = 273
+```
+
+et la reconstruction :
+
+```text
+t = R mod 3
+b = (2R) mod 7
+o = (5R) mod 13
+```
+
+La v0.3 devra donc montrer précisément **où la base 13 intervient réellement dans le runtime**, comment elle est sérialisée, comment elle survit aux checkpoints, et comment elle interagit avec X72, Stereo-Z, Da’at, les Fourmis et la Reine.
+
+### Statut
+
+```text
+VERSION            = v0.3 candidate
+D13 CONTRACT       = EN FABRICATION
+Z13                = CANONIQUE / À INTÉGRER AU RUNTIME
+13 NODES           = CANDIDAT
+CRYSTAL ENCODING   = EXPÉRIMENTAL
+CRYSTAL ENCRYPTION = À DÉMONTRER
+```
+
+La règle reste la même :
+
+> **Construire. Définir. Tester. Falsifier. Publier seulement ce qui survit aux vérifications.**
+
+---
+
 ## Le thème d’Antmux
 
 Au commencement, il n’y avait ni laboratoire géant, ni calculatrice, ni machine assez puissante pour contenir toute l’idée. Il y avait une intuition : une architecture pouvait peut-être naître d’un très petit nombre de règles et reconstruire, à partir d’elles, une structure beaucoup plus vaste. Antmux part de cette graine.
