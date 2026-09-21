@@ -17,6 +17,12 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from pydantic import BaseModel
 
 from .relation_runtime import RelationRuntime
+from .timing import (
+    DT_SIM_SECONDS,
+    ENGINE_TARGET_HZ,
+    SCHEDULER_SLEEP_SECONDS,
+    timing_contract,
+)
 from .z3_runtime import Z3RuntimeBridge
 
 
@@ -25,6 +31,7 @@ CANON_SCHEMA = "ANTMUX-X72-CANON-v1"
 PROTECTED_SCHEMA = "ANTMUX-X72-PROTECTED-STATE-v1"
 ALLOWED_FAULTS = {"S1", "S2", "S3", "S4", "S5", "S6", "S7", "RANDOM"}
 RELATION_TOPOLOGY_VERSION = "K7-COMPLETE-v1"
+SERVER_VERSION = "0.2.1"
 COMPLETE_RELATIONS_K7: tuple[tuple[int, int], ...] = tuple(
     (left, right)
     for left in range(7)
@@ -140,7 +147,7 @@ class QueenCore:
         self.mode = "SLEEP"
         self.tick = 0
         self.sim_time = 0.0
-        self.dt_sim = 1 / 240
+        self.dt_sim = DT_SIM_SECONDS
         self.started_at = time.monotonic()
         self.runtime_start_tick = self.tick
         self.repair_active = False
@@ -367,6 +374,7 @@ class QueenCore:
         protected = self.protected_h256()
         return {
             "source": "QUEEN_SERVER_V0_2",
+            "software_version": SERVER_VERSION,
             "entity_id": self.entity_id,
             "seed": self.seed,
             "tick_count": self.tick,
@@ -516,7 +524,7 @@ DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-quee
 DB_PATH = DATA_DIR / "queen.db"
 REPORT_PATH = DATA_DIR / "ANTMUX_X72_SERVER_SHARED_QUEEN_TEST_REPORT.json"
 
-app = FastAPI(title="ANTMUX X72 Shared Queen Server", version="0.2")
+app = FastAPI(title="ANTMUX X72 Shared Queen Server", version=SERVER_VERSION)
 persistence = Persistence(DB_PATH)
 queen = persistence.load_latest() or QueenCore(seed=72)
 state_lock = asyncio.Lock()
@@ -549,6 +557,7 @@ def observability_snapshot() -> dict[str, Any]:
         "schema": "ANTMUX-X72-OBSERVABILITY-v1",
         "scope": "operational_read_only",
         "authority": "QUEEN_SERVER_V0_2",
+        "software_version": SERVER_VERSION,
         "entity_id": state["entity_id"],
         "uptime_seconds": round(max(0.0, time.monotonic() - server_started_monotonic), 3),
         "tick_count": state["tick_count"],
@@ -560,13 +569,14 @@ def observability_snapshot() -> dict[str, Any]:
         "event_count": state["event_count"],
         "websocket_clients": active_websocket_clients,
         "websocket_messages_sent": websocket_messages_sent,
-        "cadence_seconds": {"tick": 1.0 / 240.0, "scheduler": 0.005, "checkpoint": 2.0, "websocket": 0.25},
+        "cadence_seconds": {"tick": DT_SIM_SECONDS, "scheduler": SCHEDULER_SLEEP_SECONDS, "checkpoint": 2.0, "websocket": 0.25},
+        "timing_contract": timing_contract(),
     }
 
 
 async def tick_loop() -> None:
-    target_hz = 240.0
-    scheduler_sleep = 0.005
+    target_hz = ENGINE_TARGET_HZ
+    scheduler_sleep = SCHEDULER_SLEEP_SECONDS
     max_catchup_steps = 96
     started = time.monotonic()
     base_tick = queen.tick
@@ -612,6 +622,7 @@ async def health() -> dict[str, Any]:
         return {
             "ok": True,
             "source": "QUEEN_SERVER_V0_2",
+            "software_version": SERVER_VERSION,
             "entity_id": queen.entity_id,
             "tick_count": queen.tick,
             "db_path": str(DB_PATH),
