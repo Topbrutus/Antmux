@@ -21,6 +21,8 @@ from .timing import (
     DT_SIM_SECONDS,
     ENGINE_TARGET_HZ,
     SCHEDULER_SLEEP_SECONDS,
+    brutus_calibration,
+    synchronization_state,
     timing_contract,
 )
 from .z3_runtime import Z3RuntimeBridge
@@ -31,7 +33,7 @@ CANON_SCHEMA = "ANTMUX-X72-CANON-v1"
 PROTECTED_SCHEMA = "ANTMUX-X72-PROTECTED-STATE-v1"
 ALLOWED_FAULTS = {"S1", "S2", "S3", "S4", "S5", "S6", "S7", "RANDOM"}
 RELATION_TOPOLOGY_VERSION = "K7-COMPLETE-v1"
-SERVER_VERSION = "0.2.1"
+SERVER_VERSION = "0.2.2-rc1"
 COMPLETE_RELATIONS_K7: tuple[tuple[int, int], ...] = tuple(
     (left, right)
     for left in range(7)
@@ -372,6 +374,7 @@ class QueenCore:
         error = 1.0 - active / 7
         whole = self.whole_h256()
         protected = self.protected_h256()
+        r_exec = runtime_ticks / elapsed
         return {
             "source": "QUEEN_SERVER_V0_2",
             "software_version": SERVER_VERSION,
@@ -380,8 +383,10 @@ class QueenCore:
             "tick_count": self.tick,
             "sim_time": round(self.sim_time, 6),
             "dt_sim": self.dt_sim,
-            "r_exec": round(runtime_ticks / elapsed, 3),
+            "r_exec": round(r_exec, 6),
             "f_rt": round((runtime_ticks * self.dt_sim) / elapsed, 6),
+            "brutus_calibration": brutus_calibration(r_exec),
+            "brutus_sync": synchronization_state(self.tick),
             "event_count": len(self.bus.events),
             "queen_mode": self.mode,
             "generation": self.generation,
