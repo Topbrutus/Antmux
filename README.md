@@ -49,6 +49,210 @@ Construire. Vérifier. Retourner. Reconstruire. Évoluer. Recommencer.
 
 ---
 
+## Mode d’emploi expérimental v0.3 — KU GATE / MIRROR-10 / D13
+
+> **Version conceptuelle du mode d’emploi : v0.3.**  
+> Cette numérotation décrit l’architecture de recherche ci-dessous et ne remplace pas, à elle seule, la version logicielle déployée d’ANTMUX-X72.
+
+### Principe directeur
+
+```text
+MULTIPLICITÉ APPARENTE — UNITÉ STRUCTURELLE
+```
+
+Chaque augmentation de complexité doit conserver un chemin de retour vers une structure plus simple, vérifiable et reproductible.
+
+### Chaîne candidate
+
+```text
+TOPBRUTUS
+  -> KU GATE
+  -> STÉRÉO + MIROIR
+  -> MIRROR-10 / 5 PAIRES
+  -> Z13
+  -> D13
+  -> ASTRA
+  -> FEEDBACK
+  -> entrée suivante
+```
+
+Statuts :
+
+- **TOPBRUTUS** : origine, intention et autorité humaine.
+- **KU GATE** : gardien logique ; validation, passage et sélection de mode.
+- **STÉRÉO + MIROIR** : noyau multicanal candidat construit à partir de deux canaux et de leurs partenaires miroir.
+- **MIRROR-10** : organisation candidate en dix canaux regroupés en cinq paires complémentaires.
+- **Z13** : coordonnée cyclique de treize états.
+- **D13** : encodage radix-13 ; **D13 n’est pas une dimension physique**.
+- **ASTRA** : réception, comparaison, coordination et observabilité.
+- **FEEDBACK** : réinjection contrôlée de la sortie dans l’itération suivante.
+
+### Loi miroir candidate
+
+Une simple copie n’est pas considérée comme un miroir mathématique. Une transformation candidate doit au minimum être réversible.
+
+```text
+M_K(x) = K - x
+M_K(M_K(x)) = x
+x + M_K(x) = K
+```
+
+Le critère important est l’**involution** : deux passages par le miroir ramènent exactement à l’état initial.
+
+Une représentation quaternionique du noyau quatre voies reste candidate :
+
+```text
+q = (w, x, y, z)
+```
+
+Elle peut servir à étudier rotations, phase et transformations réversibles, sans présumer d’une équivalence physique particulière.
+
+### MIRROR-10 et invariant 5005
+
+Pour un cube magique normal d’ordre 10 :
+
+```text
+10 × 10 × 10 = 1000 cases
+1 + 1000 = 1001
+2 + 999  = 1001
+...
+```
+
+Une ligne de dix valeurs peut être organisée en cinq couples complémentaires :
+
+```text
+5 × 1001 = 5005
+5005 = 5 × 7 × 11 × 13
+```
+
+`5005` est un palindrome en écriture décimale. Cette propriété d’écriture ne doit pas être confondue avec une invariance en D13.
+
+La structure candidate générale est :
+
+```text
+10 canaux
+  -> 5 paires
+  -> invariant de paire
+  -> position / phase
+  -> encodage
+```
+
+Le passage exact de quatre composantes stéréo-miroir vers dix canaux **reste à définir et à tester**.
+
+### Cinq paires et couches d’interprétation
+
+Couche sensorielle candidate :
+
+```text
+P1 -> vue
+P2 -> ouïe
+P3 -> toucher
+P4 -> goût
+P5 -> odorat
+```
+
+Cette correspondance est une structure d’information candidate, pas une réduction de la biologie humaine à exactement cinq modalités sensorielles.
+
+Une couche « cinq éléments » peut également être étudiée, mais elle demeure **symbolique / à définir** tant que ses règles de correspondance et ses critères de test ne sont pas explicités.
+
+### Z13 entre dans D13
+
+La correspondance suivante est exacte comme encodage :
+
+```text
+Z13 = {0,1,2,...,12}
+D13 = {0,1,2,3,4,5,6,7,8,9,A,B,C}
+
+0  -> 0
+...
+9  -> 9
+10 -> A
+11 -> B
+12 -> C
+```
+
+On exige le round-trip :
+
+```text
+decode(encode(z)) = z
+```
+
+Ainsi, `Z13 -> D13` désigne une bijection entre treize états cycliques et treize symboles d’encodage.
+
+### Guide, mode, phase, résonance et feedback
+
+L’architecture s’inspire de mécanismes établis de physique des ondes :
+
+```text
+SOURCE
+  -> GUIDE
+  -> MODE ADMISSIBLE
+  -> PHASE
+  -> RÉSONANCE
+  -> FEEDBACK
+```
+
+Cette inspiration motive le rôle candidat de KU GATE comme sélection de passage et de Z comme variable de phase.
+
+Les guides d’ondes, modes, phases, résonances et boucles de rétroaction sont des concepts physiques établis. En revanche, aucune affirmation de portail, vortex, dimension accessible ou nouvelle particule n’est considérée comme démontrée par cette architecture.
+
+### Règle de test « Sudoku »
+
+Une correspondance n’est pas retenue parce qu’elle paraît belle. Elle doit être imposée par les contraintes.
+
+```text
+entrée
+  -> une place déterminée
+  -> transformation traçable
+  -> reconstruction
+```
+
+Critères minimaux :
+
+1. même entrée -> même sortie ;
+2. aucune collision silencieuse ;
+3. round-trip exact lorsque la transformation est annoncée comme réversible ;
+4. invariants explicitement mesurés ;
+5. comparaison avec une baseline sans la nouvelle couche ;
+6. abandon ou correction de l’hypothèse si elle échoue de façon reproductible.
+
+### Statut v0.3
+
+```text
+CALCULÉ :
+- 10³ = 1000
+- constante magique d’ordre 10 = 5005
+- 5005 = 5 × 7 × 11 × 13
+- Z13 <-> D13 est une bijection d’encodage
+- M_K(x) = K - x est une involution
+
+CANDIDAT :
+- KU GATE comme sélecteur logique / sélection de mode
+- stéréo + miroir -> représentation quaternionique
+- MIRROR-10 comme architecture de signal
+- cinq paires -> couche sensorielle
+- D13 comme couche d’adressage de phase
+- feedback ANTMUX contrôlé
+
+SYMBOLIQUE / À DÉFINIR :
+- cinq éléments
+- chakras
+- interprétations dimensionnelles
+
+NON DÉMONTRÉ :
+- portail ou vortex physique
+- équivalence bosonique particulière de KU/Brutus
+- nouvelle loi fondamentale de la nature
+```
+
+Le principe de construction reste :
+
+```text
+complexifier sans perdre le retour à un
+```
+
+---
+
 ## Noyau mathématique canonique
 
 ```text
