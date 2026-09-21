@@ -12,7 +12,7 @@ from app.timing import BASE7_ADDRESS_SPACE, BASE7_CYCLE_SECONDS, DT_SIM_SECONDS,
 
 
 def run() -> None:
-    assert SERVER_VERSION == "0.2.1"
+    assert SERVER_VERSION == "0.2.2-rc1"
     assert BASE7_ADDRESS_SPACE == 2401
     assert ENGINE_TARGET_HZ == 240.1
     assert math.isclose(DT_SIM_SECONDS, 10.0 / 2401.0, rel_tol=0.0, abs_tol=1e-15)
