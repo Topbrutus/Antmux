@@ -92,6 +92,7 @@ jobs:
           run_readonly 'journalctl --user antmux-x72-queen.service' journalctl --user -u antmux-x72-queen.service --no-pager -n 120
           run_readonly 'free -h' free -h
           run_readonly 'uptime' uptime
+          run_readonly 'cpu topology' bash -lc 'printf "NPROC="; nproc; lscpu | grep -E "^(CPU\(s\)|Core\(s\) per socket|Socket\(s\)|Thread\(s\) per core|Model name):"'
           run_readonly 'systemctl --user show queen runtime' systemctl --user show antmux-x72-queen.service -p MainPID -p WorkingDirectory -p ExecStart -p FragmentPath --no-pager
           run_readonly 'queen process metrics and cwd' bash -lc 'pid="$(systemctl --user show antmux-x72-queen.service -p MainPID --value)"; ps -p "$pid" -o pid=,etime=,%cpu=,%mem=,rss=,vsz=,cmd=; readlink -f "/proc/$pid/cwd"'
           run_readonly 'queen persistence metadata' bash -lc 'root="$HOME/antmux-x72-queen"; for p in "$root/data/queen.db" "$root/data/queen.db-wal" "$root/data/queen.db-shm" "$root/data/ANTMUX_X72_SERVER_SHARED_QUEEN_TEST_REPORT.json" "$root/snapshots" "$root/logs"; do if [ -e "$p" ]; then stat -c "%F %s %y %n" "$p"; else printf "MISSING %s\n" "$p"; fi; done'
