@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from .timing import ENGINE_TARGET_HZ
+
 RELATION_RUNTIME_SCHEMA = "ANTMUX-X72-RELATION-RUNTIME-v0.1"
 RELATION_RUNTIME_STATUS = "CANDIDATE"
 RELATION_RUNTIME_AUTHORITY = "OBSERVATION_ONLY"
@@ -224,6 +226,7 @@ class RelationRuntime:
             "physical_claim": False,
             "sample_interval_ticks": self.sample_interval_ticks,
             "sample_hz_at_240hz": 240.0 / self.sample_interval_ticks,
+            "sample_hz_at_engine_target": ENGINE_TARGET_HZ / self.sample_interval_ticks,
             "signal_threshold": self.signal_threshold,
             "direction_semantics": "HIGHER_ACTIVITY_TO_LOWER_ACTIVITY_VISUAL_CANDIDATE",
             "relation_count": len(metrics),

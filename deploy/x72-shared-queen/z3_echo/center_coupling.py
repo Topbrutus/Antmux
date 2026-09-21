@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Iterable
 
 from .math_core import FiniteZTriad, Triad3
@@ -278,6 +279,7 @@ class CenterCoupling12:
         object.__setattr__(self, "theta", angle)
 
     @classmethod
+    @lru_cache(maxsize=256)
     def from_theta(cls, theta: float) -> "CenterCoupling12":
         angle = _finite_real(theta, "theta")
         return cls(theta=angle, matrix=build_center_coupling_matrix(angle))

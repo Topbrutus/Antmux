@@ -951,6 +951,17 @@ jobs:
           python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
           python3 deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
           python3 deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
+          python3 deploy/x72-shared-queen/tests/test_stereo_source.py
+          python3 deploy/x72-shared-queen/tests/test_daat_gate.py
+          python3 deploy/x72-shared-queen/tests/test_daat_evidence.py
+          python3 deploy/x72-shared-queen/tests/test_daat_link.py
+          python3 deploy/x72-shared-queen/tests/test_hopscotch_paths.py
+          python3 deploy/x72-shared-queen/tests/test_oscillator_modes.py
+          python3 deploy/x72-shared-queen/tests/test_coupled_field.py
+          python3 deploy/x72-shared-queen/tests/test_graph_geometry.py
+          python3 deploy/x72-shared-queen/tests/test_path_capacity.py
+          python3 deploy/x72-shared-queen/tests/test_path_capacity_sweep.py
+          python3 deploy/x72-shared-queen/tests/test_long_run_homeostasis.py
           node --check laboratoire/embryon-x72/app.js
           cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
           grep -q 'Z3 RUNTIME' laboratoire/embryon-x72/index.html
@@ -1029,9 +1040,32 @@ jobs:
           fi
           cp -a "$TARGET/app.js" "$BACKUP/app.js.before"
           cp -a "$TARGET/index.html" "$BACKUP/index.html.before"
-          for f in "$DATA_DIR"/queen.db "$DATA_DIR"/queen.db-wal "$DATA_DIR"/queen.db-shm; do
-            [ -e "$f" ] && cp -a "$f" "$BACKUP/"
-          done
+
+          # Freeze SQLite before copying it. A live DB/WAL copy is not a safe rollback image.
+          systemctl --user stop antmux-x72-queen.service || true
+          if [ -f "$DATA_DIR/queen.db" ] && python3 - "$DATA_DIR/queen.db" <<'PY'
+          import sqlite3, sys
+          try:
+              db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+              verdict = db.execute("PRAGMA quick_check").fetchone()[0]
+              db.close()
+          except Exception as exc:
+              print(f"DB_BACKUP_CHECK=FAIL {type(exc).__name__}: {exc}")
+              raise SystemExit(1)
+          if verdict != "ok":
+              print(f"DB_BACKUP_CHECK=FAIL verdict={verdict}")
+              raise SystemExit(1)
+          print("DB_BACKUP_CHECK=PASS")
+          PY
+          then
+            for f in "$DATA_DIR"/queen.db "$DATA_DIR"/queen.db-wal "$DATA_DIR"/queen.db-shm; do
+              [ -e "$f" ] && cp -a "$f" "$BACKUP/"
+            done
+            touch "$BACKUP/db-backup-valid"
+          else
+            touch "$BACKUP/db-backup-invalid"
+            printf 'DB_BACKUP_VALID=false; rollback will use a clean old-code birth.\n'
+          fi
 
           rollback() {
             set +e
@@ -1044,20 +1078,43 @@ jobs:
             cp -a "$BACKUP/app.js.before" "$TARGET/app.js"
             cp -a "$BACKUP/index.html.before" "$TARGET/index.html"
             rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
-            for f in "$BACKUP"/queen.db "$BACKUP"/queen.db-wal "$BACKUP"/queen.db-shm; do
-              [ -e "$f" ] && cp -a "$f" "$DATA_DIR/"
-            done
+            if [ -f "$BACKUP/db-backup-valid" ]; then
+              for f in "$BACKUP"/queen.db "$BACKUP"/queen.db-wal "$BACKUP"/queen.db-shm; do
+                [ -e "$f" ] && cp -a "$f" "$DATA_DIR/"
+              done
+              printf 'ROLLBACK_DB=VALID_BACKUP\n'
+            else
+              printf 'ROLLBACK_DB=CLEAN_BIRTH_FALLBACK\n'
+            fi
             systemctl --user start antmux-x72-queen.service
+            rollback_ready=0
+            for _ in $(seq 1 60); do
+              if curl --fail --silent --show-error http://127.0.0.1:8720/api/health >/tmp/x72-rollback-health.json; then
+                rollback_ready=1
+                break
+              fi
+              sleep 0.5
+            done
+            if [ "$rollback_ready" -eq 1 ]; then
+              cat /tmp/x72-rollback-health.json
+              printf '\nROLLBACK_SERVICE=PASS\n'
+            else
+              printf 'ROLLBACK_SERVICE=FAIL\n'
+              systemctl --user status antmux-x72-queen.service --no-pager -n 80 || true
+              journalctl --user -u antmux-x72-queen.service --no-pager -n 120 || true
+            fi
           }
           trap 'rc=$?; if [ "$rc" -ne 0 ]; then rollback; fi; exit "$rc"' EXIT
 
-          systemctl --user stop antmux-x72-queen.service
+          systemctl --user stop antmux-x72-queen.service || true
           rm -rf "$APP_ROOT/app" "$APP_ROOT/z3_echo"
           cp -a "$PAYLOAD_ROOT/deploy/x72-shared-queen/app" "$APP_ROOT/app"
           cp -a "$PAYLOAD_ROOT/deploy/x72-shared-queen/z3_echo" "$APP_ROOT/z3_echo"
           install -m 0644 "$PAYLOAD_ROOT/laboratoire/embryon-x72/app.js" "$TARGET/app.js"
           install -m 0644 "$PAYLOAD_ROOT/laboratoire/embryon-x72/index.html" "$TARGET/index.html"
 
+          # Clean-birth validation must not import app.server through an old or malformed DB.
+          rm -f "$DATA_DIR/queen.db" "$DATA_DIR/queen.db-wal" "$DATA_DIR/queen.db-shm"
           python3 -m py_compile "$APP_ROOT/app/server.py" "$APP_ROOT/app/z3_runtime.py"
           PYTHONPATH="$APP_ROOT:$APP_ROOT/vendor" python3 - <<'PY'
           from app.server import QueenCore
@@ -1097,13 +1154,38 @@ jobs:
           print("PUBLIC_BIRTH_ZERO_GATE=PASS")
           PY
 
-          sleep 35
-          curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/state-generation1.json"
+          generation_ready=0
+          for _ in $(seq 1 240); do
+            if curl --fail --silent --show-error http://127.0.0.1:8720/api/state > "$BACKUP/state-generation1-candidate.json"; then
+              if python3 - "$BACKUP/state-generation1-candidate.json" <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1], encoding="utf-8"))
+          raise SystemExit(0 if int(state.get("generation", 0)) >= 1 else 1)
+          PY
+              then
+                cp "$BACKUP/state-generation1-candidate.json" "$BACKUP/state-generation1.json"
+                generation_ready=1
+                break
+              fi
+            fi
+            sleep 0.5
+          done
+          test "$generation_ready" -eq 1
           curl --fail --silent --show-error http://127.0.0.1:8720/api/events > "$BACKUP/events-generation1.json"
           python3 - "$BACKUP/state-generation1.json" "$BACKUP/events-generation1.json" <<'PY'
           import json, sys
           state = json.load(open(sys.argv[1], encoding="utf-8"))
           events = json.load(open(sys.argv[2], encoding="utf-8"))["events"]
+          summary = {
+              "tick": state.get("tick_count"),
+              "generation": state.get("generation"),
+              "r_exec": state.get("r_exec"),
+              "f_rt": state.get("f_rt"),
+              "memory": state.get("memory_level"),
+              "crystal": state.get("crystallization_level"),
+              "integrity": state.get("integrity_match"),
+          }
+          print("GENERATION1_METRICS=" + json.dumps(summary, sort_keys=True))
           assert state["generation"] >= 1
           assert state["integrity_match"] is True
           assert state["active_synapses"] == 7
@@ -1184,12 +1266,27 @@ jobs:
           assert isinstance(z3, dict)
           assert z3["authority"] == "OBSERVATION_ONLY"
           assert z3["history_count"] == 32
-          assert z3["latest"]["fast_verified"] is True
+          latest = z3["latest"]
+          assert latest["fast_verified"] is True
+          for key in (
+              "stereo_source",
+              "daat_gate",
+              "daat_link",
+              "hopscotch",
+              "oscillator",
+              "coupled_field",
+              "graph_geometry",
+              "path_capacity",
+          ):
+              assert key in latest
+              assert latest[key]["verified"] is True
+          assert latest["path_capacity"]["complete_path_space"] == 479001600
+          assert latest["path_capacity"]["sampled_route_count"] == 64
           rel = state["relation_runtime"]
           assert rel["relation_count"] == 21
           assert rel["physical_claim"] is False
           assert rel["mutates_queen"] is False
-          print("PUBLIC_Z3_LIVE_BIRTH=PASS")
+          print("PUBLIC_X72_DAAT_PATH_CAPACITY_BIRTH=PASS")
           PY
 
       - name: Upload final-birth log
