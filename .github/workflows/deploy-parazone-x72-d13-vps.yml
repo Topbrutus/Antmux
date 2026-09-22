@@ -51,7 +51,7 @@ jobs:
           grep -Fq 'PARAZONE-X72-D13' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'PASSER 1 CRISTAL' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'DÉLAI' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq '6° par minute' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq '6° / minute' laboratoire/parazone-x72-d13-v2/index.html
 
       - name: Assemble exact public payload
         run: |
@@ -154,7 +154,7 @@ jobs:
           grep -Fq 'PARAZONE-X72-D13' /tmp/parazone-index.html
           grep -Fq 'PASSER 1 CRISTAL' /tmp/parazone-index.html
           grep -Fq 'DÉLAI' /tmp/parazone-index.html
-          grep -Fq '6° par minute' /tmp/parazone-index.html
+          grep -Fq '6° / minute' /tmp/parazone-index.html
           grep -Fq '# PARAZONE-X72-D13 — V2.0' /tmp/parazone-readme.md
 
           echo 'ANTMUX_PARAZONE_PUBLIC=PASS'
