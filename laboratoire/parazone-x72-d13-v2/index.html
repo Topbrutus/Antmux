@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#05070c" />
+  <title>PARAZONE-X72-D13 — V2.0</title>
+  <meta name="description" content="Prototype visuel stéréo PARAZONE-X72-D13 V2.0 : deux roues, 60 positions, délai contrôlé et passage de cristaux en simulation." />
+  <link rel="stylesheet" href="../../styles.css" />
+  <style>
+    :root { --gold:#f4c95d; --cyan:#6ed7ff; --ok:#8de3ac; --muted:#9ca3af; --panel:#0d1420; --line:#263247; }
+    body { background:#05070c; }
+    .page { max-width:1260px; margin:0 auto; padding:24px; }
+    .top { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-bottom:18px; }
+    .badge { display:inline-flex; padding:7px 10px; border:1px solid rgba(110,215,255,.35); border-radius:999px; color:var(--cyan); font-size:.75rem; font-weight:800; letter-spacing:.08em; }
+    .panel { border:1px solid var(--line); border-radius:18px; background:linear-gradient(180deg,#0b1220,#08101a); padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+    .stage-wrap { overflow:auto; }
+    #stage { display:block; width:100%; min-width:760px; max-width:1200px; aspect-ratio:2/1; margin:0 auto; border-radius:14px; background:radial-gradient(circle at 50% 50%, rgba(110,215,255,.06), transparent 42%), #060a11; }
+    .controls { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:center; }
+    button, input { border:1px solid #334155; background:#121b2a; color:#eef2ff; border-radius:10px; padding:10px 12px; font:inherit; }
+    button { cursor:pointer; font-weight:800; letter-spacing:.03em; }
+    button:hover { border-color:var(--gold); }
+    button.primary { background:var(--gold); color:#101318; border-color:var(--gold); }
+    button.cyan { border-color:rgba(110,215,255,.55); color:var(--cyan); }
+    button.ok { border-color:rgba(141,227,172,.55); color:var(--ok); }
+    label { color:#cbd5e1; font-size:.88rem; display:flex; gap:8px; align-items:center; }
+    input[type="number"] { width:110px; }
+    .status-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; }
+    .metric { border:1px solid #253247; border-radius:12px; padding:10px 12px; background:#09111d; }
+    .metric span { display:block; color:var(--muted); font-size:.72rem; letter-spacing:.07em; }
+    .metric strong { display:block; margin-top:4px; }
+    .note { color:var(--muted); line-height:1.55; font-size:.9rem; margin:12px 0 0; }
+    .nav { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0 20px; }
+    .nav a { text-decoration:none; }
+    .tiny { color:var(--muted); font-size:.8rem; }
+    @media(max-width:900px){ .status-grid{grid-template-columns:repeat(2,1fr);} }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="top">
+      <div>
+        <p class="eyebrow">ANTMUX · LABORATOIRE · V2.0</p>
+        <h1>PARAZONE-X72-D13</h1>
+        <p class="lede">Prototype stéréo à deux roues — préparation des positions, délai et passage de cristaux.</p>
+      </div>
+      <span class="badge">SIMULATION VISUELLE · PAS DE BACKEND LIVE</span>
+    </div>
+
+    <nav class="nav">
+      <a class="secondary" href="../">← LABORATOIRE</a>
+      <a class="secondary" href="../embryon-x72/">EMBRYON X72</a>
+      <a class="secondary" href="../../">ACCUEIL ANTMUX</a>
+    </nav>
+
+    <section class="panel stage-wrap">
+      <svg id="stage" viewBox="0 0 1200 600" role="img" aria-label="Deux roues stéréo PARAZONE de 560 pixels de diamètre chacune">
+        <defs>
+          <radialGradient id="gateGlow">
+            <stop offset="0%" stop-color="#6ed7ff" stop-opacity=".36"/>
+            <stop offset="65%" stop-color="#6ed7ff" stop-opacity=".08"/>
+            <stop offset="100%" stop-color="#6ed7ff" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="softGlow">
+            <feGaussianBlur stdDeviation="8" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <circle id="portalGlow" cx="600" cy="300" r="100" fill="url(#gateGlow)" opacity=".2"/>
+        <line x1="600" y1="80" x2="600" y2="520" stroke="#263247" stroke-width="1" stroke-dasharray="5 9"/>
+
+        <g id="leftWheel" transform="translate(300 300)"></g>
+        <g id="rightWheel" transform="translate(900 300)"></g>
+
+        <g id="crystal" opacity="0" filter="url(#softGlow)">
+          <polygon points="0,-12 9,0 0,12 -9,0" fill="#f4c95d" stroke="#fff4b8" stroke-width="2"/>
+        </g>
+
+        <text x="300" y="315" text-anchor="middle" fill="#eef2ff" font-size="18" font-weight="800">STÉRÉO G</text>
+        <text x="900" y="315" text-anchor="middle" fill="#eef2ff" font-size="18" font-weight="800">STÉRÉO D</text>
+        <text x="600" y="300" text-anchor="middle" fill="#6ed7ff" font-size="14" font-weight="800">PARAZONE</text>
+      </svg>
+
+      <div class="controls" aria-label="Contrôles PARAZONE">
+        <button class="primary" id="openBtn">OUVRIR</button>
+        <button id="closeBtn">FERMER</button>
+        <button class="cyan" id="startBtn">START</button>
+        <button id="pauseBtn">PAUSE</button>
+        <button id="stopBtn">STOP</button>
+        <button id="resetBtn">RESET</button>
+        <button class="ok" id="crystalBtn">PASSER 1 CRISTAL</button>
+        <label>DÉLAI <input id="delayInput" type="number" min="0" step="50" value="500"> ms</label>
+      </div>
+
+      <div class="status-grid">
+        <div class="metric"><span>ÉTAT PORTE</span><strong id="gateState">FERMÉE</strong></div>
+        <div class="metric"><span>ROUES</span><strong id="wheelState">ARRÊT</strong></div>
+        <div class="metric"><span>CADRAN 60</span><strong>6° / minute</strong></div>
+        <div class="metric"><span>CRISTAUX PASSÉS</span><strong id="crystalCount">0</strong></div>
+      </div>
+
+      <p class="note">
+        Cette page est un prototype visuel isolé. Les deux roues ont un diamètre de 560 px dans un canevas logique de 1200 × 600, avec 60 positions chacune. Le délai est appliqué aux transitions d’ouverture/fermeture et au passage simulé d’un cristal. Aucune communication avec la Reine, X72 live ou une autre intelligence n’est activée ici.
+      </p>
+    </section>
+  </main>
+
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const left = document.getElementById("leftWheel");
+  const right = document.getElementById("rightWheel");
+  const crystal = document.getElementById("crystal");
+  const portalGlow = document.getElementById("portalGlow");
+  const gateState = document.getElementById("gateState");
+  const wheelState = document.getElementById("wheelState");
+  const crystalCount = document.getElementById("crystalCount");
+  const delayInput = document.getElementById("delayInput");
+
+  let running = false;
+  let paused = false;
+  let gateOpen = false;
+  let angle = 0;
+  let last = performance.now();
+  let count = 0;
+  let raf = null;
+
+  function buildWheel(group, mirror=false) {
+    const outer = document.createElementNS(NS, "circle");
+    outer.setAttribute("r", "280");
+    outer.setAttribute("fill", "none");
+    outer.setAttribute("stroke", "#334155");
+    outer.setAttribute("stroke-width", "2");
+    group.appendChild(outer);
+
+    const mid = document.createElementNS(NS, "circle");
+    mid.setAttribute("r", "212");
+    mid.setAttribute("fill", "none");
+    mid.setAttribute("stroke", "#1f4f66");
+    mid.setAttribute("stroke-width", "1");
+    mid.setAttribute("opacity", ".65");
+    group.appendChild(mid);
+
+    const inner = document.createElementNS(NS, "circle");
+    inner.setAttribute("r", "92");
+    inner.setAttribute("fill", "none");
+    inner.setAttribute("stroke", "#6ed7ff");
+    inner.setAttribute("stroke-width", "2");
+    inner.setAttribute("opacity", ".45");
+    group.appendChild(inner);
+
+    for (let i=0;i<60;i++) {
+      const a = i * 6 * Math.PI / 180;
+      const r1 = i % 5 === 0 ? 246 : 258;
+      const r2 = 278;
+      const x1 = Math.sin(a) * r1;
+      const y1 = -Math.cos(a) * r1;
+      const x2 = Math.sin(a) * r2;
+      const y2 = -Math.cos(a) * r2;
+      const line = document.createElementNS(NS, "line");
+      line.setAttribute("x1", x1.toFixed(3));
+      line.setAttribute("y1", y1.toFixed(3));
+      line.setAttribute("x2", x2.toFixed(3));
+      line.setAttribute("y2", y2.toFixed(3));
+      line.setAttribute("stroke", i % 5 === 0 ? "#f4c95d" : "#6ed7ff");
+      line.setAttribute("stroke-width", i % 5 === 0 ? "2.4" : "1");
+      line.setAttribute("opacity", i % 5 === 0 ? ".9" : ".45");
+      group.appendChild(line);
+    }
+
+    const hand = document.createElementNS(NS, "line");
+    hand.setAttribute("x1", "0");
+    hand.setAttribute("y1", "0");
+    hand.setAttribute("x2", "0");
+    hand.setAttribute("y2", "-220");
+    hand.setAttribute("stroke", mirror ? "#8de3ac" : "#f4c95d");
+    hand.setAttribute("stroke-width", "4");
+    hand.setAttribute("stroke-linecap", "round");
+    hand.dataset.hand = "1";
+    group.appendChild(hand);
+  }
+
+  buildWheel(left, false);
+  buildWheel(right, true);
+
+  function setHands() {
+    left.querySelector("[data-hand]").setAttribute("transform", "rotate(" + angle + ")");
+    right.querySelector("[data-hand]").setAttribute("transform", "rotate(" + (-angle) + ")");
+  }
+
+  function loop(now) {
+    const dt = Math.max(0, (now-last)/1000);
+    last = now;
+    if (running && !paused) {
+      // Exact cadran 60: 6 degrees per minute = 0.1 degree per second.
+      angle = (angle + dt * 0.1) % 360;
+      setHands();
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  raf = requestAnimationFrame(loop);
+
+  function delayMs() {
+    return Math.max(0, Number(delayInput.value) || 0);
+  }
+
+  function afterDelay(fn) {
+    setTimeout(fn, delayMs());
+  }
+
+  document.getElementById("openBtn").onclick = () => {
+    gateState.textContent = "OUVERTURE…";
+    portalGlow.setAttribute("opacity", ".45");
+    afterDelay(() => {
+      gateOpen = true;
+      gateState.textContent = "OUVERTE";
+      portalGlow.setAttribute("opacity", ".95");
+    });
+  };
+
+  document.getElementById("closeBtn").onclick = () => {
+    gateState.textContent = "FERMETURE…";
+    afterDelay(() => {
+      gateOpen = false;
+      gateState.textContent = "FERMÉE";
+      portalGlow.setAttribute("opacity", ".2");
+    });
+  };
+
+  document.getElementById("startBtn").onclick = () => {
+    running = true; paused = false; wheelState.textContent = "EN MARCHE";
+  };
+  document.getElementById("pauseBtn").onclick = () => {
+    paused = !paused;
+    wheelState.textContent = paused ? "PAUSE" : (running ? "EN MARCHE" : "ARRÊT");
+  };
+  document.getElementById("stopBtn").onclick = () => {
+    running = false; paused = false; wheelState.textContent = "ARRÊT";
+  };
+  document.getElementById("resetBtn").onclick = () => {
+    running = false; paused = false; gateOpen = false; angle = 0; count = 0;
+    setHands();
+    wheelState.textContent = "ARRÊT";
+    gateState.textContent = "FERMÉE";
+    crystalCount.textContent = "0";
+    portalGlow.setAttribute("opacity", ".2");
+    crystal.setAttribute("opacity", "0");
+  };
+
+  document.getElementById("crystalBtn").onclick = () => {
+    if (!gateOpen) {
+      gateState.textContent = "OUVRIR AVANT PASSAGE";
+      return;
+    }
+    const startX = 300, endX = 900, y = 300;
+    const duration = Math.max(250, delayMs());
+    const t0 = performance.now();
+    crystal.setAttribute("opacity", "1");
+    function move(t) {
+      const p = Math.min(1, (t-t0)/duration);
+      const ease = p*p*(3-2*p);
+      const x = startX + (endX-startX)*ease;
+      crystal.setAttribute("transform", "translate(" + x + " " + y + ") rotate(" + (p*540) + ")");
+      if (p < 1) requestAnimationFrame(move);
+      else {
+        crystal.setAttribute("opacity", "0");
+        count += 1;
+        crystalCount.textContent = String(count);
+      }
+    }
+    requestAnimationFrame(move);
+  };
+
+  setHands();
+})();
+</script>
+</body>
+</html>
