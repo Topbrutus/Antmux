@@ -1,0 +1,160 @@
+name: Deploy PARAZONE X72 D13 to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-parazone-x72-d13-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/parazone-x72-d13-v2/**'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-PARAZONE-X72-D13 to allow the manual VPS deployment'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parazone-x72-d13-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-parazone:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-PARAZONE-X72-D13'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      LAB_ROOT: /var/www/antmux.com/public_html/laboratoire
+      TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/parazone-x72-d13-v2
+      REMOTE_STAGE: /tmp/antmux-parazone-x72-d13-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Validate PARAZONE payload
+        run: |
+          set -euo pipefail
+          test -f laboratoire/index.html
+          test -f laboratoire/parazone-x72-d13-v2/index.html
+          test -f laboratoire/parazone-x72-d13-v2/README.md
+
+          grep -Fq 'PARAZONE-X72-D13 V2.0' laboratoire/index.html
+          grep -Fq 'PARAZONE-X72-D13' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'PASSER 1 CRISTAL' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'DÉLAI' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq '6° par minute' laboratoire/parazone-x72-d13-v2/index.html
+
+      - name: Assemble exact public payload
+        run: |
+          set -euo pipefail
+          rm -rf _parazone_deploy
+          mkdir -p _parazone_deploy/parazone-x72-d13-v2
+
+          cp laboratoire/index.html _parazone_deploy/laboratoire-index.html
+          cp laboratoire/parazone-x72-d13-v2/index.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/README.md _parazone_deploy/parazone-x72-d13-v2/
+
+          (
+            cd _parazone_deploy
+            sha256sum               laboratoire-index.html               parazone-x72-d13-v2/index.html               parazone-x72-d13-v2/README.md               > SHA256SUMS
+          )
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          if [ "$actual_public_key" != "$expected_public_key" ]; then
+            echo 'ANTMUX_VPS_SSH_PRIVATE_KEY does not match the pinned deployment identity.' >&2
+            exit 1
+          fi
+
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight VPS access
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST"             "set -e; test -d '$LAB_ROOT'; test -w '$LAB_ROOT'; test \"\$(id -un)\" = '$VPS_USER'"
+
+      - name: Upload staged payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST"             "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -r _parazone_deploy/.             "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Backup and deploy
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          LAB_ROOT='/var/www/antmux.com/public_html/laboratoire'
+          TARGET_ROOT="$LAB_ROOT/parazone-x72-d13-v2"
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP_ROOT="$HOME/antmux-parazone-x72-d13-deploy-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+
+          mkdir -p "$BACKUP_ROOT/parazone-x72-d13-v2"
+          if test -f "$LAB_ROOT/index.html"; then
+            cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html"
+          fi
+          if test -d "$TARGET_ROOT"; then
+            cp -a "$TARGET_ROOT/." "$BACKUP_ROOT/parazone-x72-d13-v2/"
+          fi
+
+          install -d -m 0755 "$TARGET_ROOT"
+          install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/index.html" "$TARGET_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/README.md" "$TARGET_ROOT/README.md"
+
+          rm -rf "$REMOTE_STAGE"
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
+
+      - name: Verify public Antmux endpoints
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/ -o /tmp/parazone-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/README.md -o /tmp/parazone-readme.md
+
+          grep -Fq 'OUVRIR PARAZONE-X72-D13 V2.0' /tmp/lab-index.html
+          grep -Fq 'PARAZONE-X72-D13' /tmp/parazone-index.html
+          grep -Fq 'PASSER 1 CRISTAL' /tmp/parazone-index.html
+          grep -Fq 'DÉLAI' /tmp/parazone-index.html
+          grep -Fq '6° par minute' /tmp/parazone-index.html
+          grep -Fq '# PARAZONE-X72-D13 — V2.0' /tmp/parazone-readme.md
+
+          echo 'ANTMUX_PARAZONE_PUBLIC=PASS'
