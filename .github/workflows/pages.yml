@@ -18,6 +18,7 @@ on:
       - 'laboratoire/genesis/PUBLIC-CONTRACT-v1.md'
       - 'laboratoire/genesis/demo/**'
       - 'laboratoire/embryon-x72/**'
+      - 'laboratoire/parazone-x72-d13-v2/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -56,6 +57,7 @@ jobs:
           mkdir -p _site/laboratoire/data
           mkdir -p _site/laboratoire/genesis/demo
           mkdir -p _site/laboratoire/embryon-x72
+          mkdir -p _site/laboratoire/parazone-x72-d13-v2
 
           cp index.html styles.css app.js _site/
           cp -R generator carrou _site/
@@ -79,6 +81,9 @@ jobs:
           cp laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py _site/laboratoire/embryon-x72/core/
           cp laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json _site/laboratoire/embryon-x72/core/
 
+          cp laboratoire/parazone-x72-d13-v2/index.html _site/laboratoire/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/README.md _site/laboratoire/parazone-x72-d13-v2/
+
       - name: Assert laboratory publication boundary
         run: |
           test -f _site/laboratoire/index.html
@@ -90,6 +95,8 @@ jobs:
           test -f _site/laboratoire/embryon-x72/app.js
           test -f _site/laboratoire/embryon-x72/core/ANTMUX_X72_LIFE_V02.py
           test -f _site/laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
+          test -f _site/laboratoire/parazone-x72-d13-v2/index.html
+          test -f _site/laboratoire/parazone-x72-d13-v2/README.md
           test ! -e _site/laboratoire/genesis/validate-demo.mjs
           test ! -e _site/laboratoire/genesis/test-validator.mjs
           test ! -e _site/laboratoire/genesis/browser-cockpit.mjs
