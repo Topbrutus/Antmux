@@ -397,5 +397,3 @@ class NoyauEngine:
             and 0 <= state.world_index < len(WORLD_NAMES)
             and state.whole_h256 == NoyauEngine._hash_state(state)
         )
-
-[executed on device: Topbrutus (e13fd46c-c560-41e2-9c1c-bd2561c44abb)]

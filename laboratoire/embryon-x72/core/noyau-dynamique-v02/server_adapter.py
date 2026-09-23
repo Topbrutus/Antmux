@@ -49,5 +49,3 @@ class NoyauServerAdapter:
         if checkpoint.get("schema") != ADAPTER_SCHEMA:
             raise ValueError("invalid noyau adapter checkpoint schema")
         return cls(engine=NoyauEngine.from_checkpoint(checkpoint.get("engine")))
-
-[executed on device: Topbrutus (e13fd46c-c560-41e2-9c1c-bd2561c44abb)]

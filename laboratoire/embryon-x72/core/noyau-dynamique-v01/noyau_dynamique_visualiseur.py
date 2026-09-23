@@ -749,5 +749,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-[executed on device: Topbrutus (e13fd46c-c560-41e2-9c1c-bd2561c44abb)]
