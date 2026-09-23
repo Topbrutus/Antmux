@@ -47,11 +47,11 @@ jobs:
           test -f laboratoire/parazone-x72-d13-v2/index.html
           test -f laboratoire/parazone-x72-d13-v2/README.md
 
-          grep -Fq 'PARAZONE-X72-D13 V2.0' laboratoire/index.html
-          grep -Fq 'PARAZONE-X72-D13' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'PASSER 1 CRISTAL' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'DÉLAI' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq '6° / minute' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' laboratoire/index.html
+          grep -Fq 'NOYAU DYNAMIQUE' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'ENTRÉE BASSIN 1' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'SORTIE BASSIN 1' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
 
       - name: Assemble exact public payload
         run: |
@@ -150,11 +150,11 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/ -o /tmp/parazone-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/README.md -o /tmp/parazone-readme.md
 
-          grep -Fq 'OUVRIR PARAZONE-X72-D13 V2.0' /tmp/lab-index.html
-          grep -Fq 'PARAZONE-X72-D13' /tmp/parazone-index.html
-          grep -Fq 'PASSER 1 CRISTAL' /tmp/parazone-index.html
-          grep -Fq 'DÉLAI' /tmp/parazone-index.html
-          grep -Fq '6° / minute' /tmp/parazone-index.html
-          grep -Fq '# PARAZONE-X72-D13 — V2.0' /tmp/parazone-readme.md
+          grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' /tmp/lab-index.html
+          grep -Fq 'NOYAU DYNAMIQUE' /tmp/parazone-index.html
+          grep -Fq 'ENTRÉE BASSIN 1' /tmp/parazone-index.html
+          grep -Fq 'SORTIE BASSIN 1' /tmp/parazone-index.html
+          grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
+          grep -Fq '# NOYAU DYNAMIQUE X72 — page publique' /tmp/parazone-readme.md
 
           echo 'ANTMUX_PARAZONE_PUBLIC=PASS'

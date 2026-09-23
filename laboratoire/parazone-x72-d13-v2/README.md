@@ -1,30 +1,35 @@
-# PARAZONE-X72-D13 — V2.0
+# NOYAU DYNAMIQUE X72 — page publique
 
-Prototype séparé du laboratoire public Antmux.
+URL publique conservée :
 
-## Emplacement
+`https://antmux.com/laboratoire/parazone-x72-d13-v2/`
 
-`laboratoire/parazone-x72-d13-v2/`
+Le chemin historique reste identique pour préserver les liens existants, mais son contenu est remplacé par la visualisation du **Noyau dynamique X72 v0.2**.
 
-Le dossier historique `laboratoire/genesis/` reste intact. Il n'est pas supprimé ni modifié par ce module.
+## Source d'état
 
-## Contrat actuel
+La page se connecte en lecture seule au Queen Server existant :
 
-- **Statut :** prototype visuel / simulation
-- **Canvas logique :** 1200 × 600
-- **Deux roues stéréo :** gauche / droite
-- **Diamètre visuel par roue :** 560 px
-- **Centres :** (300,300) et (900,300)
-- **Cadran 60 :** 60 positions, 6° par position
-- **Vitesse réelle de référence du cadran 60 :** 6° par minute
-- **Contrôle explicite :** ouvrir, fermer, start, pause, stop, reset
-- **Délai :** réglable en millisecondes
-- **Cristal :** passage simulé d'un cristal lorsque la porte est ouverte
+- WebSocket : `/laboratoire/embryon-x72/ws`
+- source attendue : `QUEEN_SERVER_V0_2`
+- état du noyau : `VisualState.noyau_runtime.noyau`
+- autorité attendue : `NOYAU_ENGINE_HEADLESS`
 
-## Frontière
+La page ne crée aucun tick local et n'envoie aucune mutation au serveur.
 
-Cette V2.0 n'est pas connectée au Queen Server, au runtime X72 live, à une autre IA ni à un état de production. Les notions de « monde », « porte » et « passage » sont ici des métaphores/interface de simulation tant qu'un contrat technique testable n'est pas implémenté.
+## Visualisation
 
-## Règle de coexistence
+- autoroutes dynamiques gauche / droite ;
+- trois passages centraux obligatoires `C1`, `C2`, `C3` ;
+- SOURCE, B1, B2, B3 et SORTIE ;
+- entrée et sortie explicites du premier bassin ;
+- inflow / outflow / crystal_index ;
+- cristaux actifs ;
+- sondes d'analyse des signaux serveur ;
+- quatre géométries de rendu local : HELIX, TORUS, GRID, OBSIDIAN.
 
-La version existante reste intacte. PARAZONE V2.0 vit dans son propre dossier afin de permettre une future communication bidirectionnelle par contrat/API/bridge sans partager directement l'état interne.
+Les quatre vues structurelles ne modifient pas le monde du serveur : elles changent seulement le rendu navigateur.
+
+## Garde-fou
+
+Si le Queen Server est joignable mais ne publie pas encore `noyau_runtime`, la page affiche explicitement **NOYAU EN ATTENTE DU DÉPLOIEMENT SERVEUR**. Aucun état fictif n'est généré.
