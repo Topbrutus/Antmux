@@ -9,6 +9,7 @@ on:
       - 'app.js'
       - 'generator/**'
       - 'carrou/**'
+      - 'createur/**'
       - 'laboratoire/index.html'
       - 'laboratoire/README.md'
       - 'laboratoire/data/**'
@@ -61,6 +62,7 @@ jobs:
 
           cp index.html styles.css app.js _site/
           cp -R generator carrou _site/
+          cp -R createur _site/
 
           cp laboratoire/index.html _site/laboratoire/
           cp laboratoire/README.md _site/laboratoire/
@@ -86,6 +88,9 @@ jobs:
 
       - name: Assert laboratory publication boundary
         run: |
+          test -f _site/createur/index.html
+          test -f _site/createur/brutotheque/index.html
+          test -f _site/createur/brutotheque/README.md
           test -f _site/laboratoire/index.html
           test -f _site/laboratoire/genesis/index.html
           test -f _site/laboratoire/genesis/V0.1-PUBLIC-RELEASE.md
