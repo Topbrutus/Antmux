@@ -51,11 +51,19 @@ Chaque `NoyauState` est sérialisable et reçoit un SHA-256 canonique `whole_h25
 
 ```text
 python -m unittest -v test_noyau_engine.py
-9 tests / 9 PASS
+13 tests / 13 PASS
 ```
 
-Couverture : routes centrales, H256, rotations opposées, injection, interception, mondes, déterminisme, snapshots non aliasés et contrat serveur.
+Couverture : routes centrales, H256, rotations opposées, injection, interception, mondes, déterminisme, snapshots non aliasés, observation à froid non perturbatrice, checkpoints intègres et contrat serveur.
 
 ## Garde-fou
 
 Cette étape ne modifie pas encore `deploy/x72-shared-queen/app/server.py`. Le runtime public actuel reste autoritaire. Le prochain chantier est le montage derrière `QueenCore` avec checkpoint et tests serveur avant toute activation.
+
+
+## Montage serveur préparé
+
+La branche contient aussi un paquet de runtime sous `deploy/x72-shared-queen/app/noyau_runtime/`.
+Le montage dans `QueenCore` est volontairement **lecture seule côté API** : le noyau avance avec le tick serveur, est exposé dans `VisualState` et persiste dans les checkpoints, sans modifier le hash protégé ni le `whole_h256` historique de la Reine.
+
+Les commandes d'injection, interception et changement de monde ne sont pas encore exposées publiquement.

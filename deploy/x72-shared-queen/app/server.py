@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from pydantic import BaseModel
 
 from .relation_runtime import RelationRuntime
+from .noyau_runtime import NoyauConfig, NoyauEngine, NoyauServerAdapter
 from .z3_runtime import Z3RuntimeBridge
 
 
@@ -163,6 +164,9 @@ class QueenCore:
         self.last_repair_report = RepairReport(reference_protected_h256=self.reference_h256())
         self.z3_runtime = Z3RuntimeBridge()
         self.relation_runtime = RelationRuntime()
+        self.noyau_runtime = NoyauServerAdapter(
+            engine=NoyauEngine(NoyauConfig(dt=self.dt_sim))
+        )
 
     def protected_projection(self) -> dict[str, Any]:
         return {
@@ -285,6 +289,8 @@ class QueenCore:
                     verified=latest.fast_verified,
                 )
 
+        self.noyau_runtime.tick()
+
     def inject_fault(self, synapse_id: str) -> str:
         if synapse_id == "RANDOM":
             synapse_id = random.Random(self.tick + self.seed).choice([f"S{i}" for i in range(1, 8)])
@@ -400,6 +406,7 @@ class QueenCore:
                 synapses=self.synapses,
                 relations=self.relations,
             ),
+            "noyau_runtime": self.noyau_runtime.visual_payload(),
             "synapses": [asdict(s) for s in self.synapses],
             "relations": self.relations,
             "recent_events": self.bus.labels(),
@@ -424,6 +431,7 @@ class QueenCore:
             "last_repair_report": asdict(self.last_repair_report),
             "z3_runtime": self.z3_runtime.to_checkpoint(),
             "relation_runtime": self.relation_runtime.to_checkpoint(),
+            "noyau_runtime": self.noyau_runtime.to_checkpoint(),
         }
 
     @classmethod
@@ -456,6 +464,15 @@ class QueenCore:
         queen.relation_runtime = RelationRuntime.from_checkpoint(
             checkpoint.get("relation_runtime")
         )
+        noyau_checkpoint = checkpoint.get("noyau_runtime")
+        if noyau_checkpoint is None:
+            queen.noyau_runtime = NoyauServerAdapter(
+                engine=NoyauEngine(NoyauConfig(dt=queen.dt_sim))
+            )
+        else:
+            queen.noyau_runtime = NoyauServerAdapter.from_checkpoint(noyau_checkpoint)
+            if abs(queen.noyau_runtime.engine.config.dt - queen.dt_sim) > 1e-12:
+                raise ValueError("checkpoint noyau cadence differs from Queen dt_sim")
         return queen
 
 
