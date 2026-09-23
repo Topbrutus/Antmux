@@ -4,275 +4,390 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#05070c" />
-  <title>PARAZONE-X72-D13 — V2.0</title>
-  <meta name="description" content="Prototype visuel stéréo PARAZONE-X72-D13 V2.0 : deux roues, 60 positions, délai contrôlé et passage de cristaux en simulation." />
+  <title>NOYAU DYNAMIQUE X72 — ANTMUX</title>
+  <meta name="description" content="Visualisation live en lecture seule du noyau dynamique X72 : trois passages centraux, bassin 1, cristallisation, autoroutes et télémétrie du Queen Server." />
   <link rel="stylesheet" href="../../styles.css" />
   <style>
-    :root { --gold:#f4c95d; --cyan:#6ed7ff; --ok:#8de3ac; --muted:#9ca3af; --panel:#0d1420; --line:#263247; }
-    body { background:#05070c; }
-    .page { max-width:1260px; margin:0 auto; padding:24px; }
-    .top { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-bottom:18px; }
-    .badge { display:inline-flex; padding:7px 10px; border:1px solid rgba(110,215,255,.35); border-radius:999px; color:var(--cyan); font-size:.75rem; font-weight:800; letter-spacing:.08em; }
-    .panel { border:1px solid var(--line); border-radius:18px; background:linear-gradient(180deg,#0b1220,#08101a); padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
-    .stage-wrap { overflow:auto; }
-    #stage { display:block; width:100%; min-width:760px; max-width:1200px; aspect-ratio:2/1; margin:0 auto; border-radius:14px; background:radial-gradient(circle at 50% 50%, rgba(110,215,255,.06), transparent 42%), #060a11; }
-    .controls { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:center; }
-    button, input { border:1px solid #334155; background:#121b2a; color:#eef2ff; border-radius:10px; padding:10px 12px; font:inherit; }
-    button { cursor:pointer; font-weight:800; letter-spacing:.03em; }
-    button:hover { border-color:var(--gold); }
-    button.primary { background:var(--gold); color:#101318; border-color:var(--gold); }
-    button.cyan { border-color:rgba(110,215,255,.55); color:var(--cyan); }
-    button.ok { border-color:rgba(141,227,172,.55); color:var(--ok); }
-    label { color:#cbd5e1; font-size:.88rem; display:flex; gap:8px; align-items:center; }
-    input[type="number"] { width:110px; }
-    .status-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; }
-    .metric { border:1px solid #253247; border-radius:12px; padding:10px 12px; background:#09111d; }
-    .metric span { display:block; color:var(--muted); font-size:.72rem; letter-spacing:.07em; }
-    .metric strong { display:block; margin-top:4px; }
-    .note { color:var(--muted); line-height:1.55; font-size:.9rem; margin:12px 0 0; }
-    .nav { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0 20px; }
-    .nav a { text-decoration:none; }
-    .tiny { color:var(--muted); font-size:.8rem; }
-    @media(max-width:900px){ .status-grid{grid-template-columns:repeat(2,1fr);} }
+    :root{
+      --bg:#05070c;--panel:#0a111c;--panel2:#0d1725;--line:#24354a;
+      --text:#eef5ff;--muted:#8496aa;--cyan:#63d8ff;--gold:#f4c95d;
+      --pink:#ff72d0;--green:#80f0ad;--red:#ff617e;--violet:#9b86ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:
+      radial-gradient(circle at 50% 26%,rgba(99,216,255,.06),transparent 28rem),
+      radial-gradient(circle at 50% 80%,rgba(244,201,93,.04),transparent 24rem),var(--bg);
+      color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    .shell{max-width:1600px;margin:0 auto;padding:20px}
+    .top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+    .top h1{font-size:clamp(1.6rem,3vw,2.8rem);margin:.15rem 0 .35rem}
+    .eyebrow{color:var(--cyan);font-size:.76rem;font-weight:900;letter-spacing:.12em;margin:0}
+    .lede{color:#b7c5d5;max-width:860px;line-height:1.55;margin:.35rem 0}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .badge{padding:7px 10px;border:1px solid var(--line);border-radius:999px;font:800 .72rem/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em}
+    .badge.live{border-color:rgba(128,240,173,.45);color:var(--green)}
+    .badge.wait{border-color:rgba(255,97,126,.45);color:var(--red)}
+    .nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}
+    .nav a{padding:8px 11px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:#cfe4f7;background:#09121d}
+    .grid{display:grid;grid-template-columns:minmax(0,2.15fr) minmax(320px,.85fr);gap:14px}
+    .panel{background:linear-gradient(180deg,rgba(13,23,37,.96),rgba(7,14,24,.98));border:1px solid var(--line);border-radius:16px;box-shadow:0 22px 70px rgba(0,0,0,.28)}
+    .stagePanel{padding:12px;min-width:0}
+    #stage{display:block;width:100%;height:min(72vh,820px);min-height:540px;border-radius:12px;background:#050a11;cursor:crosshair}
+    .side{display:grid;gap:12px;align-content:start}
+    .card{padding:14px}
+    .card h2{font-size:.85rem;letter-spacing:.08em;margin:0 0 10px;color:#dbeeff}
+    .metricGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .metric{padding:9px 10px;border:1px solid #1e3045;border-radius:10px;background:#08111d;min-width:0}
+    .metric span{display:block;color:var(--muted);font:700 .65rem/1.3 ui-monospace,Consolas,monospace;letter-spacing:.06em}
+    .metric strong{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
+    .b1{border-color:rgba(244,201,93,.34)}
+    .barrow{display:grid;grid-template-columns:86px 1fr 52px;gap:7px;align-items:center;margin:7px 0}
+    .barrow label{font:700 .7rem ui-monospace,monospace;color:#a8b9cb}
+    .bar{height:8px;background:#142234;border-radius:999px;overflow:hidden}
+    .fill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .18s linear}
+    .barrow output{font:700 .72rem ui-monospace,monospace;color:#eaf3ff;text-align:right}
+    .worlds{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    button{border:1px solid #33465e;background:#0b1725;color:#cfe1f3;border-radius:9px;padding:8px 9px;font:800 .7rem ui-monospace,monospace;cursor:pointer}
+    button.active{border-color:var(--gold);color:#fff1b0;box-shadow:inset 0 0 0 1px rgba(244,201,93,.25)}
+    .probeTitle{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    select{border:1px solid #33465e;background:#0b1725;color:#eaf3ff;border-radius:8px;padding:7px 8px}
+    #probe{display:block;width:100%;height:130px;border:1px solid #17283b;border-radius:10px;background:#060d16;margin-top:8px}
+    .status{padding:10px;border:1px solid #24415b;border-radius:10px;color:#bfeeff;background:#071521;font-size:.78rem;line-height:1.45}
+    .status.bad{border-color:rgba(255,97,126,.4);color:#ffc0cc;background:#1b0c14}
+    .tiny{color:var(--muted);font-size:.73rem;line-height:1.5}
+    .hash{font:700 .67rem/1.45 ui-monospace,Consolas,monospace;word-break:break-all;color:#aeeaff}
+    .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;color:#9eb1c5;font-size:.72rem}
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+    @media(max-width:1080px){.grid{grid-template-columns:1fr}.side{grid-template-columns:repeat(2,minmax(0,1fr))}.side .wide{grid-column:1/-1}}
+    @media(max-width:720px){.shell{padding:10px}.side{grid-template-columns:1fr}#stage{height:560px}.metricGrid{grid-template-columns:1fr 1fr}}
   </style>
 </head>
 <body>
-  <main class="page">
-    <div class="top">
-      <div>
-        <p class="eyebrow">ANTMUX · LABORATOIRE · V2.0</p>
-        <h1>PARAZONE-X72-D13</h1>
-        <p class="lede">Prototype stéréo à deux roues — préparation des positions, délai et passage de cristaux.</p>
-      </div>
-      <span class="badge">SIMULATION VISUELLE · PAS DE BACKEND LIVE</span>
+<main class="shell">
+  <header class="top">
+    <div>
+      <p class="eyebrow">ANTMUX · X72 · NOYAU DYNAMIQUE V0.2</p>
+      <h1>NOYAU DYNAMIQUE — BASSINS DE CRISTALLISATION</h1>
+      <p class="lede">Vue live en lecture seule du moteur relié au Queen Server. Les deux autoroutes opposées traversent obligatoirement les trois portes centrales C1, C2 et C3. Le premier bassin expose séparément son entrée, sa sortie, sa cristallisation et les cristaux actifs.</p>
     </div>
+    <div class="badges">
+      <span id="serverBadge" class="badge wait">QUEEN SERVER · CONNEXION…</span>
+      <span id="nucleusBadge" class="badge wait">NOYAU · EN ATTENTE</span>
+    </div>
+  </header>
 
-    <nav class="nav">
-      <a class="secondary" href="../">← LABORATOIRE</a>
-      <a class="secondary" href="../embryon-x72/">EMBRYON X72</a>
-      <a class="secondary" href="../../">ACCUEIL ANTMUX</a>
-    </nav>
+  <nav class="nav">
+    <a href="../">← LABORATOIRE</a>
+    <a href="../embryon-x72/">HORLOGE DE LA VIE</a>
+    <a href="../../">ACCUEIL ANTMUX</a>
+  </nav>
 
-    <section class="panel stage-wrap">
-      <svg id="stage" viewBox="0 0 1200 600" role="img" aria-label="Deux roues stéréo PARAZONE de 560 pixels de diamètre chacune">
-        <defs>
-          <radialGradient id="gateGlow">
-            <stop offset="0%" stop-color="#6ed7ff" stop-opacity=".36"/>
-            <stop offset="65%" stop-color="#6ed7ff" stop-opacity=".08"/>
-            <stop offset="100%" stop-color="#6ed7ff" stop-opacity="0"/>
-          </radialGradient>
-          <filter id="softGlow">
-            <feGaussianBlur stdDeviation="8" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
-
-        <circle id="portalGlow" cx="600" cy="300" r="100" fill="url(#gateGlow)" opacity=".2"/>
-        <line x1="600" y1="80" x2="600" y2="520" stroke="#263247" stroke-width="1" stroke-dasharray="5 9"/>
-
-        <g id="leftWheel" transform="translate(300 300)"></g>
-        <g id="rightWheel" transform="translate(900 300)"></g>
-
-        <g id="crystal" opacity="0" filter="url(#softGlow)">
-          <polygon points="0,-12 9,0 0,12 -9,0" fill="#f4c95d" stroke="#fff4b8" stroke-width="2"/>
-        </g>
-
-        <text x="300" y="315" text-anchor="middle" fill="#eef2ff" font-size="18" font-weight="800">STÉRÉO G</text>
-        <text x="900" y="315" text-anchor="middle" fill="#eef2ff" font-size="18" font-weight="800">STÉRÉO D</text>
-        <text x="600" y="300" text-anchor="middle" fill="#6ed7ff" font-size="14" font-weight="800">PARAZONE</text>
-      </svg>
-
-      <div class="controls" aria-label="Contrôles PARAZONE">
-        <button class="primary" id="openBtn">OUVRIR</button>
-        <button id="closeBtn">FERMER</button>
-        <button class="cyan" id="startBtn">START</button>
-        <button id="pauseBtn">PAUSE</button>
-        <button id="stopBtn">STOP</button>
-        <button id="resetBtn">RESET</button>
-        <button class="ok" id="crystalBtn">PASSER 1 CRISTAL</button>
-        <label>DÉLAI <input id="delayInput" type="number" min="0" step="50" value="500"> ms</label>
+  <section class="grid">
+    <section class="panel stagePanel">
+      <canvas id="stage" aria-label="Visualisation dynamique du noyau X72"></canvas>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--cyan)"></i>VOIE A</span>
+        <span><i class="dot" style="background:var(--gold)"></i>VOIE B</span>
+        <span><i class="dot" style="background:#e8fbff"></i>PASSAGE CENTRAL</span>
+        <span><i class="dot" style="background:var(--green)"></i>ENTRÉE BASSIN 1</span>
+        <span><i class="dot" style="background:var(--pink)"></i>SORTIE BASSIN 1</span>
       </div>
-
-      <div class="status-grid">
-        <div class="metric"><span>ÉTAT PORTE</span><strong id="gateState">FERMÉE</strong></div>
-        <div class="metric"><span>ROUES</span><strong id="wheelState">ARRÊT</strong></div>
-        <div class="metric"><span>CADRAN 60</span><strong>6° / minute</strong></div>
-        <div class="metric"><span>CRISTAUX PASSÉS</span><strong id="crystalCount">0</strong></div>
-      </div>
-
-      <p class="note">
-        Cette page est un prototype visuel isolé. Les deux roues ont un diamètre de 560 px dans un canevas logique de 1200 × 600, avec 60 positions chacune. Le délai est appliqué aux transitions d’ouverture/fermeture et au passage simulé d’un cristal. Aucune communication avec la Reine, X72 live ou une autre intelligence n’est activée ici.
-      </p>
     </section>
-  </main>
+
+    <aside class="side">
+      <section class="panel card">
+        <h2>ÉTAT LIVE</h2>
+        <div class="metricGrid">
+          <div class="metric"><span>QUEEN TICK</span><strong id="queenTick">—</strong></div>
+          <div class="metric"><span>NOYAU TICK</span><strong id="nucleusTick">—</strong></div>
+          <div class="metric"><span>dt</span><strong id="dt">—</strong></div>
+          <div class="metric"><span>MONDE SERVEUR</span><strong id="world">—</strong></div>
+          <div class="metric"><span>COHÉRENCE</span><strong id="coherence">—</strong></div>
+          <div class="metric"><span>FEEDBACK</span><strong id="feedback">—</strong></div>
+          <div class="metric"><span>CRISTAUX ACTIFS</span><strong id="crystals">—</strong></div>
+          <div class="metric"><span>INTÉGRITÉ QUEEN</span><strong id="integrity">—</strong></div>
+        </div>
+      </section>
+
+      <section class="panel card b1">
+        <h2>BASSIN 1 · ENTRÉE / SORTIE</h2>
+        <div class="barrow"><label>ENTRÉE</label><div class="bar"><div id="inBar" class="fill"></div></div><output id="inVal">—</output></div>
+        <div class="barrow"><label>SORTIE</label><div class="bar"><div id="outBar" class="fill"></div></div><output id="outVal">—</output></div>
+        <div class="barrow"><label>CRISTAL</label><div class="bar"><div id="crystalBar" class="fill"></div></div><output id="crystalVal">—</output></div>
+        <div class="metricGrid" style="margin-top:9px">
+          <div class="metric"><span>CYCLES STABLES</span><strong id="stable">—</strong></div>
+          <div class="metric"><span>CRISTALLISÉ</span><strong id="crystallized">—</strong></div>
+        </div>
+      </section>
+
+      <section class="panel card">
+        <h2>VUE STRUCTURELLE · RENDU LOCAL</h2>
+        <div class="worlds">
+          <button data-view="0" class="active">1 · HELIX</button>
+          <button data-view="1">2 · TORUS</button>
+          <button data-view="2">3 · GRID</button>
+          <button data-view="3">4 · OBSIDIAN</button>
+        </div>
+        <p class="tiny">Ces boutons changent seulement la géométrie de visualisation. Ils ne modifient jamais l’état du Queen Server.</p>
+      </section>
+
+      <section class="panel card wide">
+        <div class="probeTitle"><h2 style="margin:0">SONDE D’ANALYSE</h2>
+          <select id="probeSelect">
+            <option>SOURCE</option><option selected>B1</option><option>B2</option><option>B3</option><option>SORTIE</option>
+          </select>
+        </div>
+        <canvas id="probe"></canvas>
+      </section>
+
+      <section class="panel card wide">
+        <h2>PREUVE / PROVENANCE</h2>
+        <div id="status" class="status">Connexion au Queen Server…</div>
+        <p class="tiny">Le navigateur affiche l’état reçu du serveur. Les métriques ne sont pas recalculées localement.</p>
+        <div class="hash">NOYAU H256<br><span id="hash">—</span></div>
+      </section>
+    </aside>
+  </section>
+</main>
 
 <script>
 (() => {
-  const NS = "http://www.w3.org/2000/svg";
-  const left = document.getElementById("leftWheel");
-  const right = document.getElementById("rightWheel");
-  const crystal = document.getElementById("crystal");
-  const portalGlow = document.getElementById("portalGlow");
-  const gateState = document.getElementById("gateState");
-  const wheelState = document.getElementById("wheelState");
-  const crystalCount = document.getElementById("crystalCount");
-  const delayInput = document.getElementById("delayInput");
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), ctx = stage.getContext("2d");
+  const probe = $("probe"), pctx = probe.getContext("2d");
+  const serverBadge = $("serverBadge"), nucleusBadge = $("nucleusBadge");
+  const status = $("status");
+  let queen = null, nucleus = null, connected = false, socket = null, reconnectTimer = null;
+  let viewMode = 0, lastMessageAt = 0;
+  const history = {SOURCE:[],B1:[],B2:[],B3:[],SORTIE:[]};
+  const MAX_HISTORY = 150;
 
-  let running = false;
-  let paused = false;
-  let gateOpen = false;
-  let angle = 0;
-  let last = performance.now();
-  let count = 0;
-  let raf = null;
+  const COLORS = {
+    bg:"#050a11", grid:"#132235", a:"#63d8ff", b:"#f4c95d", center:"#e8fbff",
+    input:"#80f0ad", output:"#ff72d0", text:"#edf6ff", muted:"#7890a8",
+    crystal:"#d9fff7", red:"#ff617e", violet:"#9b86ff"
+  };
 
-  function buildWheel(group, mirror=false) {
-    const outer = document.createElementNS(NS, "circle");
-    outer.setAttribute("r", "280");
-    outer.setAttribute("fill", "none");
-    outer.setAttribute("stroke", "#334155");
-    outer.setAttribute("stroke-width", "2");
-    group.appendChild(outer);
+  function wsUrl(){
+    const u = new URL("/laboratoire/embryon-x72/ws", window.location.origin);
+    u.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    return u.toString();
+  }
+  function clamp(v,a=0,b=1){ v=Number(v); return Number.isFinite(v)?Math.max(a,Math.min(b,v)):a; }
+  function fmt(v,n=3){ return Number.isFinite(Number(v)) ? Number(v).toFixed(n) : "—"; }
+  function setStatus(text,bad=false){ status.textContent=text; status.className=bad?"status bad":"status"; }
+  function resizeCanvas(canvas, context){
+    const dpr=Math.max(1,Math.min(2,devicePixelRatio||1));
+    const r=canvas.getBoundingClientRect();
+    const w=Math.max(300,Math.floor(r.width)),h=Math.max(120,Math.floor(r.height));
+    const W=Math.floor(w*dpr),H=Math.floor(h*dpr);
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;context.setTransform(dpr,0,0,dpr,0,0);}
+    return {w,h};
+  }
 
-    const mid = document.createElementNS(NS, "circle");
-    mid.setAttribute("r", "212");
-    mid.setAttribute("fill", "none");
-    mid.setAttribute("stroke", "#1f4f66");
-    mid.setAttribute("stroke-width", "1");
-    mid.setAttribute("opacity", ".65");
-    group.appendChild(mid);
+  function structural(){
+    return [
+      {amp:0.24,wheel:0.105,bend:0.44},
+      {amp:0.31,wheel:0.135,bend:0.57},
+      {amp:0.19,wheel:0.090,bend:0.26},
+      {amp:0.27,wheel:0.115,bend:0.50}
+    ][viewMode];
+  }
+  function bezier(p0,p1,p2,p3,t){
+    const u=1-t;
+    return {x:u*u*u*p0.x+3*u*u*t*p1.x+3*u*t*t*p2.x+t*t*t*p3.x,
+            y:u*u*u*p0.y+3*u*u*t*p1.y+3*u*t*t*p2.y+t*t*t*p3.y};
+  }
+  function pathPoint(side,t,w,h){
+    const s=structural(), cx=w*.5, top=h*.08, bottom=h*.91;
+    const nodes=[bottom,h*.70,h*.49,h*.28,top];
+    const sign=side<0?-1:1;
+    t=clamp(t); const seg=Math.min(3,Math.floor(t*4)), q=t*4-seg;
+    const y0=nodes[seg], y1=nodes[seg+1], x0=(seg===0?cx+sign*w*.035:cx), x1=cx;
+    const outward=cx+sign*w*s.amp;
+    const p0={x:x0,y:y0},p3={x:x1,y:y1};
+    const p1={x:outward,y:y0-(y0-y1)*s.bend};
+    const p2={x:outward,y:y1+(y0-y1)*s.bend};
+    return bezier(p0,p1,p2,p3,q);
+  }
+  function drawPath(side,w,h,color){
+    ctx.beginPath();
+    for(let i=0;i<=180;i++){
+      const p=pathPoint(side,i/180,w,h);
+      if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);
+    }
+    ctx.strokeStyle=color;ctx.lineWidth=3;ctx.globalAlpha=.72;ctx.stroke();ctx.globalAlpha=1;
+  }
+  function nodeCoords(w,h){
+    const cx=w*.5;
+    return {
+      SOURCE:{x:cx,y:h*.91},
+      B1:{x:cx,y:h*.70}, C1:{x:cx,y:h*.70},
+      B2:{x:cx,y:h*.49}, C2:{x:cx,y:h*.49},
+      B3:{x:cx,y:h*.28}, C3:{x:cx,y:h*.28},
+      SORTIE:{x:cx,y:h*.08}
+    };
+  }
+  function nodeSignal(name){ return Number(nucleus?.node_signals?.[name] ?? 0); }
 
-    const inner = document.createElementNS(NS, "circle");
-    inner.setAttribute("r", "92");
-    inner.setAttribute("fill", "none");
-    inner.setAttribute("stroke", "#6ed7ff");
-    inner.setAttribute("stroke-width", "2");
-    inner.setAttribute("opacity", ".45");
-    group.appendChild(inner);
+  function drawStage(now){
+    const {w,h}=resizeCanvas(stage,ctx);
+    ctx.clearRect(0,0,w,h);ctx.fillStyle=COLORS.bg;ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle=COLORS.grid;ctx.lineWidth=1;ctx.globalAlpha=.35;
+    for(let x=0;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let y=0;y<h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    ctx.globalAlpha=1;
 
-    for (let i=0;i<60;i++) {
-      const a = i * 6 * Math.PI / 180;
-      const r1 = i % 5 === 0 ? 246 : 258;
-      const r2 = 278;
-      const x1 = Math.sin(a) * r1;
-      const y1 = -Math.cos(a) * r1;
-      const x2 = Math.sin(a) * r2;
-      const y2 = -Math.cos(a) * r2;
-      const line = document.createElementNS(NS, "line");
-      line.setAttribute("x1", x1.toFixed(3));
-      line.setAttribute("y1", y1.toFixed(3));
-      line.setAttribute("x2", x2.toFixed(3));
-      line.setAttribute("y2", y2.toFixed(3));
-      line.setAttribute("stroke", i % 5 === 0 ? "#f4c95d" : "#6ed7ff");
-      line.setAttribute("stroke-width", i % 5 === 0 ? "2.4" : "1");
-      line.setAttribute("opacity", i % 5 === 0 ? ".9" : ".45");
-      group.appendChild(line);
+    const nodes=nodeCoords(w,h), cx=w*.5;
+    drawPath(-1,w,h,COLORS.a);drawPath(1,w,h,COLORS.b);
+
+    ctx.strokeStyle=COLORS.center;ctx.lineWidth=2;ctx.globalAlpha=.38;
+    ctx.beginPath();ctx.moveTo(cx,h*.91);ctx.lineTo(cx,h*.08);ctx.stroke();ctx.globalAlpha=1;
+
+    const s=structural();
+    [nodes.C1,nodes.C2,nodes.C3].forEach((p,i)=>{
+      const r=Math.min(w,h)*s.wheel*(.76+i*.04);
+      ctx.strokeStyle=i%2?COLORS.violet:COLORS.center;ctx.lineWidth=1.2;ctx.globalAlpha=.28;
+      ctx.beginPath();ctx.arc(p.x-w*s.amp,p.y,r,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.arc(p.x+w*s.amp,p.y,r,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+    });
+
+    const elapsed=Math.min(350,Math.max(0,now-lastMessageAt));
+    const phaseFrac=(Number(nucleus?.phase_left||0)/(Math.PI*2)+elapsed/2000)%1;
+    for(let i=0;i<24;i++){
+      const t=(phaseFrac+i/24)%1, pa=pathPoint(-1,t,w,h),pb=pathPoint(1,(1-t+1)%1,w,h);
+      ctx.fillStyle=COLORS.a;ctx.beginPath();ctx.arc(pa.x,pa.y,3.2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=COLORS.b;ctx.beginPath();ctx.arc(pb.x,pb.y,3.2,0,Math.PI*2);ctx.fill();
     }
 
-    const hand = document.createElementNS(NS, "line");
-    hand.setAttribute("x1", "0");
-    hand.setAttribute("y1", "0");
-    hand.setAttribute("x2", "0");
-    hand.setAttribute("y2", "-220");
-    hand.setAttribute("stroke", mirror ? "#8de3ac" : "#f4c95d");
-    hand.setAttribute("stroke-width", "4");
-    hand.setAttribute("stroke-linecap", "round");
-    hand.dataset.hand = "1";
-    group.appendChild(hand);
-  }
+    [["SOURCE",nodes.SOURCE],["B1",nodes.B1],["B2",nodes.B2],["B3",nodes.B3],["SORTIE",nodes.SORTIE]].forEach(([name,p])=>{
+      const a=clamp(nodeSignal(name)/1.5),r=9+15*a;
+      ctx.fillStyle="#0c1b2b";ctx.strokeStyle=name==="B1"?COLORS.gold:COLORS.center;ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle=name==="B1"?COLORS.gold:COLORS.center;ctx.globalAlpha=.35+.65*a;
+      ctx.beginPath();ctx.arc(p.x,p.y,3+r*.35*a,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+      ctx.fillStyle=COLORS.text;ctx.font="700 11px ui-monospace,Consolas";ctx.textAlign="center";
+      ctx.fillText(name,p.x,p.y-r-8);
+    });
 
-  buildWheel(left, false);
-  buildWheel(right, true);
+    [nodes.C1,nodes.C2,nodes.C3].forEach((p,i)=>{
+      ctx.fillStyle=COLORS.center;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=COLORS.muted;ctx.font="700 9px ui-monospace";ctx.fillText("C"+(i+1),p.x+18,p.y+3);
+    });
 
-  function setHands() {
-    left.querySelector("[data-hand]").setAttribute("transform", "rotate(" + angle + ")");
-    right.querySelector("[data-hand]").setAttribute("transform", "rotate(" + (-angle) + ")");
-  }
+    const b1=nodes.B1;
+    const inP={x:w*.10,y:b1.y},outP={x:w*.90,y:b1.y};
+    ctx.strokeStyle=COLORS.input;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(inP.x,b1.y);ctx.lineTo(b1.x-18,b1.y);ctx.stroke();
+    ctx.strokeStyle=COLORS.output;ctx.beginPath();ctx.moveTo(b1.x+18,b1.y);ctx.lineTo(outP.x,b1.y);ctx.stroke();
+    ctx.fillStyle=COLORS.input;ctx.beginPath();ctx.arc(inP.x,inP.y,7,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=COLORS.output;ctx.beginPath();ctx.arc(outP.x,outP.y,7,0,Math.PI*2);ctx.fill();
+    ctx.textAlign="center";ctx.font="800 10px ui-monospace";
+    ctx.fillStyle=COLORS.input;ctx.fillText("ENTRÉE BASSIN 1",inP.x,b1.y-15);
+    ctx.fillStyle=COLORS.output;ctx.fillText("SORTIE BASSIN 1",outP.x,b1.y-15);
 
-  function loop(now) {
-    const dt = Math.max(0, (now-last)/1000);
-    last = now;
-    if (running && !paused) {
-      // Exact cadran 60: 6 degrees per minute = 0.1 degree per second.
-      angle = (angle + dt * 0.1) % 360;
-      setHands();
+    const crystals=nucleus?.active_crystals||[];
+    crystals.slice(-18).forEach((c,idx)=>{
+      const age=Number(c.age||0),ttl=Math.max(1,Number(c.ttl||1)),q=clamp(age/ttl);
+      const x=outP.x+(w*.08)*q, y=outP.y-28+((idx%6)-2.5)*9;
+      const size=3+6*clamp(c.strength||0);
+      ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4+q*Math.PI);
+      ctx.strokeStyle=COLORS.crystal;ctx.globalAlpha=.3+.7*(1-q);
+      ctx.strokeRect(-size,-size,size*2,size*2);ctx.restore();ctx.globalAlpha=1;
+    });
+
+    ctx.strokeStyle="#536a83";ctx.lineWidth=1.5;ctx.setLineDash([7,8]);ctx.globalAlpha=.45;
+    ctx.beginPath();ctx.moveTo(w*.94,h*.10);ctx.bezierCurveTo(w*.99,h*.25,w*.99,h*.78,w*.86,h*.92);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(w*.06,h*.10);ctx.bezierCurveTo(w*.01,h*.25,w*.01,h*.78,w*.14,h*.92);ctx.stroke();
+    ctx.setLineDash([]);ctx.globalAlpha=1;
+    ctx.fillStyle=COLORS.muted;ctx.font="700 9px ui-monospace";ctx.textAlign="center";ctx.fillText("BOUCLES DE RETOUR",cx,h*.965);
+
+    if(!nucleus){
+      ctx.fillStyle="rgba(5,10,17,.78)";ctx.fillRect(0,0,w,h);
+      ctx.fillStyle=connected?COLORS.gold:COLORS.red;ctx.textAlign="center";ctx.font="800 22px system-ui";
+      ctx.fillText(connected?"NOYAU EN ATTENTE DU DÉPLOIEMENT SERVEUR":"QUEEN SERVER DÉCONNECTÉ",cx,h*.47);
+      ctx.font="500 12px system-ui";ctx.fillStyle=COLORS.muted;
+      ctx.fillText("La page n’invente aucun état absent du serveur.",cx,h*.47+28);
     }
-    raf = requestAnimationFrame(loop);
-  }
-  raf = requestAnimationFrame(loop);
-
-  function delayMs() {
-    return Math.max(0, Number(delayInput.value) || 0);
+    requestAnimationFrame(drawStage);
   }
 
-  function afterDelay(fn) {
-    setTimeout(fn, delayMs());
+  function pushHistory(){
+    if(!nucleus)return;
+    for(const k of Object.keys(history)){
+      history[k].push(Number(nucleus.node_signals?.[k]||0));
+      if(history[k].length>MAX_HISTORY)history[k].shift();
+    }
+  }
+  function drawProbe(){
+    const {w,h}=resizeCanvas(probe,pctx), key=$("probeSelect").value, arr=history[key];
+    pctx.clearRect(0,0,w,h);pctx.fillStyle="#060d16";pctx.fillRect(0,0,w,h);
+    pctx.strokeStyle="#17304a";pctx.lineWidth=1;
+    for(let y=0;y<h;y+=26){pctx.beginPath();pctx.moveTo(0,y);pctx.lineTo(w,y);pctx.stroke();}
+    if(arr.length>1){
+      const max=Math.max(1.5,...arr), step=w/(MAX_HISTORY-1);
+      pctx.strokeStyle=COLORS.gold;pctx.lineWidth=2;pctx.beginPath();
+      arr.forEach((v,i)=>{const x=i*step,y=h-10-(h-20)*(v/max);if(i===0)pctx.moveTo(x,y);else pctx.lineTo(x,y);});
+      pctx.stroke();
+    }
+    pctx.fillStyle=COLORS.muted;pctx.font="700 10px ui-monospace";pctx.fillText(key+" · SIGNAL SERVEUR",8,14);
+    requestAnimationFrame(drawProbe);
   }
 
-  document.getElementById("openBtn").onclick = () => {
-    gateState.textContent = "OUVERTURE…";
-    portalGlow.setAttribute("opacity", ".45");
-    afterDelay(() => {
-      gateOpen = true;
-      gateState.textContent = "OUVERTE";
-      portalGlow.setAttribute("opacity", ".95");
-    });
-  };
-
-  document.getElementById("closeBtn").onclick = () => {
-    gateState.textContent = "FERMETURE…";
-    afterDelay(() => {
-      gateOpen = false;
-      gateState.textContent = "FERMÉE";
-      portalGlow.setAttribute("opacity", ".2");
-    });
-  };
-
-  document.getElementById("startBtn").onclick = () => {
-    running = true; paused = false; wheelState.textContent = "EN MARCHE";
-  };
-  document.getElementById("pauseBtn").onclick = () => {
-    paused = !paused;
-    wheelState.textContent = paused ? "PAUSE" : (running ? "EN MARCHE" : "ARRÊT");
-  };
-  document.getElementById("stopBtn").onclick = () => {
-    running = false; paused = false; wheelState.textContent = "ARRÊT";
-  };
-  document.getElementById("resetBtn").onclick = () => {
-    running = false; paused = false; gateOpen = false; angle = 0; count = 0;
-    setHands();
-    wheelState.textContent = "ARRÊT";
-    gateState.textContent = "FERMÉE";
-    crystalCount.textContent = "0";
-    portalGlow.setAttribute("opacity", ".2");
-    crystal.setAttribute("opacity", "0");
-  };
-
-  document.getElementById("crystalBtn").onclick = () => {
-    if (!gateOpen) {
-      gateState.textContent = "OUVRIR AVANT PASSAGE";
+  function bar(id,v,max=2.5){ $(id).style.width=(clamp(Number(v)/max)*100).toFixed(1)+"%"; }
+  function updateDom(){
+    $("queenTick").textContent=queen?Number(queen.tick_count||0).toLocaleString("fr-CA"):"—";
+    $("integrity").textContent=queen?(queen.integrity_match?"MATCH":"MISMATCH"):"—";
+    if(!nucleus){
+      $("nucleusTick").textContent=$("dt").textContent=$("world").textContent=$("coherence").textContent=$("feedback").textContent=$("crystals").textContent="—";
+      nucleusBadge.className="badge wait";nucleusBadge.textContent="NOYAU · EN ATTENTE";
+      if(connected)setStatus("QUEEN SERVER connecté, mais l’état noyau_runtime n’est pas encore publié. Déploiement du runtime noyau requis.",true);
       return;
     }
-    const startX = 300, endX = 900, y = 300;
-    const duration = Math.max(250, delayMs());
-    const t0 = performance.now();
-    crystal.setAttribute("opacity", "1");
-    function move(t) {
-      const p = Math.min(1, (t-t0)/duration);
-      const ease = p*p*(3-2*p);
-      const x = startX + (endX-startX)*ease;
-      crystal.setAttribute("transform", "translate(" + x + " " + y + ") rotate(" + (p*540) + ")");
-      if (p < 1) requestAnimationFrame(move);
-      else {
-        crystal.setAttribute("opacity", "0");
-        count += 1;
-        crystalCount.textContent = String(count);
-      }
-    }
-    requestAnimationFrame(move);
-  };
+    nucleusBadge.className="badge live";nucleusBadge.textContent="NOYAU · LIVE";
+    $("nucleusTick").textContent=Number(nucleus.tick||0).toLocaleString("fr-CA");
+    $("dt").textContent=fmt(nucleus.dt,6)+" s";
+    $("world").textContent=nucleus.world_name||"—";
+    $("coherence").textContent=fmt(nucleus.coherence);
+    $("feedback").textContent=fmt(nucleus.feedback);
+    $("crystals").textContent=String((nucleus.active_crystals||[]).length);
+    const b=nucleus.basin1||{};
+    $("inVal").textContent=fmt(b.inflow);$("outVal").textContent=fmt(b.outflow);$("crystalVal").textContent=fmt(b.crystal_index);
+    bar("inBar",b.inflow);bar("outBar",b.outflow);bar("crystalBar",b.crystal_index);
+    $("stable").textContent=String(b.stable_cycles??"—");
+    $("crystallized").textContent=b.crystallized?"OUI":"NON";
+    $("hash").textContent=nucleus.whole_h256||"—";
+    setStatus("SOURCE: QUEEN_SERVER_V0_2 → noyau_runtime → NoyauState. Vue live en lecture seule.");
+  }
+  function acceptState(state){
+    if(!state||state.source!=="QUEEN_SERVER_V0_2")return;
+    queen=state;
+    const wrapper=state.noyau_runtime;
+    nucleus=wrapper&&wrapper.authority==="NOYAU_ENGINE_HEADLESS"?wrapper.noyau:null;
+    lastMessageAt=performance.now();
+    pushHistory();updateDom();
+  }
+  function scheduleReconnect(){
+    if(reconnectTimer)return;
+    reconnectTimer=setTimeout(()=>{reconnectTimer=null;connect();},1500);
+  }
+  function connect(){
+    try{socket=new WebSocket(wsUrl());}
+    catch{connected=false;scheduleReconnect();return;}
+    socket.addEventListener("open",()=>{connected=true;serverBadge.className="badge live";serverBadge.textContent="QUEEN SERVER · CONNECTÉ";});
+    socket.addEventListener("message",e=>{try{acceptState(JSON.parse(e.data));}catch{}});
+    socket.addEventListener("close",()=>{connected=false;serverBadge.className="badge wait";serverBadge.textContent="QUEEN SERVER · DÉCONNECTÉ";nucleus=null;updateDom();scheduleReconnect();});
+    socket.addEventListener("error",()=>{try{socket.close();}catch{}});
+  }
 
-  setHands();
+  document.querySelectorAll("[data-view]").forEach(btn=>btn.addEventListener("click",()=>{
+    viewMode=Number(btn.dataset.view)||0;
+    document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b===btn));
+  }));
+
+  connect();
+  requestAnimationFrame(drawStage);
+  requestAnimationFrame(drawProbe);
 })();
 </script>
 </body>
