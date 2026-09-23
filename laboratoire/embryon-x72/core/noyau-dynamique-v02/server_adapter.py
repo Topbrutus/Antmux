@@ -36,4 +36,18 @@ class NoyauServerAdapter:
         self.engine.switch_world(world_index)
         return self.visual_payload()
 
+    def to_checkpoint(self) -> dict[str, Any]:
+        return {
+            "schema": ADAPTER_SCHEMA,
+            "engine": self.engine.to_checkpoint(),
+        }
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint: dict[str, Any] | None) -> "NoyauServerAdapter":
+        if checkpoint is None:
+            return cls()
+        if checkpoint.get("schema") != ADAPTER_SCHEMA:
+            raise ValueError("invalid noyau adapter checkpoint schema")
+        return cls(engine=NoyauEngine.from_checkpoint(checkpoint.get("engine")))
+
 [executed on device: Topbrutus (e13fd46c-c560-41e2-9c1c-bd2561c44abb)]

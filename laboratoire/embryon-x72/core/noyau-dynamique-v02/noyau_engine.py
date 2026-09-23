@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 SCHEMA = "ANTMUX-X72-NOYAU-DYNAMIC-v0.2"
+CHECKPOINT_SCHEMA = "ANTMUX-X72-NOYAU-CHECKPOINT-v0.2"
 CENTER_GATES = ("C1", "C2", "C3")
 UP_ROUTE = ("SOURCE", "C1", "C2", "C3", "SORTIE")
 DOWN_ROUTE = ("SORTIE", "C3", "C2", "C1", "SOURCE")
@@ -160,7 +161,7 @@ class NoyauEngine:
         sync = 0.20 * self.coherence
         return max(0.0, base + mod + sync)
 
-    def _basin1(self) -> BasinState:
+    def _basin1(self, update_stability: bool = True) -> BasinState:
         inflow = (
             0.95
             + 0.55 * math.sin(2.3 * self.sim_time)
@@ -174,12 +175,13 @@ class NoyauEngine:
         interception = clamp(self._interception_pending, 0.0, 0.95)
         outflow = max(0.0, raw_out * (1.0 - interception))
 
-        if self._last_crystal_index is not None:
-            if abs(crystal_index - self._last_crystal_index) <= self.config.crystal_stability_epsilon:
-                self._stable_cycles += 1
-            else:
-                self._stable_cycles = 0
-        self._last_crystal_index = crystal_index
+        if update_stability:
+            if self._last_crystal_index is not None:
+                if abs(crystal_index - self._last_crystal_index) <= self.config.crystal_stability_epsilon:
+                    self._stable_cycles += 1
+                else:
+                    self._stable_cycles = 0
+            self._last_crystal_index = crystal_index
 
         return BasinState(
             inflow=round(inflow, 9),
@@ -216,6 +218,30 @@ class NoyauEngine:
         if self._interception_pending < 1e-12:
             self._interception_pending = 0.0
 
+    def _compose_state(self, basin: BasinState) -> NoyauState:
+        omega = 2.0 * math.pi * self.config.base_frequency_hz
+        state = NoyauState(
+            schema=SCHEMA,
+            tick=self.tick,
+            sim_time=round(self.sim_time, 9),
+            dt=self.config.dt,
+            world_index=self.world_index,
+            world_name=self.world_name,
+            speed=round(self.speed, 9),
+            coherence=round(self.coherence, 9),
+            feedback=round(self.feedback, 9),
+            phase_left=round((omega * self.sim_time) % (2.0 * math.pi), 9),
+            phase_right=round((-omega * self.sim_time) % (2.0 * math.pi), 9),
+            center_gates=CENTER_GATES,
+            up_route=UP_ROUTE,
+            down_route=DOWN_ROUTE,
+            node_signals={name: round(self._node_signal(name), 9) for name in ("SOURCE", "B1", "B2", "B3", "SORTIE")},
+            basin1=basin,
+            active_crystals=[CrystalState(**asdict(c)) for c in self._crystals],
+        )
+        state.whole_h256 = self._hash_state(state)
+        return state
+
     def step(self, steps: int = 1) -> NoyauState:
         if type(steps) is not int or steps < 1:
             raise ValueError("steps must be a positive integer")
@@ -223,29 +249,9 @@ class NoyauEngine:
         for _ in range(steps):
             self.tick += 1
             self.sim_time += self.config.dt * self.speed
-            basin = self._basin1()
+            basin = self._basin1(update_stability=True)
             self._advance_crystals(basin)
-            omega = 2.0 * math.pi * self.config.base_frequency_hz
-            state = NoyauState(
-                schema=SCHEMA,
-                tick=self.tick,
-                sim_time=round(self.sim_time, 9),
-                dt=self.config.dt,
-                world_index=self.world_index,
-                world_name=self.world_name,
-                speed=round(self.speed, 9),
-                coherence=round(self.coherence, 9),
-                feedback=round(self.feedback, 9),
-                phase_left=round((omega * self.sim_time) % (2.0 * math.pi), 9),
-                phase_right=round((-omega * self.sim_time) % (2.0 * math.pi), 9),
-                center_gates=CENTER_GATES,
-                up_route=UP_ROUTE,
-                down_route=DOWN_ROUTE,
-                node_signals={name: round(self._node_signal(name), 9) for name in ("SOURCE", "B1", "B2", "B3", "SORTIE")},
-                basin1=basin,
-                active_crystals=[CrystalState(**asdict(c)) for c in self._crystals],
-            )
-            state.whole_h256 = self._hash_state(state)
+            state = self._compose_state(basin)
             self._last_state = state
             self._decay_controls()
         assert state is not None
@@ -253,13 +259,103 @@ class NoyauEngine:
 
     def snapshot(self) -> NoyauState:
         if self._last_state is None:
-            return self.step()
+            return self._compose_state(self._basin1(update_stability=False))
         return self._clone_state(self._last_state)
 
     def reset(self) -> NoyauState:
         config = self.config
         self.__init__(config=config)
         return self.step()
+
+    def to_checkpoint(self) -> dict[str, Any]:
+        checkpoint = {
+            "schema": CHECKPOINT_SCHEMA,
+            "config": asdict(self.config),
+            "tick": self.tick,
+            "sim_time": self.sim_time,
+            "speed": self.speed,
+            "coherence": self.coherence,
+            "feedback": self.feedback,
+            "world_index": self.world_index,
+            "injection_pending": self._injection_pending,
+            "interception_pending": self._interception_pending,
+            "next_crystal_id": self._next_crystal_id,
+            "crystals": [c.to_dict() for c in self._crystals],
+            "last_crystal_index": self._last_crystal_index,
+            "stable_cycles": self._stable_cycles,
+            "last_state": self._last_state.to_dict() if self._last_state is not None else None,
+        }
+        raw = json.dumps(
+            checkpoint,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        checkpoint["checkpoint_h256"] = hashlib.sha256(raw).hexdigest()
+        return checkpoint
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint: dict[str, Any] | None) -> "NoyauEngine":
+        if checkpoint is None:
+            return cls()
+        if checkpoint.get("schema") != CHECKPOINT_SCHEMA:
+            raise ValueError("invalid noyau checkpoint schema")
+        expected = checkpoint.get("checkpoint_h256")
+        canonical = dict(checkpoint)
+        canonical.pop("checkpoint_h256", None)
+        raw = json.dumps(
+            canonical,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        if not isinstance(expected, str) or hashlib.sha256(raw).hexdigest() != expected:
+            raise ValueError("invalid noyau checkpoint hash")
+        engine = cls(NoyauConfig(**checkpoint["config"]))
+        engine.tick = int(checkpoint["tick"])
+        engine.sim_time = float(checkpoint["sim_time"])
+        engine.speed = clamp(float(checkpoint["speed"]), 0.1, 4.0)
+        engine.coherence = clamp(float(checkpoint["coherence"]), 0.0, 1.0)
+        engine.feedback = clamp(float(checkpoint["feedback"]), 0.0, 1.2)
+        engine.switch_world(int(checkpoint["world_index"]))
+        engine._injection_pending = float(checkpoint.get("injection_pending", 0.0))
+        engine._interception_pending = float(checkpoint.get("interception_pending", 0.0))
+        engine._next_crystal_id = int(checkpoint.get("next_crystal_id", 1))
+        engine._crystals = [CrystalState(**item) for item in checkpoint.get("crystals", [])]
+        last_index = checkpoint.get("last_crystal_index")
+        engine._last_crystal_index = None if last_index is None else float(last_index)
+        engine._stable_cycles = int(checkpoint.get("stable_cycles", 0))
+        last_state = checkpoint.get("last_state")
+        if last_state is not None:
+            engine._last_state = cls._state_from_dict(last_state)
+            if not cls.verify_state(engine._last_state):
+                raise ValueError("invalid noyau checkpoint state hash")
+        return engine
+
+    @staticmethod
+    def _state_from_dict(data: dict[str, Any]) -> NoyauState:
+        return NoyauState(
+            schema=str(data["schema"]),
+            tick=int(data["tick"]),
+            sim_time=float(data["sim_time"]),
+            dt=float(data["dt"]),
+            world_index=int(data["world_index"]),
+            world_name=str(data["world_name"]),
+            speed=float(data["speed"]),
+            coherence=float(data["coherence"]),
+            feedback=float(data["feedback"]),
+            phase_left=float(data["phase_left"]),
+            phase_right=float(data["phase_right"]),
+            center_gates=tuple(data["center_gates"]),
+            up_route=tuple(data["up_route"]),
+            down_route=tuple(data["down_route"]),
+            node_signals={str(k): float(v) for k, v in data["node_signals"].items()},
+            basin1=BasinState(**data["basin1"]),
+            active_crystals=[CrystalState(**item) for item in data["active_crystals"]],
+            whole_h256=str(data["whole_h256"]),
+        )
 
     @staticmethod
     def _hash_state(state: NoyauState) -> str:

@@ -74,6 +74,17 @@ class NoyauEngineTests(unittest.TestCase):
         self.assertNotEqual(engine.snapshot().node_signals["B1"], 999.0)
         self.assertEqual(state.whole_h256, engine.snapshot().whole_h256)
 
+    def test_cold_snapshot_does_not_advance_engine(self):
+        engine = NoyauEngine()
+        before = engine.to_checkpoint()
+        first = engine.snapshot()
+        second = engine.snapshot()
+        after = engine.to_checkpoint()
+        self.assertEqual(first.tick, 0)
+        self.assertEqual(second.tick, 0)
+        self.assertEqual(first.to_dict(), second.to_dict())
+        self.assertEqual(before, after)
+
     def test_adapter_contract(self):
         adapter = NoyauServerAdapter()
         adapter.tick(3)
@@ -82,6 +93,33 @@ class NoyauEngineTests(unittest.TestCase):
         self.assertEqual(payload["authority"], "NOYAU_ENGINE_HEADLESS")
         self.assertIn("noyau", payload)
         self.assertTrue(payload["noyau"]["whole_h256"])
+
+    def test_engine_checkpoint_roundtrip_and_continuation(self):
+        original = NoyauEngine()
+        original.inject(0.8)
+        original.set_feedback(0.44)
+        original.switch_world(2)
+        before = original.step(40)
+        restored = NoyauEngine.from_checkpoint(original.to_checkpoint())
+        self.assertEqual(before.to_dict(), restored.snapshot().to_dict())
+        self.assertEqual(original.step(25).to_dict(), restored.step(25).to_dict())
+
+    def test_corrupt_checkpoint_state_is_rejected(self):
+        engine = NoyauEngine()
+        engine.step(5)
+        checkpoint = engine.to_checkpoint()
+        checkpoint["last_state"]["whole_h256"] = "0" * 64
+        with self.assertRaises(ValueError):
+            NoyauEngine.from_checkpoint(checkpoint)
+
+    def test_adapter_checkpoint_roundtrip(self):
+        adapter = NoyauServerAdapter()
+        adapter.tick(12)
+        restored = NoyauServerAdapter.from_checkpoint(adapter.to_checkpoint())
+        self.assertEqual(
+            adapter.visual_payload()["noyau"],
+            restored.visual_payload()["noyau"],
+        )
 
 
 if __name__ == "__main__":
