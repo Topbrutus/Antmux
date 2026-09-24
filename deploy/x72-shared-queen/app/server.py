@@ -473,7 +473,6 @@ class QueenCore:
             queen.noyau_runtime = NoyauServerAdapter.from_checkpoint(noyau_checkpoint)
             if abs(queen.noyau_runtime.engine.config.dt - queen.dt_sim) > 1e-12:
                 raise ValueError("checkpoint noyau cadence differs from Queen dt_sim")
-
         return queen
 
 
