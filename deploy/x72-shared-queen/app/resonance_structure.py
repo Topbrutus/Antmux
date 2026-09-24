@@ -583,6 +583,15 @@ class ResonanceStructure:
             },
         )
 
+    def analyze_link(self, left: str, right: str) -> dict[str, Any]:
+        if left not in self.channels or right not in self.channels:
+            raise ValueError("link endpoints must be REF or C1..C7")
+        return self.analyzer.analyze(
+            self.channels[left],
+            self.channels[right],
+            f"{left}<->{right}",
+        ).to_dict()
+
     def analyze_current(
         self,
         *,
@@ -594,6 +603,11 @@ class ResonanceStructure:
         measurements: dict[str, dict[str, Any]] = {}
         for zone in ZONES:
             measurements[zone] = self.analyzer.analyze(ref, self.channels[zone], zone).to_dict()
+
+        links: dict[str, dict[str, Any]] = {}
+        for left, right in zip(ZONES, ZONES[1:]):
+            key = f"{left}<->{right}"
+            links[key] = self.analyze_link(left, right)
 
         low_sum = sum(measurements[z]["amplitude_rms"] for z in ("C1", "C2", "C3"))
         high_sum = sum(measurements[z]["amplitude_rms"] for z in ("C5", "C6", "C7"))
@@ -614,6 +628,7 @@ class ResonanceStructure:
                 "authority": "MEASURED" if ref else "NOT_RUN",
             },
             "measurements": measurements,
+            "links": links,
             "upper_lower_ratio_M": {
                 "value": upper_lower_ratio,
                 "expression": "(C5+C6+C7)/(C1+C2+C3) using RMS amplitude",
