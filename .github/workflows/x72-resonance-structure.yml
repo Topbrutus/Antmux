@@ -86,6 +86,7 @@ jobs:
           assert report["PHASE"] == "PASS"
           assert report["DELAY"] == "PASS"
           assert report["COHERENCE"] == "PASS"
+          assert report["BANDWIDTH"] == "PASS"
           assert report["SUM_DIFF"] == "PASS"
           print("X72_RESONANCE_PROTOCOL=PASS")
           PY
