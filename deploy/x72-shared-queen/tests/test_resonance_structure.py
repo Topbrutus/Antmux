@@ -112,6 +112,15 @@ class ResonanceStructureTests(unittest.TestCase):
         for report in (sync, asc, desc, c4):
             self.assertEqual(report["schema"], "ANTMUX-X72-RESONANCE-MEASUREMENT-v0.1")
             self.assertEqual(set(report["measurements"]), {f"C{i}" for i in range(1, 8)})
+            self.assertEqual(
+                set(report["links"]),
+                {f"C{i}<->C{i+1}" for i in range(1, 7)},
+            )
+            for link in report["links"].values():
+                self.assertIsNotNone(link["coherence"])
+                self.assertIsNotNone(link["delay_seconds"])
+                self.assertIsNotNone(link["phase_delta_rad"])
+                self.assertIsNotNone(link["bandwidth_hz"])
             self.assertIsNotNone(report["upper_lower_ratio_M"]["value"])
         self.assertAlmostEqual(c4["measurements"]["C4"]["gain"], 1.0, delta=0.02)
         self.assertAlmostEqual(c4["measurements"]["C4"]["delay_seconds"], 0.0, delta=1/128)
