@@ -16,7 +16,6 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from .chakra_pump import ChakraPumpConfig, ProgressiveChakraPump
 from .relation_runtime import RelationRuntime
 from .noyau_runtime import NoyauConfig, NoyauEngine, NoyauServerAdapter
 from .z3_runtime import Z3RuntimeBridge
@@ -168,9 +167,6 @@ class QueenCore:
         self.noyau_runtime = NoyauServerAdapter(
             engine=NoyauEngine(NoyauConfig(dt=self.dt_sim))
         )
-        self.chakra_pump = ProgressiveChakraPump(
-            ChakraPumpConfig(ticks_per_level=240)
-        )
 
     def protected_projection(self) -> dict[str, Any]:
         return {
@@ -293,12 +289,7 @@ class QueenCore:
                     verified=latest.fast_verified,
                 )
 
-        noyau_state = self.noyau_runtime.tick()
-        self.chakra_pump.step(
-            queen_tick=self.tick,
-            integrity_ready=self.integrity_match(),
-            stability_ready=noyau_state.basin1.crystallized,
-        )
+        self.noyau_runtime.tick()
 
     def inject_fault(self, synapse_id: str) -> str:
         if synapse_id == "RANDOM":
@@ -416,7 +407,6 @@ class QueenCore:
                 relations=self.relations,
             ),
             "noyau_runtime": self.noyau_runtime.visual_payload(),
-            "chakra_pump": self.chakra_pump.visual_payload(),
             "synapses": [asdict(s) for s in self.synapses],
             "relations": self.relations,
             "recent_events": self.bus.labels(),
@@ -442,7 +432,6 @@ class QueenCore:
             "z3_runtime": self.z3_runtime.to_checkpoint(),
             "relation_runtime": self.relation_runtime.to_checkpoint(),
             "noyau_runtime": self.noyau_runtime.to_checkpoint(),
-            "chakra_pump": self.chakra_pump.to_checkpoint(),
         }
 
     @classmethod
@@ -485,12 +474,6 @@ class QueenCore:
             if abs(queen.noyau_runtime.engine.config.dt - queen.dt_sim) > 1e-12:
                 raise ValueError("checkpoint noyau cadence differs from Queen dt_sim")
 
-        queen.chakra_pump = ProgressiveChakraPump.from_checkpoint(
-            checkpoint.get("chakra_pump"),
-            default_config=ChakraPumpConfig(ticks_per_level=240),
-        )
-        if queen.chakra_pump.queen_tick > queen.tick:
-            raise ValueError("checkpoint chakra pump tick is ahead of Queen tick")
         return queen
 
 
