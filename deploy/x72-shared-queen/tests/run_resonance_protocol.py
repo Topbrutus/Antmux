@@ -61,6 +61,8 @@ def main() -> None:
     results["PHASE"] = "PASS" if c7["phase_delta_rad"] is not None else "FAIL"
     results["DELAY"] = "PASS" if c7["delay_seconds"] is not None else "FAIL"
     results["COHERENCE"] = "PASS" if c7["coherence"] is not None else "FAIL"
+    first_link = fixed["links"]["C1<->C2"]
+    results["BANDWIDTH"] = "PASS" if first_link["bandwidth_hz"] is not None else "FAIL"
 
     stereo = structure.stereo([1.0, 2.0, 3.0], [3.0, 2.0, 1.0])
     results["SUM_DIFF"] = (
@@ -123,6 +125,7 @@ def main() -> None:
         "PHASE": results["PHASE"],
         "DELAY": results["DELAY"],
         "COHERENCE": results["COHERENCE"],
+        "BANDWIDTH": results["BANDWIDTH"],
         "SUM_DIFF": results["SUM_DIFF"],
         "FAILURES": failures,
         "UNKNOWN": [
