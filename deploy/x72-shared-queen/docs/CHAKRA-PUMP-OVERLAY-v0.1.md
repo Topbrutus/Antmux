@@ -1,79 +1,69 @@
-﻿# X72 — Progressive Chakra Pump Overlay v0.1
+# X72 — Legacy Progressive Pump Candidate v0.1
 
-## Purpose
+## Status
 
-This module models the progressive software traversal requested for X72:
+This file documents the previous direct-mount experiment retained for comparison.
 
-    cycle 1: CH1 -> CH2 -> CH1
-    cycle 2: CH1 -> CH2 -> CH3 -> CH2 -> CH1
-    cycle 3: CH1 -> CH2 -> CH3 -> CH4 -> CH3 -> CH2 -> CH1
-    ...
-    cycle 6+: CH1 -> CH2 -> CH3 -> CH4 -> CH5 -> CH6 -> CH7
-              -> CH6 -> CH5 -> CH4 -> CH3 -> CH2 -> CH1
+- STATUS: EXPERIENCE / CANDIDATE
+- AUTHORITY: OBSERVATION_ONLY
+- PHYSICAL_CLAIM: false
+- CURRENT_RUNTIME_MOUNT: REMOVED
 
-A completed return to CH1 is required before the next target level is unlocked.
+The candidate module remains available as `app/chakra_pump.py`, but it is no
+longer instantiated, stepped, checkpointed or exposed from `QueenCore`.
 
-## Separation from the NoyauEngine
+## Why the mount was removed
 
-The existing NoyauEngine remains unchanged.
+The previous branch mounted the candidate inside `QueenCore.__init__()`,
+advanced it from `QueenCore.step()`, exposed it through `visual_state()`,
+and included it in Queen checkpoints.
 
-The pump is an overlay mounted beside it:
+That coupling is now treated as Architecture A for comparison only.
 
-    NoyauEngine --------------------+
-                                    |
-    QueenCore -> ChakraPumpOverlay  +-> VisualState / WebSocket
+The current architecture requires:
 
-The overlay is explicitly marked CANDIDATE, OBSERVATION_ONLY, non-mutating for QueenCore and NoyauEngine, and physical_claim=false.
+```
+ROUE EXISTANTE
+      |
+      | controlled interface
+      v
+BRIDGE
+      |
+      v
+NEW RESONANCE STRUCTURE
+```
 
-CH1..CH7 are software-state labels. They do not constitute a biological or medical claim.
+The wheel must run without the new structure. The new structure must run
+without the wheel.
 
-## Progression rule
+## Legacy candidate behavior
 
-The software state keeps current_level, target_level, direction, completed_cycles, completed_escalations and retained_boost.
+The preserved pump still models:
 
-retained_boost is a normalized software progress indicator from 0.0 to 1.0. It is not a physical-energy measurement.
+```
+cycle 1: CH1 -> CH2 -> CH1
+cycle 2: CH1 -> CH2 -> CH3 -> CH2 -> CH1
+cycle 3: CH1 -> CH2 -> CH3 -> CH4 -> CH3 -> CH2 -> CH1
+...
+```
 
-The target increases only after a complete return to CH1:
+This remains useful as a deterministic replay candidate. It is not the
+authoritative Route A architecture.
 
-    return_to_CH1
-    AND integrity_ready
-    AND stability_ready
-    => unlock next target, up to CH7
+## Comparison rule
 
-## Runtime guards
+Architecture A:
+- previous direct coupling;
+- replayed only as a standalone candidate;
+- not mounted in QueenCore.
 
-Progress is paused when Queen protected integrity does not match the reference or when the Noyau basin has not reached its crystallized stability flag.
+Architecture B:
+- independent instrumented resonance structure;
+- REF + C1..C7;
+- signal generator;
+- FFT, amplitude, phase, delay, coherence and bandwidth;
+- Route A sensors;
+- read-only bridge by default.
 
-Blocked ticks do not accumulate toward the next level transition.
-
-## Cadence
-
-Default deployment cadence:
-
-    ticks_per_level = 240
-    Queen dt_sim = 1 / 240 s
-
-Therefore one level-to-level software transition requires one simulated second at the current Queen cadence.
-
-The cadence is configurable and tests use ticks_per_level=1 to verify the exact traversal sequence without changing production defaults.
-
-## Checkpoint and compatibility
-
-The overlay has its own canonical SHA-256 state and checkpoint hash.
-
-It is included in Queen checkpoints but deliberately excluded from the historical Queen whole_projection and protected projection. This preserves the existing Queen H256 semantics.
-
-Historical Queen checkpoints that do not contain the overlay are accepted and receive a fresh CH1 -> CH2 candidate pump.
-
-## Falsifiable software expectations
-
-The implementation is wrong if any of these occur:
-
-1. target level advances before a complete return to CH1;
-2. traversal skips an intermediate level;
-3. target exceeds CH7;
-4. progression continues while integrity or stability guards are false;
-5. checkpoint restoration changes the next deterministic state;
-6. adding the overlay changes the historical Queen whole/protected hashes.
-
-These are software invariants only; they are not claims about human physiology, chakras, consciousness, or physical energy.
+No conclusion is based on visual similarity alone. Measurements decide whether
+any candidate behavior is retained.
