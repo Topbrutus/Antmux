@@ -1,0 +1,104 @@
+name: X72 Resonance Structure Validation
+
+on:
+  pull_request:
+    paths:
+      - "deploy/x72-shared-queen/app/resonance_structure.py"
+      - "deploy/x72-shared-queen/app/resonance_bridge.py"
+      - "deploy/x72-shared-queen/app/server.py"
+      - "deploy/x72-shared-queen/tests/test_resonance_structure.py"
+      - "deploy/x72-shared-queen/tests/test_resonance_bridge.py"
+      - "deploy/x72-shared-queen/tests/test_resonance_queen_integration.py"
+      - "deploy/x72-shared-queen/tests/run_resonance_protocol.py"
+      - "deploy/x72-shared-queen/docs/RESONANCE-STRUCTURE-v0.1.md"
+      - ".github/workflows/x72-resonance-structure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resonance-structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Queen integration dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet fastapi uvicorn pydantic websockets
+
+      - name: Compile and verify separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             deploy/x72-shared-queen/app/resonance_structure.py             deploy/x72-shared-queen/app/resonance_bridge.py             deploy/x72-shared-queen/tests/test_resonance_structure.py             deploy/x72-shared-queen/tests/test_resonance_bridge.py             deploy/x72-shared-queen/tests/test_resonance_queen_integration.py             deploy/x72-shared-queen/tests/run_resonance_protocol.py
+
+          if grep -q 'resonance_structure\|resonance_bridge'             deploy/x72-shared-queen/app/server.py; then
+            echo "Resonance mount found in Queen server" >&2
+            exit 1
+          fi
+
+
+      - name: Resonance structure tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_resonance_structure.py
+
+      - name: Read-only bridge tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_resonance_bridge.py
+
+      - name: Queen independence and hash-neutral bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_resonance_queen_integration.py
+
+      - name: End-to-end protocol report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/run_resonance_protocol.py             --report "$RUNNER_TEMP/x72-resonance-report.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              Path(os.environ["RUNNER_TEMP"], "x72-resonance-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert report["verdict"] == "PASS", report
+          assert report["STRUCTURE_STANDALONE"] == "PASS"
+          assert report["QUEEN_INDEPENDENT"] == "PASS"
+          assert report["BRIDGE_READ_ONLY"] == "PASS"
+          assert report["TEST_SYNCHRONOUS"] == "PASS"
+          assert report["TEST_ASCENDING"] == "PASS"
+          assert report["TEST_DESCENDING"] == "PASS"
+          assert report["TEST_C1_SOURCE"] == "PASS"
+          assert report["TEST_C4_SOURCE"] == "PASS"
+          assert report["FFT"] == "PASS"
+          assert report["AMPLITUDE"] == "PASS"
+          assert report["GAIN"] == "PASS"
+          assert report["PHASE"] == "PASS"
+          assert report["DELAY"] == "PASS"
+          assert report["COHERENCE"] == "PASS"
+          assert report["BANDWIDTH"] == "PASS"
+          assert report["SUM_DIFF"] == "PASS"
+          assert report["JOURNAL_JSONL"] == "PASS"
+          print("X72_RESONANCE_PROTOCOL=PASS")
+          PY
