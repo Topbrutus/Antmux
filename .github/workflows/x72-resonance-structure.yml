@@ -9,6 +9,7 @@ on:
       - "deploy/x72-shared-queen/app/server.py"
       - "deploy/x72-shared-queen/tests/test_resonance_structure.py"
       - "deploy/x72-shared-queen/tests/test_resonance_bridge.py"
+      - "deploy/x72-shared-queen/tests/test_resonance_queen_integration.py"
       - "deploy/x72-shared-queen/tests/test_chakra_pump.py"
       - "deploy/x72-shared-queen/tests/run_resonance_protocol.py"
       - "deploy/x72-shared-queen/docs/RESONANCE-STRUCTURE-v0.1.md"
@@ -30,6 +31,12 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
+      - name: Install Queen integration dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet fastapi uvicorn pydantic websockets
 
       - name: Compile and verify separation
         shell: bash
@@ -59,6 +66,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 deploy/x72-shared-queen/tests/test_resonance_bridge.py
+
+      - name: Queen plus bridge integration and A/B comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/x72-shared-queen/tests/test_resonance_queen_integration.py
 
       - name: End-to-end protocol report
         shell: bash
