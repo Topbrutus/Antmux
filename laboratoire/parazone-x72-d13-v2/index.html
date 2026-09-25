@@ -162,6 +162,18 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
         </div>
       </div>
     </div>
+    <div class="t1Panel" id="CONNECT-T4-01">
+      <div class="t1Grid">
+        <strong>T4 · B3.OUTPUT → FLOW-04 → GATE-01.INPUT</strong>
+        <span class="control">CONNECT ONLY · NO GATE LOGIC · NO MEASUREMENT</span>
+        <button id="t4Connect" class="t1Btn" type="button" disabled>CONNECT GATE</button>
+        <div class="t1Readout">
+          <span id="t4State">STATE: WAITING FOR VALID T3 CONNECTION</span><br>
+          <span id="t4Trace">TRACE: NONE</span><br>
+          <span id="t4Proof">PROOF-T4-SHA256: NONE</span>
+        </div>
+      </div>
+    </div>
     <div class="t1Panel topologyPanel" id="TOPOLOGY-REGISTRY-01">
       <div class="topologyGrid">
         <div class="topologyCell"><strong>G_REFERENCE</strong><span id="topologyReference">ANTMUX-TOPOLOGY-T1.0.0</span></div>
@@ -180,7 +192,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T2/T3 sont des connexions explicites sans calcul B2/B3 et sans nouvelle mesure. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T2/T3/T4 sont des connexions explicites sans calcul B2/B3, sans logique Gate et sans nouvelle mesure. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -222,9 +234,10 @@ const TOPOLOGY_STATE={reference:TOPOLOGY_REFERENCE,candidate:null,delta:null};
 const T1={tick:0,connected:0,measurements:0,proofs:0,value:null,lastTrace:"NONE",proof:"NONE",history:[],sweeping:false};
 const T2={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T3={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
+const T4={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
-function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
+function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
 function returnPath(points,id,side){x.save();x.setLineDash([5,7]);x.strokeStyle="#3f474e";x.lineWidth=1.2;x.beginPath();x.moveTo(points[0].x,points[0].y);for(let i=1;i<points.length;i++)x.lineTo(points[i].x,points[i].y);x.stroke();x.restore();const m=points[Math.floor(points.length/2)];label(id+" · DISCONNECTED",m.x+(side<0?-6:6),m.y-8,side<0?"right":"left","#68727a")}
 function port(p,a,code,r){const rr=r+9,px=p.x+Math.cos(a)*rr,py=p.y+Math.sin(a)*rr;x.fillStyle="#090b0d";x.strokeStyle="#89939b";x.lineWidth=1;x.beginPath();x.arc(px,py,3.2,0,Math.PI*2);x.fill();x.stroke();label(code,px+Math.cos(a)*9,py+Math.sin(a)*9,"center","#78828a","7px Consolas")}
 function moduleNode(p,id,r){
@@ -236,14 +249,14 @@ function moduleNode(p,id,r){
 function registry(rx,ry,rw,rh){
   x.fillStyle="#090c0f";x.strokeStyle="#4b545c";x.lineWidth=1;x.fillRect(rx,ry,rw,rh);x.strokeRect(rx,ry,rw,rh);
   label("CONTINUITY-REGISTRY-01",rx+10,ry+17,"left","#d8dde1","700 9px Consolas");
-  label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: "+(T3.connected?"T3 ACTIVE":(T2.connected?"T2 ACTIVE":(T1.connected?"T1 ACTIVE":"EMPTY"))),rx+10,ry+49,"left");
-  label("TICK: "+(T3.connected?"T3":(T2.connected?"T2":("T"+T1.tick))),rx+10,ry+64,"left");label("LAST TRACE: "+(T3.connected?T3.lastTrace:(T2.connected?T2.lastTrace:T1.lastTrace)),rx+10,ry+79,"left");
-  label("CONNECTED: "+(T1.connected+T2.connected+T3.connected),rx+10,ry+94,"left");label("RECORDS/PROOFS: "+(T1.history.length+T2.history.length+T3.history.length)+"/"+(T1.proofs+T2.proofs+T3.proofs),rx+10,ry+109,"left");
+  label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: "+(T4.connected?"T4 ACTIVE":(T3.connected?"T3 ACTIVE":(T2.connected?"T2 ACTIVE":(T1.connected?"T1 ACTIVE":"EMPTY")))),rx+10,ry+49,"left");
+  label("TICK: "+(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":("T"+T1.tick)))),rx+10,ry+64,"left");label("LAST TRACE: "+(T4.connected?T4.lastTrace:(T3.connected?T3.lastTrace:(T2.connected?T2.lastTrace:T1.lastTrace))),rx+10,ry+79,"left");
+  label("CONNECTED: "+(T1.connected+T2.connected+T3.connected+T4.connected),rx+10,ry+94,"left");label("RECORDS/PROOFS: "+(T1.history.length+T2.history.length+T3.history.length+T4.history.length)+"/"+(T1.proofs+T2.proofs+T3.proofs+T4.proofs),rx+10,ry+109,"left");
   label("TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version,rx+10,ry+124,"left","#626c75","7px Consolas")
 }
 function draw(w,h){
   x.clearRect(0,0,w,h);x.fillStyle="#06080a";x.fillRect(0,0,w,h);x.strokeStyle="#242a30";x.strokeRect(7,7,w-14,h-14);
-  label("BASELINE T0 · FROZEN | CURRENT "+(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0")))+" · CONNECTED "+(T1.connected+T2.connected+T3.connected)+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+(T1.proofs+T2.proofs+T3.proofs),20,28,"left","#c8cfd4","700 9px Consolas");
+  label("BASELINE T0 · FROZEN | CURRENT "+(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0"))))+" · CONNECTED "+(T1.connected+T2.connected+T3.connected+T4.connected)+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+(T1.proofs+T2.proofs+T3.proofs+T4.proofs),20,28,"left","#c8cfd4","700 9px Consolas");
   label("PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME",w-20,28,"right","#69737c","8px Consolas");
 
   const cx=w*.43,rad=Math.max(22,Math.min(34,w*.058));
@@ -265,7 +278,7 @@ function draw(w,h){
   label("SOURCE-00",P.base.x,P.base.y+28,"center","#89939b","9px Consolas");label(T1.connected?("INPUT=1 · AMP "+T1.value.toFixed(6)):"NOT_CONNECTED",P.base.x,P.base.y+42,"center",T1.connected?"#dce4ea":"#5f6972","8px Consolas");
 
   x.fillStyle="#080a0c";x.strokeStyle="#858f97";x.lineWidth=1.4;x.strokeRect(P.g.x-45,P.g.y-11,90,22);
-  label("GATE-01",P.g.x,P.g.y+4,"center","#dfe5ea","9px Consolas");label("NOT_CONNECTED",P.g.x,P.g.y+27,"center","#5f6972","8px Consolas");
+  label("GATE-01",P.g.x,P.g.y+4,"center","#dfe5ea","9px Consolas");label(T4.connected?"T4 · CONNECTED · NO LOGIC":"NOT_CONNECTED",P.g.x,P.g.y+27,"center",T4.connected?"#dce4ea":"#5f6972","8px Consolas");
 
   x.strokeStyle="#707981";x.lineWidth=1.1;for(let i=0;i<6;i++){const a=Math.PI*2*i/6;x.beginPath();x.moveTo(P.cr.x,P.cr.y);x.lineTo(P.cr.x+Math.cos(a)*25,P.cr.y+Math.sin(a)*25);x.stroke()}
   label("CRYSTAL-01",P.cr.x,P.cr.y+43,"center","#9da6ad","9px Consolas");label("NOT_CONNECTED",P.cr.x,P.cr.y+57,"center","#5f6972","8px Consolas");
@@ -275,7 +288,7 @@ function draw(w,h){
   x.save();x.setLineDash([4,5]);x.strokeStyle="#343c43";x.strokeRect(w*.68,h*.08,w*.27,h*.18);x.restore();
   label("CHEM-ZONE-01",w*.815,h*.12,"center","#68727a","9px Consolas");label("PLACEHOLDER STRUCTUREL",w*.815,h*.15,"center","#5b656d","8px Consolas");label("NO FUNCTION · NO DATA",w*.815,h*.175,"center","#5b656d","8px Consolas");
 
-  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0"))),20,h-22,"left","#69737c","8px Consolas");
+  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0")))),20,h-22,"left","#69737c","8px Consolas");
 }
 function validateTopology(g){
   const errors=[],moduleIds=new Set(),edgeIds=new Set(),allowedEdgeTypes=new Set(["INTRA_LEVEL","INTER_LEVEL"]);
@@ -450,6 +463,38 @@ async function connectT3(){
     proofEl.textContent="PROOF-T3-SHA256: "+proof;
     btn.disabled=true;btn.textContent="B3 CONNECTED";
     document.getElementById("currentState").textContent="CURRENT T3 · CONNECTED 3 · RECORDS "+(T1.history.length+T2.history.length+T3.history.length);
+    const t4Btn=document.getElementById("t4Connect");
+    if(!T4.connected){t4Btn.disabled=false;document.getElementById("t4State").textContent="STATE: READY · B3 CONNECTED · GATE-01 NOT_CONNECTED";}
+    resize();
+    return record;
+  }catch(err){
+    stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
+    throw err;
+  }
+}
+async function connectT4(){
+  const stateEl=document.getElementById("t4State"),traceEl=document.getElementById("t4Trace"),proofEl=document.getElementById("t4Proof"),btn=document.getElementById("t4Connect");
+  try{
+    if(T4.connected)return T4.history[0]||null;
+    if(T3.connected!==1||T3.proof==="NONE")throw new Error("T3_PROOF_REQUIRED");
+    const packet={
+      schema:"BRUTUS_T4_CONNECTION_V1",
+      tick:"T4",state:"T4",
+      from:"B3.OUTPUT",via:"FLOW-04",to:"GATE-01.INPUT",
+      state_before:"GATE-01.NOT_CONNECTED",state_after:"GATE-01.CONNECTED",
+      operation:"CONNECT_ONLY",gate_logic:"NONE",measurement:"NONE",
+      source_proof_ref:T3.proof,
+      graph_ref:"G_REFERENCE",topology_version:TOPOLOGY_REFERENCE.topology_version
+    };
+    const proof=await sha256Hex(JSON.stringify(packet));
+    const record=Object.freeze({...packet,proof_ref:proof});
+    T4.history.push(record);
+    Object.assign(T4,{connected:1,proofs:1,lastTrace:"B3.OUTPUT>FLOW-04>GATE-01.INPUT",proof});
+    stateEl.textContent="STATE: T4 · GATE-01 CONNECTED · NO GATE LOGIC · NO MEASUREMENT";
+    traceEl.textContent="TRACE: "+T4.lastTrace+" · BEFORE: GATE-01.NOT_CONNECTED · AFTER: GATE-01.CONNECTED";
+    proofEl.textContent="PROOF-T4-SHA256: "+proof;
+    btn.disabled=true;btn.textContent="GATE CONNECTED";
+    document.getElementById("currentState").textContent="CURRENT T4 · CONNECTED 4 · RECORDS "+(T1.history.length+T2.history.length+T3.history.length+T4.history.length);
     resize();
     return record;
   }catch(err){
@@ -477,6 +522,7 @@ document.querySelectorAll("[data-amp]").forEach(btn=>btn.addEventListener("click
 document.getElementById("t1Sweep").addEventListener("click",runSweep);
 document.getElementById("t2Connect").addEventListener("click",connectT2);
 document.getElementById("t3Connect").addEventListener("click",connectT3);
+document.getElementById("t4Connect").addEventListener("click",connectT4);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 window.addEventListener("resize",resize);resize();
