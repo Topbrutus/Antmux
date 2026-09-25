@@ -51,6 +51,9 @@ jobs:
           grep -Fq 'BRUTUS // MOTEUR DE RÉSONANCE' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'BASE VISUELLE · NON CONNECTÉE' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'AUCUNE CONNEXION' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'CONTINUITY-REGISTRY-01' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'BASELINE T0 · FROZEN' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME' laboratoire/parazone-x72-d13-v2/index.html
           ! grep -Fq 'new WebSocket' laboratoire/parazone-x72-d13-v2/index.html
           ! grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
 
@@ -155,6 +158,9 @@ jobs:
           grep -Fq 'BRUTUS // MOTEUR DE RÉSONANCE' /tmp/parazone-index.html
           grep -Fq 'BASE VISUELLE · NON CONNECTÉE' /tmp/parazone-index.html
           grep -Fq 'AUCUNE CONNEXION' /tmp/parazone-index.html
+          grep -Fq 'CONTINUITY-REGISTRY-01' /tmp/parazone-index.html
+          grep -Fq 'BASELINE T0 · FROZEN' /tmp/parazone-index.html
+          grep -Fq 'PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME' /tmp/parazone-index.html
           ! grep -Fq 'new WebSocket' /tmp/parazone-index.html
           ! grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
           grep -Fq '# NOYAU DYNAMIQUE X72 — page publique' /tmp/parazone-readme.md
