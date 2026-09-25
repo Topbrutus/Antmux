@@ -1,393 +1,148 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#05070c" />
-  <title>NOYAU DYNAMIQUE X72 — ANTMUX</title>
-  <meta name="description" content="Visualisation live en lecture seule du noyau dynamique X72 : trois passages centraux, bassin 1, cristallisation, autoroutes et télémétrie du Queen Server." />
-  <link rel="stylesheet" href="../../styles.css" />
-  <style>
-    :root{
-      --bg:#05070c;--panel:#0a111c;--panel2:#0d1725;--line:#24354a;
-      --text:#eef5ff;--muted:#8496aa;--cyan:#63d8ff;--gold:#f4c95d;
-      --pink:#ff72d0;--green:#80f0ad;--red:#ff617e;--violet:#9b86ff;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:
-      radial-gradient(circle at 50% 26%,rgba(99,216,255,.06),transparent 28rem),
-      radial-gradient(circle at 50% 80%,rgba(244,201,93,.04),transparent 24rem),var(--bg);
-      color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
-    .shell{max-width:1600px;margin:0 auto;padding:20px}
-    .top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
-    .top h1{font-size:clamp(1.6rem,3vw,2.8rem);margin:.15rem 0 .35rem}
-    .eyebrow{color:var(--cyan);font-size:.76rem;font-weight:900;letter-spacing:.12em;margin:0}
-    .lede{color:#b7c5d5;max-width:860px;line-height:1.55;margin:.35rem 0}
-    .badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .badge{padding:7px 10px;border:1px solid var(--line);border-radius:999px;font:800 .72rem/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em}
-    .badge.live{border-color:rgba(128,240,173,.45);color:var(--green)}
-    .badge.wait{border-color:rgba(255,97,126,.45);color:var(--red)}
-    .nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}
-    .nav a{padding:8px 11px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:#cfe4f7;background:#09121d}
-    .grid{display:grid;grid-template-columns:minmax(0,2.15fr) minmax(320px,.85fr);gap:14px}
-    .panel{background:linear-gradient(180deg,rgba(13,23,37,.96),rgba(7,14,24,.98));border:1px solid var(--line);border-radius:16px;box-shadow:0 22px 70px rgba(0,0,0,.28)}
-    .stagePanel{padding:12px;min-width:0}
-    #stage{display:block;width:100%;height:min(72vh,820px);min-height:540px;border-radius:12px;background:#050a11;cursor:crosshair}
-    .side{display:grid;gap:12px;align-content:start}
-    .card{padding:14px}
-    .card h2{font-size:.85rem;letter-spacing:.08em;margin:0 0 10px;color:#dbeeff}
-    .metricGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .metric{padding:9px 10px;border:1px solid #1e3045;border-radius:10px;background:#08111d;min-width:0}
-    .metric span{display:block;color:var(--muted);font:700 .65rem/1.3 ui-monospace,Consolas,monospace;letter-spacing:.06em}
-    .metric strong{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
-    .b1{border-color:rgba(244,201,93,.34)}
-    .barrow{display:grid;grid-template-columns:86px 1fr 52px;gap:7px;align-items:center;margin:7px 0}
-    .barrow label{font:700 .7rem ui-monospace,monospace;color:#a8b9cb}
-    .bar{height:8px;background:#142234;border-radius:999px;overflow:hidden}
-    .fill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .18s linear}
-    .barrow output{font:700 .72rem ui-monospace,monospace;color:#eaf3ff;text-align:right}
-    .worlds{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-    button{border:1px solid #33465e;background:#0b1725;color:#cfe1f3;border-radius:9px;padding:8px 9px;font:800 .7rem ui-monospace,monospace;cursor:pointer}
-    button.active{border-color:var(--gold);color:#fff1b0;box-shadow:inset 0 0 0 1px rgba(244,201,93,.25)}
-    .probeTitle{display:flex;justify-content:space-between;gap:8px;align-items:center}
-    select{border:1px solid #33465e;background:#0b1725;color:#eaf3ff;border-radius:8px;padding:7px 8px}
-    #probe{display:block;width:100%;height:130px;border:1px solid #17283b;border-radius:10px;background:#060d16;margin-top:8px}
-    .status{padding:10px;border:1px solid #24415b;border-radius:10px;color:#bfeeff;background:#071521;font-size:.78rem;line-height:1.45}
-    .status.bad{border-color:rgba(255,97,126,.4);color:#ffc0cc;background:#1b0c14}
-    .tiny{color:var(--muted);font-size:.73rem;line-height:1.5}
-    .hash{font:700 .67rem/1.45 ui-monospace,Consolas,monospace;word-break:break-all;color:#aeeaff}
-    .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;color:#9eb1c5;font-size:.72rem}
-    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
-    @media(max-width:1080px){.grid{grid-template-columns:1fr}.side{grid-template-columns:repeat(2,minmax(0,1fr))}.side .wide{grid-column:1/-1}}
-    @media(max-width:720px){.shell{padding:10px}.side{grid-template-columns:1fr}#stage{height:560px}.metricGrid{grid-template-columns:1fr 1fr}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#050607">
+<title>BRUTUS // Moteur de résonance — ANTMUX</title>
+<meta name="description" content="Base visuelle BRUTUS X72, autonome et non connectée.">
+<style>
+:root{--bg:#050607;--panel:#0b0e11;--line:#2a3036;--text:#e8edf2;--muted:#7d8790;--soft:#11161b}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:"Segoe UI",Inter,Arial,sans-serif}
+body{padding:12px}
+.shell{max-width:1560px;margin:0 auto}
+.header{display:flex;align-items:center;gap:18px;margin:0 0 9px}
+.title{font-size:18px;font-weight:800;letter-spacing:2px}
+.subtitle{margin-left:auto;color:var(--muted);font-size:11px;letter-spacing:.08em;text-align:right}
+.layout{display:grid;grid-template-columns:29fr 42fr 29fr;gap:9px;min-height:650px}
+.col{display:grid;gap:9px;align-content:stretch}
+.left{grid-template-rows:1fr 1fr}.right{grid-template-rows:1fr 1fr auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 11px 10px;min-width:0}
+.panel h2{margin:0 0 7px;font-size:12px;letter-spacing:1px;color:#f7f9fb}
+.chart,.crystalBox{position:relative;width:100%;height:100%;min-height:230px;background:#080a0c;border:1px solid #171b1f;overflow:hidden}
+.gridbg{background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px}
+.axis{position:absolute;color:#78838c;font:9px Consolas,monospace}
+.spec-lines{position:absolute;inset:14px 14px 22px 26px}
+.spec-lines span{position:absolute;left:0;right:0;height:1px;background:rgba(255,255,255,.13)}
+.trace{position:absolute;inset:16px 10px 22px 28px}
+.trace svg{width:100%;height:100%;display:block}
+.info{margin-top:5px;color:#7d8790;font:10px Consolas,monospace}
+.center{display:flex}.engine{width:100%;height:100%;min-height:650px;padding:0;background:#06080a;border:1px solid #242a30;border-radius:10px;overflow:hidden}
+#engineCanvas{display:block;width:100%;height:100%;min-height:650px}
+.statusGrid{display:grid;grid-template-columns:78px 1fr 42px;gap:6px 8px;align-items:center;font-size:10px}
+.bar{height:13px;background:#11151a;border:1px solid #2c333a;border-radius:5px;overflow:hidden}.fill{height:100%;background:#dce3e8}
+.crystalBox{min-height:210px}.crystal{position:absolute;inset:0;display:grid;place-items:center}
+.crystal svg{width:66%;height:66%}
+.controls{margin-top:9px}
+.controlGrid{display:grid;grid-template-columns:1.2fr 2fr 1.2fr 1fr;gap:7px 10px;align-items:center;font-size:10px}
+.control{background:#0d1115;border:1px solid #333b43;border-radius:6px;padding:6px 8px;color:#8f99a1}
+.slider{height:4px;background:#252b31;border-radius:2px;position:relative}.slider:after{content:"";position:absolute;left:48%;top:-5px;width:13px;height:13px;border-radius:50%;background:#f3f6f8;border:1px solid #fff}
+.btn{background:#11161b;border:1px solid #3b444d;border-radius:7px;padding:7px 14px;color:#858f98;font-weight:600;text-align:center}
+.idle{border:1px solid #3b4249;border-radius:8px;padding:5px 10px;color:#8c969f;font-weight:700;text-align:center}
+.note{margin-top:8px;color:#67717a;font-size:10px;letter-spacing:.06em}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}.engine,#engineCanvas{min-height:620px}.left,.right{grid-template-columns:1fr 1fr;grid-template-rows:auto}.controls .controlGrid{grid-template-columns:1fr 1fr}.subtitle{display:none}}
+@media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start}.title{font-size:15px}}
+</style>
 </head>
 <body>
 <main class="shell">
-  <header class="top">
-    <div>
-      <p class="eyebrow">ANTMUX · X72 · NOYAU DYNAMIQUE V0.2</p>
-      <h1>NOYAU DYNAMIQUE — BASSINS DE CRISTALLISATION</h1>
-      <p class="lede">Vue live en lecture seule du moteur relié au Queen Server. Les deux autoroutes opposées traversent obligatoirement les trois portes centrales C1, C2 et C3. Le premier bassin expose séparément son entrée, sa sortie, sa cristallisation et les cristaux actifs.</p>
-    </div>
-    <div class="badges">
-      <span id="serverBadge" class="badge wait">QUEEN SERVER · CONNEXION…</span>
-      <span id="nucleusBadge" class="badge wait">NOYAU · EN ATTENTE</span>
-    </div>
+  <header class="header">
+    <div class="title">BRUTUS // MOTEUR DE RÉSONANCE</div>
+    <div class="subtitle">BASE VISUELLE · NON CONNECTÉE · AUCUNE ENTRÉE · AUCUNE SORTIE</div>
   </header>
 
-  <nav class="nav">
-    <a href="../">← LABORATOIRE</a>
-    <a href="../embryon-x72/">HORLOGE DE LA VIE</a>
-    <a href="../../">ACCUEIL ANTMUX</a>
-  </nav>
-
-  <section class="grid">
-    <section class="panel stagePanel">
-      <canvas id="stage" aria-label="Visualisation dynamique du noyau X72"></canvas>
-      <div class="legend">
-        <span><i class="dot" style="background:var(--cyan)"></i>VOIE A</span>
-        <span><i class="dot" style="background:var(--gold)"></i>VOIE B</span>
-        <span><i class="dot" style="background:#e8fbff"></i>PASSAGE CENTRAL</span>
-        <span><i class="dot" style="background:var(--green)"></i>ENTRÉE BASSIN 1</span>
-        <span><i class="dot" style="background:var(--pink)"></i>SORTIE BASSIN 1</span>
-      </div>
-    </section>
-
-    <aside class="side">
-      <section class="panel card">
-        <h2>ÉTAT LIVE</h2>
-        <div class="metricGrid">
-          <div class="metric"><span>QUEEN TICK</span><strong id="queenTick">—</strong></div>
-          <div class="metric"><span>NOYAU TICK</span><strong id="nucleusTick">—</strong></div>
-          <div class="metric"><span>dt</span><strong id="dt">—</strong></div>
-          <div class="metric"><span>MONDE SERVEUR</span><strong id="world">—</strong></div>
-          <div class="metric"><span>COHÉRENCE</span><strong id="coherence">—</strong></div>
-          <div class="metric"><span>FEEDBACK</span><strong id="feedback">—</strong></div>
-          <div class="metric"><span>CRISTAUX ACTIFS</span><strong id="crystals">—</strong></div>
-          <div class="metric"><span>INTÉGRITÉ QUEEN</span><strong id="integrity">—</strong></div>
+  <section class="layout">
+    <div class="col left">
+      <section class="panel"><h2>SPECTROGRAMME</h2>
+        <div class="chart gridbg">
+          <div class="axis" style="left:8px;top:8px">FRÉQUENCE</div>
+          <div class="axis" style="right:8px;bottom:5px">TEMPS →</div>
+          <div class="spec-lines">
+            <span style="top:18%"></span><span style="top:34%"></span><span style="top:53%"></span><span style="top:72%"></span>
+          </div>
         </div>
       </section>
+      <section class="panel"><h2>BANDE PASSANTE</h2>
+        <div class="chart gridbg">
+          <div class="trace"><svg viewBox="0 0 500 200" preserveAspectRatio="none"><path d="M0 175 L40 170 L75 168 L110 160 L142 162 L170 145 L200 153 L226 118 L250 40 L268 128 L300 150 L340 158 L380 166 L420 170 L500 174" fill="none" stroke="#e5eaee" stroke-width="2"/><line x1="250" x2="250" y1="0" y2="200" stroke="#c9d0d5" opacity=".5"/></svg></div>
+          <div class="axis" style="left:8px;top:8px">NIVEAU dB</div><div class="axis" style="right:8px;bottom:5px">FRÉQUENCE Hz</div>
+        </div>
+        <div class="info">BANDE — · PASSAGE — · PIC — Hz</div>
+      </section>
+    </div>
 
-      <section class="panel card b1">
-        <h2>BASSIN 1 · ENTRÉE / SORTIE</h2>
-        <div class="barrow"><label>ENTRÉE</label><div class="bar"><div id="inBar" class="fill"></div></div><output id="inVal">—</output></div>
-        <div class="barrow"><label>SORTIE</label><div class="bar"><div id="outBar" class="fill"></div></div><output id="outVal">—</output></div>
-        <div class="barrow"><label>CRISTAL</label><div class="bar"><div id="crystalBar" class="fill"></div></div><output id="crystalVal">—</output></div>
-        <div class="metricGrid" style="margin-top:9px">
-          <div class="metric"><span>CYCLES STABLES</span><strong id="stable">—</strong></div>
-          <div class="metric"><span>CRISTALLISÉ</span><strong id="crystallized">—</strong></div>
+    <div class="center">
+      <section class="engine"><canvas id="engineCanvas" aria-label="BRUTUS moteur de résonance — base visuelle non connectée"></canvas></section>
+    </div>
+
+    <div class="col right">
+      <section class="panel"><h2>ONDE SINUSOÏDALE</h2>
+        <div class="chart gridbg"><div class="trace"><svg viewBox="0 0 500 200" preserveAspectRatio="none"><path d="M0 100 C25 20 50 20 75 100 S125 180 150 100 S200 20 225 100 S275 180 300 100 S350 20 375 100 S425 180 450 100 S475 20 500 100" fill="none" stroke="#f2f5f7" stroke-width="2"/></svg></div><div class="axis" style="left:8px;top:8px">AMPLITUDE</div><div class="axis" style="right:8px;bottom:5px">TEMPS s</div></div>
+      </section>
+
+      <section class="panel"><h2>CRISTALLISATION</h2>
+        <div class="crystalBox gridbg"><div class="crystal">
+          <svg viewBox="-100 -100 200 200" aria-hidden="true">
+            <g fill="none" stroke="#e8edf2" stroke-width="1.3" opacity=".65">
+              <circle r="24" opacity=".18"/><circle r="46" opacity=".14"/><circle r="70" opacity=".10"/>
+              <path d="M0-68V68M-59-34L59 34M-59 34L59-34"/>
+              <path d="M0-46L-8-37M0-46L8-37M40-23L29-22M40-23L34-13M40 23L34 13M40 23L29 22M0 46L8 37M0 46L-8 37M-40 23L-29 22M-40 23L-34 13M-40-23L-34-13M-40-23L-29-22"/>
+            </g>
+            <circle r="5" fill="#fff" opacity=".7"/>
+          </svg>
+        </div></div>
+      </section>
+
+      <section class="panel"><h2>ÉTAT DU SYSTÈME</h2>
+        <div class="statusGrid">
+          <span>ACTIVITÉ</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0%</span>
+          <span>COHÉRENCE</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0%</span>
+          <span>BANDE</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0%</span>
+          <span>GATE</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0%</span>
+          <span>CRISTAL</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0%</span>
         </div>
       </section>
+    </div>
+  </section>
 
-      <section class="panel card">
-        <h2>VUE STRUCTURELLE · RENDU LOCAL</h2>
-        <div class="worlds">
-          <button data-view="0" class="active">1 · HELIX</button>
-          <button data-view="1">2 · TORUS</button>
-          <button data-view="2">3 · GRID</button>
-          <button data-view="3">4 · OBSIDIAN</button>
-        </div>
-        <p class="tiny">Ces boutons changent seulement la géométrie de visualisation. Ils ne modifient jamais l’état du Queen Server.</p>
-      </section>
-
-      <section class="panel card wide">
-        <div class="probeTitle"><h2 style="margin:0">SONDE D’ANALYSE</h2>
-          <select id="probeSelect">
-            <option>SOURCE</option><option selected>B1</option><option>B2</option><option>B3</option><option>SORTIE</option>
-          </select>
-        </div>
-        <canvas id="probe"></canvas>
-      </section>
-
-      <section class="panel card wide">
-        <h2>PREUVE / PROVENANCE</h2>
-        <div id="status" class="status">Connexion au Queen Server…</div>
-        <p class="tiny">Le navigateur affiche l’état reçu du serveur. Les métriques ne sont pas recalculées localement.</p>
-        <div class="hash">NOYAU H256<br><span id="hash">—</span></div>
-      </section>
-    </aside>
+  <section class="panel controls"><h2>CONTRÔLES MOTEUR</h2>
+    <div class="controlGrid">
+      <span>FRÉQUENCE MANUELLE</span><div class="slider"></div><span class="control">261.63 Hz</span><span class="control">DÉSACTIVÉ</span>
+      <span>AMPLITUDE</span><div class="slider"></div><span class="control">0.78</span><span class="control">DÉSACTIVÉ</span>
+      <span>DURÉE</span><span class="control">20.0 s</span><span>VITESSE VISUELLE</span><span class="control">1.00×</span>
+      <span>RESPIRATION</span><span class="control">0.10 Hz</span><span>TEMPS / ÉTAPE</span><span class="control">1.80 s</span>
+      <span>SÉQUENCE AUTO</span><span class="control">BASE</span><span>FLUX</span><span class="control">NON CONNECTÉ</span>
+      <span>NOTE TENUE</span><span class="control">329.63 Hz</span><span>ANCRAGE SPECTRAL</span><span class="control">NON CONNECTÉ</span>
+      <div class="btn">START</div><div class="btn">PAUSE</div><div class="btn">STOP</div><div class="idle">ARRÊT</div>
+    </div>
+    <div class="note">BASE VISUELLE SEULE — aucune API, aucun WebSocket, aucune lecture Queen, aucune écriture serveur.</div>
   </section>
 </main>
-
 <script>
-(() => {
-  "use strict";
-  const $ = id => document.getElementById(id);
-  const stage = $("stage"), ctx = stage.getContext("2d");
-  const probe = $("probe"), pctx = probe.getContext("2d");
-  const serverBadge = $("serverBadge"), nucleusBadge = $("nucleusBadge");
-  const status = $("status");
-  let queen = null, nucleus = null, connected = false, socket = null, reconnectTimer = null;
-  let viewMode = 0, lastMessageAt = 0;
-  const history = {SOURCE:[],B1:[],B2:[],B3:[],SORTIE:[]};
-  const MAX_HISTORY = 150;
-
-  const COLORS = {
-    bg:"#050a11", grid:"#132235", a:"#63d8ff", b:"#f4c95d", center:"#e8fbff",
-    input:"#80f0ad", output:"#ff72d0", text:"#edf6ff", muted:"#7890a8",
-    crystal:"#d9fff7", red:"#ff617e", violet:"#9b86ff"
-  };
-
-  function wsUrl(){
-    const u = new URL("/laboratoire/embryon-x72/ws", window.location.origin);
-    u.protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    return u.toString();
-  }
-  function clamp(v,a=0,b=1){ v=Number(v); return Number.isFinite(v)?Math.max(a,Math.min(b,v)):a; }
-  function fmt(v,n=3){ return Number.isFinite(Number(v)) ? Number(v).toFixed(n) : "—"; }
-  function setStatus(text,bad=false){ status.textContent=text; status.className=bad?"status bad":"status"; }
-  function resizeCanvas(canvas, context){
-    const dpr=Math.max(1,Math.min(2,devicePixelRatio||1));
-    const r=canvas.getBoundingClientRect();
-    const w=Math.max(300,Math.floor(r.width)),h=Math.max(120,Math.floor(r.height));
-    const W=Math.floor(w*dpr),H=Math.floor(h*dpr);
-    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;context.setTransform(dpr,0,0,dpr,0,0);}
-    return {w,h};
-  }
-
-  function structural(){
-    return [
-      {amp:0.24,wheel:0.105,bend:0.44},
-      {amp:0.31,wheel:0.135,bend:0.57},
-      {amp:0.19,wheel:0.090,bend:0.26},
-      {amp:0.27,wheel:0.115,bend:0.50}
-    ][viewMode];
-  }
-  function bezier(p0,p1,p2,p3,t){
-    const u=1-t;
-    return {x:u*u*u*p0.x+3*u*u*t*p1.x+3*u*t*t*p2.x+t*t*t*p3.x,
-            y:u*u*u*p0.y+3*u*u*t*p1.y+3*u*t*t*p2.y+t*t*t*p3.y};
-  }
-  function pathPoint(side,t,w,h){
-    const s=structural(), cx=w*.5, top=h*.08, bottom=h*.91;
-    const nodes=[bottom,h*.70,h*.49,h*.28,top];
-    const sign=side<0?-1:1;
-    t=clamp(t); const seg=Math.min(3,Math.floor(t*4)), q=t*4-seg;
-    const y0=nodes[seg], y1=nodes[seg+1], x0=(seg===0?cx+sign*w*.035:cx), x1=cx;
-    const outward=cx+sign*w*s.amp;
-    const p0={x:x0,y:y0},p3={x:x1,y:y1};
-    const p1={x:outward,y:y0-(y0-y1)*s.bend};
-    const p2={x:outward,y:y1+(y0-y1)*s.bend};
-    return bezier(p0,p1,p2,p3,q);
-  }
-  function drawPath(side,w,h,color){
-    ctx.beginPath();
-    for(let i=0;i<=180;i++){
-      const p=pathPoint(side,i/180,w,h);
-      if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);
-    }
-    ctx.strokeStyle=color;ctx.lineWidth=3;ctx.globalAlpha=.72;ctx.stroke();ctx.globalAlpha=1;
-  }
-  function nodeCoords(w,h){
-    const cx=w*.5;
-    return {
-      SOURCE:{x:cx,y:h*.91},
-      B1:{x:cx,y:h*.70}, C1:{x:cx,y:h*.70},
-      B2:{x:cx,y:h*.49}, C2:{x:cx,y:h*.49},
-      B3:{x:cx,y:h*.28}, C3:{x:cx,y:h*.28},
-      SORTIE:{x:cx,y:h*.08}
-    };
-  }
-  function nodeSignal(name){ return Number(nucleus?.node_signals?.[name] ?? 0); }
-
-  function drawStage(now){
-    const {w,h}=resizeCanvas(stage,ctx);
-    ctx.clearRect(0,0,w,h);ctx.fillStyle=COLORS.bg;ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle=COLORS.grid;ctx.lineWidth=1;ctx.globalAlpha=.35;
-    for(let x=0;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-    for(let y=0;y<h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
-    ctx.globalAlpha=1;
-
-    const nodes=nodeCoords(w,h), cx=w*.5;
-    drawPath(-1,w,h,COLORS.a);drawPath(1,w,h,COLORS.b);
-
-    ctx.strokeStyle=COLORS.center;ctx.lineWidth=2;ctx.globalAlpha=.38;
-    ctx.beginPath();ctx.moveTo(cx,h*.91);ctx.lineTo(cx,h*.08);ctx.stroke();ctx.globalAlpha=1;
-
-    const s=structural();
-    [nodes.C1,nodes.C2,nodes.C3].forEach((p,i)=>{
-      const r=Math.min(w,h)*s.wheel*(.76+i*.04);
-      ctx.strokeStyle=i%2?COLORS.violet:COLORS.center;ctx.lineWidth=1.2;ctx.globalAlpha=.28;
-      ctx.beginPath();ctx.arc(p.x-w*s.amp,p.y,r,0,Math.PI*2);ctx.stroke();
-      ctx.beginPath();ctx.arc(p.x+w*s.amp,p.y,r,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
-    });
-
-    const elapsed=Math.min(350,Math.max(0,now-lastMessageAt));
-    const phaseFrac=(Number(nucleus?.phase_left||0)/(Math.PI*2)+elapsed/2000)%1;
-    for(let i=0;i<24;i++){
-      const t=(phaseFrac+i/24)%1, pa=pathPoint(-1,t,w,h),pb=pathPoint(1,(1-t+1)%1,w,h);
-      ctx.fillStyle=COLORS.a;ctx.beginPath();ctx.arc(pa.x,pa.y,3.2,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle=COLORS.b;ctx.beginPath();ctx.arc(pb.x,pb.y,3.2,0,Math.PI*2);ctx.fill();
-    }
-
-    [["SOURCE",nodes.SOURCE],["B1",nodes.B1],["B2",nodes.B2],["B3",nodes.B3],["SORTIE",nodes.SORTIE]].forEach(([name,p])=>{
-      const a=clamp(nodeSignal(name)/1.5),r=9+15*a;
-      ctx.fillStyle="#0c1b2b";ctx.strokeStyle=name==="B1"?COLORS.gold:COLORS.center;ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle=name==="B1"?COLORS.gold:COLORS.center;ctx.globalAlpha=.35+.65*a;
-      ctx.beginPath();ctx.arc(p.x,p.y,3+r*.35*a,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
-      ctx.fillStyle=COLORS.text;ctx.font="700 11px ui-monospace,Consolas";ctx.textAlign="center";
-      ctx.fillText(name,p.x,p.y-r-8);
-    });
-
-    [nodes.C1,nodes.C2,nodes.C3].forEach((p,i)=>{
-      ctx.fillStyle=COLORS.center;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle=COLORS.muted;ctx.font="700 9px ui-monospace";ctx.fillText("C"+(i+1),p.x+18,p.y+3);
-    });
-
-    const b1=nodes.B1;
-    const inP={x:w*.10,y:b1.y},outP={x:w*.90,y:b1.y};
-    ctx.strokeStyle=COLORS.input;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(inP.x,b1.y);ctx.lineTo(b1.x-18,b1.y);ctx.stroke();
-    ctx.strokeStyle=COLORS.output;ctx.beginPath();ctx.moveTo(b1.x+18,b1.y);ctx.lineTo(outP.x,b1.y);ctx.stroke();
-    ctx.fillStyle=COLORS.input;ctx.beginPath();ctx.arc(inP.x,inP.y,7,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle=COLORS.output;ctx.beginPath();ctx.arc(outP.x,outP.y,7,0,Math.PI*2);ctx.fill();
-    ctx.textAlign="center";ctx.font="800 10px ui-monospace";
-    ctx.fillStyle=COLORS.input;ctx.fillText("ENTRÉE BASSIN 1",inP.x,b1.y-15);
-    ctx.fillStyle=COLORS.output;ctx.fillText("SORTIE BASSIN 1",outP.x,b1.y-15);
-
-    const crystals=nucleus?.active_crystals||[];
-    crystals.slice(-18).forEach((c,idx)=>{
-      const age=Number(c.age||0),ttl=Math.max(1,Number(c.ttl||1)),q=clamp(age/ttl);
-      const x=outP.x+(w*.08)*q, y=outP.y-28+((idx%6)-2.5)*9;
-      const size=3+6*clamp(c.strength||0);
-      ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4+q*Math.PI);
-      ctx.strokeStyle=COLORS.crystal;ctx.globalAlpha=.3+.7*(1-q);
-      ctx.strokeRect(-size,-size,size*2,size*2);ctx.restore();ctx.globalAlpha=1;
-    });
-
-    ctx.strokeStyle="#536a83";ctx.lineWidth=1.5;ctx.setLineDash([7,8]);ctx.globalAlpha=.45;
-    ctx.beginPath();ctx.moveTo(w*.94,h*.10);ctx.bezierCurveTo(w*.99,h*.25,w*.99,h*.78,w*.86,h*.92);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(w*.06,h*.10);ctx.bezierCurveTo(w*.01,h*.25,w*.01,h*.78,w*.14,h*.92);ctx.stroke();
-    ctx.setLineDash([]);ctx.globalAlpha=1;
-    ctx.fillStyle=COLORS.muted;ctx.font="700 9px ui-monospace";ctx.textAlign="center";ctx.fillText("BOUCLES DE RETOUR",cx,h*.965);
-
-    if(!nucleus){
-      ctx.fillStyle="rgba(5,10,17,.78)";ctx.fillRect(0,0,w,h);
-      ctx.fillStyle=connected?COLORS.gold:COLORS.red;ctx.textAlign="center";ctx.font="800 22px system-ui";
-      ctx.fillText(connected?"NOYAU EN ATTENTE DU DÉPLOIEMENT SERVEUR":"QUEEN SERVER DÉCONNECTÉ",cx,h*.47);
-      ctx.font="500 12px system-ui";ctx.fillStyle=COLORS.muted;
-      ctx.fillText("La page n’invente aucun état absent du serveur.",cx,h*.47+28);
-    }
-    requestAnimationFrame(drawStage);
-  }
-
-  function pushHistory(){
-    if(!nucleus)return;
-    for(const k of Object.keys(history)){
-      history[k].push(Number(nucleus.node_signals?.[k]||0));
-      if(history[k].length>MAX_HISTORY)history[k].shift();
-    }
-  }
-  function drawProbe(){
-    const {w,h}=resizeCanvas(probe,pctx), key=$("probeSelect").value, arr=history[key];
-    pctx.clearRect(0,0,w,h);pctx.fillStyle="#060d16";pctx.fillRect(0,0,w,h);
-    pctx.strokeStyle="#17304a";pctx.lineWidth=1;
-    for(let y=0;y<h;y+=26){pctx.beginPath();pctx.moveTo(0,y);pctx.lineTo(w,y);pctx.stroke();}
-    if(arr.length>1){
-      const max=Math.max(1.5,...arr), step=w/(MAX_HISTORY-1);
-      pctx.strokeStyle=COLORS.gold;pctx.lineWidth=2;pctx.beginPath();
-      arr.forEach((v,i)=>{const x=i*step,y=h-10-(h-20)*(v/max);if(i===0)pctx.moveTo(x,y);else pctx.lineTo(x,y);});
-      pctx.stroke();
-    }
-    pctx.fillStyle=COLORS.muted;pctx.font="700 10px ui-monospace";pctx.fillText(key+" · SIGNAL SERVEUR",8,14);
-    requestAnimationFrame(drawProbe);
-  }
-
-  function bar(id,v,max=2.5){ $(id).style.width=(clamp(Number(v)/max)*100).toFixed(1)+"%"; }
-  function updateDom(){
-    $("queenTick").textContent=queen?Number(queen.tick_count||0).toLocaleString("fr-CA"):"—";
-    $("integrity").textContent=queen?(queen.integrity_match?"MATCH":"MISMATCH"):"—";
-    if(!nucleus){
-      $("nucleusTick").textContent=$("dt").textContent=$("world").textContent=$("coherence").textContent=$("feedback").textContent=$("crystals").textContent="—";
-      nucleusBadge.className="badge wait";nucleusBadge.textContent="NOYAU · EN ATTENTE";
-      if(connected)setStatus("QUEEN SERVER connecté, mais l’état noyau_runtime n’est pas encore publié. Déploiement du runtime noyau requis.",true);
-      return;
-    }
-    nucleusBadge.className="badge live";nucleusBadge.textContent="NOYAU · LIVE";
-    $("nucleusTick").textContent=Number(nucleus.tick||0).toLocaleString("fr-CA");
-    $("dt").textContent=fmt(nucleus.dt,6)+" s";
-    $("world").textContent=nucleus.world_name||"—";
-    $("coherence").textContent=fmt(nucleus.coherence);
-    $("feedback").textContent=fmt(nucleus.feedback);
-    $("crystals").textContent=String((nucleus.active_crystals||[]).length);
-    const b=nucleus.basin1||{};
-    $("inVal").textContent=fmt(b.inflow);$("outVal").textContent=fmt(b.outflow);$("crystalVal").textContent=fmt(b.crystal_index);
-    bar("inBar",b.inflow);bar("outBar",b.outflow);bar("crystalBar",b.crystal_index);
-    $("stable").textContent=String(b.stable_cycles??"—");
-    $("crystallized").textContent=b.crystallized?"OUI":"NON";
-    $("hash").textContent=nucleus.whole_h256||"—";
-    setStatus("SOURCE: QUEEN_SERVER_V0_2 → noyau_runtime → NoyauState. Vue live en lecture seule.");
-  }
-  function acceptState(state){
-    if(!state||state.source!=="QUEEN_SERVER_V0_2")return;
-    queen=state;
-    const wrapper=state.noyau_runtime;
-    nucleus=wrapper&&wrapper.authority==="NOYAU_ENGINE_HEADLESS"?wrapper.noyau:null;
-    lastMessageAt=performance.now();
-    pushHistory();updateDom();
-  }
-  function scheduleReconnect(){
-    if(reconnectTimer)return;
-    reconnectTimer=setTimeout(()=>{reconnectTimer=null;connect();},1500);
-  }
-  function connect(){
-    try{socket=new WebSocket(wsUrl());}
-    catch{connected=false;scheduleReconnect();return;}
-    socket.addEventListener("open",()=>{connected=true;serverBadge.className="badge live";serverBadge.textContent="QUEEN SERVER · CONNECTÉ";});
-    socket.addEventListener("message",e=>{try{acceptState(JSON.parse(e.data));}catch{}});
-    socket.addEventListener("close",()=>{connected=false;serverBadge.className="badge wait";serverBadge.textContent="QUEEN SERVER · DÉCONNECTÉ";nucleus=null;updateDom();scheduleReconnect();});
-    socket.addEventListener("error",()=>{try{socket.close();}catch{}});
-  }
-
-  document.querySelectorAll("[data-view]").forEach(btn=>btn.addEventListener("click",()=>{
-    viewMode=Number(btn.dataset.view)||0;
-    document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b===btn));
-  }));
-
-  connect();
-  requestAnimationFrame(drawStage);
-  requestAnimationFrame(drawProbe);
+(()=>{"use strict";
+const c=document.getElementById("engineCanvas"),x=c.getContext("2d");
+function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
+function line(a,b,w=2,alpha=.45){x.strokeStyle="rgba(220,226,231,"+alpha+")";x.lineWidth=w;x.lineCap="round";x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke()}
+function path(points,w=1.6,alpha=.32){x.strokeStyle="rgba(210,217,223,"+alpha+")";x.lineWidth=w;x.lineCap="round";x.lineJoin="round";x.beginPath();x.moveTo(points[0].x,points[0].y);for(let i=1;i<points.length;i++)x.lineTo(points[i].x,points[i].y);x.stroke()}
+function node(p,label,r){x.fillStyle="#080a0c";x.strokeStyle="#9ca5ad";x.lineWidth=2;x.beginPath();x.arc(p.x,p.y,r,0,Math.PI*2);x.fill();x.stroke();x.fillStyle="#6f7880";x.beginPath();x.arc(p.x,p.y,r*.36,0,Math.PI*2);x.fill();x.fillStyle="#edf1f4";x.font="700 13px Segoe UI";x.textAlign="center";x.fillText(label,p.x,p.y+4);x.strokeStyle="rgba(175,183,190,.5)";x.lineWidth=1;x.beginPath();x.arc(p.x,p.y,r*1.38,-.45,1.65);x.stroke();x.beginPath();x.arc(p.x,p.y,r*1.38,2.65,4.1);x.stroke()}
+function crystal(p){x.strokeStyle="rgba(225,231,236,.7)";x.lineWidth=1.2;for(let L=0;L<4;L++){const r=15+L*7;for(let i=0;i<6;i++){const a=Math.PI*2*i/6+L*.17;x.beginPath();x.moveTo(p.x,p.y);x.lineTo(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r);x.stroke()}}x.fillStyle="rgba(255,255,255,.7)";x.beginPath();x.arc(p.x,p.y,4,0,Math.PI*2);x.fill()}
+function draw(w,h){x.clearRect(0,0,w,h);x.fillStyle="#06080a";x.fillRect(0,0,w,h);x.strokeStyle="#242a30";x.strokeRect(7,7,w-14,h-14);
+const cx=w*.48,P={cr:{x:cx,y:h*.095},g:{x:cx,y:h*.17},b3:{x:cx,y:h*.29},b2:{x:cx,y:h*.50},b1:{x:cx,y:h*.71},base:{x:cx,y:h*.89}};
+const l1={x:cx-w*.20,y:h*.61},l2={x:cx-w*.20,y:h*.39},r1={x:cx+w*.20,y:h*.39},r2={x:cx+w*.20,y:h*.61};
+line(P.base,P.b1,3,.28);line(P.b1,P.b2,3,.28);line(P.b2,P.b3,3,.28);line(P.b3,P.g,3,.28);line(P.g,P.cr,3,.28);
+path([P.b1,{x:cx-80,y:P.b1.y},l1,l2,{x:cx-78,y:P.b2.y},P.b2],1.8,.25);
+path([P.b3,{x:cx+78,y:P.b3.y},r1,r2,{x:cx+78,y:P.b2.y},P.b2],1.8,.25);
+path([l2,{x:cx-35,y:h*.45},{x:cx+35,y:h*.55},r2],1.2,.20);
+const rad=Math.max(24,Math.min(36,w*.065));node(P.b1,"B1",rad);node(P.b2,"B2",rad);node(P.b3,"B3",rad);
+x.fillStyle="#080a0c";x.strokeStyle="#7f8992";x.lineWidth=2;x.beginPath();x.arc(P.base.x,P.base.y,10,0,Math.PI*2);x.fill();x.stroke();
+x.fillStyle="#84909a";x.font="10px Segoe UI";x.textAlign="center";x.fillText("ORIGINE / BASE",P.base.x,P.base.y+28);
+x.fillStyle="#080a0c";x.strokeStyle="#858f97";x.lineWidth=1.5;x.strokeRect(P.g.x-45,P.g.y-11,90,22);x.fillStyle="#dfe5ea";x.font="10px Segoe UI";x.fillText("GATE FINALE",P.g.x,P.g.y+4);
+crystal(P.cr);x.fillStyle="#a8b0b7";x.fillText("CRISTALLISATION",P.cr.x,P.cr.y+49);
+x.setLineDash([5,5]);x.strokeStyle="#3d454c";x.strokeRect(w*.69,h*.09,w*.26,h*.15);x.setLineDash([]);x.fillStyle="#7f8992";x.font="9px Segoe UI";x.fillText("ZONE CHIMIQUE",w*.82,h*.145);x.fillText("TABLEAU PÉRIODIQUE",w*.82,h*.17);x.fillText("(FUTUR)",w*.82,h*.195);
+x.textAlign="left";x.fillStyle="#d7dde1";x.font="10px Consolas";x.fillText("BRUTUS // ARRÊT",20,30);x.fillStyle="#7f8992";x.fillText("—   0.00 Hz",20,48);x.fillText("ACT 0.000   COH 0.000",20,65);x.fillStyle="#68727a";x.fillText("BASE VISUELLE · NON CONNECTÉE",20,82);
+x.fillStyle="#68727a";x.font="10px Segoe UI";x.fillText("← ASCENSION / PHASE +",18,h*.43);x.fillText("↙ BIFURCATION",18,h*.46);x.textAlign="right";x.fillText("PHASE − / DESCENTE →",w-20,h*.50);x.fillText("RETOUR →",w-20,h*.53)}
+window.addEventListener("resize",resize);resize();
 })();
 </script>
 </body>
