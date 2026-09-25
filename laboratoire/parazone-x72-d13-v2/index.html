@@ -36,6 +36,12 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 .idle{border:1px solid #3b4249;border-radius:8px;padding:5px 10px;color:#8c969f;font-weight:700;text-align:center}
 .note{margin-top:8px;color:#67717a;font:10px Consolas,monospace;letter-spacing:.04em}
 .rule{margin-top:5px;color:#8a949d;font:10px Consolas,monospace}
+.t1Panel{margin:0 0 10px;padding:9px 10px;border:1px solid #3b444c;border-radius:8px;background:#080b0e}
+.t1Grid{display:grid;grid-template-columns:1.1fr 1fr auto;gap:8px;align-items:center}
+.t1Input{width:100%;background:#0d1115;border:1px solid #48525b;border-radius:6px;color:#edf1f4;padding:7px 8px;font:11px Consolas,monospace}
+.t1Btn{background:#171d22;border:1px solid #66727c;border-radius:7px;color:#e8edf2;padding:7px 12px;font:700 10px Consolas,monospace;cursor:pointer}
+.t1Btn:hover{border-color:#aab4bd}
+.t1Readout{grid-column:1/-1;color:#8e99a2;font:9px Consolas,monospace;line-height:1.55;word-break:break-all}
 @media(max-width:1100px){.layout{grid-template-columns:1fr}.engine,#engineCanvas{min-height:660px}.left,.right{grid-template-columns:1fr 1fr;grid-template-rows:auto}.controls .controlGrid{grid-template-columns:1fr 1fr}.subtitle{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start}.title{font-size:15px}}
 </style>
@@ -89,7 +95,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 
       <section class="panel"><h2>ÉTAT DU SYSTÈME <span class="panelId">STATE-BOARD-01</span></h2>
         <div class="statusGrid">
-          <span>ACTIVITÉ</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0 · T0</span>
+          <span>ACTIVITÉ</span><div class="bar"><div id="t1ActivityFill" class="fill" style="width:0%"></div></div><span id="t1ActivityValue">0 · T0</span>
           <span>COHÉRENCE</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0 · T0</span>
           <span>BANDE</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0 · T0</span>
           <span>GATE</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0 · T0</span>
@@ -100,6 +106,18 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
   </section>
 
   <section class="panel controls"><h2>CONTRÔLES / CADRANS <span class="panelId">CONTROL-BANK-01</span></h2>
+    <div class="t1Panel" id="INPUT-TEST-01">
+      <div class="t1Grid">
+        <strong>INPUT-TEST-01 · SOURCE-00 → FLOW-01 → B1.INPUT</strong>
+        <input id="t1Value" class="t1Input" type="number" min="0" max="1" step="0.000001" value="0.250000" aria-label="Valeur d'entrée T1 normalisée de 0 à 1">
+        <button id="t1Inject" class="t1Btn" type="button">INJECT T1</button>
+        <div class="t1Readout">
+          <span id="t1State">STATE: T0 · IDLE · LOCAL ONLY · EPHEMERAL</span><br>
+          <span id="t1Trace">TRACE: NONE</span><br>
+          <span id="t1Proof">PROOF-T1-SHA256: NONE</span>
+        </div>
+      </div>
+    </div>
     <div class="controlGrid">
       <span>DIAL-FREQ-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
       <span>DIAL-AMP-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
@@ -116,28 +134,29 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 <script>
 (()=>{"use strict";
 const c=document.getElementById("engineCanvas"),x=c.getContext("2d");
+const T1={tick:0,connected:0,measurements:0,proofs:0,value:null,lastTrace:"NONE",proof:"NONE"};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
-function conduit(a,b,id){x.save();x.setLineDash([7,7]);x.strokeStyle="#505960";x.lineWidth=1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · DISCONNECTED",(a.x+b.x)/2,(a.y+b.y)/2-7)}
+function conduit(a,b,id){const active=T1.connected===1&&id==="FLOW-01";x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
 function returnPath(points,id,side){x.save();x.setLineDash([5,7]);x.strokeStyle="#3f474e";x.lineWidth=1.2;x.beginPath();x.moveTo(points[0].x,points[0].y);for(let i=1;i<points.length;i++)x.lineTo(points[i].x,points[i].y);x.stroke();x.restore();const m=points[Math.floor(points.length/2)];label(id+" · DISCONNECTED",m.x+(side<0?-6:6),m.y-8,side<0?"right":"left","#68727a")}
 function port(p,a,code,r){const rr=r+9,px=p.x+Math.cos(a)*rr,py=p.y+Math.sin(a)*rr;x.fillStyle="#090b0d";x.strokeStyle="#89939b";x.lineWidth=1;x.beginPath();x.arc(px,py,3.2,0,Math.PI*2);x.fill();x.stroke();label(code,px+Math.cos(a)*9,py+Math.sin(a)*9,"center","#78828a","7px Consolas")}
 function moduleNode(p,id,r){
   x.fillStyle="#080a0c";x.strokeStyle="#a0a9b1";x.lineWidth=2;x.beginPath();x.arc(p.x,p.y,r,0,Math.PI*2);x.fill();x.stroke();
   x.fillStyle="#4f5961";x.beginPath();x.arc(p.x,p.y,r*.28,0,Math.PI*2);x.fill();
-  label(id,p.x,p.y+4,"center","#edf1f4","700 13px Segoe UI");label("NOT_CONNECTED",p.x,p.y+r+22,"center","#606a73","8px Consolas");
+  label(id,p.x,p.y+4,"center","#edf1f4","700 13px Segoe UI");const active=T1.connected===1&&id==="B1";label(active?("T1 · INPUT "+T1.value.toFixed(6)):"NOT_CONNECTED",p.x,p.y+r+22,"center",active?"#dce4ea":"#606a73","8px Consolas");
   port(p,Math.PI,"I",r);port(p,0,"O",r);port(p,-Math.PI/2,"S",r);port(p,Math.PI*.65,"E",r);port(p,Math.PI*.35,"T",r)
 }
 function registry(rx,ry,rw,rh){
   x.fillStyle="#090c0f";x.strokeStyle="#4b545c";x.lineWidth=1;x.fillRect(rx,ry,rw,rh);x.strokeRect(rx,ry,rw,rh);
   label("CONTINUITY-REGISTRY-01",rx+10,ry+17,"left","#d8dde1","700 9px Consolas");
-  label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: EMPTY",rx+10,ry+49,"left");
-  label("TICK: T0",rx+10,ry+64,"left");label("LAST TRACE: NONE",rx+10,ry+79,"left");
-  label("CONNECTED: 0",rx+10,ry+94,"left");label("PROOFS: 0",rx+10,ry+109,"left");
+  label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: "+(T1.connected?"T1 ACTIVE":"EMPTY"),rx+10,ry+49,"left");
+  label("TICK: T"+T1.tick,rx+10,ry+64,"left");label("LAST TRACE: "+T1.lastTrace,rx+10,ry+79,"left");
+  label("CONNECTED: "+T1.connected,rx+10,ry+94,"left");label("PROOFS: "+T1.proofs,rx+10,ry+109,"left");
   label("APPEND-ONLY · NO DECISION",rx+10,ry+124,"left","#626c75","8px Consolas")
 }
 function draw(w,h){
   x.clearRect(0,0,w,h);x.fillStyle="#06080a";x.fillRect(0,0,w,h);x.strokeStyle="#242a30";x.strokeRect(7,7,w-14,h-14);
-  label("BASELINE T0 · FROZEN · CONNECTED 0 · MEASUREMENTS 0 · PROOFS 0",20,28,"left","#c8cfd4","700 9px Consolas");
+  label("BASELINE T0 · FROZEN · CONNECTED "+T1.connected+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+T1.proofs,20,28,"left","#c8cfd4","700 9px Consolas");
   label("PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME",w-20,28,"right","#69737c","8px Consolas");
 
   const cx=w*.43,rad=Math.max(22,Math.min(34,w*.058));
@@ -156,7 +175,7 @@ function draw(w,h){
   moduleNode(P.b1,"B1",rad);moduleNode(P.b2,"B2",rad);moduleNode(P.b3,"B3",rad);
 
   x.fillStyle="#080a0c";x.strokeStyle="#7f8992";x.lineWidth=2;x.beginPath();x.arc(P.base.x,P.base.y,10,0,Math.PI*2);x.fill();x.stroke();
-  label("SOURCE-00",P.base.x,P.base.y+28,"center","#89939b","9px Consolas");label("NOT_CONNECTED",P.base.x,P.base.y+42,"center","#5f6972","8px Consolas");
+  label("SOURCE-00",P.base.x,P.base.y+28,"center","#89939b","9px Consolas");label(T1.connected?("T1 LOCAL · "+T1.value.toFixed(6)):"NOT_CONNECTED",P.base.x,P.base.y+42,"center",T1.connected?"#dce4ea":"#5f6972","8px Consolas");
 
   x.fillStyle="#080a0c";x.strokeStyle="#858f97";x.lineWidth=1.4;x.strokeRect(P.g.x-45,P.g.y-11,90,22);
   label("GATE-01",P.g.x,P.g.y+4,"center","#dfe5ea","9px Consolas");label("NOT_CONNECTED",P.g.x,P.g.y+27,"center","#5f6972","8px Consolas");
@@ -169,8 +188,30 @@ function draw(w,h){
   x.save();x.setLineDash([4,5]);x.strokeStyle="#343c43";x.strokeRect(w*.68,h*.08,w*.27,h*.18);x.restore();
   label("CHEM-ZONE-01",w*.815,h*.12,"center","#68727a","9px Consolas");label("PLACEHOLDER STRUCTUREL",w*.815,h*.15,"center","#5b656d","8px Consolas");label("NO FUNCTION · NO DATA",w*.815,h*.175,"center","#5b656d","8px Consolas");
 
-  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: T0",20,h-22,"left","#69737c","8px Consolas");
+  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T1.connected?"T1":"T0"),20,h-22,"left","#69737c","8px Consolas");
 }
+function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
+async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
+async function injectT1(){
+  const stateEl=document.getElementById("t1State"),traceEl=document.getElementById("t1Trace"),proofEl=document.getElementById("t1Proof");
+  try{
+    const value=normalizedInput(document.getElementById("t1Value").value);
+    const tick=T1.tick+1;
+    const packet={schema:"BRUTUS_T1_LOCAL_INPUT_V1",tick,source:"SOURCE-00",flow:"FLOW-01",target:"B1.INPUT",operation:"IDENTITY_CAPTURE",value};
+    const canonical=JSON.stringify(packet);
+    const proof=await sha256Hex(canonical);
+    Object.assign(T1,{tick,connected:1,measurements:T1.measurements+1,proofs:T1.proofs+1,value,lastTrace:"SOURCE-00>FLOW-01>B1.INPUT",proof});
+    stateEl.textContent="STATE: T1 · VALID · VALUE: "+value.toFixed(6)+" · LOCAL ONLY · EPHEMERAL";
+    traceEl.textContent="TRACE: "+T1.lastTrace+" · OP: IDENTITY_CAPTURE · TICK: T"+tick;
+    proofEl.textContent="PROOF-T1-SHA256: "+proof;
+    document.getElementById("t1ActivityFill").style.width=(value*100).toFixed(3)+"%";
+    document.getElementById("t1ActivityValue").textContent=value.toFixed(6)+" · T1";
+    resize();
+  }catch(err){
+    stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
+  }
+}
+document.getElementById("t1Inject").addEventListener("click",injectT1);
 window.addEventListener("resize",resize);resize();
 })();
 </script>
