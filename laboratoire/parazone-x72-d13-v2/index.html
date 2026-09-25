@@ -46,6 +46,9 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 .sweepBtn{background:#0f1418;border:1px solid #414b54;border-radius:5px;color:#aeb7be;padding:5px 8px;font:9px Consolas,monospace;cursor:pointer}
 .sweepBtn:hover{border-color:#84909a;color:#fff}
 .t1History{grid-column:1/-1;max-height:150px;overflow:auto;margin:0;padding:7px;background:#050709;border:1px solid #242b31;color:#8e99a2;font:8px Consolas,monospace;white-space:pre-wrap}
+.topologyPanel{margin-top:0}.topologyGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.topologyCell{background:#070a0c;border:1px solid #273039;border-radius:5px;padding:6px 8px;color:#89949d;font:8px Consolas,monospace;line-height:1.5}
+.topologyCell strong{display:block;color:#d6dde2;font-size:9px}.topologyWide{grid-column:1/-1}
 @media(max-width:1100px){.layout{grid-template-columns:1fr}.engine,#engineCanvas{min-height:660px}.left,.right{grid-template-columns:1fr 1fr;grid-template-rows:auto}.controls .controlGrid{grid-template-columns:1fr 1fr}.subtitle{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start}.title{font-size:15px}}
 </style>
@@ -135,6 +138,15 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
         <pre id="t1History" class="t1History">APPEND-ONLY LOCAL LOG: EMPTY</pre>
       </div>
     </div>
+    <div class="t1Panel topologyPanel" id="TOPOLOGY-REGISTRY-01">
+      <div class="topologyGrid">
+        <div class="topologyCell"><strong>G_REFERENCE</strong><span id="topologyReference">ANTMUX-TOPOLOGY-T1.0.0</span></div>
+        <div class="topologyCell"><strong>G_CANDIDATE</strong><span id="topologyCandidate">NONE</span></div>
+        <div class="topologyCell"><strong>DELTA_G</strong><span id="topologyDelta">NONE</span></div>
+        <div class="topologyCell"><strong>VALIDATION</strong><span id="topologyValidation">PENDING</span></div>
+        <div class="topologyCell topologyWide">HIERARCHY: MODULE_ID · INSTANCE_ID · PARENT_ID · LEVEL · PORT · EDGE_ID · EDGE_TYPE · FROM · TO · TOPOLOGY_VERSION · aucune connexion implicite.</div>
+      </div>
+    </div>
     <div class="controlGrid">
       <span>DIAL-FREQ-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
       <span>DIAL-AMP-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
@@ -144,13 +156,45 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE · G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
 <script>
 (()=>{"use strict";
 const c=document.getElementById("engineCanvas"),x=c.getContext("2d");
+const PORTS=Object.freeze(["INPUT","OUTPUT","STATE","ERROR","TIME"]);
+function deepFreeze(value){
+  if(value&&typeof value==="object"&&!Object.isFrozen(value)){
+    Object.freeze(value);Object.getOwnPropertyNames(value).forEach(k=>deepFreeze(value[k]));
+  }
+  return value;
+}
+const TOPOLOGY_REFERENCE=deepFreeze({
+  graph_kind:"G_REFERENCE",
+  graph_id:"G_ANTMUX",
+  topology_version:"ANTMUX-TOPOLOGY-T1.0.0",
+  parent_id:null,
+  level:0,
+  modules:[
+    {module_id:"SOURCE-00",instance_id:"SOURCE-00@1",parent_id:"G_ANTMUX",level:1,ports:["OUTPUT","STATE","ERROR","TIME"],internal_graph:null},
+    {module_id:"B1",instance_id:"B1@1",parent_id:"G_ANTMUX",level:1,ports:PORTS,internal_graph:null},
+    {module_id:"B2",instance_id:"B2@1",parent_id:"G_ANTMUX",level:1,ports:PORTS,internal_graph:null},
+    {module_id:"B3",instance_id:"B3@1",parent_id:"G_ANTMUX",level:1,ports:PORTS,internal_graph:null},
+    {module_id:"GATE-01",instance_id:"GATE-01@1",parent_id:"G_ANTMUX",level:1,ports:PORTS,internal_graph:null},
+    {module_id:"CRYSTAL-01",instance_id:"CRYSTAL-01@1",parent_id:"G_ANTMUX",level:1,ports:PORTS,internal_graph:null}
+  ],
+  edges:[
+    {edge_id:"FLOW-01",edge_type:"INTRA_LEVEL",from:{module_id:"SOURCE-00",port:"OUTPUT"},to:{module_id:"B1",port:"INPUT"},state:"T1_CAPABLE"},
+    {edge_id:"FLOW-02",edge_type:"INTRA_LEVEL",from:{module_id:"B1",port:"OUTPUT"},to:{module_id:"B2",port:"INPUT"},state:"DISCONNECTED"},
+    {edge_id:"FLOW-03",edge_type:"INTRA_LEVEL",from:{module_id:"B2",port:"OUTPUT"},to:{module_id:"B3",port:"INPUT"},state:"DISCONNECTED"},
+    {edge_id:"FLOW-04",edge_type:"INTRA_LEVEL",from:{module_id:"B3",port:"OUTPUT"},to:{module_id:"GATE-01",port:"INPUT"},state:"DISCONNECTED"},
+    {edge_id:"FLOW-05",edge_type:"INTRA_LEVEL",from:{module_id:"GATE-01",port:"OUTPUT"},to:{module_id:"CRYSTAL-01",port:"INPUT"},state:"DISCONNECTED"},
+    {edge_id:"RETURN-L01",edge_type:"INTRA_LEVEL",from:{module_id:"B1",port:null},to:{module_id:"B2",port:null},state:"DISCONNECTED",binding_status:"UNRESOLVED"},
+    {edge_id:"RETURN-R01",edge_type:"INTRA_LEVEL",from:{module_id:"B3",port:null},to:{module_id:"B2",port:null},state:"DISCONNECTED",binding_status:"UNRESOLVED"}
+  ]
+});
+const TOPOLOGY_STATE={reference:TOPOLOGY_REFERENCE,candidate:null,delta:null};
 const T1={tick:0,connected:0,measurements:0,proofs:0,value:null,lastTrace:"NONE",proof:"NONE",history:[],sweeping:false};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
@@ -169,7 +213,7 @@ function registry(rx,ry,rw,rh){
   label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: "+(T1.connected?"T1 ACTIVE":"EMPTY"),rx+10,ry+49,"left");
   label("TICK: T"+T1.tick,rx+10,ry+64,"left");label("LAST TRACE: "+T1.lastTrace,rx+10,ry+79,"left");
   label("CONNECTED: "+T1.connected,rx+10,ry+94,"left");label("RECORDS/PROOFS: "+T1.history.length+"/"+T1.proofs,rx+10,ry+109,"left");
-  label("APPEND-ONLY · NO DECISION",rx+10,ry+124,"left","#626c75","8px Consolas")
+  label("TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version,rx+10,ry+124,"left","#626c75","7px Consolas")
 }
 function draw(w,h){
   x.clearRect(0,0,w,h);x.fillStyle="#06080a";x.fillRect(0,0,w,h);x.strokeStyle="#242a30";x.strokeRect(7,7,w-14,h-14);
@@ -207,25 +251,89 @@ function draw(w,h){
 
   label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T1.connected?"T1":"T0"),20,h-22,"left","#69737c","8px Consolas");
 }
+function validateTopology(g){
+  const errors=[],moduleIds=new Set(),edgeIds=new Set(),allowedEdgeTypes=new Set(["INTRA_LEVEL","INTER_LEVEL"]);
+  if(!g||g.graph_kind!=="G_REFERENCE")errors.push("REFERENCE_KIND");
+  if(!g.topology_version)errors.push("TOPOLOGY_VERSION");
+  for(const m of g.modules||[]){
+    if(!m.module_id||moduleIds.has(m.module_id))errors.push("MODULE_ID:"+String(m.module_id));else moduleIds.add(m.module_id);
+    if(!m.instance_id)errors.push("INSTANCE_ID:"+String(m.module_id));
+    if(m.parent_id!==g.graph_id)errors.push("PARENT_ID:"+String(m.module_id));
+    if(m.level!==g.level+1)errors.push("LEVEL:"+String(m.module_id));
+  }
+  const byId=new Map((g.modules||[]).map(m=>[m.module_id,m]));
+  for(const e of g.edges||[]){
+    if(!e.edge_id||edgeIds.has(e.edge_id))errors.push("EDGE_ID:"+String(e.edge_id));else edgeIds.add(e.edge_id);
+    if(!allowedEdgeTypes.has(e.edge_type))errors.push("EDGE_TYPE:"+String(e.edge_id));
+    for(const side of ["from","to"]){
+      const endpoint=e[side],m=endpoint&&byId.get(endpoint.module_id);
+      if(!m){errors.push(side.toUpperCase()+":"+String(e.edge_id));continue}
+      if(endpoint.port!==null&&!m.ports.includes(endpoint.port))errors.push("PORT:"+String(e.edge_id)+":"+side);
+      if(endpoint.port===null&&!(e.state==="DISCONNECTED"&&e.binding_status==="UNRESOLVED"))errors.push("UNBOUND_ACTIVE:"+String(e.edge_id));
+    }
+    const fm=e.from&&byId.get(e.from.module_id),tm=e.to&&byId.get(e.to.module_id);
+    if(fm&&tm){
+      const expected=fm.level===tm.level?"INTRA_LEVEL":"INTER_LEVEL";
+      if(e.edge_type!==expected)errors.push("EDGE_LEVEL:"+String(e.edge_id));
+    }
+  }
+  return {valid:errors.length===0,errors};
+}
+function topologyFingerprint(g){
+  return JSON.stringify({
+    topology_version:g.topology_version,
+    modules:g.modules.map(m=>[m.module_id,m.instance_id,m.parent_id,m.level,m.ports]),
+    edges:g.edges.map(e=>[e.edge_id,e.edge_type,e.from,e.to,e.state,e.binding_status||null])
+  });
+}
+function compareTopology(reference,candidate){
+  if(!candidate)return null;
+  const key=x=>x.module_id||x.edge_id,delta=(a,b)=>{
+    const A=new Map(a.map(x=>[key(x),JSON.stringify(x)])),B=new Map(b.map(x=>[key(x),JSON.stringify(x)]));
+    return {added:[...B.keys()].filter(k=>!A.has(k)),removed:[...A.keys()].filter(k=>!B.has(k)),changed:[...B.keys()].filter(k=>A.has(k)&&A.get(k)!==B.get(k))};
+  };
+  return {modules:delta(reference.modules,candidate.modules),edges:delta(reference.edges,candidate.edges)};
+}
+function renderTopologyStatus(){
+  const v=validateTopology(TOPOLOGY_REFERENCE);
+  document.getElementById("topologyReference").textContent=TOPOLOGY_REFERENCE.topology_version;
+  document.getElementById("topologyCandidate").textContent=TOPOLOGY_STATE.candidate?TOPOLOGY_STATE.candidate.topology_version:"NONE";
+  document.getElementById("topologyDelta").textContent=TOPOLOGY_STATE.delta?JSON.stringify(TOPOLOGY_STATE.delta):"NONE";
+  document.getElementById("topologyValidation").textContent=v.valid?"VALID · STRUCTURAL ONLY":"ERROR · "+v.errors.join(",");
+  return v;
+}
 function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
 async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
 function renderHistory(){
   const h=document.getElementById("t1History");
-  h.textContent=T1.history.length?T1.history.map(r=>"#"+String(r.tick).padStart(3,"0")+" | INPUT=1 | AMP="+r.amplitude.toFixed(6)+" | B1="+r.measured.toFixed(6)+" | Δ="+r.delta.toFixed(6)+" | "+r.proof).join("\n"):"APPEND-ONLY LOCAL LOG: EMPTY";
+  h.textContent=T1.history.length?T1.history.map(r=>"#"+String(r.tick).padStart(3,"0")+" | QUI="+r.who+" | ÉTAT="+r.state+" | AVANT="+(r.before===null?"NONE":r.before.toFixed(6))+" | APRÈS="+r.after.toFixed(6)+" | TOPOLOGY="+r.topology_version+" | RESULT="+r.result+" | PROOF_REF="+r.proof_ref).join("\n"):"APPEND-ONLY LOCAL LOG: EMPTY";
 }
 async function injectT1(forcedValue){
   const stateEl=document.getElementById("t1State"),traceEl=document.getElementById("t1Trace"),proofEl=document.getElementById("t1Proof");
   try{
     const amplitude=normalizedInput(forcedValue===undefined?document.getElementById("t1Value").value:forcedValue);
     const tick=T1.tick+1,measured=amplitude,delta=measured-amplitude;
-    const packet={schema:"BRUTUS_T1_TRANSPORT_V2",tick,input_active:1,amplitude,source:"SOURCE-00",flow:"FLOW-01",target:"B1.INPUT",operation:"IDENTITY_CAPTURE",measured,delta};
+    const previous=T1.value;
+    const packet={
+      schema:"BRUTUS_T1_TRANSPORT_V3",
+      tick,state:"T1",input_active:1,amplitude,
+      graph_ref:"G_REFERENCE",topology_version:TOPOLOGY_REFERENCE.topology_version,
+      module_id:"B1",instance_id:"B1@1",parent_id:"G_ANTMUX",level:1,port:"INPUT",
+      edge_id:"FLOW-01",edge_type:"INTRA_LEVEL",from:"SOURCE-00.OUTPUT",to:"B1.INPUT",
+      operation:"IDENTITY_CAPTURE",measured,delta
+    };
     const canonical=JSON.stringify(packet);
     const proof=await sha256Hex(canonical);
-    const record={tick,input_active:1,amplitude,measured,delta,proof};
+    const record={
+      who:"B1@1",state:"T1",tick,before:previous,after:amplitude,
+      topology_version:TOPOLOGY_REFERENCE.topology_version,
+      result:delta===0?"IDENTITY_OK":"IDENTITY_MISMATCH",proof_ref:proof,
+      input_active:1,amplitude,measured,delta,proof
+    };
     T1.history.push(Object.freeze(record));
     Object.assign(T1,{tick,connected:1,measurements:T1.measurements+1,proofs:T1.proofs+1,value:amplitude,lastTrace:"SOURCE-00>FLOW-01>B1.INPUT",proof});
     stateEl.textContent="STATE: T1 · VALID · INPUT_ACTIVE: 1 · AMP: "+amplitude.toFixed(6)+" · LOCAL ONLY";
-    traceEl.textContent="TRACE: "+T1.lastTrace+" · OP: IDENTITY_CAPTURE · MEASURE: #"+tick;
+    traceEl.textContent="TRACE: "+T1.lastTrace+" · EDGE: FLOW-01 · INTRA_LEVEL · TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version+" · MEASURE: #"+tick;
     proofEl.textContent="PROOF-T1-SHA256: "+proof;
     document.getElementById("t1ActivityFill").style.width=(amplitude*100).toFixed(3)+"%";
     document.getElementById("t1ActivityValue").textContent=(amplitude*100).toFixed(1)+"% · T1";
@@ -255,6 +363,8 @@ async function runSweep(){
 document.getElementById("t1Inject").addEventListener("click",()=>injectT1());
 document.querySelectorAll("[data-amp]").forEach(btn=>btn.addEventListener("click",()=>{const v=Number(btn.dataset.amp);document.getElementById("t1Value").value=v.toFixed(6);injectT1(v)}));
 document.getElementById("t1Sweep").addEventListener("click",runSweep);
+const topologyCheck=renderTopologyStatus();
+if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 window.addEventListener("resize",resize);resize();
 })();
 </script>
