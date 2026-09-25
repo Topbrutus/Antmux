@@ -138,6 +138,18 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
         <pre id="t1History" class="t1History">APPEND-ONLY LOCAL LOG: EMPTY</pre>
       </div>
     </div>
+    <div class="t1Panel" id="CONNECT-T2-01">
+      <div class="t1Grid">
+        <strong>T2 · B1.OUTPUT → FLOW-02 → B2.INPUT</strong>
+        <span class="control">CONNECT ONLY · NO MEASUREMENT</span>
+        <button id="t2Connect" class="t1Btn" type="button" disabled>CONNECT B2</button>
+        <div class="t1Readout">
+          <span id="t2State">STATE: WAITING FOR VALID T1 INPUT</span><br>
+          <span id="t2Trace">TRACE: NONE</span><br>
+          <span id="t2Proof">PROOF-T2-SHA256: NONE</span>
+        </div>
+      </div>
+    </div>
     <div class="t1Panel topologyPanel" id="TOPOLOGY-REGISTRY-01">
       <div class="topologyGrid">
         <div class="topologyCell"><strong>G_REFERENCE</strong><span id="topologyReference">ANTMUX-TOPOLOGY-T1.0.0</span></div>
@@ -156,7 +168,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE · G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — connexion explicite B1.OUTPUT → FLOW-02 → B2.INPUT, sans calcul B2 et sans nouvelle mesure. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -196,28 +208,29 @@ const TOPOLOGY_REFERENCE=deepFreeze({
 });
 const TOPOLOGY_STATE={reference:TOPOLOGY_REFERENCE,candidate:null,delta:null};
 const T1={tick:0,connected:0,measurements:0,proofs:0,value:null,lastTrace:"NONE",proof:"NONE",history:[],sweeping:false};
+const T2={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
-function conduit(a,b,id){const active=T1.connected===1&&id==="FLOW-01";x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
+function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
 function returnPath(points,id,side){x.save();x.setLineDash([5,7]);x.strokeStyle="#3f474e";x.lineWidth=1.2;x.beginPath();x.moveTo(points[0].x,points[0].y);for(let i=1;i<points.length;i++)x.lineTo(points[i].x,points[i].y);x.stroke();x.restore();const m=points[Math.floor(points.length/2)];label(id+" · DISCONNECTED",m.x+(side<0?-6:6),m.y-8,side<0?"right":"left","#68727a")}
 function port(p,a,code,r){const rr=r+9,px=p.x+Math.cos(a)*rr,py=p.y+Math.sin(a)*rr;x.fillStyle="#090b0d";x.strokeStyle="#89939b";x.lineWidth=1;x.beginPath();x.arc(px,py,3.2,0,Math.PI*2);x.fill();x.stroke();label(code,px+Math.cos(a)*9,py+Math.sin(a)*9,"center","#78828a","7px Consolas")}
 function moduleNode(p,id,r){
   x.fillStyle="#080a0c";x.strokeStyle="#a0a9b1";x.lineWidth=2;x.beginPath();x.arc(p.x,p.y,r,0,Math.PI*2);x.fill();x.stroke();
   x.fillStyle="#4f5961";x.beginPath();x.arc(p.x,p.y,r*.28,0,Math.PI*2);x.fill();
-  label(id,p.x,p.y+4,"center","#edf1f4","700 13px Segoe UI");const active=T1.connected===1&&id==="B1";label(active?("T1 · AMP "+T1.value.toFixed(6)):"NOT_CONNECTED",p.x,p.y+r+22,"center",active?"#dce4ea":"#606a73","8px Consolas");
+  label(id,p.x,p.y+4,"center","#edf1f4","700 13px Segoe UI");const activeB1=T1.connected===1&&id==="B1",activeB2=T2.connected===1&&id==="B2",active=activeB1||activeB2;const stateText=activeB1?("T1 · AMP "+T1.value.toFixed(6)):(activeB2?"T2 · CONNECTED":"NOT_CONNECTED");label(stateText,p.x,p.y+r+22,"center",active?"#dce4ea":"#606a73","8px Consolas");
   port(p,Math.PI,"I",r);port(p,0,"O",r);port(p,-Math.PI/2,"S",r);port(p,Math.PI*.65,"E",r);port(p,Math.PI*.35,"T",r)
 }
 function registry(rx,ry,rw,rh){
   x.fillStyle="#090c0f";x.strokeStyle="#4b545c";x.lineWidth=1;x.fillRect(rx,ry,rw,rh);x.strokeRect(rx,ry,rw,rh);
   label("CONTINUITY-REGISTRY-01",rx+10,ry+17,"left","#d8dde1","700 9px Consolas");
-  label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: "+(T1.connected?"T1 ACTIVE":"EMPTY"),rx+10,ry+49,"left");
-  label("TICK: T"+T1.tick,rx+10,ry+64,"left");label("LAST TRACE: "+T1.lastTrace,rx+10,ry+79,"left");
-  label("CONNECTED: "+T1.connected,rx+10,ry+94,"left");label("RECORDS/PROOFS: "+T1.history.length+"/"+T1.proofs,rx+10,ry+109,"left");
+  label("ROLE: TRACE ONLY",rx+10,ry+34,"left");label("STATUS: "+(T2.connected?"T2 ACTIVE":(T1.connected?"T1 ACTIVE":"EMPTY")),rx+10,ry+49,"left");
+  label("TICK: "+(T2.connected?"T2":("T"+T1.tick)),rx+10,ry+64,"left");label("LAST TRACE: "+(T2.connected?T2.lastTrace:T1.lastTrace),rx+10,ry+79,"left");
+  label("CONNECTED: "+(T1.connected+T2.connected),rx+10,ry+94,"left");label("RECORDS/PROOFS: "+(T1.history.length+T2.history.length)+"/"+(T1.proofs+T2.proofs),rx+10,ry+109,"left");
   label("TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version,rx+10,ry+124,"left","#626c75","7px Consolas")
 }
 function draw(w,h){
   x.clearRect(0,0,w,h);x.fillStyle="#06080a";x.fillRect(0,0,w,h);x.strokeStyle="#242a30";x.strokeRect(7,7,w-14,h-14);
-  label("BASELINE T0 · FROZEN | CURRENT "+(T1.connected?"T1":"T0")+" · CONNECTED "+T1.connected+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+T1.proofs,20,28,"left","#c8cfd4","700 9px Consolas");
+  label("BASELINE T0 · FROZEN | CURRENT "+(T2.connected?"T2":(T1.connected?"T1":"T0"))+" · CONNECTED "+(T1.connected+T2.connected)+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+(T1.proofs+T2.proofs),20,28,"left","#c8cfd4","700 9px Consolas");
   label("PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME",w-20,28,"right","#69737c","8px Consolas");
 
   const cx=w*.43,rad=Math.max(22,Math.min(34,w*.058));
@@ -249,7 +262,7 @@ function draw(w,h){
   x.save();x.setLineDash([4,5]);x.strokeStyle="#343c43";x.strokeRect(w*.68,h*.08,w*.27,h*.18);x.restore();
   label("CHEM-ZONE-01",w*.815,h*.12,"center","#68727a","9px Consolas");label("PLACEHOLDER STRUCTUREL",w*.815,h*.15,"center","#5b656d","8px Consolas");label("NO FUNCTION · NO DATA",w*.815,h*.175,"center","#5b656d","8px Consolas");
 
-  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T1.connected?"T1":"T0"),20,h-22,"left","#69737c","8px Consolas");
+  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T2.connected?"T2":(T1.connected?"T1":"T0")),20,h-22,"left","#69737c","8px Consolas");
 }
 function validateTopology(g){
   const errors=[],moduleIds=new Set(),edgeIds=new Set(),allowedEdgeTypes=new Set(["INTRA_LEVEL","INTER_LEVEL"]);
@@ -360,7 +373,39 @@ async function injectT1(forcedValue){
     document.getElementById("t1ActivityFill").style.width=(amplitude*100).toFixed(3)+"%";
     document.getElementById("t1ActivityValue").textContent=(amplitude*100).toFixed(1)+"% · T1";
     document.getElementById("currentState").textContent="CURRENT T1 · CONNECTED 1 · RECORDS "+T1.history.length;
+    const t2Btn=document.getElementById("t2Connect");
+    if(!T2.connected){t2Btn.disabled=false;document.getElementById("t2State").textContent="STATE: READY · B1 VALID · B2 NOT_CONNECTED";}
     renderHistory();resize();
+    return record;
+  }catch(err){
+    stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
+    throw err;
+  }
+}
+async function connectT2(){
+  const stateEl=document.getElementById("t2State"),traceEl=document.getElementById("t2Trace"),proofEl=document.getElementById("t2Proof"),btn=document.getElementById("t2Connect");
+  try{
+    if(T2.connected)return T2.history[0]||null;
+    if(T1.connected!==1||T1.value===null||T1.proof==="NONE")throw new Error("T1_PROOF_REQUIRED");
+    const packet={
+      schema:"BRUTUS_T2_CONNECTION_V1",
+      tick:"T2",state:"T2",
+      from:"B1.OUTPUT",via:"FLOW-02",to:"B2.INPUT",
+      state_before:"B2.NOT_CONNECTED",state_after:"B2.CONNECTED",
+      operation:"CONNECT_ONLY",measurement:"NONE",
+      source_proof_ref:T1.proof,
+      graph_ref:"G_REFERENCE",topology_version:TOPOLOGY_REFERENCE.topology_version
+    };
+    const proof=await sha256Hex(JSON.stringify(packet));
+    const record=Object.freeze({...packet,proof_ref:proof});
+    T2.history.push(record);
+    Object.assign(T2,{connected:1,proofs:1,lastTrace:"B1.OUTPUT>FLOW-02>B2.INPUT",proof});
+    stateEl.textContent="STATE: T2 · B2 CONNECTED · NO MEASUREMENT";
+    traceEl.textContent="TRACE: "+T2.lastTrace+" · BEFORE: B2.NOT_CONNECTED · AFTER: B2.CONNECTED";
+    proofEl.textContent="PROOF-T2-SHA256: "+proof;
+    btn.disabled=true;btn.textContent="B2 CONNECTED";
+    document.getElementById("currentState").textContent="CURRENT T2 · CONNECTED 2 · RECORDS "+(T1.history.length+T2.history.length);
+    resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -385,6 +430,7 @@ async function runSweep(){
 document.getElementById("t1Inject").addEventListener("click",()=>injectT1());
 document.querySelectorAll("[data-amp]").forEach(btn=>btn.addEventListener("click",()=>{const v=Number(btn.dataset.amp);document.getElementById("t1Value").value=v.toFixed(6);injectT1(v)}));
 document.getElementById("t1Sweep").addEventListener("click",runSweep);
+document.getElementById("t2Connect").addEventListener("click",connectT2);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 window.addEventListener("resize",resize);resize();
