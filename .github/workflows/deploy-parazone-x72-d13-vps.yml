@@ -48,9 +48,10 @@ jobs:
           test -f laboratoire/parazone-x72-d13-v2/README.md
 
           grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' laboratoire/index.html
-          grep -Fq 'NOYAU DYNAMIQUE' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'ENTRÉE BASSIN 1' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'SORTIE BASSIN 1' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'BRUTUS — MOTEUR DE RÉSONANCE' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'SERVER READ-ONLY' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'GATE FINALE' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'CRISTALLISATION' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
 
       - name: Assemble exact public payload
@@ -151,9 +152,10 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/README.md -o /tmp/parazone-readme.md
 
           grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' /tmp/lab-index.html
-          grep -Fq 'NOYAU DYNAMIQUE' /tmp/parazone-index.html
-          grep -Fq 'ENTRÉE BASSIN 1' /tmp/parazone-index.html
-          grep -Fq 'SORTIE BASSIN 1' /tmp/parazone-index.html
+          grep -Fq 'BRUTUS — MOTEUR DE RÉSONANCE' /tmp/parazone-index.html
+          grep -Fq 'SERVER READ-ONLY' /tmp/parazone-index.html
+          grep -Fq 'GATE FINALE' /tmp/parazone-index.html
+          grep -Fq 'CRISTALLISATION' /tmp/parazone-index.html
           grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
           grep -Fq '# NOYAU DYNAMIQUE X72 — page publique' /tmp/parazone-readme.md
 
