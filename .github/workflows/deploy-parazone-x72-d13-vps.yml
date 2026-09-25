@@ -55,11 +55,19 @@ jobs:
           grep -Fq 'PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'INPUT-TEST-01' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'PROOF-T1-SHA256' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'BRUTUS_T1_TRANSPORT_V2' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'BRUTUS_T1_TRANSPORT_V3' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'RUN 1→100%' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'APPEND-ONLY LOCAL LOG' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'INPUT_ACTIVE: 1' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'FREQUENCY: NOT_CONNECTED' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'TOPOLOGY-REGISTRY-01' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'ANTMUX-TOPOLOGY-T1.0.0' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'G_REFERENCE' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'G_CANDIDATE' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'DELTA_G' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'PARENT_ID' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'EDGE_TYPE' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'INTER_LEVEL' laboratoire/parazone-x72-d13-v2/index.html
           ! grep -Fq 'new WebSocket' laboratoire/parazone-x72-d13-v2/index.html
           ! grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
 
@@ -168,13 +176,22 @@ jobs:
           grep -Fq 'PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME' /tmp/parazone-index.html
           grep -Fq 'INPUT-TEST-01' /tmp/parazone-index.html
           grep -Fq 'PROOF-T1-SHA256' /tmp/parazone-index.html
-          grep -Fq 'BRUTUS_T1_TRANSPORT_V2' /tmp/parazone-index.html
+          grep -Fq 'BRUTUS_T1_TRANSPORT_V3' /tmp/parazone-index.html
           grep -Fq 'RUN 1→100%' /tmp/parazone-index.html
           grep -Fq 'APPEND-ONLY LOCAL LOG' /tmp/parazone-index.html
           grep -Fq 'INPUT_ACTIVE: 1' /tmp/parazone-index.html
           grep -Fq 'FREQUENCY: NOT_CONNECTED' /tmp/parazone-index.html
+          grep -Fq 'TOPOLOGY-REGISTRY-01' /tmp/parazone-index.html
+          grep -Fq 'ANTMUX-TOPOLOGY-T1.0.0' /tmp/parazone-index.html
+          grep -Fq 'G_REFERENCE' /tmp/parazone-index.html
+          grep -Fq 'G_CANDIDATE' /tmp/parazone-index.html
+          grep -Fq 'DELTA_G' /tmp/parazone-index.html
+          grep -Fq 'PARENT_ID' /tmp/parazone-index.html
+          grep -Fq 'EDGE_TYPE' /tmp/parazone-index.html
+          grep -Fq 'INTER_LEVEL' /tmp/parazone-index.html
           ! grep -Fq 'new WebSocket' /tmp/parazone-index.html
           ! grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
-          grep -Fq '# NOYAU DYNAMIQUE X72 — page publique' /tmp/parazone-readme.md
+          grep -Fq '# BRUTUS — squelette technique hiérarchique T1' /tmp/parazone-readme.md
+          grep -Fq 'AUCUNE CONNEXION INVISIBLE' /tmp/parazone-readme.md
 
           echo 'ANTMUX_PARAZONE_PUBLIC=PASS'
