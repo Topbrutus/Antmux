@@ -253,15 +253,24 @@ function draw(w,h){
 }
 function validateTopology(g){
   const errors=[],moduleIds=new Set(),edgeIds=new Set(),allowedEdgeTypes=new Set(["INTRA_LEVEL","INTER_LEVEL"]);
-  if(!g||g.graph_kind!=="G_REFERENCE")errors.push("REFERENCE_KIND");
+  if(!g||!["G_REFERENCE","G_CANDIDATE"].includes(g.graph_kind))errors.push("GRAPH_KIND");
   if(!g.topology_version)errors.push("TOPOLOGY_VERSION");
   for(const m of g.modules||[]){
     if(!m.module_id||moduleIds.has(m.module_id))errors.push("MODULE_ID:"+String(m.module_id));else moduleIds.add(m.module_id);
     if(!m.instance_id)errors.push("INSTANCE_ID:"+String(m.module_id));
-    if(m.parent_id!==g.graph_id)errors.push("PARENT_ID:"+String(m.module_id));
-    if(m.level!==g.level+1)errors.push("LEVEL:"+String(m.module_id));
   }
   const byId=new Map((g.modules||[]).map(m=>[m.module_id,m]));
+  for(const m of g.modules||[]){
+    const parentLevel=m.parent_id===g.graph_id?g.level:(byId.get(m.parent_id)||{}).level;
+    if(m.parent_id!==g.graph_id&&!byId.has(m.parent_id))errors.push("PARENT_ID:"+String(m.module_id));
+    if(m.parent_id===m.module_id)errors.push("SELF_PARENT:"+String(m.module_id));
+    if(!Number.isInteger(parentLevel)||m.level!==parentLevel+1)errors.push("LEVEL:"+String(m.module_id));
+    const seen=new Set([m.module_id]);let p=m.parent_id;
+    while(p&&p!==g.graph_id){
+      if(seen.has(p)){errors.push("PARENT_CYCLE:"+String(m.module_id));break}
+      seen.add(p);const pm=byId.get(p);if(!pm)break;p=pm.parent_id;
+    }
+  }
   for(const e of g.edges||[]){
     if(!e.edge_id||edgeIds.has(e.edge_id))errors.push("EDGE_ID:"+String(e.edge_id));else edgeIds.add(e.edge_id);
     if(!allowedEdgeTypes.has(e.edge_type))errors.push("EDGE_TYPE:"+String(e.edge_id));
@@ -293,6 +302,19 @@ function compareTopology(reference,candidate){
     return {added:[...B.keys()].filter(k=>!A.has(k)),removed:[...A.keys()].filter(k=>!B.has(k)),changed:[...B.keys()].filter(k=>A.has(k)&&A.get(k)!==B.get(k))};
   };
   return {modules:delta(reference.modules,candidate.modules),edges:delta(reference.edges,candidate.edges)};
+}
+function stageTopologyCandidate(candidate){
+  const v=validateTopology(candidate);
+  if(!v.valid)throw new Error("CANDIDATE_TOPOLOGY_INVALID:"+v.errors.join(","));
+  if(candidate.graph_kind!=="G_CANDIDATE")throw new Error("CANDIDATE_KIND_REQUIRED");
+  if(candidate.topology_version===TOPOLOGY_REFERENCE.topology_version)throw new Error("CANDIDATE_VERSION_MUST_DIFFER");
+  TOPOLOGY_STATE.candidate=deepFreeze(candidate);
+  TOPOLOGY_STATE.delta=deepFreeze(compareTopology(TOPOLOGY_REFERENCE,TOPOLOGY_STATE.candidate));
+  renderTopologyStatus();
+  return TOPOLOGY_STATE.delta;
+}
+function clearTopologyCandidate(){
+  TOPOLOGY_STATE.candidate=null;TOPOLOGY_STATE.delta=null;renderTopologyStatus();
 }
 function renderTopologyStatus(){
   const v=validateTopology(TOPOLOGY_REFERENCE);
