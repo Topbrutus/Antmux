@@ -74,6 +74,7 @@ let audioCtx=null;
 let soundMuted=localStorage.getItem('zel-sound-muted')==='1';
 let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
 let lastAudioStageIndex=null;
+let lastAudioEventVersion=null;
 let wsHasLiveState=false;
 let lastWsMessageAt=0;
 let lastLiveStagePerf=0;
@@ -444,8 +445,14 @@ function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stag
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
   if(audioFromWebSocket){
+    const rawEventVersion=s.transport_event_version;
+    const eventVersion=(typeof rawEventVersion==='number'&&Number.isInteger(rawEventVersion))?rawEventVersion:null;
+    const isReplay=s.transport_replay===true;
     const stageChanged=lastAudioStageIndex!==null && s.stage_index!==lastAudioStageIndex;
-    if(stageChanged)soundLiveStage(s.stage_index,stageDt,stageWorkRatio,stageExecUs);
+    const eventChanged=eventVersion!==null && eventVersion!==lastAudioEventVersion;
+    const shouldSound=eventVersion!==null?(!isReplay&&eventChanged):stageChanged;
+    if(shouldSound)soundLiveStage(s.stage_index,stageDt,stageWorkRatio,stageExecUs);
+    if(eventVersion!==null)lastAudioEventVersion=eventVersion;
     lastAudioStageIndex=s.stage_index;
   }
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
