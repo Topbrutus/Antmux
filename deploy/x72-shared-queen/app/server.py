@@ -561,6 +561,14 @@ def normalize_zel_public_state(raw: Any) -> dict[str, Any]:
     stage = str(raw.get("stage", ""))[:64]
     if not stage:
         raise HTTPException(status_code=400, detail="invalid stage")
+    stage_exec_us = raw.get("stage_exec_us", 0.0)
+    stage_work_ratio = raw.get("stage_work_ratio", 0.0)
+    for name, value, lo, hi in (
+        ("stage_exec_us", stage_exec_us, 0.0, 1000000.0),
+        ("stage_work_ratio", stage_work_ratio, 0.0, 1.0),
+    ):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or not lo <= float(value) <= hi:
+            raise HTTPException(status_code=400, detail=f"invalid {name}")
     ge = raw.get("global_error") if isinstance(raw.get("global_error"), dict) else {}
     f1 = raw.get("f1") if isinstance(raw.get("f1"), dict) else {}
     vals = raw.get("public_values") if isinstance(raw.get("public_values"), list) else []
@@ -577,6 +585,8 @@ def normalize_zel_public_state(raw: Any) -> dict[str, Any]:
         "channels": channels,
         "trace_points": trace_points,
         "trace_total": trace_total,
+        "stage_exec_us": round(float(stage_exec_us), 3),
+        "stage_work_ratio": round(float(stage_work_ratio), 6),
         "public_values": safe_vals,
         "public_values_total": public_values_total,
         "global_error": {"exact": str(ge.get("exact", ""))[:128], "decimal": ge.get("decimal", 0)},
