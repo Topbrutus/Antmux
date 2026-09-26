@@ -77,11 +77,11 @@ jobs:
           grep -Fq 'INTER_LEVEL' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'BRUTUS // MODE 5 ÉCRANS' laboratoire/parazone-x72-d13-v2/five-screens.html
           grep -Fq 'BRUTUS_SCREEN_PLACEMENT_V1' laboratoire/parazone-x72-d13-v2/five-screens.js
-          grep -Fq 'BRUTUS // ÉCRAN 1' laboratoire/parazone-x72-d13-v2/screen-1-master.html
-          grep -Fq 'BRUTUS // ÉCRAN 2' laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
-          grep -Fq 'BRUTUS // ÉCRAN 3' laboratoire/parazone-x72-d13-v2/screen-3-operator.html
-          grep -Fq 'BRUTUS // ÉCRAN 4' laboratoire/parazone-x72-d13-v2/screen-4-control.html
-          grep -Fq 'BRUTUS // ÉCRAN 5' laboratoire/parazone-x72-d13-v2/screen-5-settings.html
+          grep -Fq 'BRUTUS // SCREEN 1' laboratoire/parazone-x72-d13-v2/screen-1-master.html
+          grep -Fq 'BRUTUS // SCREEN 2' laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
+          grep -Fq 'BRUTUS // SCREEN 3' laboratoire/parazone-x72-d13-v2/screen-3-operator.html
+          grep -Fq 'BRUTUS // SCREEN 4' laboratoire/parazone-x72-d13-v2/screen-4-control.html
+          grep -Fq 'BRUTUS // SCREEN 5' laboratoire/parazone-x72-d13-v2/screen-5-settings.html
           ! grep -Fq 'new WebSocket' laboratoire/parazone-x72-d13-v2/index.html
           ! grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
 
@@ -228,10 +228,10 @@ jobs:
           grep -Fq 'AUCUNE CONNEXION INVISIBLE' /tmp/parazone-readme.md
           grep -Fq 'BRUTUS // MODE 5 ÉCRANS' /tmp/parazone-five-screens.html
           grep -Fq 'BRUTUS_SCREEN_PLACEMENT_V1' /tmp/parazone-five-screens.js
-          grep -Fq 'BRUTUS // ÉCRAN 1' /tmp/parazone-screen-1-master.html
-          grep -Fq 'BRUTUS // ÉCRAN 2' /tmp/parazone-screen-2-analysis.html
-          grep -Fq 'BRUTUS // ÉCRAN 3' /tmp/parazone-screen-3-operator.html
-          grep -Fq 'BRUTUS // ÉCRAN 4' /tmp/parazone-screen-4-control.html
-          grep -Fq 'BRUTUS // ÉCRAN 5' /tmp/parazone-screen-5-settings.html
+          grep -Fq 'BRUTUS // SCREEN 1' /tmp/parazone-screen-1-master.html
+          grep -Fq 'BRUTUS // SCREEN 2' /tmp/parazone-screen-2-analysis.html
+          grep -Fq 'BRUTUS // SCREEN 3' /tmp/parazone-screen-3-operator.html
+          grep -Fq 'BRUTUS // SCREEN 4' /tmp/parazone-screen-4-control.html
+          grep -Fq 'BRUTUS // SCREEN 5' /tmp/parazone-screen-5-settings.html
 
           echo 'ANTMUX_PARAZONE_PUBLIC=PASS'
