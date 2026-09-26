@@ -73,7 +73,9 @@ applyFontScale();
 let audioCtx=null;
 let soundMuted=localStorage.getItem('zel-sound-muted')==='1';
 let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
-let lastStageIndex=null;
+let lastAudioStageIndex=null;
+let wsHasLiveState=false;
+let lastWsMessageAt=0;
 async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
 document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
@@ -155,6 +157,18 @@ function soundSquadDemoAt(base){
   seq.forEach((count,i)=>{squadStageAt(count,freq[i],t);t+=gap[i];});
   soundEndAt(t+.10);
 }
+const liveStageFreq=[620,540,430,260,410,520,650];
+function soundLiveStage(stageIndex){
+  if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
+  const base=audioCtx.currentTime+.025;
+  if(stageIndex===0){
+    soundStartAt(base);
+    squadStageAt(counts[0],liveStageFreq[0],base+.58);
+    return;
+  }
+  squadStageAt(counts[stageIndex]||1,liveStageFreq[stageIndex]||420,base);
+  if(stageIndex===6)soundEndAt(base+.48);
+}
 function tone(freq,dur=.08,delay=0,gain=.16){
   if(!audioCtx||audioCtx.state!=='running'){ensureAudio().then(()=>tone(freq,dur,delay,gain));return;}
   scheduleToneAt(freq,audioCtx.currentTime+delay,dur,gain);
@@ -173,13 +187,11 @@ function render(s,{audioFromWebSocket=false}={}){
   $('live').textContent=s.status==='OFFLINE'?'HORS LIGNE':(s.status==='SNAPSHOT'?'PUBLIC SNAPSHOT':'PUBLIC LIVE');
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
-  const stageChanged=lastStageIndex!==null && s.stage_index!==lastStageIndex;
-  if(audioFromWebSocket && stageChanged){
-    if(s.stage_index===0)soundStart();
-    else if(s.stage_index===6)soundEnd();
-    else soundTempo(s.stage_index);
+  if(audioFromWebSocket){
+    const stageChanged=lastAudioStageIndex!==null && s.stage_index!==lastAudioStageIndex;
+    if(stageChanged)soundLiveStage(s.stage_index);
+    lastAudioStageIndex=s.stage_index;
   }
-  lastStageIndex=s.stage_index;
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
   $('error').textContent=s.global_error.exact+' ≈ '+Number(s.global_error.decimal).toPrecision(6);
   $('f1').textContent=s.f1.formula_id+' · '+s.f1.value+' (k='+s.f1.k+')';$('formula').textContent=s.f1.formula;$('commit').textContent=s.f1.source_commit_short+'…';
@@ -198,22 +210,26 @@ function connectZelWebSocket(){
   zelSocket.addEventListener('message',ev=>{
     try{
       const s=JSON.parse(ev.data);
+      wsHasLiveState=true;
+      lastWsMessageAt=Date.now();
       // REAL AUDIO CYCLE: value arrives by WebSocket; browser renders it,
       // then synthesizes the corresponding sound locally. Audio bytes never transit.
       render(s,{audioFromWebSocket:true});
     }catch(e){}
   });
-  zelSocket.addEventListener('close',()=>{zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
+  zelSocket.addEventListener('close',()=>{wsHasLiveState=false;zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
   zelSocket.addEventListener('error',()=>{try{zelSocket.close();}catch(e){}});
 }
 async function poll(){
+  if(wsHasLiveState && Date.now()-lastWsMessageAt<5000)return;
   try{
     const r=await fetch('./api/state',{cache:'no-store'});
     const s=await r.json();
-    // Polling is display/state fallback only. It MUST NOT trigger cycle audio.
+    // Polling is display/state fallback only. It MUST NOT trigger cycle audio
+    // and MUST NOT overwrite a fresh WebSocket state.
     render(s,{audioFromWebSocket:false});
   }catch(e){
-    render({status:'OFFLINE'},{audioFromWebSocket:false});
+    if(!wsHasLiveState)render({status:'OFFLINE'},{audioFromWebSocket:false});
   }
 }
 buildStages();
