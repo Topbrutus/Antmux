@@ -84,7 +84,18 @@ $('audioConsentEnable').addEventListener('click',async()=>{ensureAudio();if(audi
 $('audioConsentLater').addEventListener('click',()=>{sessionStorage.setItem('zel-audio-consent-later','1');closeAudioConsent();});
 function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
 function soundConfirm(){tone(880,.32,0,.45);}
-function soundStart(){tone(760,.07,0,.18);tone(420,.09,.16,.20);tone(760,.06,.34,.17);tone(420,.08,.46,.19);}
+function activationRelay(){tone(190,.045,0,.24);tone(260,.045,.075,.23);tone(390,.06,.15,.20);}
+function activationServo(){tone(300,.055,0,.18);tone(360,.055,.055,.18);tone(430,.07,.11,.20);}
+function activationCapacitor(){tone(140,.05,0,.18);tone(220,.06,.07,.20);tone(420,.09,.15,.22);}
+function activationScanner(){tone(520,.04,0,.14);tone(610,.04,.06,.14);tone(710,.04,.12,.14);tone(820,.07,.18,.17);}
+function activationTurbine(){tone(110,.08,0,.18);tone(150,.08,.08,.18);tone(210,.10,.16,.20);tone(290,.12,.24,.20);}
+function activationLock(){tone(250,.035,0,.23);tone(250,.035,.07,.23);tone(520,.08,.15,.18);}
+function activationPulse(){tone(180,.04,0,.20);tone(360,.05,.06,.19);tone(720,.07,.13,.18);}
+function activationArray(){tone(210,.04,0,.16);tone(315,.04,.05,.16);tone(420,.04,.10,.16);tone(630,.06,.16,.18);}
+function activationSweep(){tone(160,.05,0,.17);tone(240,.05,.06,.17);tone(350,.05,.12,.17);tone(520,.08,.18,.19);}
+function activationCore(){tone(95,.10,0,.22);tone(190,.08,.10,.20);tone(380,.08,.18,.19);tone(760,.10,.26,.18);}
+const activationSounds=[activationRelay,activationServo,activationCapacitor,activationScanner,activationTurbine,activationLock,activationPulse,activationArray,activationSweep,activationCore];
+function soundStart(){const i=Math.floor(Math.random()*activationSounds.length);activationSounds[i]();return i;}
 function soundTempo(i){tone(180+(i*24),.055,0,.11);}
 function soundEnd(){tone(440,.11,0,.16);tone(330,.13,.09,.15);tone(220,.19,.18,.17);}
 function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);}
