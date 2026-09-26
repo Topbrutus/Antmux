@@ -39,3 +39,15 @@ Quand l'API Window Management du navigateur est disponible et autorisée:
 Le tableau `PLACEMENT PHYSIQUE` permet de modifier manuellement chaque correspondance avant le prochain lancement.
 
 Si le navigateur bloque les pop-ups, le lanceur indique combien de fenêtres ont réellement été ouvertes. Il faut alors autoriser les pop-ups pour antmux.com et relancer. Si l'API multi-écrans n'est pas disponible, les cinq fenêtres restent utilisables avec placement manuel.
+
+
+## Auto-fit individuel à 100 % navigateur
+
+Chaque vue multi-écrans possède son propre profil de densité afin de rester lisible avec le zoom du navigateur à 100 %:
+- MASTER: cible 108 % interne;
+- ANALYSIS: cible 100 % interne;
+- OPERATOR: cible 90 % interne;
+- CONTROL: cible 108 % interne;
+- SETTINGS: cible 108 % interne.
+
+Le fit se recalcule automatiquement au chargement, après synchronisation et lors d'un redimensionnement. Le badge supérieur affiche la valeur active sous la forme `FIT n%`.

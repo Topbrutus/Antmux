@@ -118,7 +118,12 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .freqAutomation{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px;padding:8px;border:1px solid #6e5522;border-radius:8px;background:#100d07;box-shadow:inset 0 0 18px #ffae4212}.freqAutoCell{padding:7px;border:1px solid #5a4823;border-radius:6px;background:#090b0d;color:#d8b873;font:9px Consolas,monospace}.freqAutoCell strong{display:block;color:#ffd58a;margin-bottom:3px}.freqAutoActions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}.freqAutoActions button{background:#161208;border:1px solid #9f7026;border-radius:6px;color:#ffd58a;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}.freqAutoActions button:hover{border-color:#ffae42;box-shadow:0 0 10px #ffae4233}.dialRack{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:9px;margin-top:10px}.dialCard{position:relative;min-height:118px;border:1px solid #26445a;border-radius:10px;background:linear-gradient(180deg,#07131f,#040a11);padding:10px;text-align:center;box-shadow:inset 0 0 18px #00182755}.dialCard strong{display:block;font:800 9px Consolas,monospace;letter-spacing:.08em;margin-bottom:8px}.dialKnob{width:48px;height:48px;margin:2px auto 8px;border-radius:50%;border:2px solid currentColor;background:radial-gradient(circle at 38% 32%,#ffffff22 0 8%,#0b1620 10% 58%,#02070c 60%);box-shadow:0 0 13px currentColor,inset 0 0 10px #000}.dialValue{font:800 12px Consolas,monospace;color:#f2fbff}.dialState{margin-top:4px;font:8px Consolas,monospace;color:#7895a8}.dialFreq{color:#00e8ff}.dialAmp{color:#c890ff}.dialTime{color:#ffd58a}.dialCadence{color:#65e9b5}.dialStep{color:#ff9a72}.dialMode{color:#78b9ff}.controlLaunchBar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}.controlLaunchBar .btn,.controlLaunchBar .idle{padding:9px}.controlLaunchBar .btn{border-color:#24516d;color:#7ca7bf}.controlLaunchBar .idle{border-color:#9f7026;color:#ffd58a;background:#100d07}@media(max-width:1100px){.dialRack{grid-template-columns:repeat(3,minmax(120px,1fr))}.freqAutomation{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.dialRack{grid-template-columns:repeat(2,minmax(110px,1fr))}.freqAutomation{grid-template-columns:1fr}.controlLaunchBar{grid-template-columns:1fr 1fr}}
 .micPanel{margin-top:9px;border-color:#167f70!important;box-shadow:inset 0 0 20px #00e99a12!important}.micGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.micCell{background:#06110f;border:1px solid #185347;border-radius:6px;padding:7px;color:#8bc9bc;font:9px Consolas,monospace}.micCell strong{display:block;color:#65e9b5;margin-bottom:3px}.micActions{grid-column:1/-1;display:flex;gap:7px}.micActions button{background:#071713;border:1px solid #1b7a67;color:#8fffd9;border-radius:6px;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}@media(max-width:900px){.micGrid{grid-template-columns:1fr 1fr}}
 .audioOutputPanel{margin-top:8px;padding:8px;border:1px solid #315f9b;border-radius:8px;background:#07101d;box-shadow:inset 0 0 16px #006cff16}.audioOutputGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.audioOutputCell{background:#06101a;border:1px solid #204a70;border-radius:5px;padding:7px;color:#8fb7d9;font:8px Consolas,monospace}.audioOutputCell strong{display:block;color:#8fb7ff;font-size:9px;margin-bottom:3px}.audioOutputActions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}.audioOutputActions button{background:#081725;border:1px solid #315f9b;border-radius:6px;color:#b8d8ff;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}.audioOutputActions button:hover{border-color:#198bff;box-shadow:0 0 10px #198bff44}@media(max-width:900px){.audioOutputGrid{grid-template-columns:1fr 1fr}}
-.screenHiddenByMode{display:none!important}.fiveScreenBadge{display:none;padding:5px 8px;border:1px solid #315f9b;border-radius:6px;background:#071524;color:#8fcfff;font:800 8px Consolas,monospace;white-space:nowrap}.brutusScreenMode .fiveScreenBadge{display:block}.brutusScreenMode .shell{max-width:none;width:100%}.screenLaunchBtn{border:1px solid #315f9b;border-radius:6px;background:#071524;color:#8fcfff;padding:5px 8px;font:800 8px Consolas,monospace;cursor:pointer}.screenLaunchBtn:hover{border-color:#00e8ff;color:#fff}.screenTitleBar{display:none;margin:0 0 8px;padding:8px 10px;border:1px solid #315f9b;border-radius:7px;background:#06111d;color:#a8d9ff;font:800 10px Consolas,monospace;letter-spacing:.08em}.brutusScreenMode .screenTitleBar{display:flex;justify-content:space-between;gap:10px}.brutusScreenMode .instrumentDeck{grid-template-columns:repeat(12,minmax(0,1fr))}.brutusScreenMode .controls{margin-top:0}
+.screenHiddenByMode{display:none!important}.fiveScreenBadge{display:none;padding:5px 8px;border:1px solid #315f9b;border-radius:6px;background:#071524;color:#8fcfff;font:800 8px Consolas,monospace;white-space:nowrap}.brutusScreenMode .fiveScreenBadge{display:block}.brutusScreenMode{padding:6px;overflow:auto}.brutusScreenMode .shell{max-width:none;width:100%;margin:0;transform-origin:top left}.screenLaunchBtn{border:1px solid #315f9b;border-radius:6px;background:#071524;color:#8fcfff;padding:5px 8px;font:800 8px Consolas,monospace;cursor:pointer}.screenLaunchBtn:hover{border-color:#00e8ff;color:#fff}.screenTitleBar{display:none;margin:0 0 6px;padding:6px 8px;border:1px solid #315f9b;border-radius:7px;background:#06111d;color:#a8d9ff;font:800 9px Consolas,monospace;letter-spacing:.06em}.brutusScreenMode .screenTitleBar{display:flex;align-items:center;justify-content:space-between;gap:8px}.brutusScreenMode .header{margin-bottom:6px;padding:6px 8px}.brutusScreenMode .instrumentDeck{grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;margin-top:6px}.brutusScreenMode .controls{margin-top:0}.brutusScreenMode .panel{padding:7px 8px 8px}.brutusScreenMode .panel h2{margin-bottom:5px;font-size:10px}
+.brutusScreenMode.screenMode1 .layout{grid-template-columns:27fr 46fr 27fr;gap:6px;min-height:0}.brutusScreenMode.screenMode1 .col{gap:6px}.brutusScreenMode.screenMode1 .engine{min-height:560px;padding-top:18px}.brutusScreenMode.screenMode1 .brandMark{font-size:22px}
+.brutusScreenMode.screenMode2 .monitorWall{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}.brutusScreenMode.screenMode2 .monitorPanel{min-height:160px}.brutusScreenMode.screenMode2 .monitorGraph{height:86px}.brutusScreenMode.screenMode2 .monitorStat{min-height:32px;padding:4px 5px;font-size:8px}.brutusScreenMode.screenMode2 .instrumentDeck{grid-template-columns:repeat(12,minmax(0,1fr))}.brutusScreenMode.screenMode2 #ANALYSIS-AMP-01,.brutusScreenMode.screenMode2 #ANALYSIS-HISTORY-01{grid-column:span 3!important}.brutusScreenMode.screenMode2 #TIMEBASE-01,.brutusScreenMode.screenMode2 #SAMPLER-01,.brutusScreenMode.screenMode2 #SAMPLER-QUALITY-01{grid-column:span 2!important}.brutusScreenMode.screenMode2 #CRACK-METER-01,.brutusScreenMode.screenMode2 #CRACK-CLASSIFIER-01{grid-column:span 6!important}
+.brutusScreenMode.screenMode3 .instrumentDeck{grid-template-columns:repeat(12,minmax(0,1fr))}.brutusScreenMode.screenMode3 #PRESET-BANK-01{grid-column:span 5!important}.brutusScreenMode.screenMode3 #REFERENCE-CATALOG-01{grid-column:span 3!important}.brutusScreenMode.screenMode3 #MICROPHONE-SOURCE-01{grid-column:span 4!important;margin-top:0}.brutusScreenMode.screenMode3 #SIGNAL-GENERATOR-01{grid-column:1/-1!important}.brutusScreenMode.screenMode3 .presetGrid{gap:4px}.brutusScreenMode.screenMode3 .presetSlot{min-height:27px}
+.brutusScreenMode.screenMode4 .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.brutusScreenMode.screenMode4 .controls>h2{grid-column:1/-1;margin:0}.brutusScreenMode.screenMode4 #INPUT-TEST-01{grid-column:1/-1}.brutusScreenMode.screenMode4 #CONNECT-T2-01,.brutusScreenMode.screenMode4 #CONNECT-T3-01,.brutusScreenMode.screenMode4 #CONNECT-T4-01,.brutusScreenMode.screenMode4 #CONNECT-T5-01{grid-column:span 1;margin-top:0}.brutusScreenMode.screenMode4 .t1History{max-height:150px}.brutusScreenMode.screenMode4 .t1Panel{margin-top:0}
+.brutusScreenMode.screenMode5 .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.brutusScreenMode.screenMode5 .controls>h2{grid-column:1/-1;margin:0}.brutusScreenMode.screenMode5 #OBS-BUS-01,.brutusScreenMode.screenMode5 #TOPOLOGY-REGISTRY-01{grid-column:span 1;margin-top:0}.brutusScreenMode.screenMode5 #CONTROL-DIAL-RACK-01,.brutusScreenMode.screenMode5 .controlLaunchBar,.brutusScreenMode.screenMode5 .controls>.note,.brutusScreenMode.screenMode5 .controls>.rule{grid-column:1/-1}.brutusScreenMode.screenMode5 .dialRack{grid-template-columns:repeat(6,minmax(90px,1fr));gap:6px;margin-top:0}.brutusScreenMode.screenMode5 .dialCard{min-height:98px;padding:7px}.brutusScreenMode.screenMode5 .dialKnob{width:38px;height:38px;margin-bottom:5px}
 </style>
 </head>
 <body>
@@ -134,7 +139,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <div id="fiveScreenBadge" class="fiveScreenBadge">MULTI-SCREEN</div>
     <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
   </header>
-  <div id="screenTitleBar" class="screenTitleBar"><span id="screenTitle">BRUTUS MULTI-SCREEN</span><span><button id="screenQuickStart" class="screenLaunchBtn" type="button">START</button> <button id="screenQuickPause" class="screenLaunchBtn" type="button">PAUSE</button> <button id="screenQuickStop" class="screenLaunchBtn" type="button">MASTER STOP</button></span><span id="screenRole">ROLE</span></div>
+  <div id="screenTitleBar" class="screenTitleBar"><span id="screenTitle">BRUTUS MULTI-SCREEN</span><span><button id="screenQuickStart" class="screenLaunchBtn" type="button">START</button> <button id="screenQuickPause" class="screenLaunchBtn" type="button">PAUSE</button> <button id="screenQuickStop" class="screenLaunchBtn" type="button">MASTER STOP</button></span><span><span id="screenFitBadge">FIT 100%</span> · <span id="screenRole">ROLE</span></span></div>
 
   <section class="layout">
     <div class="col left">
@@ -1718,7 +1723,7 @@ function setScreenVisibility(el,screens){
 }
 function applyFiveScreenLayout(){
   if(!MULTI_SCREEN.enabled)return;
-  document.body.classList.add("brutusScreenMode");
+  document.body.classList.add("brutusScreenMode","screenMode"+SCREEN_MODE);
   document.getElementById("screenTitle").textContent="ÉCRAN "+SCREEN_MODE+" · "+SCREEN_NAMES[SCREEN_MODE];
   document.getElementById("screenRole").textContent=MULTI_SCREEN.owner?"CORE OWNER":"SYNCHRONIZED VIEW";
   document.getElementById("fiveScreenBadge").textContent="SCREEN "+SCREEN_MODE+" / 5 · "+(MULTI_SCREEN.owner?"CORE":"VIEW");
@@ -1741,7 +1746,30 @@ function applyFiveScreenLayout(){
       else setScreenVisibility(el,[5]);
     });
   }
-  requestAnimationFrame(()=>{resize();renderWaveChart();renderSpectrum();});
+  requestAnimationFrame(()=>{resize();renderWaveChart();renderSpectrum();requestAnimationFrame(autoFitFiveScreen);});
+}
+function autoFitFiveScreen(){
+  if(!MULTI_SCREEN.enabled)return 1;
+  const shell=document.querySelector(".shell"),badge=document.getElementById("screenFitBadge");
+  if(!shell)return 1;
+  shell.style.transform="none";
+  shell.style.width="100%";
+  document.body.style.height="auto";
+  const viewportW=Math.max(320,window.innerWidth-12);
+  const viewportH=Math.max(320,window.innerHeight-12);
+  const naturalW=Math.max(shell.scrollWidth,shell.getBoundingClientRect().width);
+  const naturalH=Math.max(shell.scrollHeight,shell.getBoundingClientRect().height);
+  const preferred={1:1.08,2:1.00,3:0.90,4:1.08,5:1.08}[SCREEN_MODE]||1;
+  const heightScale=viewportH/Math.max(1,naturalH);
+  let scale=Math.min(preferred,heightScale);
+  scale=Math.max(0.64,Math.min(1.12,scale));
+  shell.style.width=(100/scale).toFixed(3)+"%";
+  shell.style.transform="scale("+scale.toFixed(4)+")";
+  const fittedH=shell.scrollHeight*scale;
+  document.body.style.height=Math.ceil(fittedH+8)+"px";
+  if(badge)badge.textContent="FIT "+Math.round(scale*100)+"%";
+  requestAnimationFrame(()=>{resize();renderWaveChart();renderSpectrum()});
+  return scale;
 }
 function multiScreenSnapshot(){
   return {
@@ -1788,6 +1816,7 @@ function applyMultiScreenSnapshot(x){
   if(x.uiText)for(const [id,value] of Object.entries(x.uiText)){const el=document.getElementById(id);if(el)el.textContent=value}
   if(x.uiDisabled)for(const [id,value] of Object.entries(x.uiDisabled)){const el=document.getElementById(id);if(el)el.disabled=!!value}
   MULTI_SCREEN.lastStateAt=Date.now();MULTI_SCREEN.applying=false;
+  setTimeout(autoFitFiveScreen,40);
 }
 function broadcastMultiScreenState(){
   if(MULTI_SCREEN.channel&&MULTI_SCREEN.owner)MULTI_SCREEN.channel.postMessage({type:"STATE",state:multiScreenSnapshot()});
@@ -1850,7 +1879,7 @@ restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatal
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
-window.addEventListener("resize",()=>{resize();renderWaveChart();});resize();
+let fitResizeTimer=null;window.addEventListener("resize",()=>{clearTimeout(fitResizeTimer);fitResizeTimer=setTimeout(()=>{resize();renderWaveChart();autoFitFiveScreen()},90)});resize();if(MULTI_SCREEN.enabled){[160,480,1000].forEach(ms=>setTimeout(autoFitFiveScreen,ms));}
 })();
 </script>
 </body>
