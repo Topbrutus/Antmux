@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -528,6 +529,67 @@ class FaultRequest(BaseModel):
 
 
 DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-queen/data"))
+ZEL_INGEST_TOKEN = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
+ZEL_MAX_BODY_BYTES = 65536
+zel_state: dict[str, Any] | None = None
+zel_state_version = 0
+zel_state_condition = asyncio.Condition()
+
+
+def normalize_zel_public_state(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="invalid payload")
+    if raw.get("mode") != "PUBLIC_SAFE" or raw.get("read_only") is not True:
+        raise HTTPException(status_code=400, detail="PUBLIC_SAFE read-only payload required")
+    stage_index = raw.get("stage_index")
+    if type(stage_index) is not int or not 0 <= stage_index <= 6:
+        raise HTTPException(status_code=400, detail="invalid stage_index")
+    channels = raw.get("channels")
+    trace_points = raw.get("trace_points")
+    trace_total = raw.get("trace_total")
+    public_values_total = raw.get("public_values_total", 0)
+    for name, value, lo, hi in (
+        ("channels", channels, 0, 36),
+        ("trace_points", trace_points, 0, 10000),
+        ("trace_total", trace_total, 1, 10000),
+        ("public_values_total", public_values_total, 0, 10000),
+    ):
+        if type(value) is not int or not lo <= value <= hi:
+            raise HTTPException(status_code=400, detail=f"invalid {name}")
+    stage = str(raw.get("stage", ""))[:64]
+    if not stage:
+        raise HTTPException(status_code=400, detail="invalid stage")
+    ge = raw.get("global_error") if isinstance(raw.get("global_error"), dict) else {}
+    f1 = raw.get("f1") if isinstance(raw.get("f1"), dict) else {}
+    vals = raw.get("public_values") if isinstance(raw.get("public_values"), list) else []
+    safe_vals: list[dict[str, Any]] = []
+    for v in vals[:36]:
+        if isinstance(v, dict):
+            safe_vals.append({"exact": str(v.get("exact", ""))[:128], "decimal": v.get("decimal", 0)})
+    return {
+        "mode": "PUBLIC_SAFE",
+        "read_only": True,
+        "status": "LIVE",
+        "stage_index": stage_index,
+        "stage": stage,
+        "channels": channels,
+        "trace_points": trace_points,
+        "trace_total": trace_total,
+        "public_values": safe_vals,
+        "public_values_total": public_values_total,
+        "global_error": {"exact": str(ge.get("exact", ""))[:128], "decimal": ge.get("decimal", 0)},
+        "f1": {
+            "formula_id": str(f1.get("formula_id", ""))[:32],
+            "k": f1.get("k", 0),
+            "value": str(f1.get("value", ""))[:128],
+            "formula": str(f1.get("formula", ""))[:256],
+            "source_commit_short": str(f1.get("source_commit_short", ""))[:16],
+        },
+        "events": [],
+        "event_seq": raw.get("event_seq", 0) if type(raw.get("event_seq", 0)) is int else 0,
+        "timestamp": time.time(),
+    }
+
 DB_PATH = DATA_DIR / "queen.db"
 REPORT_PATH = DATA_DIR / "ANTMUX_X72_SERVER_SHARED_QUEEN_TEST_REPORT.json"
 
@@ -730,6 +792,51 @@ async def repair(request: Request) -> dict[str, Any]:
         queen.bus.emit(queen.tick, "REPAIR_COMPLETED", verdict=verdict, after_h256=after)
         persistence.save(queen)
         return {"ok": report_obj.verdict == "PASS", "report": asdict(report_obj), "state": queen.visual_state()}
+
+
+@app.post("/api/zelstereos/ingest")
+async def ingest_zelstereos(request: Request) -> dict[str, Any]:
+    global zel_state, zel_state_version
+    if not ZEL_INGEST_TOKEN:
+        raise HTTPException(status_code=503, detail="ZEL ingest disabled")
+    supplied = request.headers.get("authorization", "")
+    expected = f"Bearer {ZEL_INGEST_TOKEN}"
+    if not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > ZEL_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    body = await request.body()
+    if len(body) > ZEL_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    try:
+        raw = json.loads(body)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="invalid json") from exc
+    normalized = normalize_zel_public_state(raw)
+    async with zel_state_condition:
+        zel_state = normalized
+        zel_state_version += 1
+        version = zel_state_version
+        zel_state_condition.notify_all()
+    return {"ok": True, "version": version}
+
+
+@app.websocket("/ws/zelstereos")
+async def websocket_zelstereos(websocket: WebSocket) -> None:
+    await websocket.accept()
+    last_version = -1
+    try:
+        while True:
+            async with zel_state_condition:
+                await zel_state_condition.wait_for(
+                    lambda: zel_state is not None and zel_state_version != last_version
+                )
+                payload = dict(zel_state or {})
+                last_version = zel_state_version
+            await websocket.send_json(payload)
+    except WebSocketDisconnect:
+        return
 
 
 @app.websocket("/ws")

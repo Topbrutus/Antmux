@@ -169,11 +169,16 @@ $('soundTest').addEventListener('click',async()=>{await ensureAudio();soundMuted
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
-function render(s){
+function render(s,{audioFromWebSocket=false}={}){
   $('live').textContent=s.status==='OFFLINE'?'HORS LIGNE':(s.status==='SNAPSHOT'?'PUBLIC SNAPSHOT':'PUBLIC LIVE');
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
-  if(lastStageIndex!==null && s.stage_index!==lastStageIndex){if(s.stage_index===0)soundStart();else if(s.stage_index===6)soundEnd();else soundTempo(s.stage_index);}
+  const stageChanged=lastStageIndex!==null && s.stage_index!==lastStageIndex;
+  if(audioFromWebSocket && stageChanged){
+    if(s.stage_index===0)soundStart();
+    else if(s.stage_index===6)soundEnd();
+    else soundTempo(s.stage_index);
+  }
   lastStageIndex=s.stage_index;
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
   $('error').textContent=s.global_error.exact+' ≈ '+Number(s.global_error.decimal).toPrecision(6);
@@ -183,8 +188,38 @@ function render(s){
   $('valueNote').textContent=(s.public_values_total||0)+' valeur(s) dans cet étage · '+(s.public_values||[]).length+' affichée(s) publiquement.';
   $('events').innerHTML='';const evs=(s.events||[]).slice().reverse();if(!evs.length){$('events').innerHTML='<div class="event"><small>EN ATTENTE</small><code>Aucune activité publique pour le moment.</code></div>';}else{evs.forEach(ev=>{const d=document.createElement('div');const st=String(ev.status||'').toLowerCase();d.className='event '+(st==='pass'?'pass':st==='fail'?'fail':'');const sm=document.createElement('small');sm.textContent='#'+ev.seq+' · '+new Date(ev.timestamp*1000).toLocaleTimeString('fr-CA',{hour12:false})+' · '+ev.source+' · '+ev.kind+' · '+ev.status;const code=document.createElement('code');code.textContent=ev.label+(ev.detail?' — '+ev.detail:'');d.appendChild(sm);d.appendChild(code);$('events').appendChild(d);});}
 }
-async function poll(){try{const r=await fetch('./api/state',{cache:'no-store'});const s=await r.json();render(s);}catch(e){render({status:'OFFLINE'});}}
-buildStages();poll();setInterval(poll,500);
+const ZEL_WS_PATH='/laboratoire/embryon-x72/ws/zelstereos';
+let zelSocket=null;
+let zelReconnectTimer=null;
+function connectZelWebSocket(){
+  clearTimeout(zelReconnectTimer);
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  zelSocket=new WebSocket(proto+'//'+location.host+ZEL_WS_PATH);
+  zelSocket.addEventListener('message',ev=>{
+    try{
+      const s=JSON.parse(ev.data);
+      // REAL AUDIO CYCLE: value arrives by WebSocket; browser renders it,
+      // then synthesizes the corresponding sound locally. Audio bytes never transit.
+      render(s,{audioFromWebSocket:true});
+    }catch(e){}
+  });
+  zelSocket.addEventListener('close',()=>{zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
+  zelSocket.addEventListener('error',()=>{try{zelSocket.close();}catch(e){}});
+}
+async function poll(){
+  try{
+    const r=await fetch('./api/state',{cache:'no-store'});
+    const s=await r.json();
+    // Polling is display/state fallback only. It MUST NOT trigger cycle audio.
+    render(s,{audioFromWebSocket:false});
+  }catch(e){
+    render({status:'OFFLINE'},{audioFromWebSocket:false});
+  }
+}
+buildStages();
+connectZelWebSocket();
+poll();
+setInterval(poll,2000);
 </script>
 </body>
 </html>
