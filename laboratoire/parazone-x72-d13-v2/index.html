@@ -511,7 +511,7 @@ function renderSamplerQuality(){
   const mean=intervals.reduce((a,b)=>a+b,0)/n;
   const variance=intervals.reduce((a,b)=>a+(b-mean)*(b-mean),0)/n;
   const std=Math.sqrt(variance);
-  const maxJitter=Math.max(...run.map(v=>Math.abs(Number.isFinite(v.jitter_ms)?v.jitter_ms:0)));
+  const maxJitter=run.reduce((max,v)=>{const j=Math.abs(Number.isFinite(v.jitter_ms)?v.jitter_ms:0);return j>max?j:max;},0);
   const rate=1000/mean;
   const cv=mean>0?std/mean:null;
   document.getElementById("qualityState").textContent="MEASURED · LOCAL CLOCK";
