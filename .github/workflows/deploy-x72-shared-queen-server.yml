@@ -55,7 +55,8 @@ jobs:
             deploy/x72-shared-queen/tests/run_server_tests.py \
             deploy/x72-shared-queen/tests/test_relation_runtime.py \
             deploy/x72-shared-queen/tests/check_frontend_authority.py \
-            deploy/x72-shared-queen/tests/check_runtime_metrics.py
+            deploy/x72-shared-queen/tests/check_runtime_metrics.py \
+            deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py
           node --check deploy/x72-shared-queen/frontend/app.js
           cmp -s laboratoire/embryon-x72/app.js deploy/x72-shared-queen/frontend/app.js
           cmp -s laboratoire/embryon-x72/index.html deploy/x72-shared-queen/frontend/index.html
@@ -80,16 +81,26 @@ jobs:
           python3 deploy/x72-shared-queen/tests/check_runtime_metrics.py
 
           ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data" \
+          ANTMUX_ZEL_INGEST_TOKEN="runner-zel-order-test" \
           PYTHONPATH="$PWD/_x72_runner_vendor" \
           python3 -m uvicorn app.server:app \
             --app-dir deploy/x72-shared-queen \
             --host 127.0.0.1 \
             --port 8720 \
+            --timeout-graceful-shutdown 5 \
             > _x72_runner_uvicorn.log 2>&1 &
           RUNNER_PID="$!"
           cleanup_runner() {
             if kill -0 "$RUNNER_PID" >/dev/null 2>&1; then
               kill "$RUNNER_PID" >/dev/null 2>&1 || true
+              for _ in $(seq 1 20); do
+                if ! kill -0 "$RUNNER_PID" >/dev/null 2>&1; then
+                  wait "$RUNNER_PID" >/dev/null 2>&1 || true
+                  return
+                fi
+                sleep 0.25
+              done
+              kill -KILL "$RUNNER_PID" >/dev/null 2>&1 || true
               wait "$RUNNER_PID" >/dev/null 2>&1 || true
             fi
           }
@@ -101,6 +112,11 @@ jobs:
             sleep 0.5
           done
           curl --fail --silent --show-error http://127.0.0.1:8720/api/health
+          PYTHONPATH="$PWD/_x72_runner_vendor" \
+          python3 deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py \
+            --base http://127.0.0.1:8720 \
+            --ws 'ws://127.0.0.1:8720/ws?channel=zelstereos' \
+            --token runner-zel-order-test
           PYTHONPATH="$PWD/_x72_runner_vendor" \
           python3 deploy/x72-shared-queen/tests/run_server_tests.py \
             --base http://127.0.0.1:8720 \
@@ -216,6 +232,15 @@ jobs:
           cleanup_temp() {
             if [ -n "${TEMP_PID:-}" ] && kill -0 "$TEMP_PID" >/dev/null 2>&1; then
               kill "$TEMP_PID" >/dev/null 2>&1 || true
+              for _ in $(seq 1 20); do
+                if ! kill -0 "$TEMP_PID" >/dev/null 2>&1; then
+                  wait "$TEMP_PID" >/dev/null 2>&1 || true
+                  return
+                fi
+                sleep 0.25
+              done
+              printf 'TEMP_UVICORN_FORCE_KILL=1\n'
+              kill -KILL "$TEMP_PID" >/dev/null 2>&1 || true
               wait "$TEMP_PID" >/dev/null 2>&1 || true
             fi
           }
@@ -295,6 +320,7 @@ jobs:
           python3 -m uvicorn app.server:app \
             --host 127.0.0.1 \
             --port 8720 \
+            --timeout-graceful-shutdown 5 \
             > "$APP_ROOT/logs/temp-uvicorn.log" 2>&1 &
           TEMP_PID="$!"
           for _ in $(seq 1 60); do
@@ -362,6 +388,7 @@ jobs:
           python3 -m uvicorn app.server:app \
             --host 127.0.0.1 \
             --port 8720 \
+            --timeout-graceful-shutdown 5 \
             > "$APP_ROOT/logs/temp-uvicorn-restart.log" 2>&1 &
           TEMP_PID="$!"
           for _ in $(seq 1 60); do
@@ -401,7 +428,7 @@ jobs:
           Environment=ANTMUX_X72_DATA_DIR=$APP_ROOT/data
           Environment=PYTHONPATH=$APP_ROOT/vendor
           EnvironmentFile=$APP_ROOT/zel.env
-          ExecStart=/usr/bin/python3 -m uvicorn app.server:app --host 127.0.0.1 --port 8720
+          ExecStart=/usr/bin/python3 -m uvicorn app.server:app --host 127.0.0.1 --port 8720 --timeout-graceful-shutdown 5
           Restart=on-failure
           RestartSec=3
 
