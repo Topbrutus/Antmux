@@ -202,6 +202,25 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     </section>
   </section>
 
+  <section class="monitorWall" aria-label="Mur de moniteurs BRUTUS secondaire">
+    <section class="panel monitorPanel monitorCyan" id="MONITOR-INPUT-01"><h2>ENTRÉE / AMPLITUDE <span class="panelId">MONITOR-INPUT-01</span></h2>
+      <div class="monitorGraph"><div id="monitorInputEmpty" class="monitorNoData">NO T1 MEASUREMENT</div><div id="monitorInputTrace" class="monitorTrace"></div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>AMPLITUDE</strong><span id="monitorInputAmp">NONE</span></div><div class="monitorStat"><strong>MEASURE #</strong><span id="monitorInputTick">NONE</span></div><div class="monitorStat"><strong>PROOF</strong><span id="monitorInputProof">NONE</span></div><div class="monitorStat"><strong>STATE</strong><span id="monitorInputState">T0</span></div></div>
+    </section>
+    <section class="panel monitorPanel monitorGold" id="MONITOR-TIMEBASE-02"><h2>CADENCE / TIMEBASE <span class="panelId">MONITOR-TIMEBASE-02</span></h2>
+      <div class="monitorGraph"><div id="monitorTimeEmpty" class="monitorNoData">NO EVENT TIMEBASE</div><div id="monitorTimeTrace" class="monitorTrace"></div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>EVENTS</strong><span id="monitorTimeEvents">0</span></div><div class="monitorStat"><strong>LAST Δt</strong><span id="monitorTimeDt">NONE</span></div><div class="monitorStat"><strong>CLOCK</strong>MONOTONIC</div><div class="monitorStat"><strong>MODE</strong>IRREGULAR</div></div>
+    </section>
+    <section class="panel monitorPanel monitorCyan" id="MONITOR-SAMPLER-02"><h2>ÉCHANTILLONNEUR / JITTER <span class="panelId">MONITOR-SAMPLER-02</span></h2>
+      <div class="monitorGraph"><div id="monitorSamplerEmpty" class="monitorNoData">SAMPLER IDLE</div><div id="monitorSamplerTrace" class="monitorTrace"></div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>SAMPLES</strong><span id="monitorSamplerSamples">0</span></div><div class="monitorStat"><strong>LAST Δt</strong><span id="monitorSamplerDt">NONE</span></div><div class="monitorStat"><strong>JITTER</strong><span id="monitorSamplerJitter">NONE</span></div><div class="monitorStat"><strong>STATE</strong><span id="monitorSamplerState">IDLE</span></div></div>
+    </section>
+    <section class="panel monitorPanel monitorViolet" id="MONITOR-GENERATOR-02"><h2>GÉNÉRATEUR / PRESET <span class="panelId">MONITOR-GENERATOR-02</span></h2>
+      <div class="monitorGraph"><div id="monitorGenEmpty" class="monitorNoData">NO ARMED PRESET</div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>PRESET</strong><span id="monitorGenPreset">NONE</span></div><div class="monitorStat"><strong>MODE</strong><span id="monitorGenMode">NONE</span></div><div class="monitorStat"><strong>FREQ.</strong><span id="monitorGenHz">NONE</span></div><div class="monitorStat"><strong>STATE</strong><span id="monitorGenState">IDLE</span></div></div>
+    </section>
+  </section>
+
   <section class="instrumentDeck">
   <section class="panel" id="ANALYSIS-AMP-01"><h2>AMPLITUDE / INPUT <span class="panelId">ANALYSIS-AMP-01</span></h2>
     <div class="obsGrid">
@@ -765,6 +784,51 @@ function classifyCrackleEvents(){
   document.getElementById("classStatus").textContent="RULE-BASED SYNTHETIC CLASSIFICATION · NOT A MATERIAL PROPERTY";
   return {events:events.length,weak,medium,strong,bursts};
 }
+function renderAuxMonitors(){
+  const inputEmpty=document.getElementById("monitorInputEmpty"),inputTrace=document.getElementById("monitorInputTrace");
+  const hist=T1.history.filter(v=>v&&Number.isFinite(v.after)).slice(-40);
+  document.getElementById("monitorInputAmp").textContent=T1.value===null?"NONE":T1.value.toFixed(6);
+  document.getElementById("monitorInputTick").textContent=T1.tick?String(T1.tick):"NONE";
+  document.getElementById("monitorInputProof").textContent=T1.proof==="NONE"?"NONE":T1.proof.slice(0,12)+"…";
+  document.getElementById("monitorInputState").textContent=T1.connected===1?"T1 · LIVE":"T0";
+  if(hist.length){
+    inputEmpty.style.display="none";
+    const pts=hist.map((v,i)=>((i/(Math.max(hist.length-1,1)))*320).toFixed(1)+","+(36-v.after*32).toFixed(1)).join(" ");
+    inputTrace.innerHTML='<svg viewBox="0 0 320 38" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="#00e8ff" stroke-width="2"/></svg>';
+  }else{inputEmpty.style.display="grid";inputTrace.innerHTML=""}
+
+  const timeEmpty=document.getElementById("monitorTimeEmpty"),timeTrace=document.getElementById("monitorTimeTrace");
+  const th=TIMEBASE.history.slice(-40);
+  const tlast=th.length?th[th.length-1]:null;
+  document.getElementById("monitorTimeEvents").textContent=String(TIMEBASE.history.length);
+  document.getElementById("monitorTimeDt").textContent=tlast&&Number.isFinite(tlast.dt_ms)?tlast.dt_ms.toFixed(3)+" ms":"NONE";
+  if(th.some(v=>Number.isFinite(v.dt_ms))){
+    timeEmpty.style.display="none";
+    const vals=th.filter(v=>Number.isFinite(v.dt_ms)),max=Math.max(...vals.map(v=>v.dt_ms),1);
+    const pts=vals.map((v,i)=>((i/(Math.max(vals.length-1,1)))*320).toFixed(1)+","+(36-(v.dt_ms/max)*32).toFixed(1)).join(" ");
+    timeTrace.innerHTML='<svg viewBox="0 0 320 38" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="#ffae42" stroke-width="2"/></svg>';
+  }else{timeEmpty.style.display="grid";timeTrace.innerHTML=""}
+
+  const samplerEmpty=document.getElementById("monitorSamplerEmpty"),samplerTrace=document.getElementById("monitorSamplerTrace");
+  const sh=SAMPLER.history.slice(-40),slast=sh.length?sh[sh.length-1]:null;
+  document.getElementById("monitorSamplerSamples").textContent=String(SAMPLER.history.length);
+  document.getElementById("monitorSamplerDt").textContent=slast&&Number.isFinite(slast.dt_ms)?slast.dt_ms.toFixed(3)+" ms":"NONE";
+  document.getElementById("monitorSamplerJitter").textContent=slast&&Number.isFinite(slast.jitter_ms)?slast.jitter_ms.toFixed(3)+" ms":"NONE";
+  document.getElementById("monitorSamplerState").textContent=SAMPLER.running?"RUNNING":(sh.length?"STOPPED":"IDLE");
+  if(sh.some(v=>Number.isFinite(v.jitter_ms))){
+    samplerEmpty.style.display="none";
+    const vals=sh.filter(v=>Number.isFinite(v.jitter_ms)),max=Math.max(...vals.map(v=>Math.abs(v.jitter_ms)),1);
+    const pts=vals.map((v,i)=>((i/(Math.max(vals.length-1,1)))*320).toFixed(1)+","+(19-(v.jitter_ms/max)*15).toFixed(1)).join(" ");
+    samplerTrace.innerHTML='<svg viewBox="0 0 320 38" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="#00e99a" stroke-width="2"/></svg>';
+  }else{samplerEmpty.style.display="grid";samplerTrace.innerHTML=""}
+
+  const gc=SIGNAL_GENERATOR.config;
+  document.getElementById("monitorGenPreset").textContent=gc?String(gc.preset_id).padStart(2,"0")+" · "+gc.name:"NONE";
+  document.getElementById("monitorGenMode").textContent=gc?gc.mode:"NONE";
+  document.getElementById("monitorGenHz").textContent=gc&&Number.isFinite(gc.frequency_hz)?gc.frequency_hz.toFixed(3)+" Hz":"NONE";
+  document.getElementById("monitorGenState").textContent=SIGNAL_GENERATOR.armed?"ARMED":"IDLE";
+  document.getElementById("monitorGenEmpty").style.display=SIGNAL_GENERATOR.armed?"none":"grid";
+}
 function renderCrackDensityMonitor(){
   const events=POPCORN_BASIN.samples.filter(v=>v&&v.transient_trigger===true&&Number.isFinite(v.t_model_s));
   const empty=document.getElementById("crackDensityEmpty"),trace=document.getElementById("crackDensityTrace");
@@ -809,7 +873,7 @@ function renderPopcornBasin(){
   document.getElementById("popcornRate").textContent=Number.isFinite(POPCORN_BASIN.sample_rate_hz)?POPCORN_BASIN.sample_rate_hz.toFixed(3)+" model Hz":"NONE";
   document.getElementById("popcornWindow").textContent=Number.isFinite(POPCORN_BASIN.window_s)?POPCORN_BASIN.window_s.toFixed(6)+" s":"NONE";
   document.getElementById("popcornStatus").textContent=POPCORN_BASIN.samples.length?"FILLED · SYNTHETIC CRACK TRANSIENTS":"EMPTY · SYNTHETIC ONLY";
-  renderCrackDensityMonitor();
+  renderCrackDensityMonitor();renderAuxMonitors();
 }
 function fillPopcornBasin(){
   const c=SIGNAL_GENERATOR.config;
@@ -868,9 +932,9 @@ function armSignalGenerator(){
     auto_profile:slot.auto_profile,reference_id:slot.reference_id,
     source_kind:"SYNTHETIC_TEST_CONFIG",output_state:"DISCONNECTED"
   });
-  SIGNAL_GENERATOR.armed=true;renderSignalGenerator();return true;
+  SIGNAL_GENERATOR.armed=true;renderSignalGenerator();renderAuxMonitors();return true;
 }
-function clearSignalGenerator(){SIGNAL_GENERATOR.armed=false;SIGNAL_GENERATOR.config=null;clearPopcornBasin();renderSignalGenerator();return true;}
+function clearSignalGenerator(){SIGNAL_GENERATOR.armed=false;SIGNAL_GENERATOR.config=null;clearPopcornBasin();renderSignalGenerator();renderAuxMonitors();return true;}
 function renderReferenceCatalog(){
   const body=document.getElementById("referenceCatalogBody");if(!body)return;
   body.innerHTML="";
@@ -1005,7 +1069,7 @@ function renderSampler(){
   const btn=document.getElementById("samplerToggle");
   btn.disabled=!ready&&!SAMPLER.running;
   btn.textContent=SAMPLER.running?"STOP SAMPLER":"START SAMPLER";
-  renderWaveChart();renderSamplerQuality();
+  renderWaveChart();renderSamplerQuality();renderAuxMonitors();
 }
 async function captureScheduledSample(runId){
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
@@ -1058,7 +1122,7 @@ function renderTimebase(){
   document.getElementById("timeDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
   document.getElementById("timeProof").textContent=last?last.proof_ref:"NONE";
   document.getElementById("histTimebase").textContent=last?"EVENT_TIMEBASE_CONNECTED":"NOT_CONNECTED";
-  renderSampler();
+  renderSampler();renderAuxMonitors();
   return {events:TIMEBASE.history.length,lastDt:last?last.dt_ms:null};
 }
 async function captureTimebase(sourceRecord){
@@ -1154,7 +1218,7 @@ async function injectT1(forcedValue){
     document.getElementById("currentState").textContent="CURRENT T1 · CONNECTED 1 · RECORDS "+T1.history.length;
     const t2Btn=document.getElementById("t2Connect");
     if(!T2.connected){t2Btn.disabled=false;document.getElementById("t2State").textContent="STATE: READY · B1 VALID · B2 NOT_CONNECTED";}
-    renderHistory();renderObservationBus();resize();
+    renderHistory();renderObservationBus();renderAuxMonitors();resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -1316,7 +1380,7 @@ document.getElementById("presetClear").addEventListener("click",clearSelectedPre
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();renderCrackDensityMonitor();
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
