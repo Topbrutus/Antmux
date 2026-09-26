@@ -102,9 +102,27 @@ const activationSounds=[activationRelay,activationServo,activationCapacitor,acti
 function soundStart(){const i=Math.floor(Math.random()*activationSounds.length);activationSounds[i]();return i;}
 function soundTempo(i){tone(180+(i*24),.055,0,.11);}
 function soundEnd(){tone(440,.11,0,.16);tone(330,.13,.09,.15);tone(220,.19,.18,.17);}
+function motorVoice(freq,delay=.0,gain=.035){tone(freq,.11,delay,gain);tone(freq*.985,.08,delay+.10,gain*.72);}
+function squadStage(count,baseFreq,startDelay,duration=.42){
+  const spread=Math.min(180,18+count*4);
+  const gain=Math.max(.012,.05/Math.sqrt(count));
+  for(let i=0;i<count;i++){
+    const offset=(i/Math.max(1,count-1)-.5)*spread;
+    const jitter=(i%7)*.006;
+    motorVoice(Math.max(72,baseFreq+offset),startDelay+jitter,gain);
+  }
+}
+function soundSquadDemo(){
+  soundStart();
+  const seq=[1,3,9,36,9,3,1];
+  const freq=[520,470,410,300,390,455,520];
+  let t=.62;
+  seq.forEach((count,i)=>{squadStage(count,freq[i],t);t+=.48;});
+  setTimeout(()=>soundEnd(),Math.round((t+.08)*1000));
+}
 function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);}
 $('soundToggle').addEventListener('click',()=>{ensureAudio();soundMuted=!soundMuted;localStorage.setItem('zel-sound-muted',soundMuted?'1':'0');syncSoundUI();if(!soundMuted)tone(330,.08,0,.1);});
-$('soundTest').addEventListener('click',()=>{ensureAudio();soundMuted=false;localStorage.setItem('zel-sound-muted','0');syncSoundUI();soundStart();setTimeout(()=>soundTempo(1),760);setTimeout(()=>soundTempo(3),1020);setTimeout(()=>soundTempo(5),1260);setTimeout(()=>soundEnd(),1580);});
+$('soundTest').addEventListener('click',()=>{ensureAudio();soundMuted=false;localStorage.setItem('zel-sound-muted','0');syncSoundUI();soundSquadDemo();});
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
