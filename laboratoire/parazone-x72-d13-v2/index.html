@@ -1713,7 +1713,7 @@ document.getElementById("audioOutFollow").addEventListener("click",toggleAudioFo
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
-const SCREEN_NAMES={1:"MASTER / VUE PRINCIPALE",2:"ANALYSIS / MUR SCIENTIFIQUE",3:"OPERATOR / TABLE & GÉNÉRATEUR",4:"CONTROL / CHAÎNE T1→T5",5:"SETTINGS / ÉTAT & RÉGLAGES"};
+const SCREEN_NAMES={1:"MASTER",2:"ANALYSIS",3:"OPERATOR",4:"CONTROL",5:"SETTINGS"};
 const SCREEN_MODE=Number(new URLSearchParams(location.search).get("screen")||0);
 const MULTI_SCREEN={enabled:SCREEN_MODE>=1&&SCREEN_MODE<=5,screen:SCREEN_MODE,owner:SCREEN_MODE===3||SCREEN_MODE===0,channel:null,applying:false,lastStateAt:0};
 function setScreenVisibility(el,screens){
@@ -1724,8 +1724,8 @@ function setScreenVisibility(el,screens){
 function applyFiveScreenLayout(){
   if(!MULTI_SCREEN.enabled)return;
   document.body.classList.add("brutusScreenMode","screenMode"+SCREEN_MODE);
-  document.getElementById("screenTitle").textContent="ÉCRAN "+SCREEN_MODE+" · "+SCREEN_NAMES[SCREEN_MODE];
-  document.getElementById("screenRole").textContent=MULTI_SCREEN.owner?"CORE OWNER":"SYNCHRONIZED VIEW";
+  document.getElementById("screenTitle").textContent="BRUTUS // SCREEN "+SCREEN_MODE;
+  document.getElementById("screenRole").textContent=SCREEN_NAMES[SCREEN_MODE]+" · "+(MULTI_SCREEN.owner?"CORE OWNER":"SYNCHRONIZED VIEW");
   document.getElementById("fiveScreenBadge").textContent="SCREEN "+SCREEN_MODE+" / 5 · "+(MULTI_SCREEN.owner?"CORE":"VIEW");
   setScreenVisibility(document.querySelector(".layout"),[1]);
   document.querySelectorAll(".monitorWall").forEach(el=>setScreenVisibility(el,[2]));
