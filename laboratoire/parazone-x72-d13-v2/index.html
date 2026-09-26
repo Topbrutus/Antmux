@@ -391,6 +391,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
         <div class="audioOutputActions">
           <button id="audioOutEnable" type="button">ENABLE AUDIO OUTPUT</button>
           <button id="audioOutDisable" type="button">STOP AUDIO OUTPUT</button>
+          <button id="audioOutFollow" type="button">FOLLOW TABLE: OFF</button>
         </div>
       </div>
       <div class="note">SORTIE PHYSIQUE LOCALE VIA AUDIO SYSTÈME · ARMEMENT MANUEL OBLIGATOIRE · SINE ONLY · 20–20000 Hz · GAIN MAX 0.05</div>
@@ -595,7 +596,7 @@ const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"N
 const SPECTRUM={fft_size:64,frames:[],max_frames:96,last:null,gate:{min_samples:64,max_cv:0.05,max_jitter_ratio:0.25}};
 const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 const SIGNAL_GENERATOR={armed:false,config:null};
-const AUDIO_OUTPUT={running:false,ctx:null,osc:null,gain:null,frequency_hz:null,gain_value:0,max_gain:0.05};
+const AUDIO_OUTPUT={running:false,ctx:null,osc:null,gain:null,frequency_hz:null,gain_value:0,max_gain:0.05,follow_table:false,hold_ref_hz:null};
 const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
 const MASTER_SESSION={state:"READY",started_at:null};
@@ -1037,11 +1038,28 @@ async function disableMicrophone(){
   Object.assign(REAL_INPUT,{kind:"NONE",stream:null,ctx:null,analyser:null,data:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null});
   renderMicrophone();renderSpectrum();renderSampler();return true;
 }
+function syncAudioOutputToReference(ref){
+  if(!AUDIO_OUTPUT.follow_table||!AUDIO_OUTPUT.running||!ref)return false;
+  if(!Number.isFinite(ref.claimed_hz)||ref.claimed_hz<20||ref.claimed_hz>20000){
+    if(AUDIO_OUTPUT.gain&&AUDIO_OUTPUT.ctx){try{AUDIO_OUTPUT.gain.gain.setTargetAtTime(0,AUDIO_OUTPUT.ctx.currentTime,0.02)}catch(_){}}
+    AUDIO_OUTPUT.hold_ref_hz=ref.claimed_hz;renderAudioOutput();return false;
+  }
+  AUDIO_OUTPUT.hold_ref_hz=null;AUDIO_OUTPUT.frequency_hz=ref.claimed_hz;
+  if(AUDIO_OUTPUT.osc&&AUDIO_OUTPUT.ctx)AUDIO_OUTPUT.osc.frequency.setTargetAtTime(ref.claimed_hz,AUDIO_OUTPUT.ctx.currentTime,0.02);
+  if(AUDIO_OUTPUT.gain&&AUDIO_OUTPUT.ctx)AUDIO_OUTPUT.gain.gain.setTargetAtTime(AUDIO_OUTPUT.gain_value,AUDIO_OUTPUT.ctx.currentTime,0.02);
+  renderAudioOutput();return true;
+}
+function toggleAudioFollowTable(){
+  AUDIO_OUTPUT.follow_table=!AUDIO_OUTPUT.follow_table;
+  renderAudioOutput();return AUDIO_OUTPUT.follow_table;
+}
 function renderAudioOutput(){
   const cfg=SIGNAL_GENERATOR.config;
-  document.getElementById("audioOutState").textContent=AUDIO_OUTPUT.running?"ON · PHYSICAL AUDIO":"OFF";
-  document.getElementById("audioOutHz").textContent=AUDIO_OUTPUT.running&&Number.isFinite(AUDIO_OUTPUT.frequency_hz)?AUDIO_OUTPUT.frequency_hz.toFixed(3)+" Hz":(cfg&&Number.isFinite(cfg.frequency_hz)?cfg.frequency_hz.toFixed(3)+" Hz":"NONE");
-  document.getElementById("audioOutGain").textContent=AUDIO_OUTPUT.running?AUDIO_OUTPUT.gain_value.toFixed(3):"0.000";
+  const held=Number.isFinite(AUDIO_OUTPUT.hold_ref_hz);
+  document.getElementById("audioOutState").textContent=held?"HOLD · TABLE REF OUTSIDE AUDIO RANGE":(AUDIO_OUTPUT.running?"ON · PHYSICAL AUDIO":"OFF");
+  document.getElementById("audioOutHz").textContent=held?"HOLD · "+AUDIO_OUTPUT.hold_ref_hz.toFixed(3)+" Hz REF":(AUDIO_OUTPUT.running&&Number.isFinite(AUDIO_OUTPUT.frequency_hz)?AUDIO_OUTPUT.frequency_hz.toFixed(3)+" Hz":(cfg&&Number.isFinite(cfg.frequency_hz)?cfg.frequency_hz.toFixed(3)+" Hz":"NONE"));
+  document.getElementById("audioOutGain").textContent=AUDIO_OUTPUT.running&&!held?AUDIO_OUTPUT.gain_value.toFixed(3):"0.000";
+  document.getElementById("audioOutFollow").textContent="FOLLOW TABLE: "+(AUDIO_OUTPUT.follow_table?"ON":"OFF");
 }
 function validateAudioOutputConfig(){
   const c=SIGNAL_GENERATOR.config;
@@ -1061,14 +1079,14 @@ async function enableAudioOutput(){
   gain.gain.setValueAtTime(0,ctx.currentTime);
   osc.connect(gain);gain.connect(ctx.destination);osc.start();
   gain.gain.linearRampToValueAtTime(safeGain,ctx.currentTime+0.03);
-  Object.assign(AUDIO_OUTPUT,{running:true,ctx,osc,gain,frequency_hz:c.frequency_hz,gain_value:safeGain});
+  Object.assign(AUDIO_OUTPUT,{running:true,ctx,osc,gain,frequency_hz:c.frequency_hz,gain_value:safeGain,hold_ref_hz:null});
   renderAudioOutput();renderSignalGenerator();renderMasterSession();return true;
 }
 function disableAudioOutput(){
   if(AUDIO_OUTPUT.gain&&AUDIO_OUTPUT.ctx){try{AUDIO_OUTPUT.gain.gain.cancelScheduledValues(AUDIO_OUTPUT.ctx.currentTime);AUDIO_OUTPUT.gain.gain.setValueAtTime(0,AUDIO_OUTPUT.ctx.currentTime)}catch(_){}}
   if(AUDIO_OUTPUT.osc){try{AUDIO_OUTPUT.osc.stop()}catch(_){}}
   if(AUDIO_OUTPUT.ctx){try{AUDIO_OUTPUT.ctx.close()}catch(_){}}
-  Object.assign(AUDIO_OUTPUT,{running:false,ctx:null,osc:null,gain:null,frequency_hz:null,gain_value:0});
+  Object.assign(AUDIO_OUTPUT,{running:false,ctx:null,osc:null,gain:null,frequency_hz:null,gain_value:0,hold_ref_hz:null});
   renderAudioOutput();renderSignalGenerator();renderMasterSession();return true;
 }
 function renderSignalGenerator(){
@@ -1156,6 +1174,7 @@ function applyReferenceToPreset(ref,index){
   document.getElementById("presetRef").value=ref.id;
   document.getElementById("presetStatus").textContent="REFERENCE LOADED · CONFIG ONLY · NOT MEASURED";
   FREQ_TABLE.index=Number.isInteger(index)?index:REFERENCE_CATALOG.indexOf(ref);
+  syncAudioOutputToReference(ref);
   renderFreqAutomation();renderControlRack();return true;
 }
 function stepFrequencyTable(delta=1){
@@ -1681,6 +1700,7 @@ document.getElementById("micEnable").addEventListener("click",()=>enableMicropho
 document.getElementById("micDisable").addEventListener("click",()=>disableMicrophone());
 document.getElementById("audioOutEnable").addEventListener("click",()=>enableAudioOutput().catch(err=>{document.getElementById("audioOutState").textContent="ERROR · "+err.message}));
 document.getElementById("audioOutDisable").addEventListener("click",disableAudioOutput);
+document.getElementById("audioOutFollow").addEventListener("click",toggleAudioFollowTable);
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
