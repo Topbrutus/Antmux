@@ -1339,6 +1339,16 @@ function renderHistory(){
   const h=document.getElementById("t1History");
   h.textContent=T1.history.length?T1.history.map(r=>"#"+String(r.tick).padStart(3,"0")+" | QUI="+r.who+" | ÉTAT="+r.state+" | AVANT="+(r.before===null?"NONE":r.before.toFixed(6))+" | APRÈS="+r.after.toFixed(6)+" | TOPOLOGY="+r.topology_version+" | RESULT="+r.result+" | PROOF_REF="+r.proof_ref).join("\n"):"APPEND-ONLY LOCAL LOG: EMPTY";
 }
+function invalidateDownstreamFromT1(reason="T1_SOURCE_CHANGED"){
+  for(const [n,state] of [[2,T2],[3,T3],[4,T4],[5,T5]]){
+    state.connected=0;state.proof="NONE";state.lastTrace="NONE";
+    const st=document.getElementById("t"+n+"State"),tr=document.getElementById("t"+n+"Trace"),pr=document.getElementById("t"+n+"Proof"),btn=document.getElementById("t"+n+"Connect");
+    if(st)st.textContent="STATE: INVALIDATED · "+reason;
+    if(tr)tr.textContent="TRACE: NONE";
+    if(pr)pr.textContent="PROOF-T"+n+"-SHA256: NONE";
+    if(btn)btn.disabled=n!==2;
+  }
+}
 async function injectT1(forcedValue){
   const stateEl=document.getElementById("t1State"),traceEl=document.getElementById("t1Trace"),proofEl=document.getElementById("t1Proof");
   try{
@@ -1361,9 +1371,11 @@ async function injectT1(forcedValue){
       result:delta===0?"IDENTITY_OK":"IDENTITY_MISMATCH",proof_ref:proof,
       input_active:1,amplitude,measured,delta,proof
     };
+    await captureTimebase(record);
+    const sourceChanged=T1.proof!=="NONE"&&T1.proof!==proof;
     T1.history.push(Object.freeze(record));
     Object.assign(T1,{tick,connected:1,measurements:T1.measurements+1,proofs:T1.proofs+1,value:amplitude,lastTrace:"SOURCE-00>FLOW-01>B1.INPUT",proof});
-    await captureTimebase(record);
+    if(sourceChanged)invalidateDownstreamFromT1("NEW T1 PROOF");
     stateEl.textContent="STATE: T1 · VALID · INPUT_ACTIVE: 1 · AMP: "+amplitude.toFixed(6)+" · LOCAL ONLY";
     traceEl.textContent="TRACE: "+T1.lastTrace+" · EDGE: FLOW-01 · INTRA_LEVEL · TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version+" · MEASURE: #"+tick;
     proofEl.textContent="PROOF-T1-SHA256: "+proof;
