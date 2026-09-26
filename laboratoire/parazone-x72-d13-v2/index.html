@@ -49,6 +49,9 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 .topologyPanel{margin-top:0}.topologyGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .topologyCell{background:#070a0c;border:1px solid #273039;border-radius:5px;padding:6px 8px;color:#89949d;font:8px Consolas,monospace;line-height:1.5}
 .topologyCell strong{display:block;color:#d6dde2;font-size:9px}.topologyWide{grid-column:1/-1}
+.obsGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.obsCell{background:#070a0c;border:1px solid #273039;border-radius:5px;padding:7px 8px;color:#89949d;font:8px Consolas,monospace;line-height:1.55;min-width:0;word-break:break-all}
+.obsCell strong{display:block;color:#d6dde2;font-size:9px;margin-bottom:2px}.obsWide{grid-column:1/-1}
 @media(max-width:1100px){.layout{grid-template-columns:1fr}.engine,#engineCanvas{min-height:660px}.left,.right{grid-template-columns:1fr 1fr;grid-template-rows:auto}.controls .controlGrid{grid-template-columns:1fr 1fr}.subtitle{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start}.title{font-size:15px}}
 </style>
@@ -186,6 +189,17 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
         </div>
       </div>
     </div>
+    <div class="t1Panel" id="OBS-BUS-01">
+      <div class="obsGrid">
+        <div class="obsCell"><strong>OBS-BUS-01</strong>READ ONLY · OUT-OF-BAND</div>
+        <div class="obsCell"><strong>SOURCE STREAMS</strong>T1 · T2 · T3 · T4 · T5</div>
+        <div class="obsCell"><strong>MOTOR WRITE</strong>NONE</div>
+        <div class="obsCell"><strong>OBSERVED</strong><span id="obsObserved">0 / 5</span></div>
+        <div class="obsCell"><strong>LAST SOURCE</strong><span id="obsLastSource">NONE</span></div>
+        <div class="obsCell"><strong>MEASUREMENT</strong>NONE · REFERENCES ONLY</div>
+        <div class="obsCell obsWide"><strong>LAST SOURCE PROOF</strong><span id="obsLastProof">NONE</span></div>
+      </div>
+    </div>
     <div class="t1Panel topologyPanel" id="TOPOLOGY-REGISTRY-01">
       <div class="topologyGrid">
         <div class="topologyCell"><strong>G_REFERENCE</strong><span id="topologyReference">ANTMUX-TOPOLOGY-T1.0.0</span></div>
@@ -204,7 +218,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. T2/T3/T4/T5 sont des connexions explicites sans calcul B2/B3, sans logique Gate/Crystal et sans nouvelle mesure. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -378,6 +392,21 @@ function renderTopologyStatus(){
 }
 function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
 async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
+function renderObservationBus(){
+  const sources=[
+    {id:"T1",connected:T1.connected,proof:T1.proof},
+    {id:"T2",connected:T2.connected,proof:T2.proof},
+    {id:"T3",connected:T3.connected,proof:T3.proof},
+    {id:"T4",connected:T4.connected,proof:T4.proof},
+    {id:"T5",connected:T5.connected,proof:T5.proof}
+  ];
+  const observed=sources.filter(v=>v.connected===1&&v.proof!=="NONE");
+  const last=observed.length?observed[observed.length-1]:null;
+  document.getElementById("obsObserved").textContent=observed.length+" / "+sources.length;
+  document.getElementById("obsLastSource").textContent=last?last.id:"NONE";
+  document.getElementById("obsLastProof").textContent=last?last.proof:"NONE";
+  return {observed:observed.length,lastSource:last?last.id:"NONE"};
+}
 function renderHistory(){
   const h=document.getElementById("t1History");
   h.textContent=T1.history.length?T1.history.map(r=>"#"+String(r.tick).padStart(3,"0")+" | QUI="+r.who+" | ÉTAT="+r.state+" | AVANT="+(r.before===null?"NONE":r.before.toFixed(6))+" | APRÈS="+r.after.toFixed(6)+" | TOPOLOGY="+r.topology_version+" | RESULT="+r.result+" | PROOF_REF="+r.proof_ref).join("\n"):"APPEND-ONLY LOCAL LOG: EMPTY";
@@ -414,7 +443,7 @@ async function injectT1(forcedValue){
     document.getElementById("currentState").textContent="CURRENT T1 · CONNECTED 1 · RECORDS "+T1.history.length;
     const t2Btn=document.getElementById("t2Connect");
     if(!T2.connected){t2Btn.disabled=false;document.getElementById("t2State").textContent="STATE: READY · B1 VALID · B2 NOT_CONNECTED";}
-    renderHistory();resize();
+    renderHistory();renderObservationBus();resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -446,7 +475,7 @@ async function connectT2(){
     document.getElementById("currentState").textContent="CURRENT T2 · CONNECTED 2 · RECORDS "+(T1.history.length+T2.history.length);
     const t3Btn=document.getElementById("t3Connect");
     if(!T3.connected){t3Btn.disabled=false;document.getElementById("t3State").textContent="STATE: READY · B2 CONNECTED · B3 NOT_CONNECTED";}
-    resize();
+    renderObservationBus();resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -478,7 +507,7 @@ async function connectT3(){
     document.getElementById("currentState").textContent="CURRENT T3 · CONNECTED 3 · RECORDS "+(T1.history.length+T2.history.length+T3.history.length);
     const t4Btn=document.getElementById("t4Connect");
     if(!T4.connected){t4Btn.disabled=false;document.getElementById("t4State").textContent="STATE: READY · B3 CONNECTED · GATE-01 NOT_CONNECTED";}
-    resize();
+    renderObservationBus();resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -510,7 +539,7 @@ async function connectT4(){
     document.getElementById("currentState").textContent="CURRENT T4 · CONNECTED 4 · RECORDS "+(T1.history.length+T2.history.length+T3.history.length+T4.history.length);
     const t5Btn=document.getElementById("t5Connect");
     if(!T5.connected){t5Btn.disabled=false;document.getElementById("t5State").textContent="STATE: READY · GATE-01 CONNECTED · CRYSTAL-01 NOT_CONNECTED";}
-    resize();
+    renderObservationBus();resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -540,7 +569,7 @@ async function connectT5(){
     proofEl.textContent="PROOF-T5-SHA256: "+proof;
     btn.disabled=true;btn.textContent="CRYSTAL CONNECTED";
     document.getElementById("currentState").textContent="CURRENT T5 · CONNECTED 5 · RECORDS "+(T1.history.length+T2.history.length+T3.history.length+T4.history.length+T5.history.length);
-    resize();
+    renderObservationBus();resize();
     return record;
   }catch(err){
     stateEl.textContent="STATE: ERROR · "+String(err&&err.message?err.message:err);
@@ -571,6 +600,7 @@ document.getElementById("t4Connect").addEventListener("click",connectT4);
 document.getElementById("t5Connect").addEventListener("click",connectT5);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
+renderObservationBus();
 window.addEventListener("resize",resize);resize();
 })();
 </script>
