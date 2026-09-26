@@ -88,7 +88,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .topNav{display:flex;gap:12px;align-items:center;justify-content:center;flex:1;color:#79a9c7;font:700 8px Consolas,monospace;letter-spacing:.08em;white-space:nowrap}
 .topNav span{padding:4px 5px;border-bottom:1px solid transparent}.topNav span:hover{color:#e9fbff;border-color:var(--cyan)}
 .connectionBadge{padding:5px 8px;border:1px solid #00a878;border-radius:6px;background:#06241b;color:#62ffc7;font:800 8px Consolas,monospace;box-shadow:0 0 10px #00e99a22;white-space:nowrap}
-.instrumentDeck{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;margin-top:9px}
+.instrumentDeck{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;margin-top:9px}.monitorWall{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:9px}.monitorPanel{min-height:150px}.monitorGraph{height:78px;border:1px solid #17364d;border-radius:6px;background:linear-gradient(180deg,#071421,#030910);position:relative;overflow:hidden}.monitorGraph:before{content:"";position:absolute;inset:0;background-image:linear-gradient(#00e8ff0c 1px,transparent 1px),linear-gradient(90deg,#00e8ff0c 1px,transparent 1px);background-size:18px 18px}.monitorTrace{position:absolute;left:7px;right:7px;bottom:10px;height:38px;opacity:.9}.monitorTrace svg{width:100%;height:100%}.monitorStats{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}.monitorStat{border:1px solid #1d3a50;border-radius:5px;background:#06101a;padding:5px 6px;font:8px Consolas,monospace;color:#83a8c1}.monitorStat strong{display:block;color:#dcecff;margin-bottom:2px}.monitorNoData{position:absolute;inset:0;display:grid;place-items:center;color:#628198;font:700 8px Consolas,monospace;letter-spacing:.08em;text-align:center}.monitorCyan{border-color:#14779d}.monitorCyan h2{color:#7ce8ff}.monitorViolet{border-color:#6d3db5}.monitorViolet h2{color:#d0a7ff}.monitorGold{border-color:#9d6a25}.monitorGold h2{color:#ffd58a}.monitorRed{border-color:#a43b31}.monitorRed h2{color:#ff9b84}
 .instrumentDeck>#ANALYSIS-AMP-01{grid-column:span 3}
 .instrumentDeck>#ANALYSIS-HISTORY-01{grid-column:span 3}
 .instrumentDeck>#TIMEBASE-01{grid-column:span 2}
@@ -112,8 +112,8 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .obsCell,.generatorCell,.crackCell,.classCell,.presetField,.presetDetail,.popcornMeta div,.topologyCell{box-shadow:inset 0 0 12px #001b2b35}
 .refTable th{background:#111008}
 .popcornBasin{min-height:220px}
-@media(max-width:1280px){.topNav{display:none}.instrumentDeck{grid-template-columns:repeat(6,minmax(0,1fr))}.instrumentDeck>*{grid-column:span 3!important}.instrumentDeck>#PRESET-BANK-01,.instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 6!important}}
-@media(max-width:900px){.instrumentDeck{grid-template-columns:1fr}.instrumentDeck>*{grid-column:1!important}.connectionBadge{display:none}}
+@media(max-width:1280px){.topNav{display:none}.monitorWall{grid-template-columns:repeat(2,minmax(0,1fr))}.instrumentDeck{grid-template-columns:repeat(6,minmax(0,1fr))}.instrumentDeck>*{grid-column:span 3!important}.instrumentDeck>#PRESET-BANK-01,.instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 6!important}}
+@media(max-width:900px){.monitorWall{grid-template-columns:1fr}.instrumentDeck{grid-template-columns:1fr}.instrumentDeck>*{grid-column:1!important}.connectionBadge{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.subtitle{display:block;width:100%;text-align:left}.brandMark{font-size:20px}}
 </style>
 </head>
@@ -181,6 +181,25 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
         </div>
       </section>
     </div>
+  </section>
+
+  <section class="monitorWall" aria-label="Mur de moniteurs BRUTUS">
+    <section class="panel monitorPanel monitorCyan" id="MONITOR-RESONANCE-01"><h2>RÉSONANCE / STABILITÉ <span class="panelId">MONITOR-RESONANCE-01</span></h2>
+      <div class="monitorGraph"><div class="monitorNoData">NO MEASUREMENT<br>WAITING FOR VERIFIED SOURCE</div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>PHASE</strong>NONE</div><div class="monitorStat"><strong>DRIFT</strong>NONE</div><div class="monitorStat"><strong>COHÉRENCE</strong>NONE</div><div class="monitorStat"><strong>STATUS</strong>HOLD</div></div>
+    </section>
+    <section class="panel monitorPanel monitorViolet" id="MONITOR-HARMONIC-01"><h2>CHAMP HARMONIQUE <span class="panelId">MONITOR-HARMONIC-01</span></h2>
+      <div class="monitorGraph"><div class="monitorNoData">NO SPECTRAL SOURCE<br>FFT NOT ENABLED</div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>MODE</strong>NONE</div><div class="monitorStat"><strong>ALIGNEMENT</strong>NONE</div><div class="monitorStat"><strong>PIC</strong>NONE</div><div class="monitorStat"><strong>STATUS</strong>HOLD</div></div>
+    </section>
+    <section class="panel monitorPanel monitorGold" id="MONITOR-CRACK-DENSITY-01"><h2>DENSITÉ DE CRAQUEMENTS <span class="panelId">MONITOR-CRACK-DENSITY-01</span></h2>
+      <div class="monitorGraph" id="crackDensityGraph"><div id="crackDensityEmpty" class="monitorNoData">NO CRACK BUFFER</div><div id="crackDensityTrace" class="monitorTrace"></div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>EVENTS</strong><span id="monitorCrackEvents">0</span></div><div class="monitorStat"><strong>RATE</strong><span id="monitorCrackRate">NONE</span></div><div class="monitorStat"><strong>BURSTS</strong><span id="monitorCrackBursts">0</span></div><div class="monitorStat"><strong>SOURCE</strong>SYNTHETIC</div></div>
+    </section>
+    <section class="panel monitorPanel monitorRed" id="MONITOR-CRYSTAL-STATE-01"><h2>ÉTAT CRISTAL <span class="panelId">MONITOR-CRYSTAL-STATE-01</span></h2>
+      <div class="monitorGraph"><div class="monitorNoData">PHYSICAL CRYSTAL SENSOR<br>NOT CONNECTED</div></div>
+      <div class="monitorStats"><div class="monitorStat"><strong>INTENSITÉ</strong>NONE</div><div class="monitorStat"><strong>FACETTES</strong>NONE</div><div class="monitorStat"><strong>MESURE</strong>NONE</div><div class="monitorStat"><strong>STATUS</strong>T0</div></div>
+    </section>
   </section>
 
   <section class="instrumentDeck">
@@ -746,6 +765,26 @@ function classifyCrackleEvents(){
   document.getElementById("classStatus").textContent="RULE-BASED SYNTHETIC CLASSIFICATION · NOT A MATERIAL PROPERTY";
   return {events:events.length,weak,medium,strong,bursts};
 }
+function renderCrackDensityMonitor(){
+  const events=POPCORN_BASIN.samples.filter(v=>v&&v.transient_trigger===true&&Number.isFinite(v.t_model_s));
+  const empty=document.getElementById("crackDensityEmpty"),trace=document.getElementById("crackDensityTrace");
+  if(!empty||!trace)return;
+  document.getElementById("monitorCrackEvents").textContent=String(events.length);
+  const window=Number.isFinite(POPCORN_BASIN.window_s)?POPCORN_BASIN.window_s:0;
+  document.getElementById("monitorCrackRate").textContent=window>0?(events.length/window).toFixed(3)+" model/s":"NONE";
+  const cls=classifyCrackleEvents();
+  document.getElementById("monitorCrackBursts").textContent=cls?String(cls.bursts):"0";
+  if(!events.length){empty.style.display="grid";trace.innerHTML="";return}
+  empty.style.display="none";
+  const w=320,h=38,maxT=Math.max(events[events.length-1].t_model_s,1e-9);
+  const bars=events.slice(-48).map((e,i)=>{
+    const x=(e.t_model_s/maxT)*w;
+    const mag=Math.min(1,Math.abs(e.value)/(e.amplitude>0?e.amplitude:1));
+    const bh=5+mag*(h-7);
+    return '<line x1="'+x.toFixed(2)+'" y1="'+h+'" x2="'+x.toFixed(2)+'" y2="'+(h-bh).toFixed(2)+'" stroke="#ffae42" stroke-width="2"/>';
+  }).join("");
+  trace.innerHTML='<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true">'+bars+'</svg>';
+}
 function renderPopcornBasin(){
   const basin=document.getElementById("popcornBasin");if(!basin)return;
   basin.innerHTML="";
@@ -770,6 +809,7 @@ function renderPopcornBasin(){
   document.getElementById("popcornRate").textContent=Number.isFinite(POPCORN_BASIN.sample_rate_hz)?POPCORN_BASIN.sample_rate_hz.toFixed(3)+" model Hz":"NONE";
   document.getElementById("popcornWindow").textContent=Number.isFinite(POPCORN_BASIN.window_s)?POPCORN_BASIN.window_s.toFixed(6)+" s":"NONE";
   document.getElementById("popcornStatus").textContent=POPCORN_BASIN.samples.length?"FILLED · SYNTHETIC CRACK TRANSIENTS":"EMPTY · SYNTHETIC ONLY";
+  renderCrackDensityMonitor();
 }
 function fillPopcornBasin(){
   const c=SIGNAL_GENERATOR.config;
@@ -1276,7 +1316,7 @@ document.getElementById("presetClear").addEventListener("click",clearSelectedPre
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();renderCrackDensityMonitor();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
