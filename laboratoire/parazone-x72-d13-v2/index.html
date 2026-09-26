@@ -115,6 +115,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 @media(max-width:1280px){.topNav{display:none}.monitorWall{grid-template-columns:repeat(2,minmax(0,1fr))}.instrumentDeck{grid-template-columns:repeat(6,minmax(0,1fr))}.instrumentDeck>*{grid-column:span 3!important}.instrumentDeck>#PRESET-BANK-01,.instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 6!important}}
 @media(max-width:900px){.monitorWall{grid-template-columns:1fr}.instrumentDeck{grid-template-columns:1fr}.instrumentDeck>*{grid-column:1!important}.connectionBadge{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.subtitle{display:block;width:100%;text-align:left}.brandMark{font-size:20px}}
+.freqAutomation{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px;padding:8px;border:1px solid #6e5522;border-radius:8px;background:#100d07;box-shadow:inset 0 0 18px #ffae4212}.freqAutoCell{padding:7px;border:1px solid #5a4823;border-radius:6px;background:#090b0d;color:#d8b873;font:9px Consolas,monospace}.freqAutoCell strong{display:block;color:#ffd58a;margin-bottom:3px}.freqAutoActions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}.freqAutoActions button{background:#161208;border:1px solid #9f7026;border-radius:6px;color:#ffd58a;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}.freqAutoActions button:hover{border-color:#ffae42;box-shadow:0 0 10px #ffae4233}.dialRack{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:9px;margin-top:10px}.dialCard{position:relative;min-height:118px;border:1px solid #26445a;border-radius:10px;background:linear-gradient(180deg,#07131f,#040a11);padding:10px;text-align:center;box-shadow:inset 0 0 18px #00182755}.dialCard strong{display:block;font:800 9px Consolas,monospace;letter-spacing:.08em;margin-bottom:8px}.dialKnob{width:48px;height:48px;margin:2px auto 8px;border-radius:50%;border:2px solid currentColor;background:radial-gradient(circle at 38% 32%,#ffffff22 0 8%,#0b1620 10% 58%,#02070c 60%);box-shadow:0 0 13px currentColor,inset 0 0 10px #000}.dialValue{font:800 12px Consolas,monospace;color:#f2fbff}.dialState{margin-top:4px;font:8px Consolas,monospace;color:#7895a8}.dialFreq{color:#00e8ff}.dialAmp{color:#c890ff}.dialTime{color:#ffd58a}.dialCadence{color:#65e9b5}.dialStep{color:#ff9a72}.dialMode{color:#78b9ff}.controlLaunchBar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}.controlLaunchBar .btn,.controlLaunchBar .idle{padding:9px}.controlLaunchBar .btn{border-color:#24516d;color:#7ca7bf}.controlLaunchBar .idle{border-color:#9f7026;color:#ffd58a;background:#100d07}@media(max-width:1100px){.dialRack{grid-template-columns:repeat(3,minmax(120px,1fr))}.freqAutomation{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.dialRack{grid-template-columns:repeat(2,minmax(110px,1fr))}.freqAutomation{grid-template-columns:1fr}.controlLaunchBar{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -333,6 +334,18 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 
   <section class="panel refCatalog" id="REFERENCE-CATALOG-01"><h2>CATALOGUE DE RÉFÉRENCES <span class="panelId">REFERENCE-CATALOG-01</span></h2>
     <div class="note">RÉFÉRENCES UTILISATEUR · NON VALIDÉES · AUCUNE EFFICACITÉ PHYSIQUE OU BIOLOGIQUE INFÉRÉE</div>
+    <div class="freqAutomation" id="FREQUENCY-TABLE-AUTO-01">
+      <div class="freqAutoCell"><strong>TABLE</strong>REFERENCE_CATALOG</div>
+      <div class="freqAutoCell"><strong>MODE</strong><span id="freqAutoMode">MANUAL</span></div>
+      <div class="freqAutoCell"><strong>COURANTE</strong><span id="freqAutoCurrent">NONE</span></div>
+      <div class="freqAutoCell"><strong>PÉRIODE</strong><span id="freqAutoPeriod">1000 ms</span></div>
+      <div class="freqAutoActions">
+        <button id="freqPrev" type="button">◀ PRÉCÉDENTE</button>
+        <button id="freqNext" type="button">SUIVANTE ▶</button>
+        <button id="freqAutoStart" type="button">AUTO TABLE</button>
+        <button id="freqAutoStop" type="button">STOP TABLE</button>
+      </div>
+    </div>
     <div style="overflow:auto;margin-top:7px">
       <table class="refTable">
         <thead><tr><th>ID</th><th>LABEL</th><th>VALEUR RÉF.</th><th>TYPE</th><th>STATUT</th><th>ACTION</th></tr></thead>
@@ -494,14 +507,16 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
         <div class="topologyCell topologyWide">HIERARCHY: MODULE_ID · INSTANCE_ID · PARENT_ID · LEVEL · PORT · EDGE_ID · EDGE_TYPE · FROM · TO · TOPOLOGY_VERSION · aucune connexion implicite.</div>
       </div>
     </div>
-    <div class="controlGrid">
-      <span>DIAL-FREQ-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
-      <span>DIAL-AMP-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
-      <span>DIAL-TIME-01</span><span class="control">VALUE: —</span><span>DIAL-SPEED-01</span><span class="control">VALUE: —</span>
-      <span>DIAL-BREATH-01</span><span class="control">VALUE: —</span><span>DIAL-STEP-01</span><span class="control">VALUE: —</span>
-      <span>SEQUENCE-01</span><span class="control">UNSET</span><span>FLOW-MODE-01</span><span class="control">NOT_CONNECTED</span>
-      <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
-      <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
+    <div class="dialRack" id="CONTROL-DIAL-RACK-01">
+      <div class="dialCard dialFreq"><strong>FRÉQUENCE</strong><div class="dialKnob"></div><div id="dialFreqValue" class="dialValue">NONE</div><div class="dialState">PRESET CONFIG</div></div>
+      <div class="dialCard dialAmp"><strong>AMPLITUDE</strong><div class="dialKnob"></div><div id="dialAmpValue" class="dialValue">0.010000</div><div class="dialState">T1 INPUT</div></div>
+      <div class="dialCard dialTime"><strong>TEMPS</strong><div class="dialKnob"></div><div id="dialTimeValue" class="dialValue">120.0 s</div><div class="dialState">PRESET DURATION</div></div>
+      <div class="dialCard dialCadence"><strong>CADENCE</strong><div class="dialKnob"></div><div id="dialCadenceValue" class="dialValue">NONE</div><div class="dialState">SAMPLER EFFECTIVE</div></div>
+      <div class="dialCard dialStep"><strong>TABLE STEP</strong><div class="dialKnob"></div><div id="dialStepValue" class="dialValue">MANUAL</div><div class="dialState">REFERENCE TABLE</div></div>
+      <div class="dialCard dialMode"><strong>MODE</strong><div class="dialKnob"></div><div id="dialModeValue" class="dialValue">SINGLE</div><div class="dialState">PRESET MODE</div></div>
+    </div>
+    <div class="controlLaunchBar">
+      <div class="btn">START · OUTPUT DISCONNECTED</div><div class="btn">PAUSE · CONFIG ONLY</div><div class="btn">STOP · CONFIG ONLY</div><div class="idle">READY · SAFE CONFIG</div>
     </div>
     <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
@@ -552,6 +567,8 @@ const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"N
 const SPECTRUM={fft_size:64,frames:[],max_frames:96,last:null,gate:{min_samples:64,max_cv:0.05,max_jitter_ratio:0.25}};
 const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 const SIGNAL_GENERATOR={armed:false,config:null};
+const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
+
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
   Object.freeze({id:"USER-HZ-111",label:"111",claimed_hz:111,type:"USER_REFERENCE",status:"UNVALIDATED"}),
@@ -985,19 +1002,64 @@ function armSignalGenerator(){
   SIGNAL_GENERATOR.armed=true;renderSignalGenerator();renderAuxMonitors();return true;
 }
 function clearSignalGenerator(){SIGNAL_GENERATOR.armed=false;SIGNAL_GENERATOR.config=null;clearPopcornBasin();renderSignalGenerator();renderAuxMonitors();return true;}
+function renderControlRack(){
+  const hzRaw=document.getElementById("presetHz")?.value?.trim()||"";
+  const ampRaw=document.getElementById("t1Value")?.value?.trim()||"";
+  const durRaw=document.getElementById("presetDuration")?.value?.trim()||"";
+  const mode=document.getElementById("presetMode")?.value||"NONE";
+  const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
+  const cadence=last&&Number.isFinite(last.dt_ms)&&last.dt_ms>0?1000/last.dt_ms:null;
+  document.getElementById("dialFreqValue").textContent=hzRaw!==""?Number(hzRaw).toFixed(3)+" Hz":"NONE";
+  document.getElementById("dialAmpValue").textContent=ampRaw!==""?Number(ampRaw).toFixed(6):"NONE";
+  document.getElementById("dialTimeValue").textContent=durRaw!==""?Number(durRaw).toFixed(1)+" s":"NONE";
+  document.getElementById("dialCadenceValue").textContent=cadence===null?"NONE":cadence.toFixed(3)+" Hz";
+  document.getElementById("dialStepValue").textContent=FREQ_TABLE.running?"AUTO "+String(FREQ_TABLE.index+1)+"/"+REFERENCE_CATALOG.length:"MANUAL";
+  document.getElementById("dialModeValue").textContent=mode;
+}
+function renderFreqAutomation(){
+  document.getElementById("freqAutoMode").textContent=FREQ_TABLE.running?"AUTO · CONFIG ONLY":"MANUAL";
+  const ref=FREQ_TABLE.index>=0?REFERENCE_CATALOG[FREQ_TABLE.index]:null;
+  document.getElementById("freqAutoCurrent").textContent=ref?ref.label+" · "+ref.claimed_hz.toFixed(3)+" Hz":"NONE";
+  document.getElementById("freqAutoPeriod").textContent=FREQ_TABLE.period_ms+" ms";
+  renderControlRack();
+}
+function applyReferenceToPreset(ref,index){
+  if(!ref)return false;
+  document.getElementById("presetHz").value=String(ref.claimed_hz);
+  document.getElementById("presetRef").value=ref.id;
+  document.getElementById("presetStatus").textContent="REFERENCE LOADED · CONFIG ONLY · NOT MEASURED";
+  FREQ_TABLE.index=Number.isInteger(index)?index:REFERENCE_CATALOG.indexOf(ref);
+  renderFreqAutomation();renderControlRack();return true;
+}
+function stepFrequencyTable(delta=1){
+  const n=REFERENCE_CATALOG.length;if(!n)return false;
+  FREQ_TABLE.index=(FREQ_TABLE.index+delta+n)%n;
+  return applyReferenceToPreset(REFERENCE_CATALOG[FREQ_TABLE.index],FREQ_TABLE.index);
+}
+function stopFrequencyTable(){
+  FREQ_TABLE.running=false;
+  if(FREQ_TABLE.timer!==null)clearTimeout(FREQ_TABLE.timer);
+  FREQ_TABLE.timer=null;renderFreqAutomation();return true;
+}
+function scheduleFrequencyTable(){
+  if(!FREQ_TABLE.running)return;
+  FREQ_TABLE.timer=setTimeout(()=>{stepFrequencyTable(1);scheduleFrequencyTable();},FREQ_TABLE.period_ms);
+}
+function toggleFrequencyTableAuto(){
+  if(FREQ_TABLE.running)return stopFrequencyTable();
+  if(FREQ_TABLE.index<0)FREQ_TABLE.index=0;
+  FREQ_TABLE.running=true;applyReferenceToPreset(REFERENCE_CATALOG[FREQ_TABLE.index],FREQ_TABLE.index);scheduleFrequencyTable();renderFreqAutomation();return true;
+}
 function renderReferenceCatalog(){
   const body=document.getElementById("referenceCatalogBody");if(!body)return;
   body.innerHTML="";
-  for(const ref of REFERENCE_CATALOG){
+  REFERENCE_CATALOG.forEach((ref,index)=>{
     const tr=document.createElement("tr");
-    tr.innerHTML="<td>"+ref.id+"</td><td>"+ref.label+"</td><td>"+ref.claimed_hz.toFixed(3)+" Hz</td><td>"+ref.type+"</td><td><span class=\"refBadge\">"+ref.status+"</span></td><td><button type=\"button\" class=\"refUse\">APPLIQUER AU PRESET</button></td>";
-    tr.querySelector("button").addEventListener("click",()=>{
-      document.getElementById("presetHz").value=String(ref.claimed_hz);
-      document.getElementById("presetRef").value=ref.id;
-      document.getElementById("presetStatus").textContent="REFERENCE LOADED · NOT MEASURED";
-    });
+    tr.innerHTML='<td>'+ref.id+'</td><td>'+ref.label+'</td><td>'+ref.claimed_hz.toFixed(3)+' Hz</td><td>'+ref.type+'</td><td><span class="refBadge">'+ref.status+'</span></td><td><button type="button" class="refUse">CHARGER</button></td>';
+    tr.querySelector("button").addEventListener("click",()=>applyReferenceToPreset(ref,index));
     body.appendChild(tr);
-  }
+  });
+  renderFreqAutomation();
 }
 function presetFamilyFor(id){
   if(id>=1&&id<=10)return "chakra";
@@ -1032,6 +1094,7 @@ function renderPresetDetail(){
   document.getElementById("presetAmp").value=slot&&Number.isFinite(slot.amplitude)?slot.amplitude.toFixed(6):(T1.value!==null?T1.value.toFixed(6):document.getElementById("t1Value").value);
   document.getElementById("presetProfile").value=slot&&slot.auto_profile?slot.auto_profile:"NONE";
   document.getElementById("presetRef").value=slot&&slot.reference_id&&slot.reference_id!=="NONE"?slot.reference_id:"";
+  renderControlRack();
 }
 function renderPresetGrid(){
   const grid=document.getElementById("presetGrid");if(!grid)return;
@@ -1160,7 +1223,7 @@ function renderSampler(){
   const btn=document.getElementById("samplerToggle");
   btn.disabled=!ready&&!SAMPLER.running;
   btn.textContent=SAMPLER.running?"STOP SAMPLER":"START SAMPLER";
-  renderWaveChart();renderSamplerQuality();renderSpectrum();renderAuxMonitors();
+  renderWaveChart();renderSamplerQuality();renderSpectrum();renderAuxMonitors();renderControlRack();
 }
 async function captureScheduledSample(runId){
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
@@ -1471,7 +1534,13 @@ document.getElementById("presetClear").addEventListener("click",clearSelectedPre
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+document.getElementById("freqPrev").addEventListener("click",()=>stepFrequencyTable(-1));
+document.getElementById("freqNext").addEventListener("click",()=>stepFrequencyTable(1));
+document.getElementById("freqAutoStart").addEventListener("click",toggleFrequencyTableAuto);
+document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
+["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
+
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
