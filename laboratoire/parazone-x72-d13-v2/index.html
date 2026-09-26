@@ -573,10 +573,13 @@ function saveCurrentPreset(){
   const mode=document.getElementById("presetMode").value;
   const hzRaw=document.getElementById("presetHz").value.trim();
   const durRaw=document.getElementById("presetDuration").value.trim();
+  const ampRaw=document.getElementById("presetAmp").value.trim();
   const refRaw=document.getElementById("presetRef").value.trim();
   let amplitude,frequency_hz=null,duration_s;
   try{
-    amplitude=normalizedInput(document.getElementById("presetAmp").value);
+    if(ampRaw==="")throw new Error("AMPLITUDE_REQUIRED");
+    if(durRaw==="")throw new Error("DURATION_REQUIRED");
+    amplitude=normalizedInput(ampRaw);
     if(hzRaw!==""){frequency_hz=Number(hzRaw);if(!Number.isFinite(frequency_hz)||frequency_hz<0)throw new Error("FREQUENCY_OUT_OF_RANGE")}
     duration_s=Number(durRaw);if(!Number.isFinite(duration_s)||duration_s<0)throw new Error("DURATION_OUT_OF_RANGE");
   }catch(err){renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · "+String(err&&err.message?err.message:err);return false}
