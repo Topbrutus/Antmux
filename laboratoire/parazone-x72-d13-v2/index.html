@@ -529,7 +529,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="dialCard dialMode"><strong>MODE</strong><div class="dialKnob"></div><div id="dialModeValue" class="dialValue">SINGLE</div><div class="dialState">PRESET MODE</div></div>
     </div>
     <div class="controlLaunchBar">
-      <div class="btn">START · OUTPUT DISCONNECTED</div><div class="btn">PAUSE · CONFIG ONLY</div><div class="btn">STOP · CONFIG ONLY</div><div class="idle">READY · SAFE CONFIG</div>
+      <button id="masterStart" class="btn" type="button">START</button><button id="masterPause" class="btn" type="button">PAUSE</button><button id="masterStop" class="btn" type="button">STOP</button><div id="masterState" class="idle">READY · SAFE CONFIG</div>
     </div>
     <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: toute action active doit déclarer SOURCE · ÉTAT · TEMPS · PREUVE; une connexion seule ne constitue pas une mesure.</div>
@@ -582,6 +582,7 @@ const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_ke
 const SIGNAL_GENERATOR={armed:false,config:null};
 const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
+const MASTER_SESSION={state:"READY",started_at:null};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
@@ -1049,6 +1050,33 @@ function armSignalGenerator(){
   SIGNAL_GENERATOR.armed=true;renderSignalGenerator();renderAuxMonitors();return true;
 }
 function clearSignalGenerator(){SIGNAL_GENERATOR.armed=false;SIGNAL_GENERATOR.config=null;clearPopcornBasin();renderSignalGenerator();renderAuxMonitors();return true;}
+function renderMasterSession(){
+  const el=document.getElementById("masterState");if(!el)return;
+  const source=REAL_INPUT.active?"MIC":(T1.connected===1?"T1":"NONE");
+  el.textContent=MASTER_SESSION.state+" · SOURCE "+source+" · OUTPUT "+(SIGNAL_GENERATOR.armed?"CONFIG ARMED":"DISCONNECTED");
+}
+async function startMasterSession(){
+  if(MASTER_SESSION.state==="RUNNING")return true;
+  MASTER_SESSION.state="STARTING";renderMasterSession();
+  if(!(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))&&!(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE")){
+    try{await enableMicrophone();await new Promise(r=>setTimeout(r,180))}catch(_){}
+  }
+  if(!(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))&&!(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"))await injectT1();
+  const slot=PRESET_BANK.slots[PRESET_BANK.selected];
+  if(slot&&!SIGNAL_GENERATOR.armed)armSignalGenerator();
+  if(!SAMPLER.running)toggleSampler();
+  MASTER_SESSION.state="RUNNING";MASTER_SESSION.started_at=performance.now();renderMasterSession();return true;
+}
+function pauseMasterSession(){
+  if(SAMPLER.running)toggleSampler();
+  MASTER_SESSION.state="PAUSED";renderMasterSession();return true;
+}
+async function stopMasterSession(){
+  if(SAMPLER.running)toggleSampler();
+  stopFrequencyTable();clearSignalGenerator();
+  if(REAL_INPUT.active)await disableMicrophone();
+  MASTER_SESSION.state="STOPPED";MASTER_SESSION.started_at=null;renderMasterSession();return true;
+}
 function renderControlRack(){
   const hzRaw=document.getElementById("presetHz")?.value?.trim()||"";
   const ampRaw=document.getElementById("t1Value")?.value?.trim()||"";
@@ -1602,13 +1630,16 @@ document.getElementById("micDisable").addEventListener("click",()=>disableMicrop
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
+document.getElementById("masterStart").addEventListener("click",()=>startMasterSession().catch(err=>{MASTER_SESSION.state="ERROR · "+err.message;renderMasterSession()}));
+document.getElementById("masterPause").addEventListener("click",pauseMasterSession);
+document.getElementById("masterStop").addEventListener("click",()=>stopMasterSession());
 document.getElementById("freqPrev").addEventListener("click",()=>stepFrequencyTable(-1));
 document.getElementById("freqNext").addEventListener("click",()=>stepFrequencyTable(1));
 document.getElementById("freqAutoStart").addEventListener("click",toggleFrequencyTableAuto);
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
 
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderMicrophone();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderMicrophone();renderMasterSession();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
