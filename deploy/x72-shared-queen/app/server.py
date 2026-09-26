@@ -842,6 +842,22 @@ async def websocket_zelstereos(websocket: WebSocket) -> None:
 @app.websocket("/ws")
 async def websocket_state(websocket: WebSocket) -> None:
     global active_websocket_clients, websocket_messages_sent
+
+    if websocket.query_params.get("channel") == "zelstereos":
+        await websocket.accept()
+        last_version = -1
+        try:
+            while True:
+                async with zel_state_condition:
+                    await zel_state_condition.wait_for(
+                        lambda: zel_state is not None and zel_state_version != last_version
+                    )
+                    payload = dict(zel_state or {})
+                    last_version = zel_state_version
+                await websocket.send_json(payload)
+        except WebSocketDisconnect:
+            return
+
     await websocket.accept()
     active_websocket_clients += 1
     try:
