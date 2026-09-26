@@ -1,6 +1,12 @@
 name: Deploy X72 Shared Queen Server
 
 on:
+  push:
+    branches:
+      - astra/public-safe-live
+    paths:
+      - 'deploy/x72-shared-queen/app/**'
+      - '.github/workflows/deploy-x72-shared-queen-server.yml'
   workflow_dispatch:
     inputs:
       confirm:
@@ -21,7 +27,7 @@ concurrency:
 
 jobs:
   deploy-x72-shared-queen:
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-X72-SHARED-QUEEN'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/astra/public-safe-live') || (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-X72-SHARED-QUEEN')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
