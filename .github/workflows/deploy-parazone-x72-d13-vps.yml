@@ -50,8 +50,8 @@ jobs:
           grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' laboratoire/index.html
           grep -Fq 'BRUTUS // MOTEUR DE RÉSONANCE' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'CONTINUITY-REGISTRY-01' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'BASELINE T0 · FROZEN' laboratoire/parazone-x72-d13-v2/index.html
-          grep -Fq 'CURRENT T0 · CONNECTED 0' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'BASELINE · READY' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'CURRENT · NO ACTIVE T1' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'INPUT-TEST-01' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'PROOF-T1-SHA256' laboratoire/parazone-x72-d13-v2/index.html
@@ -171,8 +171,8 @@ jobs:
           grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' /tmp/lab-index.html
           grep -Fq 'BRUTUS // MOTEUR DE RÉSONANCE' /tmp/parazone-index.html
           grep -Fq 'CONTINUITY-REGISTRY-01' /tmp/parazone-index.html
-          grep -Fq 'BASELINE T0 · FROZEN' /tmp/parazone-index.html
-          grep -Fq 'CURRENT T0 · CONNECTED 0' /tmp/parazone-index.html
+          grep -Fq 'BASELINE · READY' /tmp/parazone-index.html
+          grep -Fq 'CURRENT · NO ACTIVE T1' /tmp/parazone-index.html
           grep -Fq 'PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME' /tmp/parazone-index.html
           grep -Fq 'INPUT-TEST-01' /tmp/parazone-index.html
           grep -Fq 'PROOF-T1-SHA256' /tmp/parazone-index.html
