@@ -576,11 +576,12 @@ function armSignalGenerator(){
   if(!slot){document.getElementById("genStatus").textContent="ERROR · PRESET REQUIRED";return false}
   if(!Number.isFinite(slot.amplitude)||slot.amplitude<0||slot.amplitude>1){document.getElementById("genStatus").textContent="ERROR · AMPLITUDE INVALID";return false}
   if(slot.frequency_hz!==null&&(!Number.isFinite(slot.frequency_hz)||slot.frequency_hz<0)){document.getElementById("genStatus").textContent="ERROR · FREQUENCY INVALID";return false}
-  if(!Number.isFinite(slot.duration_s)||slot.duration_s<0){document.getElementById("genStatus").textContent="ERROR · DURATION INVALID";return false}
+  const duration_s=Number.isFinite(slot.duration_s)?slot.duration_s:120;
+  if(duration_s<0){document.getElementById("genStatus").textContent="ERROR · DURATION INVALID";return false}
   SIGNAL_GENERATOR.config=Object.freeze({
     schema:"BRUTUS_SYNTHETIC_SIGNAL_CONFIG_V1",
     preset_id:slot.id,name:slot.name,mode:slot.mode,
-    frequency_hz:slot.frequency_hz,duration_s:slot.duration_s,amplitude:slot.amplitude,
+    frequency_hz:slot.frequency_hz,duration_s,amplitude:slot.amplitude,
     auto_profile:slot.auto_profile,reference_id:slot.reference_id,
     source_kind:"SYNTHETIC_TEST_CONFIG",output_state:"DISCONNECTED"
   });
