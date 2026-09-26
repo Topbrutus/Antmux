@@ -80,15 +80,16 @@ const audioConsent=$('audioConsent');
 const audioConsentEnabled=localStorage.getItem('zel-audio-consent')==='enabled';
 function closeAudioConsent(){audioConsent.classList.remove('show');}
 if(!audioConsentEnabled&&sessionStorage.getItem('zel-audio-consent-later')!=='1')audioConsent.classList.add('show');
-$('audioConsentEnable').addEventListener('click',async()=>{ensureAudio();if(audioCtx&&audioCtx.state==='suspended')await audioCtx.resume();soundMuted=false;localStorage.setItem('zel-sound-muted','0');localStorage.setItem('zel-audio-consent','enabled');syncSoundUI();closeAudioConsent();soundStart();});
+$('audioConsentEnable').addEventListener('click',async()=>{ensureAudio();if(audioCtx&&audioCtx.state==='suspended')await audioCtx.resume();soundMuted=false;localStorage.setItem('zel-sound-muted','0');localStorage.setItem('zel-audio-consent','enabled');syncSoundUI();soundConfirm();setTimeout(()=>soundStart(),380);closeAudioConsent();});
 $('audioConsentLater').addEventListener('click',()=>{sessionStorage.setItem('zel-audio-consent-later','1');closeAudioConsent();});
 function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
+function soundConfirm(){tone(880,.32,0,.45);}
 function soundStart(){tone(220,.12,0,.17);tone(330,.12,.09,.15);tone(440,.16,.18,.14);}
 function soundTempo(i){tone(180+(i*24),.055,0,.11);}
 function soundEnd(){tone(440,.11,0,.16);tone(330,.13,.09,.15);tone(220,.19,.18,.17);}
 function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);}
 $('soundToggle').addEventListener('click',()=>{ensureAudio();soundMuted=!soundMuted;localStorage.setItem('zel-sound-muted',soundMuted?'1':'0');syncSoundUI();if(!soundMuted)tone(330,.08,0,.1);});
-$('soundTest').addEventListener('click',()=>{ensureAudio();soundMuted=false;localStorage.setItem('zel-sound-muted','0');syncSoundUI();soundStart();setTimeout(()=>soundTempo(3),260);setTimeout(()=>soundEnd(),520);});
+$('soundTest').addEventListener('click',()=>{ensureAudio();soundMuted=false;localStorage.setItem('zel-sound-muted','0');syncSoundUI();soundConfirm();setTimeout(()=>soundStart(),380);setTimeout(()=>soundTempo(3),760);setTimeout(()=>soundEnd(),1040);});
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
