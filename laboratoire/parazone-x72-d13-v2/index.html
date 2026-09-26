@@ -116,6 +116,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 @media(max-width:900px){.monitorWall{grid-template-columns:1fr}.instrumentDeck{grid-template-columns:1fr}.instrumentDeck>*{grid-column:1!important}.connectionBadge{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.subtitle{display:block;width:100%;text-align:left}.brandMark{font-size:20px}}
 .freqAutomation{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px;padding:8px;border:1px solid #6e5522;border-radius:8px;background:#100d07;box-shadow:inset 0 0 18px #ffae4212}.freqAutoCell{padding:7px;border:1px solid #5a4823;border-radius:6px;background:#090b0d;color:#d8b873;font:9px Consolas,monospace}.freqAutoCell strong{display:block;color:#ffd58a;margin-bottom:3px}.freqAutoActions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}.freqAutoActions button{background:#161208;border:1px solid #9f7026;border-radius:6px;color:#ffd58a;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}.freqAutoActions button:hover{border-color:#ffae42;box-shadow:0 0 10px #ffae4233}.dialRack{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:9px;margin-top:10px}.dialCard{position:relative;min-height:118px;border:1px solid #26445a;border-radius:10px;background:linear-gradient(180deg,#07131f,#040a11);padding:10px;text-align:center;box-shadow:inset 0 0 18px #00182755}.dialCard strong{display:block;font:800 9px Consolas,monospace;letter-spacing:.08em;margin-bottom:8px}.dialKnob{width:48px;height:48px;margin:2px auto 8px;border-radius:50%;border:2px solid currentColor;background:radial-gradient(circle at 38% 32%,#ffffff22 0 8%,#0b1620 10% 58%,#02070c 60%);box-shadow:0 0 13px currentColor,inset 0 0 10px #000}.dialValue{font:800 12px Consolas,monospace;color:#f2fbff}.dialState{margin-top:4px;font:8px Consolas,monospace;color:#7895a8}.dialFreq{color:#00e8ff}.dialAmp{color:#c890ff}.dialTime{color:#ffd58a}.dialCadence{color:#65e9b5}.dialStep{color:#ff9a72}.dialMode{color:#78b9ff}.controlLaunchBar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}.controlLaunchBar .btn,.controlLaunchBar .idle{padding:9px}.controlLaunchBar .btn{border-color:#24516d;color:#7ca7bf}.controlLaunchBar .idle{border-color:#9f7026;color:#ffd58a;background:#100d07}@media(max-width:1100px){.dialRack{grid-template-columns:repeat(3,minmax(120px,1fr))}.freqAutomation{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.dialRack{grid-template-columns:repeat(2,minmax(110px,1fr))}.freqAutomation{grid-template-columns:1fr}.controlLaunchBar{grid-template-columns:1fr 1fr}}
+.micPanel{margin-top:9px;border-color:#167f70!important;box-shadow:inset 0 0 20px #00e99a12!important}.micGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.micCell{background:#06110f;border:1px solid #185347;border-radius:6px;padding:7px;color:#8bc9bc;font:9px Consolas,monospace}.micCell strong{display:block;color:#65e9b5;margin-bottom:3px}.micActions{grid-column:1/-1;display:flex;gap:7px}.micActions button{background:#071713;border:1px solid #1b7a67;color:#8fffd9;border-radius:6px;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}@media(max-width:900px){.micGrid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -354,6 +355,18 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     </div>
   </section>
 
+  <section class="panel micPanel" id="MICROPHONE-SOURCE-01"><h2>ENTRÉE MICROPHONE <span class="panelId">MICROPHONE-SOURCE-01</span></h2>
+    <div class="micGrid">
+      <div class="micCell"><strong>STATE</strong><span id="micState">OFF</span></div>
+      <div class="micCell"><strong>AMPLITUDE</strong><span id="micAmplitude">NONE</span></div>
+      <div class="micCell"><strong>CADENCE</strong><span id="micCadence">NONE</span></div>
+      <div class="micCell"><strong>ACTIVITÉ</strong><span id="micActivity">NONE</span></div>
+      <div class="micCell"><strong>SAMPLES</strong><span id="micSamples">0</span></div>
+      <div class="micActions"><button id="micEnable" type="button">ACTIVER MICRO</button><button id="micDisable" type="button">COUPER MICRO</button></div>
+    </div>
+    <div class="note">SOURCE AUDIO RÉELLE LOCALE · PERMISSION NAVIGATEUR REQUISE · AMPLITUDE NUMÉRIQUE RMS NON CALIBRÉE · PAS UNE MESURE dB SPL</div>
+  </section>
+
   <section class="panel generatorPanel" id="SIGNAL-GENERATOR-01"><h2>GÉNÉRATEUR DE SIGNAL SYNTHÉTIQUE <span class="panelId">SIGNAL-GENERATOR-01</span></h2>
     <div class="generatorState">
       <div class="generatorCell"><strong>STATE</strong><span id="genState">IDLE</span></div>
@@ -567,6 +580,7 @@ const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"N
 const SPECTRUM={fft_size:64,frames:[],max_frames:96,last:null,gate:{min_samples:64,max_cv:0.05,max_jitter_ratio:0.25}};
 const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 const SIGNAL_GENERATOR={armed:false,config:null};
+const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
@@ -973,6 +987,39 @@ function fillPopcornBasin(){
   renderPopcornBasin();return true;
 }
 function clearPopcornBasin(){POPCORN_BASIN.samples=[];POPCORN_BASIN.sample_rate_hz=null;POPCORN_BASIN.window_s=null;renderPopcornBasin();}
+function renderMicrophone(){
+  document.getElementById("micState").textContent=REAL_INPUT.active?"LIVE · MICROPHONE":"OFF";
+  document.getElementById("micAmplitude").textContent=Number.isFinite(REAL_INPUT.amplitude)?REAL_INPUT.amplitude.toFixed(6):"NONE";
+  document.getElementById("micCadence").textContent=Number.isFinite(REAL_INPUT.cadence_hz)?REAL_INPUT.cadence_hz.toFixed(2)+" Hz":"NONE";
+  document.getElementById("micActivity").textContent=Number.isFinite(REAL_INPUT.activity)?REAL_INPUT.activity.toFixed(6):"NONE";
+  document.getElementById("micSamples").textContent=String(REAL_INPUT.sample_count);
+}
+function microphoneFrame(ts){
+  if(!REAL_INPUT.active||!REAL_INPUT.analyser||!REAL_INPUT.data)return;
+  REAL_INPUT.analyser.getByteTimeDomainData(REAL_INPUT.data);
+  let sum=0;for(let i=0;i<REAL_INPUT.data.length;i++){const v=(REAL_INPUT.data[i]-128)/128;sum+=v*v}
+  const amp=Math.sqrt(sum/REAL_INPUT.data.length),prev=REAL_INPUT.amplitude;
+  REAL_INPUT.activity=Number.isFinite(prev)?Math.abs(amp-prev):0;
+  if(Number.isFinite(REAL_INPUT.last_ts)&&ts>REAL_INPUT.last_ts)REAL_INPUT.cadence_hz=1000/(ts-REAL_INPUT.last_ts);
+  REAL_INPUT.last_ts=ts;REAL_INPUT.amplitude=amp;REAL_INPUT.sample_count++;renderMicrophone();
+  REAL_INPUT.raf=requestAnimationFrame(microphoneFrame);
+}
+async function enableMicrophone(){
+  if(REAL_INPUT.active)return true;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error("MICROPHONE_API_UNAVAILABLE");
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC){stream.getTracks().forEach(t=>t.stop());throw new Error("AUDIO_CONTEXT_UNAVAILABLE")}
+  const ctx=new AC(),source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();analyser.fftSize=1024;source.connect(analyser);
+  Object.assign(REAL_INPUT,{kind:"MICROPHONE",active:true,stream,ctx,analyser,data:new Uint8Array(analyser.fftSize),amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0});
+  renderMicrophone();REAL_INPUT.raf=requestAnimationFrame(microphoneFrame);return true;
+}
+async function disableMicrophone(){
+  REAL_INPUT.active=false;if(REAL_INPUT.raf!==null)cancelAnimationFrame(REAL_INPUT.raf);REAL_INPUT.raf=null;
+  if(REAL_INPUT.stream)REAL_INPUT.stream.getTracks().forEach(t=>t.stop());
+  if(REAL_INPUT.ctx)try{await REAL_INPUT.ctx.close()}catch(_){}
+  Object.assign(REAL_INPUT,{kind:"NONE",stream:null,ctx:null,analyser:null,data:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null});
+  renderMicrophone();return true;
+}
 function renderSignalGenerator(){
   const c=SIGNAL_GENERATOR.config;
   document.getElementById("genState").textContent=SIGNAL_GENERATOR.armed?"ARMED · OUTPUT DISCONNECTED":"IDLE";
@@ -1543,6 +1590,8 @@ document.getElementById("samplerToggle").addEventListener("click",toggleSampler)
 document.getElementById("presetSave").addEventListener("click",saveCurrentPreset);
 document.getElementById("presetLoad").addEventListener("click",loadSelectedPreset);
 document.getElementById("presetClear").addEventListener("click",clearSelectedPreset);
+document.getElementById("micEnable").addEventListener("click",()=>enableMicrophone().catch(err=>{document.getElementById("micState").textContent="ERROR · "+err.message}));
+document.getElementById("micDisable").addEventListener("click",()=>disableMicrophone());
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
@@ -1552,7 +1601,7 @@ document.getElementById("freqAutoStart").addEventListener("click",toggleFrequenc
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
 
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderMicrophone();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
