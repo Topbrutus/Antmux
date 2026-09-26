@@ -1,0 +1,95 @@
+name: Validate ZELSTEREOS WebSocket Order
+
+on:
+  push:
+    branches:
+      - astra/zelstereos-ws-event-order-20260926
+    paths:
+      - '.github/workflows/validate-zelstereos-ws-order.yml'
+      - 'deploy/x72-shared-queen/app/server.py'
+      - 'deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py'
+      - 'laboratoire/zelstereos/index.html'
+      - 'laboratoire/zelstereos/WEBSOCKET-AUDIO-CONTRACT.md'
+  pull_request:
+    branches:
+      - astra/public-safe-live
+    paths:
+      - '.github/workflows/validate-zelstereos-ws-order.yml'
+      - 'deploy/x72-shared-queen/app/server.py'
+      - 'deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py'
+      - 'laboratoire/zelstereos/index.html'
+      - 'laboratoire/zelstereos/WEBSOCKET-AUDIO-CONTRACT.md'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install local test dependencies
+        run: python -m pip install --disable-pip-version-check --quiet fastapi 'uvicorn[standard]' websockets
+
+      - name: Compile Python
+        run: |
+          python -m py_compile             deploy/x72-shared-queen/app/server.py             deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py
+
+      - name: Check ZELSTEREOS inline JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('laboratoire/zelstereos/index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script>(.*?)</script>', html, flags=re.S)
+          if not scripts:
+              raise SystemExit('no inline script found')
+          Path('/tmp/zelstereos-inline.js').write_text('\n'.join(scripts), encoding='utf-8')
+          print(f'INLINE_SCRIPTS={len(scripts)}')
+          PY
+          node --check /tmp/zelstereos-inline.js
+
+      - name: Verify ordered seven-stage WebSocket transport
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/zelstereos-ws-order-data
+          mkdir -p /tmp/zelstereos-ws-order-data
+
+          ANTMUX_X72_DATA_DIR=/tmp/zelstereos-ws-order-data           ANTMUX_ZEL_INGEST_TOKEN=runner-zel-order-test           python -m uvicorn app.server:app             --app-dir deploy/x72-shared-queen             --host 127.0.0.1             --port 8720             --timeout-graceful-shutdown 5             >/tmp/zelstereos-ws-order-uvicorn.log 2>&1 &
+          PID="$!"
+
+          cleanup() {
+            if kill -0 "$PID" >/dev/null 2>&1; then
+              kill "$PID" >/dev/null 2>&1 || true
+              for _ in $(seq 1 20); do
+                if ! kill -0 "$PID" >/dev/null 2>&1; then
+                  wait "$PID" >/dev/null 2>&1 || true
+                  return
+                fi
+                sleep 0.25
+              done
+              kill -KILL "$PID" >/dev/null 2>&1 || true
+              wait "$PID" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8720/api/health >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/health >/dev/null
+
+          python deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py             --base http://127.0.0.1:8720             --ws 'ws://127.0.0.1:8720/ws?channel=zelstereos'             --token runner-zel-order-test
+
+          echo 'ZELSTEREOS_WS_VALIDATION=PASS'
