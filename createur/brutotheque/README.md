@@ -1,32 +1,25 @@
-# BRUTOTHÈQUE V0.1 — mode d’emploi
+# BRUTOTHÈQUE V0.2 — mode d’emploi
 
-## But
-Atelier privé du Créateur Antmux pour recevoir les idées avant qu’elles deviennent des modules, expériences, systèmes ou preuves.
+## Modèle
+La Brutothèque est publique en lecture et privée en écriture. Chaque créateur approuvé possède son laboratoire isolé. Le public regarde derrière la vitre; seul le propriétaire authentifié peut modifier son espace.
+
+## Gouvernance
+Une inscription crée une demande EN ATTENTE. L'administrateur décide ACCEPTER, REFUSER ou BLOQUER. Aucun laboratoire n'est activé automatiquement.
+
+## Interphone
+La seule passerelle prévue de la vitrine vers le créateur est un message texte. Aucun fichier, image, HTML, script ou commande. Le créateur peut bloquer un expéditeur.
 
 ## Classement canonique
-- BT-IDE-#### : idée brute
-- BT-MOD-#### : module assemblable
-- BT-FOR-#### : formule / calcul
-- BT-EXP-#### : expérience / protocole
-- BT-SYS-#### : système composé
-- BT-PRV-#### : preuve / artefact vérifié
+BT-IDE-#### idée · BT-MOD-#### module · BT-FOR-#### formule · BT-EXP-#### expérience · BT-SYS-#### système · BT-PRV-#### preuve.
 
 ## Cycle
 CAPTURER → CLASSER → DÉFINIR → TESTER → MESURER → ASSEMBLER → VALIDER → PUBLIER.
 
-## Fiche minimale
-ID, nom, type, statut, but, hypothèses, dépendances, risques, test minimal, preuve attendue, condition d’abandon, provenance et historique.
-
-## Statuts
-CANDIDAT → HYPOTHÈSE → PROTOCOLE → EN TEST → MESURÉ → VALIDÉ → ARCHIVÉ.
-
-VALIDÉ signifie seulement que le critère du protocole déclaré a été satisfait.
-
 ## Laboratoire des chiffres
-Zone réservée aux futurs imports du laboratoire Gemini. Aucun import implicite. Chaque lot devra avoir un manifeste de provenance et une classification explicite.
+Zone réservée aux imports du laboratoire Gemini. Aucun import implicite; provenance et classification obligatoires.
 
-## Frontière privée
-Le mot de passe ne doit jamais être écrit dans Git, HTML ou JavaScript. L’authentification finale doit être côté serveur, avec hash de mot de passe et session sécurisée.
+## Sécurité
+PUBLIC READ / OWNER WRITE / ADMIN APPROVE. Le serveur, jamais l'interface, décide des autorisations. Aucun mot de passe ni secret dans Git.
 
-## V0.1
-Interface et documentation seulement. Aucun secret et aucune donnée privée ne sont publiés.
+## État V0.2
+L'interface publique et le contrat sont définis. Inscription active, écriture, approbation et messagerie restent inactives tant que l'API authentifiée n'est pas déployée.
