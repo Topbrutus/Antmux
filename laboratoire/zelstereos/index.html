@@ -236,33 +236,59 @@ function scheduleLiveMotorAt(freq,start,dur=.72,gain=.08,index=0){
   crank.start(start);sub.start(start);lfo.start(start);
   crank.stop(start+dur+.03);sub.stop(start+dur+.03);lfo.stop(start+dur+.03);
 }
-function liveMotorStageAt(count,baseFreq,base){
-  const dur={1:.74,3:.76,9:.80,36:.92}[count]||.76;
-  const spread={1:0,3:9,9:22,36:42}[count]||12;
-  const gain={1:.16,3:.085,9:.040,36:.014}[count]||.06;
-  const noiseGain={1:.020,3:.028,9:.040,36:.060}[count]||.03;
-  const cutoff={1:520,3:620,9:760,36:940}[count]||650;
+function scheduleExhaustPulseAt(freq,start,gain=.05){
+  if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='square';
+  o.frequency.setValueAtTime(Math.max(34,freq),start);
+  g.gain.setValueAtTime(gain*soundVolume,start);
+  g.gain.exponentialRampToValueAtTime(.0001,start+.055);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(start);o.stop(start+.065);
+}
+function liveMotorStageAt(count,baseFreq,base,stageIndex){
+  const descending=stageIndex>=4;
+  const dur={1:.82,3:.86,9:.92,36:1.04}[count]||.82;
+  const spread={1:0,3:10,9:24,36:46}[count]||12;
+  const gain={1:.17,3:.088,9:.042,36:.014}[count]||.06;
+  const noiseGain={1:.018,3:.028,9:.043,36:.070}[count]||.03;
+  const cutoff={1:500,3:620,9:780,36:980}[count]||650;
   scheduleMechanicalNoiseAt(base,dur,noiseGain,cutoff);
+
   for(let i=0;i<count;i++){
     const pos=count===1?0:(i/(count-1)-.5);
-    const detune=((i*13)%11-5)*.35;
-    const freq=Math.max(46,baseFreq+(pos*spread)+detune);
-    const jitter=((i*19)%31)*.0035;
+    const detune=((i*13)%11-5)*.38;
+    const freq=Math.max(44,baseFreq+(pos*spread)+detune);
+    const jitter=((i*19)%31)*.0038;
     scheduleLiveMotorAt(freq,base+jitter,dur,gain,i);
   }
+
+  const pulseCount=count===1?3:(count===3?5:(count===9?7:10));
+  const pulseGap=count===1?.19:(count===3?.135:(count===9?.095:.065));
+  const pulseBase=descending?base+.08:base+.04;
+  for(let p=0;p<pulseCount;p++){
+    const f=baseFreq*(descending?(1.00-p*.018):(0.94+p*.014));
+    scheduleExhaustPulseAt(f,pulseBase+p*pulseGap,
+      count===36?.018:(count===9?.026:(count===3?.036:.050)));
+  }
+
+  if(count===36){
+    scheduleMechanicalNoiseAt(base+.08,dur-.10,.050,340);
+    scheduleLiveMotorAt(48,base+.04,dur,.055,37);
+  }
 }
-const liveStageFreq=[94,88,80,64,79,89,98];
+const liveStageFreq=[96,88,78,58,76,88,100];
 function soundLiveStage(stageIndex){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
   const base=audioCtx.currentTime+.025;
   const count=counts[stageIndex]||1;
   if(stageIndex===0){
     soundStartAt(base);
-    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52);
+    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex);
     return;
   }
-  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base);
-  if(stageIndex===6)soundEndAt(base+.62);
+  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex);
+  if(stageIndex===6)soundEndAt(base+.72);
 }
 function tone(freq,dur=.08,delay=0,gain=.16){
   if(!audioCtx||audioCtx.state!=='running'){ensureAudio().then(()=>tone(freq,dur,delay,gain));return;}
