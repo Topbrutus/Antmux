@@ -131,11 +131,23 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
     <div class="obsGrid">
       <div class="obsCell"><strong>STATE</strong><span id="histState">NO DATA</span></div>
       <div class="obsCell"><strong>SOURCE</strong>OBS-BUS-01 / T1.history</div>
-      <div class="obsCell"><strong>TIMEBASE</strong>NOT_CONNECTED</div>
+      <div class="obsCell"><strong>TIMEBASE</strong><span id="histTimebase">NOT_CONNECTED</span></div>
       <div class="obsCell"><strong>SAMPLES</strong><span id="histCount">0</span></div>
       <div class="obsCell"><strong>ORDER</strong>MEASURE # / TICK</div>
       <div class="obsCell"><strong>TRANSFORM</strong>NONE</div>
       <div class="obsCell obsWide"><strong>LAST 12 VERIFIED SAMPLES</strong><pre id="histSamples" class="t1History">EMPTY</pre></div>
+    </div>
+  </section>
+
+  <section class="panel" id="TIMEBASE-01"><h2>BASE DE TEMPS ÉVÉNEMENTIELLE <span class="panelId">TIMEBASE-01</span></h2>
+    <div class="obsGrid">
+      <div class="obsCell"><strong>STATE</strong><span id="timeState">NO DATA</span></div>
+      <div class="obsCell"><strong>CLOCK</strong>performance.now() · LOCAL MONOTONIC</div>
+      <div class="obsCell"><strong>MODE</strong>EVENT-DRIVEN · IRREGULAR</div>
+      <div class="obsCell"><strong>EVENTS</strong><span id="timeEvents">0</span></div>
+      <div class="obsCell"><strong>LAST Δt</strong><span id="timeDelta">NONE</span></div>
+      <div class="obsCell"><strong>SAMPLE RATE</strong>NONE · NOT INFERRED</div>
+      <div class="obsCell obsWide"><strong>LAST TIME PROOF</strong><span id="timeProof">NONE</span></div>
     </div>
   </section>
 
@@ -242,7 +254,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1; TIMEBASE reste NOT_CONNECTED, donc aucune durée ni fréquence n'est inférée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers, SAMPLE_RATE reste NONE et aucune fréquence n'est inférée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -286,6 +298,7 @@ const T2={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T3={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T4={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T5={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
+const TIMEBASE={history:[],proof:"NONE"};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
 function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04")||(T5.connected===1&&id==="FLOW-05");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
@@ -416,12 +429,44 @@ function renderTopologyStatus(){
 }
 function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
 async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
+function renderTimebase(){
+  const last=TIMEBASE.history.length?TIMEBASE.history[TIMEBASE.history.length-1]:null;
+  document.getElementById("timeState").textContent=last?"LIVE · EVENT TIME VERIFIED":"NO DATA";
+  document.getElementById("timeEvents").textContent=String(TIMEBASE.history.length);
+  document.getElementById("timeDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
+  document.getElementById("timeProof").textContent=last?last.proof_ref:"NONE";
+  document.getElementById("histTimebase").textContent=last?"EVENT_TIMEBASE_CONNECTED":"NOT_CONNECTED";
+  return {events:TIMEBASE.history.length,lastDt:last?last.dt_ms:null};
+}
+async function captureTimebase(sourceRecord){
+  if(!sourceRecord||!sourceRecord.proof_ref||sourceRecord.proof_ref==="NONE")throw new Error("T1_SOURCE_PROOF_REQUIRED");
+  const t_mono_ms=performance.now();
+  const previous=TIMEBASE.history.length?TIMEBASE.history[TIMEBASE.history.length-1]:null;
+  const dt_ms=previous?t_mono_ms-previous.t_mono_ms:null;
+  const packet={
+    schema:"BRUTUS_TIMEBASE_EVENT_V1",
+    event_index:sourceRecord.tick,
+    clock:"performance.now()",
+    clock_kind:"LOCAL_MONOTONIC",
+    sampling_mode:"EVENT_DRIVEN_IRREGULAR",
+    t_mono_ms,dt_ms,
+    source_proof_ref:sourceRecord.proof_ref,
+    sample_rate_hz:"NONE"
+  };
+  const proof=await sha256Hex(JSON.stringify(packet));
+  const record=Object.freeze({...packet,proof_ref:proof});
+  TIMEBASE.history.push(record);
+  TIMEBASE.proof=proof;
+  renderTimebase();
+  return record;
+}
 function renderMeasurementHistory(){
   const verified=T1.history.filter(r=>r&&r.proof_ref&&r.proof_ref!=="NONE"&&Number.isFinite(r.after));
   const last=verified.slice(-12);
   document.getElementById("histState").textContent=verified.length?"LIVE · VERIFIED ORDER":"NO DATA";
   document.getElementById("histCount").textContent=String(verified.length);
   document.getElementById("histSamples").textContent=last.length?last.map(r=>"#"+String(r.tick).padStart(3,"0")+" · AMP="+r.after.toFixed(6)+" · PROOF="+r.proof_ref).join("\n"):"EMPTY";
+  renderTimebase();
   return {count:verified.length,lastTick:last.length?last[last.length-1].tick:null};
 }
 function renderAmplitudePanel(){
@@ -477,6 +522,7 @@ async function injectT1(forcedValue){
     };
     T1.history.push(Object.freeze(record));
     Object.assign(T1,{tick,connected:1,measurements:T1.measurements+1,proofs:T1.proofs+1,value:amplitude,lastTrace:"SOURCE-00>FLOW-01>B1.INPUT",proof});
+    await captureTimebase(record);
     stateEl.textContent="STATE: T1 · VALID · INPUT_ACTIVE: 1 · AMP: "+amplitude.toFixed(6)+" · LOCAL ONLY";
     traceEl.textContent="TRACE: "+T1.lastTrace+" · EDGE: FLOW-01 · INTRA_LEVEL · TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version+" · MEASURE: #"+tick;
     proofEl.textContent="PROOF-T1-SHA256: "+proof;
@@ -642,7 +688,7 @@ document.getElementById("t4Connect").addEventListener("click",connectT4);
 document.getElementById("t5Connect").addEventListener("click",connectT5);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
-renderObservationBus();
+renderObservationBus();renderTimebase();
 window.addEventListener("resize",resize);resize();
 })();
 </script>
