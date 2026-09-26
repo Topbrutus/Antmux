@@ -69,6 +69,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 #TIMEBASE-01{border-color:#976b26}#TIMEBASE-01 h2,#TIMEBASE-01 strong{color:#ffd58a}
 #SAMPLER-01{border-color:#12815c}#SAMPLER-01 h2,#SAMPLER-01 strong{color:#6fffc5}
 #SAMPLER-QUALITY-01{border-color:#b75a1f}#SAMPLER-QUALITY-01 h2,#SAMPLER-QUALITY-01 strong{color:#ffb36a}
+#MOTOR-BRIDGE-01{border-color:#00a878;box-shadow:inset 0 0 22px #00e99a12}#MOTOR-BRIDGE-01 h2,#MOTOR-BRIDGE-01 strong{color:#65e9b5}
 #OBS-BUS-01{border-color:#126a9d}#OBS-BUS-01 h2,#OBS-BUS-01 strong{color:#76dfff}
 #PRESET-BANK-01{border-color:#6d3fb5;box-shadow:inset 0 0 22px #7928ff16}#PRESET-BANK-01 h2{color:#d0a7ff}
 #REFERENCE-CATALOG-01{border-color:#9f7026}#REFERENCE-CATALOG-01 h2,.refTable th{color:#ffd58a}.refBadge{border-color:#d69333;color:#ffd58a}
@@ -87,13 +88,14 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .title span{color:var(--violet)}
 .topNav{display:flex;gap:12px;align-items:center;justify-content:center;flex:1;color:#79a9c7;font:700 8px Consolas,monospace;letter-spacing:.08em;white-space:nowrap}
 .topNav span{padding:4px 5px;border-bottom:1px solid transparent}.topNav span:hover{color:#e9fbff;border-color:var(--cyan)}
-.connectionBadge{padding:5px 8px;border:1px solid #00a878;border-radius:6px;background:#06241b;color:#62ffc7;font:800 8px Consolas,monospace;box-shadow:0 0 10px #00e99a22;white-space:nowrap}
+.connectionBadge{padding:5px 8px;border:1px solid #4b5964;border-radius:6px;background:#0b1117;color:#9badb9;font:800 8px Consolas,monospace;box-shadow:0 0 10px #0008;white-space:nowrap}.connectionBadge[data-state="connecting"]{border-color:#9f7026;color:#ffd58a}.connectionBadge[data-state="live"]{border-color:#00a878;background:#06241b;color:#62ffc7;box-shadow:0 0 10px #00e99a22}.connectionBadge[data-state="offline"]{border-color:#88404a;color:#ff9aa7}
 .instrumentDeck{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;margin-top:9px}.monitorWall{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.monitorPanel{min-height:220px}.monitorGraph{height:128px;border:1px solid #17364d;border-radius:6px;background:linear-gradient(180deg,#071421,#030910);position:relative;overflow:hidden}.monitorGraph:before{content:"";position:absolute;inset:0;background-image:linear-gradient(#00e8ff0c 1px,transparent 1px),linear-gradient(90deg,#00e8ff0c 1px,transparent 1px);background-size:18px 18px}.monitorTrace{position:absolute;left:7px;right:7px;bottom:10px;height:38px;opacity:.9}.monitorTrace svg{width:100%;height:100%}.monitorStats{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}.monitorStat{border:1px solid #1d3a50;border-radius:5px;background:#06101a;padding:5px 6px;font:10px Consolas,monospace;color:#83a8c1}.monitorStat strong{display:block;color:#dcecff;margin-bottom:3px;font-size:10px}.monitorNoData{position:absolute;inset:0;display:grid;place-items:center;color:#628198;font:700 8px Consolas,monospace;letter-spacing:.08em;text-align:center}.monitorCyan{border-color:#14779d}.monitorCyan h2{color:#7ce8ff}.monitorViolet{border-color:#6d3db5}.monitorViolet h2{color:#d0a7ff}.monitorGold{border-color:#9d6a25}.monitorGold h2{color:#ffd58a}.monitorRed{border-color:#a43b31}.monitorRed h2{color:#ff9b84}.monitorPanel{position:relative;overflow:hidden;background:linear-gradient(180deg,#07121f,#030810);box-shadow:inset 0 0 24px #00182966,0 0 12px #00dfff10}.monitorPanel:after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,transparent 0 3px,#ffffff08 4px);mix-blend-mode:screen;opacity:.16}.monitorPanel h2:before{content:"●";margin-right:6px;font-size:8px;color:currentColor;text-shadow:0 0 8px currentColor}.monitorPanel h2{padding-bottom:6px;border-bottom:1px solid #1b3a50}.monitorGraph{box-shadow:inset 0 0 18px #00131f99,0 0 0 1px #07111b}.monitorGraph:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 50%,transparent 45%,#00000088 100%)}.monitorStats{position:relative;z-index:1}.monitorStat{min-height:42px}.monitorStat strong{letter-spacing:.08em}.monitorCyan .monitorGraph{border-color:#126887}.monitorViolet .monitorGraph{border-color:#5a3490}.monitorGold .monitorGraph{border-color:#80541e}.monitorRed .monitorGraph{border-color:#7e3028}.statusGrid{background:#04101a;border:1px solid #15364d;border-radius:7px;padding:8px;box-shadow:inset 0 0 14px #00142177}.bar{position:relative}.bar:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff18,transparent);pointer-events:none}.right .panel:nth-child(3){box-shadow:inset 0 0 20px #00e99a0c,0 0 10px #00e99a0e}
 .instrumentDeck>#ANALYSIS-AMP-01{grid-column:span 3}
 .instrumentDeck>#ANALYSIS-HISTORY-01{grid-column:span 3}
 .instrumentDeck>#TIMEBASE-01{grid-column:span 2}
 .instrumentDeck>#SAMPLER-01{grid-column:span 2}
 .instrumentDeck>#SAMPLER-QUALITY-01{grid-column:span 2}
+.instrumentDeck>#MOTOR-BRIDGE-01{grid-column:span 4}
 .instrumentDeck>#PRESET-BANK-01{grid-column:span 5}
 .instrumentDeck>#REFERENCE-CATALOG-01{grid-column:span 3}
 .instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 4}
@@ -128,7 +130,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <nav class="topNav" aria-label="Navigation visuelle">
       <span>ANALYSE</span><span>RÉSONANCE</span><span>BANQUE</span><span>GÉNÉRATEUR</span><span>ÉCHANTILLONS</span><span>RÉFÉRENCES</span><span>OUTILS</span>
     </nav>
-    <div class="connectionBadge">● INTERFACE ONLINE</div>
+    <div class="connectionBadge" id="motorConnectionBadge" data-state="connecting">● MOTOR · CONNECTING</div>
     <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
   </header>
 
@@ -305,6 +307,28 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="obsCell"><strong>CV(Δt)</strong><span id="qualityCv">NONE</span></div>
       <div class="obsCell"><strong>SPECTRUM STATUS</strong><span id="qualitySpectrum">HOLD</span></div>
       <div class="obsCell obsWide"><strong>NOTE</strong>MESURES DE CADENCE LOCALE UNIQUEMENT · AUCUNE FRÉQUENCE PHYSIQUE DÉDUITE</div>
+    </div>
+  </section>
+
+  <section class="panel" id="MOTOR-BRIDGE-01"><h2>NOYAU MOTOR / LIAISON SERVEUR <span class="panelId">MOTOR-BRIDGE-01</span></h2>
+    <div class="obsGrid">
+      <div class="obsCell"><strong>STATE</strong><span id="motorState">CONNECTING</span></div>
+      <div class="obsCell"><strong>TRANSPORT</strong><span id="motorTransport">WSS · CONNECTING</span></div>
+      <div class="obsCell"><strong>AUTHORITY</strong><span id="motorAuthority">NONE</span></div>
+      <div class="obsCell"><strong>TICK</strong><span id="motorTick">NONE</span></div>
+      <div class="obsCell"><strong>WORLD</strong><span id="motorWorld">NONE</span></div>
+      <div class="obsCell"><strong>SPEED</strong><span id="motorSpeed">NONE</span></div>
+      <div class="obsCell"><strong>COHERENCE</strong><span id="motorCoherence">NONE</span></div>
+      <div class="obsCell"><strong>SOURCE</strong><span id="motorSource">NONE</span></div>
+      <div class="obsCell"><strong>B1</strong><span id="motorB1">NONE</span></div>
+      <div class="obsCell"><strong>B2</strong><span id="motorB2">NONE</span></div>
+      <div class="obsCell"><strong>B3</strong><span id="motorB3">NONE</span></div>
+      <div class="obsCell"><strong>SORTIE</strong><span id="motorOutput">NONE</span></div>
+      <div class="obsCell"><strong>BASIN IN</strong><span id="motorBasinIn">NONE</span></div>
+      <div class="obsCell"><strong>BASIN OUT</strong><span id="motorBasinOut">NONE</span></div>
+      <div class="obsCell"><strong>CRYSTAL INDEX</strong><span id="motorCrystalIndex">NONE</span></div>
+      <div class="obsCell obsWide"><strong>STATE HASH</strong><span id="motorHash">NONE</span></div>
+      <div class="obsCell obsWide"><strong>CONTRACT</strong>READ ONLY · NO SERVER WRITE · LE NOYAU FOURNIT LA CADENCE / PHASE / ÉTAT AU VISUEL; LE SON RESTE LOCAL À CET ÉCRAN</div>
     </div>
   </section>
 
@@ -600,6 +624,7 @@ const AUDIO_OUTPUT={running:false,ctx:null,osc:null,gain:null,frequency_hz:null,
 const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
 const MASTER_SESSION={state:"READY",started_at:null};
+const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,ws:null,retry:null,last_at:0,error:"NONE"};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
@@ -609,6 +634,88 @@ const REFERENCE_CATALOG=Object.freeze([
   Object.freeze({id:"USER-HZ-444",label:"444",claimed_hz:444,type:"USER_REFERENCE",status:"UNVALIDATED"}),
   Object.freeze({id:"HEART-REF-1HZ",label:"1 Hz / 60 cycles·min⁻¹",claimed_hz:1,type:"TEST_REFERENCE",status:"REFERENCE_ONLY"})
 ]);
+
+function motorWebSocketUrl(){
+  const scheme=location.protocol==="https:"?"wss":"ws";
+  return scheme+"://"+location.host+"/laboratoire/embryon-x72/ws";
+}
+function validateMotorFrame(v){
+  const wrap=v&&v.noyau_runtime,n=wrap&&wrap.noyau,signals=n&&n.node_signals,basin=n&&n.basin1;
+  const finiteSignals=signals&&["SOURCE","B1","B2","B3","SORTIE"].every(k=>Number.isFinite(signals[k]));
+  return !!(v&&v.source==="QUEEN_SERVER_V0_2"&&wrap&&wrap.authority==="NOYAU_ENGINE_HEADLESS"&&
+    n&&n.schema==="ANTMUX-X72-NOYAU-DYNAMIC-v0.2"&&Number.isFinite(n.tick)&&Number.isFinite(n.speed)&&
+    Number.isFinite(n.coherence)&&Number.isFinite(n.phase_left)&&Number.isFinite(n.phase_right)&&
+    finiteSignals&&basin&&Number.isFinite(basin.inflow)&&Number.isFinite(basin.outflow)&&Number.isFinite(basin.crystal_index)&&
+    typeof n.whole_h256==="string"&&n.whole_h256.length===64);
+}
+function renderMotorBridge(){
+  const n=MOTOR_BRIDGE.noyau,signals=n&&n.node_signals,basin=n&&n.basin1;
+  const badge=document.getElementById("motorConnectionBadge");
+  if(badge){
+    badge.dataset.state=MOTOR_BRIDGE.verified?"live":(MOTOR_BRIDGE.connected?"connecting":"offline");
+    badge.textContent=MOTOR_BRIDGE.verified?"● MOTOR · LIVE":(MOTOR_BRIDGE.connected?"● MOTOR · WAITING":"● MOTOR · OFFLINE");
+  }
+  document.getElementById("motorState").textContent=MOTOR_BRIDGE.verified?"LIVE · VERIFIED":(MOTOR_BRIDGE.connected?"CONNECTED · WAITING":"OFFLINE · RETRY");
+  document.getElementById("motorTransport").textContent=MOTOR_BRIDGE.connected?"WSS · OPEN":"WSS · CLOSED";
+  document.getElementById("motorAuthority").textContent=MOTOR_BRIDGE.verified?"NOYAU_ENGINE_HEADLESS":"NONE";
+  document.getElementById("motorTick").textContent=n?String(n.tick):"NONE";
+  document.getElementById("motorWorld").textContent=n?String(n.world_name):"NONE";
+  document.getElementById("motorSpeed").textContent=n?Number(n.speed).toFixed(3):"NONE";
+  document.getElementById("motorCoherence").textContent=n?Number(n.coherence).toFixed(6):"NONE";
+  document.getElementById("motorSource").textContent=signals?Number(signals.SOURCE).toFixed(6):"NONE";
+  document.getElementById("motorB1").textContent=signals?Number(signals.B1).toFixed(6):"NONE";
+  document.getElementById("motorB2").textContent=signals?Number(signals.B2).toFixed(6):"NONE";
+  document.getElementById("motorB3").textContent=signals?Number(signals.B3).toFixed(6):"NONE";
+  document.getElementById("motorOutput").textContent=signals?Number(signals.SORTIE).toFixed(6):"NONE";
+  document.getElementById("motorBasinIn").textContent=basin?Number(basin.inflow).toFixed(6):"NONE";
+  document.getElementById("motorBasinOut").textContent=basin?Number(basin.outflow).toFixed(6):"NONE";
+  document.getElementById("motorCrystalIndex").textContent=basin?Number(basin.crystal_index).toFixed(6):"NONE";
+  document.getElementById("motorHash").textContent=n?n.whole_h256:"NONE";
+}
+function scheduleMotorReconnect(){
+  if(MOTOR_BRIDGE.retry!==null)return;
+  MOTOR_BRIDGE.retry=setTimeout(()=>{MOTOR_BRIDGE.retry=null;startMotorBridge();},1500);
+}
+function startMotorBridge(){
+  if(MOTOR_BRIDGE.ws&&(MOTOR_BRIDGE.ws.readyState===WebSocket.OPEN||MOTOR_BRIDGE.ws.readyState===WebSocket.CONNECTING))return;
+  try{
+    const ws=new WebSocket(motorWebSocketUrl());
+    MOTOR_BRIDGE.ws=ws;MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=false;renderMotorBridge();
+    ws.addEventListener("open",()=>{MOTOR_BRIDGE.connected=true;MOTOR_BRIDGE.error="NONE";renderMotorBridge();});
+    ws.addEventListener("message",event=>{
+      try{
+        const value=JSON.parse(event.data);
+        if(!validateMotorFrame(value))throw new Error("NOYAU_MOTOR_SCHEMA_INVALID");
+        MOTOR_BRIDGE.frame=Object.freeze(value);
+        MOTOR_BRIDGE.noyau=Object.freeze(value.noyau_runtime.noyau);
+        MOTOR_BRIDGE.last_at=performance.now();MOTOR_BRIDGE.verified=true;MOTOR_BRIDGE.error="NONE";
+        renderMotorBridge();resize();
+      }catch(err){
+        MOTOR_BRIDGE.verified=false;MOTOR_BRIDGE.error=String(err&&err.message?err.message:err);renderMotorBridge();
+      }
+    });
+    ws.addEventListener("close",()=>{MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=false;renderMotorBridge();scheduleMotorReconnect();});
+    ws.addEventListener("error",()=>{MOTOR_BRIDGE.error="WEBSOCKET_ERROR";});
+  }catch(err){
+    MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=false;MOTOR_BRIDGE.error=String(err&&err.message?err.message:err);renderMotorBridge();scheduleMotorReconnect();
+  }
+}
+function drawMotorDrive(w,h){
+  const n=MOTOR_BRIDGE.noyau;
+  if(!MOTOR_BRIDGE.verified||!n)return;
+  const cx=w*.43,cy=h*.50,r=Math.max(58,Math.min(w,h)*.16);
+  x.save();
+  x.lineWidth=2.2;x.shadowBlur=12;
+  x.strokeStyle="#00e99a";x.shadowColor="#00e99a";
+  x.beginPath();x.arc(cx,cy,r,n.phase_left,n.phase_left+Math.PI*1.35);x.stroke();
+  x.strokeStyle="#00e8ff";x.shadowColor="#00e8ff";
+  x.beginPath();x.arc(cx,cy,r+9,n.phase_right,n.phase_right+Math.PI*1.1,true);x.stroke();
+  const px=cx+Math.cos(n.phase_left)*r,py=cy+Math.sin(n.phase_left)*r;
+  x.fillStyle="#65e9b5";x.beginPath();x.arc(px,py,4,0,Math.PI*2);x.fill();
+  x.restore();
+  label("NOYAU MOTOR LIVE · TICK "+n.tick+" · "+n.world_name,cx,cy-r-18,"center","#65e9b5","700 8px Consolas");
+}
+
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
 function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04")||(T5.connected===1&&id==="FLOW-05");x.save();if(!active)x.setLineDash([7,7]);x.shadowColor=active?"#00e8ff":"transparent";x.shadowBlur=active?12:0;x.strokeStyle=active?"#00e8ff":"#24445b";x.lineWidth=active?3:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#9eefff":"#6f8ca0")}
@@ -661,6 +768,7 @@ function drawCrystalGlyph(p,active){
 function draw(w,h){
   x.clearRect(0,0,w,h);const g=x.createRadialGradient(w*.43,h*.46,0,w*.43,h*.46,Math.max(w,h)*.58);g.addColorStop(0,"#071e48");g.addColorStop(.38,"#041226");g.addColorStop(1,"#02070e");x.fillStyle=g;x.fillRect(0,0,w,h);x.strokeStyle="#126a9d";x.strokeRect(7,7,w-14,h-14);
   drawAmbientField(w,h,w*.43,h*.48);
+  drawMotorDrive(w,h);
   label("BASELINE T0 · FROZEN | CURRENT "+(T5.connected?"T5":(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0")))))+" · CONNECTED "+(T1.connected+T2.connected+T3.connected+T4.connected+T5.connected)+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+(T1.proofs+T2.proofs+T3.proofs+T4.proofs+T5.proofs),20,28,"left","#c8cfd4","700 9px Consolas");
   label("PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME",w-20,28,"right","#69737c","8px Consolas");
 
@@ -1713,7 +1821,8 @@ document.getElementById("freqAutoStart").addEventListener("click",toggleFrequenc
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
 
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+window.addEventListener("beforeunload",()=>{if(MOTOR_BRIDGE.retry!==null)clearTimeout(MOTOR_BRIDGE.retry);if(MOTOR_BRIDGE.ws)MOTOR_BRIDGE.ws.close();});
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();renderMotorBridge();startMotorBridge();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();

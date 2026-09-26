@@ -13,9 +13,11 @@ Cette évolution ne reconstruit pas Antmux et ne modifie pas les chemins fonctio
 - T0 reste la référence visuelle figée.
 - Le seul chemin T1 actif reste `SOURCE-00 -> FLOW-01 -> B1.INPUT`.
 - B1 reste `IDENTITY_CAPTURE`.
-- B2, B3, GATE-01, CRYSTAL-01, FLOW-02..05 et les retours restent déconnectés.
-- La fréquence reste non connectée.
-- Aucune API, aucun WebSocket, aucune écriture serveur, aucune Queen ne sont ajoutés.
+- B2, B3, GATE-01, CRYSTAL-01, FLOW-02..05 et les retours locaux restent distincts du moteur serveur; aucune logique scientifique candidate n'est inventée pour eux.
+- La fréquence reste une configuration locale explicite; elle n'est pas déduite du moteur serveur.
+- `MOTOR-BRIDGE-01` ouvre uniquement le WebSocket public existant `/laboratoire/embryon-x72/ws` en lecture seule.
+- Le pont accepte seulement `QUEEN_SERVER_V0_2` + `NOYAU_ENGINE_HEADLESS` + `ANTMUX-X72-NOYAU-DYNAMIC-v0.2` avant d'afficher l'état moteur.
+- Aucune écriture serveur, aucun endpoint de mutation et aucune nouvelle Queen ne sont ajoutés.
 - Aucune formule scientifique candidate n'est branchée.
 
 ## Contrat de topologie
@@ -103,3 +105,22 @@ Workflow visé pour une future variation structurelle :
 `STRUCTURE -> VARIATION -> MESURE -> COMPARAISON -> PREUVE -> GARDE ou REJET`
 
 Aucune variation structurelle n'est appliquée dans cette version.
+
+
+## MOTOR-BRIDGE-01 — vieux moteur branché
+
+Le noyau dynamique déjà existant dans `deploy/x72-shared-queen/app/noyau_runtime/` reste le moteur serveur. La page PARAZONE ne le duplique pas.
+
+Chemin:
+
+`NoyauEngine -> QueenCore.visual_state() -> /ws -> MOTOR-BRIDGE-01 -> anneau visuel + télémétrie`
+
+Le pont affiche uniquement des champs déjà produits par le moteur:
+- tick, world, speed, coherence;
+- node_signals SOURCE / B1 / B2 / B3 / SORTIE;
+- basin inflow / outflow / crystal_index;
+- whole_h256.
+
+Les phases gauche/droite du moteur déplacent l'anneau visuel central. Ce mouvement est une représentation logicielle de l'état du moteur, pas une mesure physique.
+
+La sortie audio reste locale dans `OUTPUT-ADAPTER-01` sur cette même page et conserve son armement manuel.

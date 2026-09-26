@@ -68,8 +68,10 @@ jobs:
           grep -Fq 'PARENT_ID' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'EDGE_TYPE' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'INTER_LEVEL' laboratoire/parazone-x72-d13-v2/index.html
-          ! grep -Fq 'new WebSocket' laboratoire/parazone-x72-d13-v2/index.html
-          ! grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'new WebSocket' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'MOTOR-BRIDGE-01' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq '/laboratoire/embryon-x72/ws' laboratoire/parazone-x72-d13-v2/index.html
 
       - name: Assemble exact public payload
         run: |
@@ -189,8 +191,19 @@ jobs:
           grep -Fq 'PARENT_ID' /tmp/parazone-index.html
           grep -Fq 'EDGE_TYPE' /tmp/parazone-index.html
           grep -Fq 'INTER_LEVEL' /tmp/parazone-index.html
-          ! grep -Fq 'new WebSocket' /tmp/parazone-index.html
-          ! grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
+          grep -Fq 'new WebSocket' /tmp/parazone-index.html
+          grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
+          grep -Fq 'MOTOR-BRIDGE-01' /tmp/parazone-index.html
+          grep -Fq '/laboratoire/embryon-x72/ws' /tmp/parazone-index.html
+          curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/state -o /tmp/parazone-motor-state.json
+          python3 - /tmp/parazone-motor-state.json <<'PY'
+          import json, sys
+          state=json.load(open(sys.argv[1], encoding='utf-8'))
+          assert state['source']=='QUEEN_SERVER_V0_2'
+          assert state['noyau_runtime']['authority']=='NOYAU_ENGINE_HEADLESS'
+          assert state['noyau_runtime']['noyau']['schema']=='ANTMUX-X72-NOYAU-DYNAMIC-v0.2'
+          print('PARAZONE_MOTOR_BRIDGE=PASS')
+          PY
           grep -Fq '# BRUTUS — squelette technique hiérarchique T1' /tmp/parazone-readme.md
           grep -Fq 'AUCUNE CONNEXION INVISIBLE' /tmp/parazone-readme.md
 
