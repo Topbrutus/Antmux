@@ -315,7 +315,7 @@ const T3={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T4={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T5={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const TIMEBASE={history:[],proof:"NONE"};
-const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"NONE"};
+const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"NONE",run_id:0,run_start_index:0};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
 function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04")||(T5.connected===1&&id==="FLOW-05");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
@@ -459,10 +459,12 @@ function renderSampler(){
   btn.disabled=!ready&&!SAMPLER.running;
   btn.textContent=SAMPLER.running?"STOP SAMPLER":"START SAMPLER";
 }
-async function captureScheduledSample(){
+async function captureScheduledSample(runId){
+  if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
   if(T1.connected!==1||T1.value===null||T1.proof==="NONE")return null;
   const t_mono_ms=performance.now();
-  const previous=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
+  const hasPreviousInRun=SAMPLER.history.length>SAMPLER.run_start_index;
+  const previous=hasPreviousInRun?SAMPLER.history[SAMPLER.history.length-1]:null;
   const dt_ms=previous?t_mono_ms-previous.t_mono_ms:null;
   const jitter_ms=dt_ms===null?null:dt_ms-SAMPLER.target_period_ms;
   const packet={
@@ -477,25 +479,29 @@ async function captureScheduledSample(){
     source_proof_ref:T1.proof
   };
   const proof=await sha256Hex(JSON.stringify(packet));
+  if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
   const record=Object.freeze({...packet,proof_ref:proof});
   SAMPLER.history.push(record);SAMPLER.proof=proof;renderSampler();
   return record;
 }
-function scheduleNextSample(){
-  if(!SAMPLER.running)return;
+function scheduleNextSample(runId){
+  if(runId!==SAMPLER.run_id||!SAMPLER.running)return;
   SAMPLER.timer=setTimeout(async()=>{
-    await captureScheduledSample();
-    scheduleNextSample();
+    await captureScheduledSample(runId);
+    if(runId===SAMPLER.run_id&&SAMPLER.running)scheduleNextSample(runId);
   },SAMPLER.target_period_ms);
 }
 function toggleSampler(){
   if(SAMPLER.running){
     SAMPLER.running=false;
+    SAMPLER.run_id+=1;
     if(SAMPLER.timer!==null)clearTimeout(SAMPLER.timer);
     SAMPLER.timer=null;renderSampler();return;
   }
   if(T1.connected!==1||T1.value===null||T1.proof==="NONE")throw new Error("T1_PROOF_REQUIRED");
-  SAMPLER.running=true;renderSampler();scheduleNextSample();
+  SAMPLER.run_id+=1;
+  SAMPLER.run_start_index=SAMPLER.history.length;
+  SAMPLER.running=true;renderSampler();scheduleNextSample(SAMPLER.run_id);
 }
 function renderTimebase(){
   const last=TIMEBASE.history.length?TIMEBASE.history[TIMEBASE.history.length-1]:null;
