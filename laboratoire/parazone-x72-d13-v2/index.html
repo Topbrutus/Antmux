@@ -53,6 +53,8 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 .obsGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .obsCell{background:#070a0c;border:1px solid #273039;border-radius:5px;padding:7px 8px;color:#89949d;font:8px Consolas,monospace;line-height:1.55;min-width:0;word-break:break-all}
 .obsCell strong{display:block;color:#d6dde2;font-size:9px;margin-bottom:2px}.obsWide{grid-column:1/-1}
+.presetBank{margin-top:9px}.presetLayout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:10px}.presetGrid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px}.presetSlot{min-height:42px;border:1px solid #28323b;border-radius:6px;background:#091016;color:#b8c4cc;font:700 9px Consolas,monospace;cursor:pointer;position:relative}.presetSlot:hover,.presetSlot.active{outline:1px solid #dce3e8}.presetSlot .pid{position:absolute;top:4px;left:5px;font-size:8px;opacity:.8}.presetSlot .pmark{font-size:13px}.presetSlot[data-family="chakra"]{border-color:#a22b88;color:#ff7fe0;box-shadow:inset 0 0 14px #7a145533}.presetSlot[data-family="archange"]{border-color:#9a741d;color:#ffd86a;box-shadow:inset 0 0 14px #8f650033}.presetSlot[data-family="sacred"]{border-color:#235fbd;color:#78b9ff;box-shadow:inset 0 0 14px #14488f33}.presetSlot[data-family="prayer"]{border-color:#188d64;color:#65e9b5;box-shadow:inset 0 0 14px #0b6d4a33}.presetSlot[data-family="reference"]{border-color:#b85a21;color:#ffad68;box-shadow:inset 0 0 14px #8f390f33}.presetSlot[data-family="test"]{border-color:#168ca6;color:#69e8ff;box-shadow:inset 0 0 14px #08687d33}.presetSlot[data-family="custom"]{border-color:#7447b3;color:#c99aff;box-shadow:inset 0 0 14px #50218433}.presetDetail{background:#070a0d;border:1px solid #273039;border-radius:7px;padding:9px}.presetDetailGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.presetField{background:#0b1015;border:1px solid #29333c;border-radius:5px;padding:6px;color:#87949d;font:8px Consolas,monospace}.presetField strong{display:block;color:#dce3e8;margin-bottom:3px}.presetActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.presetActions button{background:#111820;border:1px solid #3a4853;border-radius:6px;color:#d8e0e6;padding:6px 9px;font:700 9px Consolas,monospace;cursor:pointer}
+@media(max-width:900px){.presetLayout{grid-template-columns:1fr}.presetGrid{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:1100px){.layout{grid-template-columns:1fr}.engine,#engineCanvas{min-height:660px}.left,.right{grid-template-columns:1fr 1fr;grid-template-rows:auto}.controls .controlGrid{grid-template-columns:1fr 1fr}.subtitle{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start}.title{font-size:15px}}
 </style>
@@ -182,6 +184,31 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <div class="obsCell"><strong>CV(Δt)</strong><span id="qualityCv">NONE</span></div>
       <div class="obsCell"><strong>SPECTRUM STATUS</strong><span id="qualitySpectrum">HOLD</span></div>
       <div class="obsCell obsWide"><strong>NOTE</strong>MESURES DE CADENCE LOCALE UNIQUEMENT · AUCUNE FRÉQUENCE PHYSIQUE DÉDUITE</div>
+    </div>
+  </section>
+
+  <section class="panel presetBank" id="PRESET-BANK-01"><h2>BANQUE DE CONFIGURATIONS <span class="panelId">PRESET-BANK-01</span></h2>
+    <div class="presetLayout">
+      <div id="presetGrid" class="presetGrid" aria-label="Grille de 100 presets"></div>
+      <div class="presetDetail">
+        <div class="presetDetailGrid">
+          <div class="presetField"><strong>SLOT</strong><span id="presetId">00</span></div>
+          <div class="presetField"><strong>FAMILLE</strong><span id="presetFamily">NEUTRAL</span></div>
+          <div class="presetField"><strong>NOM</strong><span id="presetName">EMPTY</span></div>
+          <div class="presetField"><strong>STATUS</strong><span id="presetStatus">EMPTY</span></div>
+          <div class="presetField"><strong>MODE</strong><span id="presetMode">NONE</span></div>
+          <div class="presetField"><strong>FRÉQUENCE</strong><span id="presetHz">NONE</span></div>
+          <div class="presetField"><strong>AMPLITUDE</strong><span id="presetAmp">NONE</span></div>
+          <div class="presetField"><strong>AUTO PROFILE</strong><span id="presetProfile">NONE</span></div>
+          <div class="presetField" style="grid-column:1/-1"><strong>RÉFÉRENCE</strong><span id="presetRef">NONE</span></div>
+        </div>
+        <div class="presetActions">
+          <button id="presetSave" type="button">SAVE CURRENT</button>
+          <button id="presetLoad" type="button">LOAD</button>
+          <button id="presetClear" type="button">CLEAR SLOT</button>
+        </div>
+        <div class="note">LOCAL STORAGE ONLY · PRESET ≠ MESURE · PRESET ≠ PREUVE SCIENTIFIQUE</div>
+      </div>
     </div>
   </section>
 
@@ -334,6 +361,7 @@ const T4={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T5={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const TIMEBASE={history:[],proof:"NONE"};
 const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"NONE",run_id:0,run_start_index:0};
+const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
 function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04")||(T5.connected===1&&id==="FLOW-05");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
@@ -491,6 +519,71 @@ function renderWaveChart(){
   verified.forEach(v=>{const xx=pad.l+((v.t_mono_ms-t0)/span)*w,yy=pad.t+(1-v.amplitude)*h;g.beginPath();g.arc(xx,yy,1.8,0,Math.PI*2);g.fill();});
   const last=verified[verified.length-1];
   meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED POINTS ONLY</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
+}
+function presetFamilyFor(id){
+  if(id>=1&&id<=10)return "chakra";
+  if(id>=11&&id<=20)return "archange";
+  if(id>=21&&id<=40)return "sacred";
+  if(id>=41&&id<=60)return "prayer";
+  if(id>=61&&id<=70)return "reference";
+  if(id>=71&&id<=90)return "test";
+  if(id>=91&&id<=99)return "custom";
+  return "neutral";
+}
+function defaultPresetName(id,family){
+  if(id===0)return "EMPTY";
+  const labels={chakra:"CHAKRA",archange:"ARCHANGE",sacred:"SACRED",prayer:"PRAYER",reference:"REFERENCE",test:"TEST",custom:"CUSTOM"};
+  return (labels[family]||"SLOT")+"-"+String(id).padStart(2,"0");
+}
+function persistPresetBank(){
+  try{localStorage.setItem(PRESET_BANK.storage_key,JSON.stringify(PRESET_BANK.slots));return true}catch(_){return false}
+}
+function restorePresetBank(){
+  try{const raw=localStorage.getItem(PRESET_BANK.storage_key);if(!raw)return;const parsed=JSON.parse(raw);if(Array.isArray(parsed)&&parsed.length===100)PRESET_BANK.slots=parsed}catch(_){}
+}
+function renderPresetDetail(){
+  const id=PRESET_BANK.selected,slot=PRESET_BANK.slots[id],family=presetFamilyFor(id);
+  document.getElementById("presetId").textContent=String(id).padStart(2,"0");
+  document.getElementById("presetFamily").textContent=family.toUpperCase();
+  document.getElementById("presetName").textContent=slot&&slot.name?slot.name:defaultPresetName(id,family);
+  document.getElementById("presetStatus").textContent=slot?"SAVED":"EMPTY";
+  document.getElementById("presetMode").textContent=slot&&slot.mode?slot.mode:"NONE";
+  document.getElementById("presetHz").textContent=slot&&Number.isFinite(slot.frequency_hz)?slot.frequency_hz.toFixed(3)+" Hz":"NONE";
+  document.getElementById("presetAmp").textContent=slot&&Number.isFinite(slot.amplitude)?slot.amplitude.toFixed(6):"NONE";
+  document.getElementById("presetProfile").textContent=slot&&slot.auto_profile?slot.auto_profile:"NONE";
+  document.getElementById("presetRef").textContent=slot&&slot.reference_id?slot.reference_id:"NONE";
+}
+function renderPresetGrid(){
+  const grid=document.getElementById("presetGrid");if(!grid)return;
+  grid.innerHTML="";
+  for(let id=0;id<100;id++){
+    const family=presetFamilyFor(id),slot=PRESET_BANK.slots[id],b=document.createElement("button");
+    b.type="button";b.className="presetSlot"+(id===PRESET_BANK.selected?" active":"");b.dataset.family=family;b.dataset.presetId=String(id);
+    b.innerHTML='<span class="pid">'+String(id).padStart(2,"0")+'</span><span class="pmark">'+(slot?"●":"○")+'</span>';
+    b.title=(slot&&slot.name?slot.name:defaultPresetName(id,family))+" · "+family.toUpperCase();
+    b.addEventListener("click",()=>{PRESET_BANK.selected=id;renderPresetGrid();renderPresetDetail();});
+    grid.appendChild(b);
+  }
+}
+function saveCurrentPreset(){
+  const id=PRESET_BANK.selected,family=presetFamilyFor(id),previous=PRESET_BANK.slots[id];
+  let amplitude;
+  try{amplitude=normalizedInput(T1.value!==null?T1.value:document.getElementById("t1Value").value)}
+  catch(err){renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · "+String(err&&err.message?err.message:err);return false}
+  PRESET_BANK.slots[id]={schema:"BRUTUS_PRESET_V1",id,name:defaultPresetName(id,family),family,mode:"LOCAL_STATE_SNAPSHOT",frequency_hz:null,amplitude,auto_profile:"NONE",reference_id:"NONE",saved_at:new Date().toISOString()};
+  if(!persistPresetBank()){PRESET_BANK.slots[id]=previous;renderPresetGrid();renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · STORAGE";return false}
+  renderPresetGrid();renderPresetDetail();return true;
+}
+function loadSelectedPreset(){
+  const slot=PRESET_BANK.slots[PRESET_BANK.selected];if(!slot)return;
+  if(Number.isFinite(slot.amplitude))document.getElementById("t1Value").value=slot.amplitude.toFixed(6);
+  renderPresetDetail();
+}
+function clearSelectedPreset(){
+  const id=PRESET_BANK.selected,previous=PRESET_BANK.slots[id];
+  PRESET_BANK.slots[id]=null;
+  if(!persistPresetBank()){PRESET_BANK.slots[id]=previous;renderPresetGrid();renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · STORAGE";return false}
+  renderPresetGrid();renderPresetDetail();return true;
 }
 function renderSamplerQuality(){
   const run=SAMPLER.history.slice(SAMPLER.run_start_index);
@@ -840,6 +933,10 @@ document.getElementById("t3Connect").addEventListener("click",connectT3);
 document.getElementById("t4Connect").addEventListener("click",connectT4);
 document.getElementById("t5Connect").addEventListener("click",connectT5);
 document.getElementById("samplerToggle").addEventListener("click",toggleSampler);
+document.getElementById("presetSave").addEventListener("click",saveCurrentPreset);
+document.getElementById("presetLoad").addEventListener("click",loadSelectedPreset);
+document.getElementById("presetClear").addEventListener("click",clearSelectedPreset);
+restorePresetBank();renderPresetGrid();renderPresetDetail();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
