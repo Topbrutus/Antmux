@@ -838,6 +838,7 @@ async def ingest_zelstereos(request: Request) -> dict[str, Any]:
 async def stream_zelstereos(websocket: WebSocket) -> None:
     await websocket.accept()
     async with zel_state_condition:
+        initial_replay_version = zel_state_version if zel_state is not None else None
         last_version = max(0, zel_state_version - 1) if zel_state is not None else 0
     try:
         while True:
@@ -851,7 +852,14 @@ async def stream_zelstereos(websocket: WebSocket) -> None:
                 if not pending and zel_state is not None and zel_state_version > last_version:
                     pending = [(zel_state_version, dict(zel_state))]
             for version, payload in pending:
-                await websocket.send_json(payload)
+                stream_payload = dict(payload)
+                stream_payload["transport_event_version"] = version
+                stream_payload["transport_replay"] = bool(
+                    initial_replay_version is not None and version == initial_replay_version
+                )
+                await websocket.send_json(stream_payload)
+                if initial_replay_version == version:
+                    initial_replay_version = None
                 last_version = version
     except WebSocketDisconnect:
         return
