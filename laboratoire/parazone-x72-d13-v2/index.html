@@ -23,7 +23,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 .chart,.crystalBox{position:relative;width:100%;height:100%;min-height:230px;background:#080a0c;border:1px solid #171b1f;overflow:hidden}
 .gridbg{background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px}
 .axis{position:absolute;color:#78838c;font:9px Consolas,monospace}.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#545e67;font:10px Consolas,monospace;letter-spacing:.09em;line-height:1.8}
-.waveCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.waveMeta{position:absolute;left:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none}.waveMeta strong{color:#d7dfe5}
+.waveCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.waveMeta{position:absolute;left:9px;right:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none;overflow-wrap:anywhere;word-break:break-word}.waveMeta strong{color:#d7dfe5}
 .empty strong{color:#87919a;font-size:11px}.info{margin-top:5px;color:#69737c;font:10px Consolas,monospace}
 .center{display:flex}.engine{width:100%;height:100%;min-height:650px;padding:0;background:#06080a;border:1px solid #242a30;border-radius:10px;overflow:hidden}
 #engineCanvas{display:block;width:100%;height:100%;min-height:650px}
@@ -459,7 +459,8 @@ function renderWaveChart(){
   canvas.width=Math.max(1,Math.floor(r.width*d));canvas.height=Math.max(1,Math.floor(r.height*d));
   const g=canvas.getContext("2d");g.setTransform(d,0,0,d,0,0);g.clearRect(0,0,r.width,r.height);
   const run=SAMPLER.history.slice(SAMPLER.run_start_index);
-  const verified=run.filter(v=>v&&Number.isFinite(v.amplitude)&&Number.isFinite(v.t_mono_ms)&&v.proof_ref&&v.proof_ref!=="NONE");
+  const verifiedAll=run.filter(v=>v&&Number.isFinite(v.amplitude)&&Number.isFinite(v.t_mono_ms)&&v.proof_ref&&v.proof_ref!=="NONE");
+  const verified=verifiedAll.slice(-300);
   if(verified.length<2){
     empty.style.display="grid";
     meta.innerHTML="<strong>LOCAL STATE SERIES</strong><br>SAMPLES: "+verified.length+" · PHYSICAL FREQUENCY: NOT INFERRED";
@@ -471,16 +472,10 @@ function renderWaveChart(){
   g.strokeStyle="#273039";g.lineWidth=1;
   for(let i=0;i<=4;i++){const y=pad.t+h*i/4;g.beginPath();g.moveTo(pad.l,y);g.lineTo(pad.l+w,y);g.stroke();}
   for(let i=0;i<=5;i++){const xx=pad.l+w*i/5;g.beginPath();g.moveTo(xx,pad.t);g.lineTo(xx,pad.t+h);g.stroke();}
-  g.strokeStyle="#dce3e8";g.lineWidth=1.6;g.beginPath();
-  verified.forEach((v,i)=>{
-    const xx=pad.l+((v.t_mono_ms-t0)/span)*w;
-    const yy=pad.t+(1-v.amplitude)*h;
-    if(i===0)g.moveTo(xx,yy);else g.lineTo(xx,yy);
-  });g.stroke();
   g.fillStyle="#dce3e8";
   verified.forEach(v=>{const xx=pad.l+((v.t_mono_ms-t0)/span)*w,yy=pad.t+(1-v.amplitude)*h;g.beginPath();g.arc(xx,yy,1.8,0,Math.PI*2);g.fill();});
   const last=verified[verified.length-1];
-  meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED</strong><br>SAMPLES: "+verified.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · LAST PROOF: "+last.proof_ref;
+  meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED POINTS ONLY</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
 }
 function renderSampler(){
   const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
