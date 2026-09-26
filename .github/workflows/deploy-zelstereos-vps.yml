@@ -1,0 +1,119 @@
+name: Deploy ZELSTEREOS to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-zelstereos-vps.yml'
+      - 'laboratoire/zelstereos/index.html'
+      - 'laboratoire/index.html'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-ZELSTEREOS to allow the manual VPS deployment'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zelstereos-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-ZELSTEREOS'))
+    runs-on: ubuntu-latest
+    env:
+      LAB_ROOT: /var/www/antmux.com/public_html/laboratoire
+      TARGET_ROOT: /var/www/antmux.com/public_html/laboratoire/zelstereos
+      REMOTE_STAGE: /tmp/antmux-zelstereos-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Validate public payload
+        run: |
+          set -euo pipefail
+          test -f laboratoire/zelstereos/index.html
+          grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' laboratoire/zelstereos/index.html
+          ! grep -Eq 'Â|Ã|â' laboratoire/zelstereos/index.html
+          rm -rf _zelstereos_deploy
+          mkdir -p _zelstereos_deploy
+          cp laboratoire/zelstereos/index.html _zelstereos_deploy/index.html
+          sha256sum _zelstereos_deploy/index.html > _zelstereos_deploy/SHA256SUMS
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "set -e; test -d '$LAB_ROOT'; test -w '$LAB_ROOT'; test \"\$(id -un)\" = '$VPS_USER'"
+
+      - name: Upload staged payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -r _zelstereos_deploy/. \
+            "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+      - name: Backup and deploy exact file
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          TARGET_ROOT='/var/www/antmux.com/public_html/laboratoire/zelstereos'
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP_ROOT="$HOME/antmux-zelstereos-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+          mkdir -p "$BACKUP_ROOT"
+          if test -f "$TARGET_ROOT/index.html"; then
+            cp -a "$TARGET_ROOT/index.html" "$BACKUP_ROOT/index.html"
+          fi
+          install -d -m 0755 "$TARGET_ROOT"
+          install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
+          cd "$TARGET_ROOT"
+          sha256sum "$TARGET_ROOT/index.html"
+          rm -rf "$REMOTE_STAGE"
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
+
+      - name: Verify public ZELSTEREOS page
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/ -o /tmp/zelstereos.html
+          grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' /tmp/zelstereos.html
+          grep -Fq 'Lecture seule · données filtrées · commandes privées non exposées' /tmp/zelstereos.html
+          ! grep -Eq 'Â|Ã|â' /tmp/zelstereos.html
+          echo 'ZELSTEREOS_PUBLIC_DEPLOY=PASS'
