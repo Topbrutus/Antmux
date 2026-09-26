@@ -9,6 +9,7 @@ import os
 import random
 import sqlite3
 import time
+from collections import deque
 from contextlib import closing
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -534,6 +535,7 @@ ZEL_MAX_BODY_BYTES = 65536
 zel_state: dict[str, Any] | None = None
 zel_state_version = 0
 zel_state_condition = asyncio.Condition()
+zel_state_history: deque[tuple[int, dict[str, Any]]] = deque(maxlen=256)
 
 
 def normalize_zel_public_state(raw: Any) -> dict[str, Any]:
@@ -818,25 +820,36 @@ async def ingest_zelstereos(request: Request) -> dict[str, Any]:
         zel_state = normalized
         zel_state_version += 1
         version = zel_state_version
+        zel_state_history.append((version, dict(normalized)))
         zel_state_condition.notify_all()
     return {"ok": True, "version": version}
 
 
-@app.websocket("/ws/zelstereos")
-async def websocket_zelstereos(websocket: WebSocket) -> None:
+async def stream_zelstereos(websocket: WebSocket) -> None:
     await websocket.accept()
-    last_version = -1
+    async with zel_state_condition:
+        last_version = max(0, zel_state_version - 1) if zel_state is not None else 0
     try:
         while True:
             async with zel_state_condition:
-                await zel_state_condition.wait_for(
-                    lambda: zel_state is not None and zel_state_version != last_version
-                )
-                payload = dict(zel_state or {})
-                last_version = zel_state_version
-            await websocket.send_json(payload)
+                await zel_state_condition.wait_for(lambda: zel_state_version > last_version)
+                pending = [
+                    (version, dict(payload))
+                    for version, payload in zel_state_history
+                    if version > last_version
+                ]
+                if not pending and zel_state is not None and zel_state_version > last_version:
+                    pending = [(zel_state_version, dict(zel_state))]
+            for version, payload in pending:
+                await websocket.send_json(payload)
+                last_version = version
     except WebSocketDisconnect:
         return
+
+
+@app.websocket("/ws/zelstereos")
+async def websocket_zelstereos(websocket: WebSocket) -> None:
+    await stream_zelstereos(websocket)
 
 
 @app.websocket("/ws")
@@ -844,19 +857,8 @@ async def websocket_state(websocket: WebSocket) -> None:
     global active_websocket_clients, websocket_messages_sent
 
     if websocket.query_params.get("channel") == "zelstereos":
-        await websocket.accept()
-        last_version = -1
-        try:
-            while True:
-                async with zel_state_condition:
-                    await zel_state_condition.wait_for(
-                        lambda: zel_state is not None and zel_state_version != last_version
-                    )
-                    payload = dict(zel_state or {})
-                    last_version = zel_state_version
-                await websocket.send_json(payload)
-        except WebSocketDisconnect:
-            return
+        await stream_zelstereos(websocket)
+        return
 
     await websocket.accept()
     active_websocket_clients += 1
