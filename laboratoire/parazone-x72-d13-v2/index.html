@@ -82,14 +82,51 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 @media(max-width:900px){.generatorState,.popcornMeta,.crackGrid,.classGrid{grid-template-columns:1fr 1fr}}
 @media(max-width:900px){.presetLayout{grid-template-columns:1fr}.presetGrid{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:1100px){.layout{grid-template-columns:1fr}.engine,#engineCanvas{min-height:660px}.left,.right{grid-template-columns:1fr 1fr;grid-template-rows:auto}.controls .controlGrid{grid-template-columns:1fr 1fr}.subtitle{display:none}}
-@media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start}.title{font-size:15px}}
+.header{position:sticky;top:0;z-index:50;background:#020913e8;backdrop-filter:blur(12px);padding:8px 10px;border:1px solid #12324a;border-radius:10px;box-shadow:0 0 18px #00dfff12}
+.brandMark{font:800 28px Consolas,monospace;color:var(--cyan);text-shadow:0 0 14px #00e8ffaa;line-height:1}
+.title span{color:var(--violet)}
+.topNav{display:flex;gap:12px;align-items:center;justify-content:center;flex:1;color:#79a9c7;font:700 8px Consolas,monospace;letter-spacing:.08em;white-space:nowrap}
+.topNav span{padding:4px 5px;border-bottom:1px solid transparent}.topNav span:hover{color:#e9fbff;border-color:var(--cyan)}
+.connectionBadge{padding:5px 8px;border:1px solid #00a878;border-radius:6px;background:#06241b;color:#62ffc7;font:800 8px Consolas,monospace;box-shadow:0 0 10px #00e99a22;white-space:nowrap}
+.instrumentDeck{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;margin-top:9px}
+.instrumentDeck>#ANALYSIS-AMP-01{grid-column:span 3}
+.instrumentDeck>#ANALYSIS-HISTORY-01{grid-column:span 3}
+.instrumentDeck>#TIMEBASE-01{grid-column:span 2}
+.instrumentDeck>#SAMPLER-01{grid-column:span 2}
+.instrumentDeck>#SAMPLER-QUALITY-01{grid-column:span 2}
+.instrumentDeck>#PRESET-BANK-01{grid-column:span 5}
+.instrumentDeck>#REFERENCE-CATALOG-01{grid-column:span 3}
+.instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 4}
+.instrumentDeck>#CRACK-METER-01{grid-column:span 6}
+.instrumentDeck>#CRACK-CLASSIFIER-01{grid-column:span 6}
+.instrumentDeck>.panel{margin-top:0;min-height:100%}
+.engine{position:relative;padding-top:26px;background:
+  radial-gradient(circle at 50% 38%,#06205d 0,#061123 24%,#040912 58%,#02060c 100%),
+  linear-gradient(180deg,#06101d,#02060c);border-color:#1a66a5;box-shadow:inset 0 0 35px #006cff1f,0 0 14px #00dfff17}
+.engine:before{content:"CŒUR DU MOTEUR DE RÉSONANCE";position:absolute;left:10px;top:7px;color:#bdeeff;font:800 10px Consolas,monospace;letter-spacing:.08em;text-shadow:0 0 8px #00dfff88}
+.engine:after{content:"CORE-ENGINE";position:absolute;right:10px;top:7px;color:#4eb8de;font:8px Consolas,monospace}
+#engineCanvas{min-height:624px}
+.panel{position:relative}
+.panel:before{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;background:linear-gradient(90deg,#00e8ff08,transparent 18%,transparent 82%,#9b45ff08)}
+.panel h2{font-weight:800;text-shadow:0 0 8px currentColor}
+.obsCell,.generatorCell,.crackCell,.classCell,.presetField,.presetDetail,.popcornMeta div,.topologyCell{box-shadow:inset 0 0 12px #001b2b35}
+.refTable th{background:#111008}
+.popcornBasin{min-height:220px}
+@media(max-width:1280px){.topNav{display:none}.instrumentDeck{grid-template-columns:repeat(6,minmax(0,1fr))}.instrumentDeck>*{grid-column:span 3!important}.instrumentDeck>#PRESET-BANK-01,.instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 6!important}}
+@media(max-width:900px){.instrumentDeck{grid-template-columns:1fr}.instrumentDeck>*{grid-column:1!important}.connectionBadge{display:none}}
+@media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.subtitle{display:block;width:100%;text-align:left}.brandMark{font-size:20px}}
 </style>
 </head>
 <body>
 <main class="shell">
   <header class="header">
-    <div class="title">BRUTUS // MOTEUR DE RÉSONANCE</div>
-    <div class="subtitle"><span class="t0">BASELINE T0 · FROZEN</span> · <span id="currentState">CURRENT T0 · CONNECTED 0</span></div>
+    <div class="brandMark" aria-hidden="true">⌁</div>
+    <div class="title">BRUTUS <span>//</span> MOTEUR DE RÉSONANCE</div>
+    <nav class="topNav" aria-label="Navigation visuelle">
+      <span>ANALYSE</span><span>RÉSONANCE</span><span>BANQUE</span><span>GÉNÉRATEUR</span><span>ÉCHANTILLONS</span><span>RÉFÉRENCES</span><span>OUTILS</span>
+    </nav>
+    <div class="connectionBadge">● CONNECTÉ</div>
+    <div class="subtitle"><span class="t0">T0 · FROZEN</span> · <span id="currentState">CURRENT T0 · CONNECTED 0</span></div>
   </header>
 
   <section class="layout">
@@ -146,6 +183,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     </div>
   </section>
 
+  <section class="instrumentDeck">
   <section class="panel" id="ANALYSIS-AMP-01"><h2>AMPLITUDE / INPUT <span class="panelId">ANALYSIS-AMP-01</span></h2>
     <div class="obsGrid">
       <div class="obsCell"><strong>STATE</strong><span id="ampState">NO DATA</span></div>
@@ -304,6 +342,8 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="classCell classWide"><strong>RÈGLES</strong><span id="classRules">FAIBLE &lt; 0.40A · MOYEN 0.40–0.70A · FORT ≥ 0.70A · RAFALE: ≥2 triggers avec Δt ≤ 0.080 s</span></div>
       <div class="classCell classWide"><strong>STATUS</strong><span id="classStatus">SYNTHETIC LABELS ONLY · NOT A MATERIAL PROPERTY</span></div>
     </div>
+  </section>
+
   </section>
 
   <section class="panel controls"><h2>CONTRÔLES / CADRANS <span class="panelId">CONTROL-BANK-01</span></h2>
