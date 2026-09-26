@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#050607">
 <title>BRUTUS // T0 — squelette technique — ANTMUX</title>
-<meta name="description" content="Squelette visuel BRUTUS X72 T0, figé, autonome et non connecté.">
+<meta name="description" content="Poste de contrôle BRUTUS X72 — configuration, échantillonnage local, mesures et preuves techniques.">
 <style>
 :root{--bg:#020913;--panel:#07101c;--line:#17324a;--text:#dcecff;--muted:#7fa9c8;--soft:#0a1624;--dim:#52708a;--cyan:#00e8ff;--blue:#198bff;--violet:#9b45ff;--gold:#ffae42;--orange:#ff7a1a;--red:#ff3344;--green:#00e99a;--ice:#9eefff}
 *{box-sizing:border-box}
@@ -126,8 +126,8 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <nav class="topNav" aria-label="Navigation visuelle">
       <span>ANALYSE</span><span>RÉSONANCE</span><span>BANQUE</span><span>GÉNÉRATEUR</span><span>ÉCHANTILLONS</span><span>RÉFÉRENCES</span><span>OUTILS</span>
     </nav>
-    <div class="connectionBadge">● CONNECTÉ</div>
-    <div class="subtitle"><span class="t0">T0 · FROZEN</span> · <span id="currentState">CURRENT T0 · CONNECTED 0</span></div>
+    <div class="connectionBadge">● INTERFACE ONLINE</div>
+    <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
   </header>
 
   <section class="layout">
@@ -259,7 +259,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="obsCell"><strong>SAMPLES</strong><span id="histCount">0</span></div>
       <div class="obsCell"><strong>ORDER</strong>MEASURE # / TICK</div>
       <div class="obsCell"><strong>TRANSFORM</strong>NONE</div>
-      <div class="obsCell obsWide"><strong>LAST 12 VERIFIED SAMPLES</strong><pre id="histSamples" class="t1History">EMPTY</pre></div>
+      <div class="obsCell obsWide"><strong>LAST 12 PROOF-REFERENCED SAMPLES</strong><pre id="histSamples" class="t1History">EMPTY</pre></div>
     </div>
   </section>
 
@@ -519,7 +519,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="btn">START · OUTPUT DISCONNECTED</div><div class="btn">PAUSE · CONFIG ONLY</div><div class="btn">STOP · CONFIG ONLY</div><div class="idle">READY · SAFE CONFIG</div>
     </div>
     <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
-    <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
+    <div class="rule">RÈGLE: toute action active doit déclarer SOURCE · ÉTAT · TEMPS · PREUVE; une connexion seule ne constitue pas une mesure.</div>
   </section>
 </main>
 <script>
@@ -766,7 +766,7 @@ function renderWaveChart(){
   g.fillStyle="#dce3e8";
   verified.forEach(v=>{const xx=pad.l+((v.t_mono_ms-t0)/span)*w,yy=pad.t+(1-v.amplitude)*h;g.beginPath();g.arc(xx,yy,1.8,0,Math.PI*2);g.fill();});
   const last=verified[verified.length-1];
-  meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED POINTS ONLY</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
+  meta.innerHTML="<strong>LOCAL STATE SERIES · PROOF-REFERENCED POINTS</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
 }
 function analyzeCrackleBuffer(){
   const data=POPCORN_BASIN.samples;
@@ -1271,7 +1271,7 @@ function toggleSampler(){
 }
 function renderTimebase(){
   const last=TIMEBASE.history.length?TIMEBASE.history[TIMEBASE.history.length-1]:null;
-  document.getElementById("timeState").textContent=last?"LIVE · EVENT TIME VERIFIED":"NO DATA";
+  document.getElementById("timeState").textContent=last?"EVENT TIME · LOCAL MONOTONIC":"NO DATA";
   document.getElementById("timeEvents").textContent=String(TIMEBASE.history.length);
   document.getElementById("timeDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
   document.getElementById("timeProof").textContent=last?last.proof_ref:"NONE";
@@ -1304,7 +1304,7 @@ async function captureTimebase(sourceRecord){
 function renderMeasurementHistory(){
   const verified=T1.history.filter(r=>r&&r.proof_ref&&r.proof_ref!=="NONE"&&Number.isFinite(r.after));
   const last=verified.slice(-12);
-  document.getElementById("histState").textContent=verified.length?"LIVE · VERIFIED ORDER":"NO DATA";
+  document.getElementById("histState").textContent=verified.length?"LOCAL ORDER · PROOF REFERENCES PRESENT":"NO DATA";
   document.getElementById("histCount").textContent=String(verified.length);
   document.getElementById("histSamples").textContent=last.length?last.map(r=>"#"+String(r.tick).padStart(3,"0")+" · AMP="+r.after.toFixed(6)+" · PROOF="+r.proof_ref).join("\n"):"EMPTY";
   renderTimebase();
@@ -1312,7 +1312,7 @@ function renderMeasurementHistory(){
 }
 function renderAmplitudePanel(){
   const hasT1=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"&&T1.history.length>0;
-  document.getElementById("ampState").textContent=hasT1?"LIVE · T1 VERIFIED":"NO DATA";
+  document.getElementById("ampState").textContent=hasT1?"T1 ACTIVE · PROOF PRESENT":"NO DATA";
   document.getElementById("ampMeasure").textContent=hasT1?String(T1.tick):"NONE";
   document.getElementById("ampValue").textContent=hasT1?T1.value.toFixed(6):"—";
   document.getElementById("ampProof").textContent=hasT1?T1.proof:"NONE";
