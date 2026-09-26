@@ -124,6 +124,28 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .brutusScreenMode.screenMode3 .instrumentDeck{grid-template-columns:repeat(12,minmax(0,1fr))}.brutusScreenMode.screenMode3 #PRESET-BANK-01{grid-column:span 5!important}.brutusScreenMode.screenMode3 #REFERENCE-CATALOG-01{grid-column:span 3!important}.brutusScreenMode.screenMode3 #MICROPHONE-SOURCE-01{grid-column:span 4!important;margin-top:0}.brutusScreenMode.screenMode3 #SIGNAL-GENERATOR-01{grid-column:1/-1!important}.brutusScreenMode.screenMode3 .presetGrid{gap:4px}.brutusScreenMode.screenMode3 .presetSlot{min-height:27px}
 .brutusScreenMode.screenMode4 .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.brutusScreenMode.screenMode4 .controls>h2{grid-column:1/-1;margin:0}.brutusScreenMode.screenMode4 #INPUT-TEST-01{grid-column:1/-1}.brutusScreenMode.screenMode4 #CONNECT-T2-01,.brutusScreenMode.screenMode4 #CONNECT-T3-01,.brutusScreenMode.screenMode4 #CONNECT-T4-01,.brutusScreenMode.screenMode4 #CONNECT-T5-01{grid-column:span 1;margin-top:0}.brutusScreenMode.screenMode4 .t1History{max-height:150px}.brutusScreenMode.screenMode4 .t1Panel{margin-top:0}
 .brutusScreenMode.screenMode5 .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.brutusScreenMode.screenMode5 .controls>h2{grid-column:1/-1;margin:0}.brutusScreenMode.screenMode5 #OBS-BUS-01,.brutusScreenMode.screenMode5 #TOPOLOGY-REGISTRY-01{grid-column:span 1;margin-top:0}.brutusScreenMode.screenMode5 #CONTROL-DIAL-RACK-01,.brutusScreenMode.screenMode5 .controlLaunchBar,.brutusScreenMode.screenMode5 .controls>.note,.brutusScreenMode.screenMode5 .controls>.rule{grid-column:1/-1}.brutusScreenMode.screenMode5 .dialRack{grid-template-columns:repeat(6,minmax(90px,1fr));gap:6px;margin-top:0}.brutusScreenMode.screenMode5 .dialCard{min-height:98px;padding:7px}.brutusScreenMode.screenMode5 .dialKnob{width:38px;height:38px;margin-bottom:5px}
+/* PANEL-WORKSPACE-01 — pliage local + zoom du lettrage par panneau */
+.foldablePanel{position:relative}
+.panelControlBar{display:flex;align-items:center;gap:8px;min-height:24px;margin:0 0 7px;padding:0 0 5px;border-bottom:1px solid #1a3d55;position:relative;z-index:15}
+.panelControlBar>h2{flex:1;min-width:0;margin:0!important;padding:0!important}
+.panelControlBar>h2 .panelId{float:none;display:inline-block;margin-left:6px}
+.panelControlLabel{flex:1;min-width:0;color:#9eefff;font:800 10px Consolas,monospace;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panelTools{display:flex;align-items:center;gap:4px;margin-left:auto;flex:0 0 auto}
+.panelTools button{min-width:26px;height:23px;border:1px solid #315f9b;border-radius:5px;background:#071524;color:#a9dcff;padding:0 6px;font:800 10px Consolas,monospace;cursor:pointer;box-shadow:inset 0 0 8px #00182755}
+.panelTools button:hover{border-color:#00e8ff;color:#fff;box-shadow:0 0 8px #00e8ff33}
+.panelTools .panelFoldBtn{min-width:70px;color:#ffd58a;border-color:#7b5c25;font-size:8px}
+.panelTools .panelScaleReadout{min-width:38px;text-align:center;color:#74d9ff;font:700 8px Consolas,monospace}
+.foldablePanel.isFolded{min-height:0!important;height:auto!important;padding-bottom:5px!important}
+.foldablePanel.isFolded>.panelControlBar{margin-bottom:0;border-bottom:0;padding-bottom:0}
+.foldablePanel.isFolded>:not(.panelControlBar){display:none!important}
+.foldablePanel.isFolded>.panelControlBar>h2,.foldablePanel.isFolded>.panelControlBar>.panelControlLabel{opacity:.9}
+.dialRack.foldablePanel>.panelControlBar{grid-column:1/-1}
+.brutusScreenMode.screenMode5 .controls>.foldablePanel{min-width:0}
+.col:has(>.foldablePanel.isFolded){grid-template-rows:auto!important;align-content:start}
+.instrumentDeck>.foldablePanel.isFolded,.monitorWall>.foldablePanel.isFolded{min-height:0!important;align-self:start}
+.freqAutomation.foldablePanel>.panelControlBar,.controlLaunchBar.foldablePanel>.panelControlBar{grid-column:1/-1}
+.engine.foldablePanel:before,.engine.foldablePanel:after{display:none}.engine.foldablePanel>.panelControlBar{margin:0 4px 6px}.engine.foldablePanel{padding-top:6px}
+@media(max-width:680px){.panelTools .panelScaleReadout{display:none}.panelTools .panelFoldBtn{min-width:58px}.panelControlBar{gap:4px}}
 </style>
 </head>
 <body>
@@ -1861,6 +1883,125 @@ function setupFiveScreenBus(){
     setInterval(()=>{if(Date.now()-MULTI_SCREEN.lastStateAt>1500)MULTI_SCREEN.channel.postMessage({type:"STATE_REQUEST"})},1000);
   }
 }
+const PANEL_WORKSPACE_KEY="BRUTUS_PANEL_WORKSPACE_V1:SCREEN_"+String(SCREEN_MODE||0);
+const PANEL_FONT_MIN=0.75,PANEL_FONT_MAX=1.60,PANEL_FONT_STEP=0.10;
+let PANEL_WORKSPACE_STATE={};
+function loadPanelWorkspaceState(){
+  try{const raw=localStorage.getItem(PANEL_WORKSPACE_KEY);PANEL_WORKSPACE_STATE=raw?JSON.parse(raw):{}}catch(_){PANEL_WORKSPACE_STATE={}}
+}
+function savePanelWorkspaceState(){
+  try{localStorage.setItem(PANEL_WORKSPACE_KEY,JSON.stringify(PANEL_WORKSPACE_STATE))}catch(_){}
+}
+function panelWorkspaceKey(panel,index){
+  const id=(panel.id||"").trim();
+  if(id)return id;
+  if(panel.classList.contains("engine"))return "CORE-ENGINE";
+  if(panel.classList.contains("controlLaunchBar"))return "MASTER-CONTROLS";
+  const pid=panel.querySelector(":scope > h2 .panelId")||panel.querySelector(".panelId");
+  if(pid&&pid.textContent.trim())return pid.textContent.trim();
+  return "PANEL-"+String(index+1).padStart(2,"0");
+}
+function panelWorkspaceLabel(panel,key){
+  if(panel.classList.contains("engine"))return "CŒUR DU MOTEUR";
+  if(panel.classList.contains("controlLaunchBar"))return "COMMANDES MAÎTRES";
+  const h=panel.querySelector(":scope > h2");
+  if(h){
+    const clone=h.cloneNode(true);
+    clone.querySelectorAll(".panelId").forEach(x=>x.remove());
+    const t=clone.textContent.trim();if(t)return t;
+  }
+  return key.replace(/[-_]+/g," ");
+}
+function panelFontNodes(panel){
+  return [...panel.querySelectorAll("h2,h3,p,span,strong,em,label,button,input,select,textarea,pre,td,th,.info,.note,.rule,.control,.idle")]
+    .filter(el=>!el.closest(".panelTools")&&el.closest(".foldablePanel")===panel);
+}
+function applyPanelFontScale(panel,scale,updateReadout=true){
+  const safe=Math.max(PANEL_FONT_MIN,Math.min(PANEL_FONT_MAX,Number(scale)||1));
+  panel.dataset.textScale=safe.toFixed(2);
+  for(const el of panelFontNodes(panel)){
+    if(!el.dataset.brutusBaseFontPx){
+      const px=parseFloat(getComputedStyle(el).fontSize);
+      if(Number.isFinite(px)&&px>0)el.dataset.brutusBaseFontPx=String(px);
+    }
+    const base=Number(el.dataset.brutusBaseFontPx);
+    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*safe).toFixed(2)+"px";
+  }
+  const readout=panel.querySelector(":scope > .panelControlBar .panelScaleReadout");
+  if(updateReadout&&readout)readout.textContent=Math.round(safe*100)+"%";
+}
+function refreshPanelWorkspaceGeometry(refit=false){
+  requestAnimationFrame(()=>{
+    resize();renderWaveChart();renderSpectrum();
+    if(MULTI_SCREEN.enabled){
+      if(refit)autoFitFiveScreen();
+      else{
+        const shell=document.querySelector(".shell");
+        const m=(shell?.style.transform||"").match(/scale\(([^)]+)\)/);
+        const scale=m?Number(m[1]):1;
+        if(shell&&Number.isFinite(scale))document.body.style.height=Math.ceil(shell.scrollHeight*scale+8)+"px";
+      }
+    }
+  });
+}
+function setPanelFold(panel,folded,persist=true){
+  panel.classList.toggle("isFolded",!!folded);
+  panel.dataset.folded=folded?"1":"0";
+  const btn=panel.querySelector(":scope > .panelControlBar .panelFoldBtn");
+  if(btn){
+    btn.textContent=folded?"DÉPLIER":"REPLIER";
+    btn.setAttribute("aria-expanded",folded?"false":"true");
+    btn.title=folded?"Déplier ce panneau":"Replier ce panneau";
+  }
+  if(persist){
+    const key=panel.dataset.workspaceKey;
+    PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:!!folded,scale:Number(panel.dataset.textScale)||1};
+    savePanelWorkspaceState();
+  }
+  if(persist)refreshPanelWorkspaceGeometry(true);
+}
+function changePanelFontScale(panel,delta){
+  const current=Number(panel.dataset.textScale)||1;
+  const next=Math.round(Math.max(PANEL_FONT_MIN,Math.min(PANEL_FONT_MAX,current+delta))*100)/100;
+  applyPanelFontScale(panel,next);
+  const key=panel.dataset.workspaceKey;
+  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:panel.classList.contains("isFolded"),scale:next};
+  savePanelWorkspaceState();
+  refreshPanelWorkspaceGeometry(false);
+}
+function setupPanelWorkspace(){
+  loadPanelWorkspaceState();
+  const targets=[...document.querySelectorAll(".panel:not(.controls),.engine,.t1Panel,.dialRack,.freqAutomation,.audioOutputPanel,.controlLaunchBar")];
+  const seen=new Set();
+  targets.forEach((panel,index)=>{
+    if(seen.has(panel)||panel.closest(".screenHiddenByMode"))return;
+    seen.add(panel);
+    const key=panelWorkspaceKey(panel,index),saved=PANEL_WORKSPACE_STATE[key]||{};
+    panel.classList.add("foldablePanel");
+    panel.dataset.workspaceKey=key;
+    const bar=document.createElement("div");bar.className="panelControlBar";
+    const heading=panel.querySelector(":scope > h2");
+    if(heading)bar.appendChild(heading);
+    else{const label=document.createElement("div");label.className="panelControlLabel";label.textContent=panelWorkspaceLabel(panel,key);bar.appendChild(label)}
+    const tools=document.createElement("div");tools.className="panelTools";
+    const minus=document.createElement("button");minus.type="button";minus.textContent="−";minus.title="Réduire le lettrage";
+    const readout=document.createElement("span");readout.className="panelScaleReadout";
+    const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.title="Agrandir le lettrage";
+    const fold=document.createElement("button");fold.type="button";fold.className="panelFoldBtn";
+    tools.append(minus,readout,plus,fold);bar.appendChild(tools);panel.prepend(bar);
+    const scale=Number.isFinite(Number(saved.scale))?Number(saved.scale):1;
+    applyPanelFontScale(panel,scale);
+    setPanelFold(panel,!!saved.folded,false);
+    minus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,-PANEL_FONT_STEP)});
+    plus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,PANEL_FONT_STEP)});
+    fold.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelFold(panel,!panel.classList.contains("isFolded"))});
+    const observer=new MutationObserver(mutations=>{
+      if(mutations.some(m=>m.addedNodes.length&&!m.target.closest?.(".panelTools")))applyPanelFontScale(panel,Number(panel.dataset.textScale)||1,false);
+    });
+    observer.observe(panel,{childList:true,subtree:true});
+  });
+  refreshPanelWorkspaceGeometry(true);
+}
 function openFiveScreenLauncher(){window.open("five-screens.html","BRUTUS_FIVE_SCREENS");}
 document.getElementById("screenQuickStart").addEventListener("click",()=>document.getElementById("masterStart").click());
 document.getElementById("screenQuickPause").addEventListener("click",()=>document.getElementById("masterPause").click());
@@ -1875,7 +2016,7 @@ document.getElementById("freqAutoStart").addEventListener("click",toggleFrequenc
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
 
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();setupFiveScreenBus();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();setupFiveScreenBus();setupPanelWorkspace();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
