@@ -566,17 +566,25 @@ function renderPresetGrid(){
   }
 }
 function saveCurrentPreset(){
-  const id=PRESET_BANK.selected,family=presetFamilyFor(id);
-  const amplitude=T1.value!==null?T1.value:Number(document.getElementById("t1Value").value);
-  PRESET_BANK.slots[id]={schema:"BRUTUS_PRESET_V1",id,name:defaultPresetName(id,family),family,mode:"LOCAL_STATE_SNAPSHOT",frequency_hz:null,amplitude:Number.isFinite(amplitude)?amplitude:null,auto_profile:"NONE",reference_id:"NONE",saved_at:new Date().toISOString()};
-  persistPresetBank();renderPresetGrid();renderPresetDetail();
+  const id=PRESET_BANK.selected,family=presetFamilyFor(id),previous=PRESET_BANK.slots[id];
+  let amplitude;
+  try{amplitude=normalizedInput(T1.value!==null?T1.value:document.getElementById("t1Value").value)}
+  catch(err){renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · "+String(err&&err.message?err.message:err);return false}
+  PRESET_BANK.slots[id]={schema:"BRUTUS_PRESET_V1",id,name:defaultPresetName(id,family),family,mode:"LOCAL_STATE_SNAPSHOT",frequency_hz:null,amplitude,auto_profile:"NONE",reference_id:"NONE",saved_at:new Date().toISOString()};
+  if(!persistPresetBank()){PRESET_BANK.slots[id]=previous;renderPresetGrid();renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · STORAGE";return false}
+  renderPresetGrid();renderPresetDetail();return true;
 }
 function loadSelectedPreset(){
   const slot=PRESET_BANK.slots[PRESET_BANK.selected];if(!slot)return;
   if(Number.isFinite(slot.amplitude))document.getElementById("t1Value").value=slot.amplitude.toFixed(6);
   renderPresetDetail();
 }
-function clearSelectedPreset(){PRESET_BANK.slots[PRESET_BANK.selected]=null;persistPresetBank();renderPresetGrid();renderPresetDetail();}
+function clearSelectedPreset(){
+  const id=PRESET_BANK.selected,previous=PRESET_BANK.slots[id];
+  PRESET_BANK.slots[id]=null;
+  if(!persistPresetBank()){PRESET_BANK.slots[id]=previous;renderPresetGrid();renderPresetDetail();document.getElementById("presetStatus").textContent="ERROR · STORAGE";return false}
+  renderPresetGrid();renderPresetDetail();return true;
+}
 function renderSamplerQuality(){
   const run=SAMPLER.history.slice(SAMPLER.run_start_index);
   const intervals=run.map(v=>v.dt_ms).filter(v=>Number.isFinite(v)&&v>0);
