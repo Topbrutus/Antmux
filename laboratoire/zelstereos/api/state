@@ -1,0 +1,241 @@
+{
+    "mode":  "PUBLIC_SAFE",
+    "read_only":  true,
+    "status":  "SNAPSHOT",
+    "stage_index":  0,
+    "stage":  "ENTREE",
+    "channels":  1,
+    "trace_points":  1,
+    "trace_total":  62,
+    "public_values":  [
+                          {
+                              "exact":  "17/5",
+                              "decimal":  3.4
+                          }
+                      ],
+    "public_values_total":  1,
+    "global_error":  {
+                         "exact":  "0",
+                         "decimal":  0.0
+                     },
+    "f1":  {
+               "formula_id":  "F1",
+               "k":  3,
+               "value":  1764,
+               "kind":  "pell_rank_integer",
+               "formula":  "z_P(21^k)=4*21^(k-1)",
+               "source_commit_short":  "aa08bd336662"
+           },
+    "events":  [
+                   {
+                       "seq":  1,
+                       "timestamp":  1790404092.7290497,
+                       "source":  "ASTRA",
+                       "kind":  "COMMAND_START",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Validation lancée",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  2,
+                       "timestamp":  1790404093.0241134,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  3,
+                       "timestamp":  1790404093.0370195,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  4,
+                       "timestamp":  1790404093.03917,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  5,
+                       "timestamp":  1790404093.0406938,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  6,
+                       "timestamp":  1790404093.0535717,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  7,
+                       "timestamp":  1790404093.056135,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  8,
+                       "timestamp":  1790404093.057651,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  9,
+                       "timestamp":  1790404093.0602071,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  10,
+                       "timestamp":  1790404093.0701468,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  11,
+                       "timestamp":  1790404093.072168,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  12,
+                       "timestamp":  1790404093.0881426,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  13,
+                       "timestamp":  1790404093.0896573,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  14,
+                       "timestamp":  1790404093.092777,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  15,
+                       "timestamp":  1790404093.1023505,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  16,
+                       "timestamp":  1790404093.1043608,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  17,
+                       "timestamp":  1790404093.1221397,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  18,
+                       "timestamp":  1790404093.1231933,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  19,
+                       "timestamp":  1790404093.124199,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Test: PASS",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  20,
+                       "timestamp":  1790404093.1257033,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Sortie de validation reçue",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  21,
+                       "timestamp":  1790404093.1272333,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "18 tests · 0.012s",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  22,
+                       "timestamp":  1790404093.1299112,
+                       "source":  "ASTRA",
+                       "kind":  "OUTPUT",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "Suite de tests: OK",
+                       "status":  "RUN"
+                   },
+                   {
+                       "seq":  23,
+                       "timestamp":  1790404093.1359868,
+                       "source":  "ASTRA",
+                       "kind":  "COMMAND_END",
+                       "label":  "ASTRA - validation PUBLIC SAFE",
+                       "detail":  "exit=0 · 0.400s",
+                       "status":  "PASS"
+                   }
+               ],
+    "event_seq":  23,
+    "timestamp":  1790410406.961126,
+    "transport":  "STATIC_PUBLIC_SAFE_SNAPSHOT"
+}

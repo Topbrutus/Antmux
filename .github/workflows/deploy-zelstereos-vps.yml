@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/deploy-zelstereos-vps.yml'
       - 'laboratoire/zelstereos/index.html'
+      - 'laboratoire/zelstereos/api/state'
       - 'laboratoire/index.html'
   workflow_dispatch:
     inputs:
@@ -42,15 +43,17 @@ jobs:
         run: |
           set -euo pipefail
           test -f laboratoire/zelstereos/index.html
+          test -f laboratoire/zelstereos/api/state
           test -f laboratoire/index.html
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' laboratoire/zelstereos/index.html
           grep -Fq './zelstereos/' laboratoire/index.html
           ! grep -Eq 'Â|Ã|â' laboratoire/zelstereos/index.html
           rm -rf _zelstereos_deploy
-          mkdir -p _zelstereos_deploy
+          mkdir -p _zelstereos_deploy/api
           cp laboratoire/zelstereos/index.html _zelstereos_deploy/index.html
+          cp laboratoire/zelstereos/api/state _zelstereos_deploy/api/state
           cp laboratoire/index.html _zelstereos_deploy/laboratoire-index.html
-          (cd _zelstereos_deploy && sha256sum index.html laboratoire-index.html > SHA256SUMS)
+          (cd _zelstereos_deploy && sha256sum index.html api/state laboratoire-index.html > SHA256SUMS)
 
       - name: Configure pinned SSH identity
         env:
@@ -105,8 +108,9 @@ jobs:
           mkdir -p "$BACKUP_ROOT"
           if test -f "$TARGET_ROOT/index.html"; then cp -a "$TARGET_ROOT/index.html" "$BACKUP_ROOT/index.html"; fi
           if test -f "$LAB_ROOT/index.html"; then cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html"; fi
-          install -d -m 0755 "$TARGET_ROOT"
+          install -d -m 0755 "$TARGET_ROOT/api"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/api/state" "$TARGET_ROOT/api/state"
           install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
@@ -116,9 +120,18 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/ -o /tmp/zelstereos.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/api/state -o /tmp/zelstereos-state.json
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/laboratoire.html
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' /tmp/zelstereos.html
           grep -Fq 'Lecture seule · données filtrées · commandes privées non exposées' /tmp/zelstereos.html
           ! grep -Eq 'Â|Ã|â' /tmp/zelstereos.html
           grep -Fq './zelstereos/' /tmp/laboratoire.html
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/zelstereos-state.json',encoding='utf-8'))
+          assert d['mode']=='PUBLIC_SAFE'
+          assert d['read_only'] is True
+          assert d['status']=='SNAPSHOT'
+          print('ZELSTEREOS_STATE_JSON=PASS')
+          PY
           echo 'ZELSTEREOS_PUBLIC_DEPLOY=PASS'

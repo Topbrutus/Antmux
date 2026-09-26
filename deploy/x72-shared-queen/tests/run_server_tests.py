@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -12,9 +13,17 @@ from typing import Any
 import websockets
 
 
-def request_json(method: str, url: str, body: dict[str, Any] | None = None, ip: str = "127.0.0.1") -> tuple[int, dict[str, Any]]:
+def request_json(
+    method: str,
+    url: str,
+    body: dict[str, Any] | None = None,
+    ip: str = "127.0.0.1",
+    extra_headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
     data = None
     headers = {"X-Forwarded-For": ip}
+    if extra_headers:
+        headers.update(extra_headers)
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -39,6 +48,66 @@ def assert_test(results: list[dict[str, Any]], name: str, ok: bool, detail: str 
 async def websocket_snapshot(ws_url: str) -> dict[str, Any]:
     async with websockets.connect(ws_url, open_timeout=10) as ws:
         return json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+
+
+def zel_test_token() -> str:
+    direct = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
+    if direct:
+        return direct
+    path = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN_FILE", "").strip()
+    if not path:
+        return ""
+    try:
+        return Path(path).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def zel_payload(stage_index: int) -> dict[str, Any]:
+    stage_names = ["ENTREE", "Z1 1->3", "F 3->9", "Z MIROIR 9->36", "CHECK 36->9", "RECOMB 9->3", "SORTIE 3->1"]
+    channels = [1, 3, 9, 36, 9, 3, 1]
+    traces = [1, 4, 13, 49, 58, 61, 62]
+    return {
+        "mode": "PUBLIC_SAFE",
+        "read_only": True,
+        "status": "RUN",
+        "stage_index": stage_index,
+        "stage": stage_names[stage_index],
+        "channels": channels[stage_index],
+        "trace_points": traces[stage_index],
+        "trace_total": 62,
+        "stage_exec_us": float(stage_index + 1),
+        "stage_work_ratio": min(1.0, (stage_index + 1) / 7.0),
+        "public_values": [{"exact": "17/5", "decimal": 3.4}],
+        "public_values_total": channels[stage_index],
+        "global_error": {"exact": "0", "decimal": 0.0},
+        "f1": {
+            "formula_id": "F1",
+            "k": 3,
+            "value": 1764,
+            "formula": "z_P(21^k)=4*21^(k-1)",
+            "source_commit_short": "aa08bd336662",
+        },
+        "event_seq": stage_index + 1,
+    }
+
+
+async def zel_relay_sequence(base: str, ws_url: str, token: str) -> tuple[list[int], list[dict[str, Any]]]:
+    received: list[dict[str, Any]] = []
+    codes: list[int] = []
+    async with websockets.connect(ws_url + "?channel=zelstereos", open_timeout=10) as ws:
+        for stage_index in (0, 1):
+            code, _ = await asyncio.to_thread(
+                request_json,
+                "POST",
+                f"{base}/api/zelstereos/ingest",
+                zel_payload(stage_index),
+                "127.0.0.1",
+                {"Authorization": f"Bearer {token}"},
+            )
+            codes.append(code)
+            received.append(json.loads(await asyncio.wait_for(ws.recv(), timeout=10)))
+    return codes, received
 
 
 async def main() -> None:
@@ -72,6 +141,32 @@ async def main() -> None:
     assert_test(results, "E same reference H256", ws_a["reference_h256"] == ws_b["reference_h256"] == reference_h256, "reference mismatch")
     _, telemetry_ws = request_json("GET", f"{base}/api/telemetry")
     assert_test(results, "E1 telemetry counts WS messages", telemetry_ws.get("websocket_messages_sent", 0) >= 2, str(telemetry_ws))
+
+    token = zel_test_token()
+    if token:
+        unauthorized_code, _ = request_json(
+            "POST",
+            f"{base}/api/zelstereos/ingest",
+            zel_payload(0),
+            ip="127.0.0.1",
+        )
+        assert_test(results, "E2 ZEL ingest rejects missing bearer", unauthorized_code == 401, str(unauthorized_code))
+        zel_codes, zel_states = await zel_relay_sequence(base, ws_url, token)
+        assert_test(results, "E3 ZEL ingest accepts authenticated PUBLIC_SAFE", zel_codes == [200, 200], str(zel_codes))
+        assert_test(
+            results,
+            "E4 ZEL WebSocket preserves ordered stages",
+            [state.get("stage_index") for state in zel_states] == [0, 1],
+            str([state.get("stage_index") for state in zel_states]),
+        )
+        assert_test(
+            results,
+            "E5 ZEL relay stays PUBLIC_SAFE",
+            all(state.get("mode") == "PUBLIC_SAFE" and state.get("read_only") is True for state in zel_states),
+            str(zel_states),
+        )
+    else:
+        results.append({"name": "E2-E5 ZEL relay", "ok": True, "detail": "SKIP: no ingest token configured"})
 
     for index in range(1, 8):
         synapse = f"S{index}"

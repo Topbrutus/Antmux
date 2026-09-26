@@ -64,6 +64,9 @@ jobs:
           print("VENDOR_IMPORT_PASS")
           PY
           mkdir -p _x72_runner_data
+          printf '%s' 'ci-zelstereos-test-token' > _x72_runner_data/zel-ingest-token
+          chmod 600 _x72_runner_data/zel-ingest-token
+          export ANTMUX_ZEL_INGEST_TOKEN_FILE="$PWD/_x72_runner_data/zel-ingest-token"
           ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data" \
           PYTHONPATH="$PWD/_x72_runner_vendor" \
           python3 deploy/x72-shared-queen/tests/test_relation_runtime.py
@@ -101,14 +104,19 @@ jobs:
             --report _x72_runner_data/runner-report.json
 
       - name: Assemble deployment payload
+        env:
+          ZEL_INGEST_TOKEN: ${{ secrets.ANTMUX_ZEL_INGEST_TOKEN }}
         run: |
           set -euo pipefail
+          test -n "${ZEL_INGEST_TOKEN:-}"
           rm -rf _x72_shared_queen_deploy
           mkdir -p _x72_shared_queen_deploy
           cp -a deploy/x72-shared-queen/app _x72_shared_queen_deploy/
           cp -a deploy/x72-shared-queen/tests _x72_shared_queen_deploy/
           cp -a deploy/x72-shared-queen/frontend _x72_shared_queen_deploy/
           cp -a _x72_runner_vendor _x72_shared_queen_deploy/vendor
+          printf '%s' "$ZEL_INGEST_TOKEN" > _x72_shared_queen_deploy/zel-ingest-token
+          chmod 600 _x72_shared_queen_deploy/zel-ingest-token
           mv _x72_shared_queen_deploy/tests/run_server_tests.py _x72_shared_queen_deploy/run_server_tests.py
           rm -rf _x72_shared_queen_deploy/tests
           (
@@ -261,6 +269,9 @@ jobs:
           install -d -m 0755 "$APP_ROOT/app" "$APP_ROOT/data" "$APP_ROOT/snapshots" "$APP_ROOT/logs"
           cp -a "$REMOTE_STAGE/app/." "$APP_ROOT/app/"
           cp -a "$REMOTE_STAGE/vendor" "$APP_ROOT/vendor"
+          test -s "$REMOTE_STAGE/zel-ingest-token"
+          install -m 0600 "$REMOTE_STAGE/zel-ingest-token" "$APP_ROOT/zel-ingest-token"
+          export ANTMUX_ZEL_INGEST_TOKEN_FILE="$APP_ROOT/zel-ingest-token"
           install -m 0644 "$REMOTE_STAGE/run_server_tests.py" "$APP_ROOT/run_server_tests.py"
           test -f "$REMOTE_STAGE/frontend/app.js"
           test -f "$REMOTE_STAGE/frontend/index.html"
@@ -387,6 +398,7 @@ jobs:
           WorkingDirectory=$APP_ROOT
           Environment=ANTMUX_X72_DATA_DIR=$APP_ROOT/data
           Environment=PYTHONPATH=$APP_ROOT/vendor
+          Environment=ANTMUX_ZEL_INGEST_TOKEN_FILE=$APP_ROOT/zel-ingest-token
           ExecStart=/usr/bin/python3 -m uvicorn app.server:app --host 127.0.0.1 --port 8720
           Restart=on-failure
           RestartSec=3
