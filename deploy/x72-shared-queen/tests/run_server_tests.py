@@ -150,23 +150,21 @@ async def main() -> None:
             zel_payload(0),
             ip="127.0.0.1",
         )
-        assert_test(results, "E2 ZEL ingest rejects missing bearer", unauthorized_code == 401, str(unauthorized_code))
+        if unauthorized_code != 401:
+            raise AssertionError(f"E2 ZEL ingest rejects missing bearer: {unauthorized_code}")
         zel_codes, zel_states = await zel_relay_sequence(base, ws_url, token)
-        assert_test(results, "E3 ZEL ingest accepts authenticated PUBLIC_SAFE", zel_codes == [200, 200], str(zel_codes))
-        assert_test(
-            results,
-            "E4 ZEL WebSocket preserves ordered stages",
-            [state.get("stage_index") for state in zel_states] == [0, 1],
-            str([state.get("stage_index") for state in zel_states]),
-        )
-        assert_test(
-            results,
-            "E5 ZEL relay stays PUBLIC_SAFE",
-            all(state.get("mode") == "PUBLIC_SAFE" and state.get("read_only") is True for state in zel_states),
-            str(zel_states),
-        )
+        if zel_codes != [200, 200]:
+            raise AssertionError(f"E3 ZEL authenticated ingest codes: {zel_codes}")
+        stage_indexes = [state.get("stage_index") for state in zel_states]
+        if stage_indexes != [0, 1]:
+            raise AssertionError(f"E4 ZEL ordered stages: {stage_indexes}")
+        if not all(state.get("mode") == "PUBLIC_SAFE" and state.get("read_only") is True for state in zel_states):
+            raise AssertionError(f"E5 ZEL PUBLIC_SAFE invariant: {zel_states}")
+        print("ZEL_INGEST_AUTH=PASS")
+        print("ZEL_WEBSOCKET_ORDER=PASS")
+        print("ZEL_PUBLIC_SAFE=PASS")
     else:
-        results.append({"name": "E2-E5 ZEL relay", "ok": True, "detail": "SKIP: no ingest token configured"})
+        print("ZEL_RELAY_TEST=SKIP_NO_TOKEN")
 
     for index in range(1, 8):
         synapse = f"S{index}"
