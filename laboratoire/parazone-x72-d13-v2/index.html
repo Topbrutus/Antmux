@@ -23,7 +23,7 @@ body{padding:12px}.shell{max-width:1780px;margin:0 auto}
 .chart,.crystalBox{position:relative;width:100%;height:100%;min-height:230px;background:#080a0c;border:1px solid #171b1f;overflow:hidden}
 .gridbg{background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px}
 .axis{position:absolute;color:#78838c;font:9px Consolas,monospace}.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#545e67;font:10px Consolas,monospace;letter-spacing:.09em;line-height:1.8}
-.waveCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.spectrumCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.spectrumMeta{position:absolute;left:9px;right:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none}.spectrumMeta strong{color:#d7dfe5}.waveMeta{position:absolute;left:9px;right:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none;overflow-wrap:anywhere;word-break:break-word}.waveMeta strong{color:#d7dfe5}
+.waveCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.spectrumCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.spectrumMeta{position:absolute;left:9px;right:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none}.spectrumMeta strong{color:#d7dfe5}.essentialReadout{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:center;padding:20px;z-index:3}.essentialReadout>div{background:#06101acc;border:1px solid #24516d;border-radius:8px;padding:14px;text-align:center;box-shadow:inset 0 0 14px #001b2b66}.essentialReadout strong{display:block;color:#9eefff;font:800 10px Consolas,monospace;letter-spacing:.08em;margin-bottom:8px}.essentialReadout span{color:#f1fbff;font:800 20px Consolas,monospace}.waveMeta{position:absolute;left:9px;right:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none;overflow-wrap:anywhere;word-break:break-word}.waveMeta strong{color:#d7dfe5}
 .empty strong{color:#87919a;font-size:11px}.info{margin-top:5px;color:#69737c;font:10px Consolas,monospace}
 .center{display:flex}.engine{width:100%;height:100%;min-height:650px;padding:0;background:#06080a;border:1px solid #242a30;border-radius:10px;overflow:hidden}
 #engineCanvas{display:block;width:100%;height:100%;min-height:650px}
@@ -131,10 +131,14 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 
   <section class="layout">
     <div class="col left">
-      <section class="panel"><h2>SPECTROGRAMME <span class="panelId">ANALYSIS-SPECTRUM-01</span></h2>
-        <div class="chart gridbg">
-          <div class="axis" style="left:8px;top:8px">FRÉQUENCE</div><div class="axis" style="right:8px;bottom:5px">TEMPS →</div>
-          <div class="empty"><div><strong>NO MEASUREMENT</strong><br>STATE: T0 · NOT_CONNECTED<br>PROOF: NONE</div></div>
+      <section class="panel"><h2>AMPLITUDE · CADENCE · ACTIVITÉ <span class="panelId">MONITOR-ESSENTIAL-01</span></h2>
+        <div class="chart gridbg" id="spectrumChart">
+          <canvas id="spectrumCanvas" class="spectrumCanvas" aria-label="Moniteur essentiel amplitude cadence activité"></canvas>
+          <div class="essentialReadout">
+            <div><strong>AMPLITUDE</strong><span id="essentialAmplitude">NONE</span></div>
+            <div><strong>CADENCE</strong><span id="essentialCadence">NONE</span></div>
+            <div><strong>ACTIVITÉ</strong><span id="essentialActivity">NONE</span></div>
+          </div>
         </div>
       </section>
       <section class="panel"><h2>BANDE PASSANTE <span class="panelId">ANALYSIS-BAND-01</span></h2>
@@ -1093,16 +1097,26 @@ function computeSpectrumFrame(){
   return {ok:true,bins,fs,nyquist:fs/2,bin_hz:fs/n,peak_hz:peakIndex*fs/n,peak_amp:bins[peakIndex],cv,maxJ,mean,proof_ref:run[n-1].proof_ref};
 }
 function renderSpectrum(){
-  const c=document.getElementById("spectrumCanvas"),empty=document.getElementById("spectrumEmpty"),meta=document.getElementById("spectrumMeta");if(!c)return;
-  const r=c.getBoundingClientRect(),d=Math.max(1,Math.min(2,devicePixelRatio||1));c.width=Math.max(1,Math.floor(r.width*d));c.height=Math.max(1,Math.floor(r.height*d));const x=c.getContext("2d");x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,r.width,r.height);
-  const frame=computeSpectrumFrame();SPECTRUM.last=frame;if(!frame.ok){empty.style.display="grid";meta.innerHTML='<strong>LOCAL STATE SPECTRUM</strong><br>'+frame.reason;document.getElementById("qualitySpectrum").textContent=frame.reason;return;}
-  empty.style.display="none";SPECTRUM.frames.push(frame);if(SPECTRUM.frames.length>SPECTRUM.max_frames)SPECTRUM.frames.shift();
-  let max=1e-12;for(const fr of SPECTRUM.frames)for(const v of fr.bins)max=Math.max(max,v);const cw=r.width/Math.max(SPECTRUM.frames.length,1),bh=r.height/frame.bins.length;
-  SPECTRUM.frames.forEach((fr,xi)=>fr.bins.forEach((v,bi)=>{const q=Math.max(0,Math.min(1,Math.sqrt(v/max)));x.fillStyle='rgba('+Math.round(20+235*q)+','+Math.round(80+175*q)+',255,'+(0.12+0.88*q)+')';x.fillRect(xi*cw,r.height-(bi+1)*bh,Math.ceil(cw)+1,Math.ceil(bh)+1);}));
-  meta.innerHTML='<strong>LOCAL STATE SPECTRUM Â· FFT '+nOr(frame)+'</strong><br>Fs '+frame.fs.toFixed(3)+' Hz Â· Nyquist '+frame.nyquist.toFixed(3)+' Hz Â· Peak '+frame.peak_hz.toFixed(3)+' Hz Â· NOT PHYSICAL ACOUSTICS';
-  document.getElementById("qualitySpectrum").textContent="READY Â· FFT LOCAL STATE";
+  const c=document.getElementById("spectrumCanvas");
+  const ampEl=document.getElementById("essentialAmplitude"),cadEl=document.getElementById("essentialCadence"),actEl=document.getElementById("essentialActivity");
+  if(!c||!ampEl||!cadEl||!actEl)return;
+  const r=c.getBoundingClientRect(),d=Math.max(1,Math.min(2,devicePixelRatio||1));
+  c.width=Math.max(1,Math.floor(r.width*d));c.height=Math.max(1,Math.floor(r.height*d));
+  const x=c.getContext("2d");x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,r.width,r.height);
+  const run=SAMPLER.history.slice(-80),last=run.length?run[run.length-1]:null,prev=run.length>1?run[run.length-2]:null;
+  const amplitude=last&&Number.isFinite(last.amplitude)?last.amplitude:(T1.value!==null?T1.value:null);
+  const cadence=last&&Number.isFinite(last.dt_ms)&&last.dt_ms>0?1000/last.dt_ms:null;
+  const activity=last&&prev&&Number.isFinite(last.amplitude)&&Number.isFinite(prev.amplitude)?Math.abs(last.amplitude-prev.amplitude):null;
+  ampEl.textContent=amplitude===null?"NONE":amplitude.toFixed(6);
+  cadEl.textContent=cadence===null?"NONE":cadence.toFixed(3)+" Hz";
+  actEl.textContent=activity===null?"NONE":activity.toFixed(6);
+  if(run.length>1){
+    x.strokeStyle="#00e8ff";x.lineWidth=1.5;x.beginPath();
+    const maxA=Math.max(1e-9,...run.map(v=>Math.abs(Number.isFinite(v.amplitude)?v.amplitude:0)));
+    run.forEach((v,i)=>{const px=(i/(run.length-1))*r.width,py=r.height-((Number.isFinite(v.amplitude)?v.amplitude:0)/maxA)*r.height*.7-r.height*.15;i?x.lineTo(px,py):x.moveTo(px,py);});
+    x.stroke();
+  }
 }
-function nOr(){return SPECTRUM.fft_size;}
 function renderSamplerQuality(){
   const run=SAMPLER.history.slice(SAMPLER.run_start_index);
   const intervals=run.map(v=>v.dt_ms).filter(v=>Number.isFinite(v)&&v>0);
