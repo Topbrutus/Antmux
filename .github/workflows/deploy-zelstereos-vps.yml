@@ -3,7 +3,7 @@ name: Deploy ZELSTEREOS to VPS
 on:
   push:
     branches:
-      - main
+      - astra/public-safe-live
     paths:
       - '.github/workflows/deploy-zelstereos-vps.yml'
       - 'laboratoire/zelstereos/index.html'
@@ -25,7 +25,7 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      github.ref == 'refs/heads/main' &&
+      github.ref == 'refs/heads/astra/public-safe-live' &&
       (github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-ZELSTEREOS'))
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
       REMOTE_STAGE: /tmp/antmux-zelstereos-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - name: Checkout main
+      - name: Checkout deployment branch
         uses: actions/checkout@v6
 
       - name: Validate public payload
