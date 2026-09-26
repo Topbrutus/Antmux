@@ -188,7 +188,7 @@ function render(s,{audioFromWebSocket=false}={}){
   $('valueNote').textContent=(s.public_values_total||0)+' valeur(s) dans cet étage · '+(s.public_values||[]).length+' affichée(s) publiquement.';
   $('events').innerHTML='';const evs=(s.events||[]).slice().reverse();if(!evs.length){$('events').innerHTML='<div class="event"><small>EN ATTENTE</small><code>Aucune activité publique pour le moment.</code></div>';}else{evs.forEach(ev=>{const d=document.createElement('div');const st=String(ev.status||'').toLowerCase();d.className='event '+(st==='pass'?'pass':st==='fail'?'fail':'');const sm=document.createElement('small');sm.textContent='#'+ev.seq+' · '+new Date(ev.timestamp*1000).toLocaleTimeString('fr-CA',{hour12:false})+' · '+ev.source+' · '+ev.kind+' · '+ev.status;const code=document.createElement('code');code.textContent=ev.label+(ev.detail?' — '+ev.detail:'');d.appendChild(sm);d.appendChild(code);$('events').appendChild(d);});}
 }
-const ZEL_WS_PATH='/laboratoire/embryon-x72/ws/zelstereos';
+const ZEL_WS_PATH='/laboratoire/embryon-x72/ws?channel=zelstereos';
 let zelSocket=null;
 let zelReconnectTimer=null;
 function connectZelWebSocket(){
