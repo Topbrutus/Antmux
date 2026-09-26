@@ -76,6 +76,8 @@ let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
 let lastAudioStageIndex=null;
 let wsHasLiveState=false;
 let lastWsMessageAt=0;
+let lastLiveStagePerf=0;
+let liveMachineOffset=Math.floor(Math.random()*20);
 async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
 document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
@@ -217,44 +219,74 @@ function scheduleMechanicalNoiseAt(start,dur=.70,gain=.035,cutoff=650){
   src.connect(filter).connect(g).connect(audioCtx.destination);
   src.start(start);src.stop(start+dur+.02);
 }
-function scheduleLiveMotorAt(freq,start,dur=.72,gain=.08,index=0){
+const liveMachineProfiles=[
+  {name:'TURBINE',wave:'sawtooth',mul:1.32,sub:.46,cut:1180,q:1.4,lfo:13.0,depth:.10,noise:.024},
+  {name:'COMPRESSEUR',wave:'square',mul:.86,sub:.42,cut:690,q:1.1,lfo:6.2,depth:.22,noise:.038},
+  {name:'VERIN',wave:'triangle',mul:.64,sub:.36,cut:520,q:.8,lfo:3.4,depth:.28,noise:.030},
+  {name:'CHENILLES',wave:'square',mul:.58,sub:.31,cut:430,q:.65,lfo:8.4,depth:.30,noise:.052},
+  {name:'SERVO-LOURD',wave:'sawtooth',mul:1.08,sub:.52,cut:980,q:1.8,lfo:17.0,depth:.08,noise:.018},
+  {name:'CONCASSEUR',wave:'square',mul:.52,sub:.27,cut:360,q:.72,lfo:4.2,depth:.34,noise:.064},
+  {name:'POMPE',wave:'triangle',mul:.78,sub:.40,cut:610,q:1.5,lfo:5.5,depth:.18,noise:.025},
+  {name:'ROTOR',wave:'sawtooth',mul:1.18,sub:.58,cut:1080,q:1.2,lfo:15.5,depth:.07,noise:.020},
+  {name:'GENERATRICE',wave:'sine',mul:.96,sub:.50,cut:820,q:2.1,lfo:10.0,depth:.06,noise:.016},
+  {name:'TREUIL',wave:'triangle',mul:.68,sub:.34,cut:470,q:.95,lfo:7.0,depth:.25,noise:.034},
+  {name:'FOREUSE',wave:'sawtooth',mul:1.42,sub:.48,cut:1360,q:2.0,lfo:21.0,depth:.12,noise:.036},
+  {name:'PISTON',wave:'square',mul:.72,sub:.32,cut:560,q:.9,lfo:4.8,depth:.33,noise:.041},
+  {name:'CONVOYEUR',wave:'triangle',mul:.62,sub:.37,cut:500,q:.7,lfo:9.2,depth:.19,noise:.029},
+  {name:'ROULEAU',wave:'sine',mul:.48,sub:.26,cut:330,q:.55,lfo:2.8,depth:.24,noise:.044},
+  {name:'GRUE',wave:'triangle',mul:.74,sub:.35,cut:580,q:1.0,lfo:5.8,depth:.21,noise:.027},
+  {name:'MARTEAU',wave:'square',mul:.56,sub:.29,cut:760,q:1.3,lfo:11.5,depth:.36,noise:.058},
+  {name:'CENTRIFUGE',wave:'sawtooth',mul:1.52,sub:.60,cut:1480,q:2.2,lfo:24.0,depth:.05,noise:.019},
+  {name:'EXTRACTEUR',wave:'triangle',mul:.82,sub:.43,cut:700,q:1.15,lfo:7.8,depth:.17,noise:.032},
+  {name:'MELANGEUR',wave:'sawtooth',mul:.92,sub:.39,cut:640,q:.85,lfo:6.7,depth:.27,noise:.046},
+  {name:'REACTEUR',wave:'sine',mul:1.12,sub:.55,cut:920,q:2.4,lfo:12.5,depth:.09,noise:.022}
+];
+function clamp01(v){return Math.max(0,Math.min(1,v));}
+function liveWorkMetrics(count,stageDt){
+  const dt=Math.max(.08,Math.min(2.5,Number(stageDt)||.65));
+  const load=clamp01(count/36);
+  const slow=clamp01((dt-.08)/(2.5-.08));
+  const speed=1-slow;
+  const effort=clamp01(.18+(load*.57)+(slow*.38));
+  return {dt,load,slow,speed,effort};
+}
+function scheduleLiveMotorAt(freq,start,dur,gain,index,profile,metrics){
   if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const effortPitch=1.08-(metrics.effort*.26);
+  const target=Math.max(34,freq*profile.mul*effortPitch);
   const filter=audioCtx.createBiquadFilter();
   const mix=audioCtx.createGain();
   filter.type='lowpass';
-  filter.frequency.setValueAtTime(720+(index%5)*90,start);
-  filter.Q.setValueAtTime(.85,start);
+  filter.frequency.setValueAtTime(profile.cut*(.78+metrics.speed*.32),start);
+  filter.Q.setValueAtTime(profile.q,start);
   mix.gain.setValueAtTime(0,start);
-  mix.gain.linearRampToValueAtTime(gain*soundVolume,start+.05);
-  mix.gain.setValueAtTime(gain*soundVolume,start+dur*.70);
+  const dynamicGain=gain*(.82+metrics.effort*.36);
+  mix.gain.linearRampToValueAtTime(dynamicGain*soundVolume,start+.035);
+  mix.gain.setValueAtTime(dynamicGain*soundVolume,start+dur*.72);
   mix.gain.exponentialRampToValueAtTime(.0001,start+dur);
-
   const crank=audioCtx.createOscillator();
-  crank.type=index%2===0?'sawtooth':'triangle';
-  crank.frequency.setValueAtTime(Math.max(42,freq*.72),start);
-  crank.frequency.exponentialRampToValueAtTime(freq,start+dur*.42);
-  crank.frequency.exponentialRampToValueAtTime(Math.max(42,freq*.94),start+dur);
-
+  crank.type=profile.wave;
+  crank.frequency.setValueAtTime(Math.max(32,target*(.74-metrics.effort*.08)),start);
+  crank.frequency.exponentialRampToValueAtTime(target,start+dur*(.38+metrics.slow*.18));
+  crank.frequency.exponentialRampToValueAtTime(Math.max(32,target*(.95-metrics.slow*.07)),start+dur);
   const sub=audioCtx.createOscillator();
   sub.type='triangle';
-  sub.frequency.setValueAtTime(Math.max(32,freq*.48),start);
-  sub.frequency.exponentialRampToValueAtTime(Math.max(34,freq*.52),start+dur*.55);
-
+  sub.frequency.setValueAtTime(Math.max(28,target*profile.sub),start);
+  sub.frequency.exponentialRampToValueAtTime(Math.max(29,target*profile.sub*(1.03+metrics.speed*.04)),start+dur*.58);
   const subGain=audioCtx.createGain();
-  subGain.gain.setValueAtTime(.38,start);
-
+  subGain.gain.setValueAtTime(.28+metrics.effort*.22,start);
   const lfo=audioCtx.createOscillator();
   const lfoGain=audioCtx.createGain();
   lfo.type='sine';
-  lfo.frequency.setValueAtTime(7+(index%6)*1.15,start);
-  lfoGain.gain.setValueAtTime(gain*soundVolume*.20,start);
+  lfo.frequency.setValueAtTime(profile.lfo*(.72+metrics.speed*.50),start);
+  lfoGain.gain.setValueAtTime(dynamicGain*soundVolume*profile.depth,start);
   lfo.connect(lfoGain).connect(mix.gain);
-
   crank.connect(filter);
   sub.connect(subGain).connect(filter);
   filter.connect(mix).connect(audioCtx.destination);
   crank.start(start);sub.start(start);lfo.start(start);
   crank.stop(start+dur+.03);sub.stop(start+dur+.03);lfo.stop(start+dur+.03);
+  if(profile.noise>0)scheduleMechanicalNoiseAt(start+.015,dur*.88,profile.noise*(.70+metrics.effort*.45),profile.cut*.72);
 }
 function scheduleExhaustPulseAt(freq,start,gain=.05){
   if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
@@ -266,35 +298,33 @@ function scheduleExhaustPulseAt(freq,start,gain=.05){
   o.connect(g).connect(audioCtx.destination);
   o.start(start);o.stop(start+.065);
 }
-function liveMotorStageAt(count,baseFreq,base,stageIndex){
+function liveMotorStageAt(count,baseFreq,base,stageIndex,stageDt){
   const descending=stageIndex>=4;
+  const metrics=liveWorkMetrics(count,stageDt);
   const dur={1:.82,3:.86,9:.92,36:1.04}[count]||.82;
   const spread={1:0,3:10,9:24,36:46}[count]||12;
   const gain={1:.17,3:.088,9:.042,36:.014}[count]||.06;
-  const noiseGain={1:.018,3:.028,9:.043,36:.070}[count]||.03;
-  const cutoff={1:500,3:620,9:780,36:980}[count]||650;
-  scheduleMechanicalNoiseAt(base,dur,noiseGain,cutoff);
-
+  liveMachineOffset=(liveMachineOffset+3+stageIndex)%liveMachineProfiles.length;
   for(let i=0;i<count;i++){
     const pos=count===1?0:(i/(count-1)-.5);
     const detune=((i*13)%11-5)*.38;
-    const freq=Math.max(44,baseFreq+(pos*spread)+detune);
+    const freq=Math.max(40,baseFreq+(pos*spread)+detune);
     const jitter=((i*19)%31)*.0038;
-    scheduleLiveMotorAt(freq,base+jitter,dur,gain,i);
+    const profile=liveMachineProfiles[(liveMachineOffset+i*7)%liveMachineProfiles.length];
+    scheduleLiveMotorAt(freq,base+jitter,dur,gain,i,profile,metrics);
   }
-
-  const pulseCount=count===1?3:(count===3?5:(count===9?7:10));
-  const pulseGap=count===1?.19:(count===3?.135:(count===9?.095:.065));
+  const pulseGap=.055+(metrics.speed*.175);
+  const pulseCount=Math.max(3,Math.min(14,Math.round(dur/pulseGap)));
   const pulseBase=descending?base+.08:base+.04;
   for(let p=0;p<pulseCount;p++){
-    const f=baseFreq*(descending?(1.00-p*.018):(0.94+p*.014));
+    const f=baseFreq*(descending?(1.00-p*.015):(0.94+p*.011));
     scheduleExhaustPulseAt(f,pulseBase+p*pulseGap,
-      count===36?.018:(count===9?.026:(count===3?.036:.050)));
+      count===36?.016:(count===9?.025:(count===3?.036:.050)));
   }
-
   if(count===36){
-    scheduleMechanicalNoiseAt(base+.08,dur-.10,.050,340);
-    scheduleLiveMotorAt(48,base+.04,dur,.055,37);
+    scheduleMechanicalNoiseAt(base+.06,dur-.08,.050+metrics.effort*.025,330);
+    const heavy=liveMachineProfiles[5];
+    scheduleLiveMotorAt(46,base+.03,dur,.052,37,heavy,metrics);
   }
 }
 const liveStageFreq=[96,88,78,58,76,88,100];
@@ -376,18 +406,18 @@ function speakRobot(stageIndex){
     speechSynthesis.speak(u);
   }catch(e){}
 }
-function soundLiveStage(stageIndex){
+function soundLiveStage(stageIndex,stageDt=.65){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
   const base=audioCtx.currentTime+.025;
   const count=counts[stageIndex]||1;
   if(stageIndex===0){
     soundStartAt(base);
     randomLiveFxAt(base+.30);
-    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex);
+    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,stageDt);
     setTimeout(()=>speakRobot(stageIndex),220);
     return;
   }
-  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex);
+  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,stageDt);
   randomLiveFxAt(base+.10);
   setTimeout(()=>speakRobot(stageIndex),120);
   if(stageIndex===6)soundEndAt(base+.72);
@@ -406,13 +436,13 @@ $('soundTest').addEventListener('click',async()=>{await ensureAudio();soundMuted
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
-function render(s,{audioFromWebSocket=false}={}){
+function render(s,{audioFromWebSocket=false,stageDt=.65}={}){
   $('live').textContent=s.status==='OFFLINE'?'HORS LIGNE':(s.status==='SNAPSHOT'?'PUBLIC SNAPSHOT':'PUBLIC LIVE');
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
   if(audioFromWebSocket){
     const stageChanged=lastAudioStageIndex!==null && s.stage_index!==lastAudioStageIndex;
-    if(stageChanged)soundLiveStage(s.stage_index);
+    if(stageChanged)soundLiveStage(s.stage_index,stageDt);
     lastAudioStageIndex=s.stage_index;
   }
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
@@ -435,9 +465,12 @@ function connectZelWebSocket(){
       const s=JSON.parse(ev.data);
       wsHasLiveState=true;
       lastWsMessageAt=Date.now();
+      const nowPerf=performance.now();
+      const stageDt=lastLiveStagePerf?Math.max(.08,Math.min(2.5,(nowPerf-lastLiveStagePerf)/1000)):.65;
+      lastLiveStagePerf=nowPerf;
       // REAL AUDIO CYCLE: value arrives by WebSocket; browser renders it,
       // then synthesizes the corresponding sound locally. Audio bytes never transit.
-      render(s,{audioFromWebSocket:true});
+      render(s,{audioFromWebSocket:true,stageDt});
     }catch(e){}
   });
   zelSocket.addEventListener('close',()=>{wsHasLiveState=false;zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
