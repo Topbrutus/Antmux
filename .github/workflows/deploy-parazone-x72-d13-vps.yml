@@ -47,6 +47,7 @@ jobs:
           test -f laboratoire/parazone-x72-d13-v2/index.html
           test -f laboratoire/parazone-x72-d13-v2/README.md
           test -f laboratoire/parazone-x72-d13-v2/five-screens.html
+          test -f laboratoire/parazone-x72-d13-v2/five-screens.js
           test -f laboratoire/parazone-x72-d13-v2/screen-1-master.html
           test -f laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
           test -f laboratoire/parazone-x72-d13-v2/screen-3-operator.html
@@ -75,6 +76,7 @@ jobs:
           grep -Fq 'EDGE_TYPE' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'INTER_LEVEL' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'BRUTUS // MODE 5 ÉCRANS' laboratoire/parazone-x72-d13-v2/five-screens.html
+          grep -Fq 'BRUTUS_SCREEN_PLACEMENT_V1' laboratoire/parazone-x72-d13-v2/five-screens.js
           grep -Fq 'BRUTUS // ÉCRAN 1' laboratoire/parazone-x72-d13-v2/screen-1-master.html
           grep -Fq 'BRUTUS // ÉCRAN 2' laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
           grep -Fq 'BRUTUS // ÉCRAN 3' laboratoire/parazone-x72-d13-v2/screen-3-operator.html
@@ -93,6 +95,7 @@ jobs:
           cp laboratoire/parazone-x72-d13-v2/index.html _parazone_deploy/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/README.md _parazone_deploy/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/five-screens.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/five-screens.js _parazone_deploy/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/screen-1-master.html _parazone_deploy/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/screen-2-analysis.html _parazone_deploy/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/screen-3-operator.html _parazone_deploy/parazone-x72-d13-v2/
@@ -101,7 +104,7 @@ jobs:
 
           (
             cd _parazone_deploy
-            sha256sum               laboratoire-index.html               parazone-x72-d13-v2/index.html               parazone-x72-d13-v2/README.md               parazone-x72-d13-v2/five-screens.html               parazone-x72-d13-v2/screen-1-master.html               parazone-x72-d13-v2/screen-2-analysis.html               parazone-x72-d13-v2/screen-3-operator.html               parazone-x72-d13-v2/screen-4-control.html               parazone-x72-d13-v2/screen-5-settings.html               > SHA256SUMS
+            sha256sum               laboratoire-index.html               parazone-x72-d13-v2/index.html               parazone-x72-d13-v2/README.md               parazone-x72-d13-v2/five-screens.html               parazone-x72-d13-v2/five-screens.js               parazone-x72-d13-v2/screen-1-master.html               parazone-x72-d13-v2/screen-2-analysis.html               parazone-x72-d13-v2/screen-3-operator.html               parazone-x72-d13-v2/screen-4-control.html               parazone-x72-d13-v2/screen-5-settings.html               > SHA256SUMS
           )
 
       - name: Configure pinned SSH identity
@@ -175,6 +178,7 @@ jobs:
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/README.md" "$TARGET_ROOT/README.md"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/five-screens.html" "$TARGET_ROOT/five-screens.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/five-screens.js" "$TARGET_ROOT/five-screens.js"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-1-master.html" "$TARGET_ROOT/screen-1-master.html"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-2-analysis.html" "$TARGET_ROOT/screen-2-analysis.html"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-3-operator.html" "$TARGET_ROOT/screen-3-operator.html"
@@ -192,6 +196,7 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/ -o /tmp/parazone-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/README.md -o /tmp/parazone-readme.md
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/five-screens.html -o /tmp/parazone-five-screens.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/five-screens.js -o /tmp/parazone-five-screens.js
           for n in 1-master 2-analysis 3-operator 4-control 5-settings; do
             curl --fail --silent --show-error --location "https://antmux.com/laboratoire/parazone-x72-d13-v2/screen-$n.html" -o "/tmp/parazone-screen-$n.html"
           done
@@ -222,6 +227,7 @@ jobs:
           grep -Fq '# BRUTUS — squelette technique hiérarchique T1' /tmp/parazone-readme.md
           grep -Fq 'AUCUNE CONNEXION INVISIBLE' /tmp/parazone-readme.md
           grep -Fq 'BRUTUS // MODE 5 ÉCRANS' /tmp/parazone-five-screens.html
+          grep -Fq 'BRUTUS_SCREEN_PLACEMENT_V1' /tmp/parazone-five-screens.js
           grep -Fq 'BRUTUS // ÉCRAN 1' /tmp/parazone-screen-1-master.html
           grep -Fq 'BRUTUS // ÉCRAN 2' /tmp/parazone-screen-2-analysis.html
           grep -Fq 'BRUTUS // ÉCRAN 3' /tmp/parazone-screen-3-operator.html

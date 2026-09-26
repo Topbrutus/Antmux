@@ -24,3 +24,18 @@ START / PAUSE / MASTER STOP sont disponibles dans la barre supérieure de chaque
 MASTER STOP coupe la session et la sortie audio, sans effacer les preuves T1 déjà acquises.
 
 index.html reste le cockpit complet mono-fenêtre.
+
+
+## Placement automatique sur les moniteurs physiques
+
+Le lanceur propose maintenant `DÉTECTER + PLACER LES 5`.
+
+Quand l'API Window Management du navigateur est disponible et autorisée:
+1. les moniteurs physiques sont détectés;
+2. chaque vue BRUTUS est associée à un moniteur;
+3. les cinq fenêtres sont ouvertes, déplacées et redimensionnées;
+4. la correspondance est mémorisée dans `BRUTUS_SCREEN_PLACEMENT_V1`.
+
+Le tableau `PLACEMENT PHYSIQUE` permet de modifier manuellement chaque correspondance avant le prochain lancement.
+
+Si le navigateur bloque les pop-ups, le lanceur indique combien de fenêtres ont réellement été ouvertes. Il faut alors autoriser les pop-ups pour antmux.com et relancer. Si l'API multi-écrans n'est pas disponible, les cinq fenêtres restent utilisables avec placement manuel.
