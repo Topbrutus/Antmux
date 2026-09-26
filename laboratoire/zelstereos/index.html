@@ -112,6 +112,18 @@ const activationSoundsAt=[activationRelayAt,activationServoAt,activationCapacito
 function soundStartAt(base){const i=Math.floor(Math.random()*activationSoundsAt.length);activationSoundsAt[i](base);return i;}
 function soundTempoAt(i,base){scheduleToneAt(180+(i*24),base,.055,.11);}
 function soundEndAt(base){scheduleToneAt(440,base,.11,.16);scheduleToneAt(330,base+.09,.13,.15);scheduleToneAt(220,base+.18,.19,.17);}
+function fractureHitAt(base){
+  // laser sweep, then short low impact
+  scheduleToneAt(980,base,.045,.20);
+  scheduleToneAt(1320,base+.045,.055,.18);
+  scheduleToneAt(1760,base+.095,.065,.16);
+  scheduleToneAt(92,base+.18,.24,.40);
+  scheduleToneAt(64,base+.20,.30,.30);
+}
+function noFractureBuzzerAt(base){
+  scheduleToneAt(118,base,.18,.34);
+  scheduleToneAt(96,base+.31,.22,.38);
+}
 function motorVoiceAt(freq,base,gain=.05,dur=.22){
   scheduleToneAt(freq,base,dur,gain);
   scheduleToneAt(freq*.992,base+.055,dur*.72,gain*.55);
@@ -132,6 +144,8 @@ function squadStageAt(count,baseFreq,base){
     motorVoiceAt(Math.max(68,baseFreq+offset),base+.08+jitter,gain,dur);
   }
 }
+function soundFractureDemo(){if(!audioCtx||audioCtx.state!=='running')return;fractureHitAt(audioCtx.currentTime+.05);}
+function soundNoFractureDemo(){if(!audioCtx||audioCtx.state!=='running')return;noFractureBuzzerAt(audioCtx.currentTime+.05);}
 function soundSquadDemoAt(base){
   soundStartAt(base);
   const seq=[1,3,9,36,9,3,1];
