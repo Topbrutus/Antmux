@@ -165,13 +165,33 @@ function squadStageAt(count,baseFreq,base){
 }
 function soundFractureDemo(){if(!audioCtx||audioCtx.state!=='running')return;fractureHitAt(audioCtx.currentTime+.05);}
 function soundNoFractureDemo(){if(!audioCtx||audioCtx.state!=='running')return;noFractureBuzzerAt(audioCtx.currentTime+.05);}
+function diagnosticMotorVoiceAt(freq,base,gain=.05,dur=.22){
+  scheduleToneAt(freq,base,dur,gain);
+  scheduleToneAt(freq*.992,base+.055,dur*.72,gain*.55);
+}
+function diagnosticStageCueAt(count,base){
+  const cue={1:760,3:640,9:500,36:280}[count]||420;
+  scheduleToneAt(cue,base,.07,.16);
+}
+function diagnosticSquadStageAt(count,baseFreq,base){
+  diagnosticStageCueAt(count,base);
+  const spread={1:0,3:34,9:110,36:240}[count]||80;
+  const gain={1:.14,3:.095,9:.060,36:.030}[count]||.05;
+  const dur={1:.30,3:.32,9:.34,36:.40}[count]||.32;
+  for(let i=0;i<count;i++){
+    const pos=count===1?0:(i/(count-1)-.5);
+    const offset=pos*spread;
+    const jitter=((i*17)%23)*.004;
+    diagnosticMotorVoiceAt(Math.max(68,baseFreq+offset),base+.08+jitter,gain,dur);
+  }
+}
 function soundSquadDemoAt(base){
   soundStartAt(base);
   const seq=[1,3,9,36,9,3,1];
   const freq=[620,540,430,260,410,520,650];
   const gap=[.72,.68,.68,.92,.68,.68,.74];
   let t=base+.72;
-  seq.forEach((count,i)=>{squadStageAt(count,freq[i],t);t+=gap[i];});
+  seq.forEach((count,i)=>{diagnosticSquadStageAt(count,freq[i],t);t+=gap[i];});
   soundEndAt(t+.10);
 }
 function scheduleMechanicalNoiseAt(start,dur=.70,gain=.035,cutoff=650){
