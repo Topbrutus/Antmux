@@ -23,6 +23,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 .chart,.crystalBox{position:relative;width:100%;height:100%;min-height:230px;background:#080a0c;border:1px solid #171b1f;overflow:hidden}
 .gridbg{background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px}
 .axis{position:absolute;color:#78838c;font:9px Consolas,monospace}.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#545e67;font:10px Consolas,monospace;letter-spacing:.09em;line-height:1.8}
+.waveCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}.waveMeta{position:absolute;left:9px;bottom:7px;color:#7f8b94;font:8px Consolas,monospace;line-height:1.5;pointer-events:none}.waveMeta strong{color:#d7dfe5}
 .empty strong{color:#87919a;font-size:11px}.info{margin-top:5px;color:#69737c;font:10px Consolas,monospace}
 .center{display:flex}.engine{width:100%;height:100%;min-height:650px;padding:0;background:#06080a;border:1px solid #242a30;border-radius:10px;overflow:hidden}
 #engineCanvas{display:block;width:100%;height:100%;min-height:650px}
@@ -86,9 +87,11 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
 
     <div class="col right">
       <section class="panel"><h2>ONDE / SIGNAL <span class="panelId">ANALYSIS-WAVE-01</span></h2>
-        <div class="chart gridbg">
+        <div class="chart gridbg" id="waveChart">
+          <canvas id="waveCanvas" class="waveCanvas" aria-label="Série amplitude-temps locale vérifiée"></canvas>
           <div class="axis" style="left:8px;top:8px">AMPLITUDE</div><div class="axis" style="right:8px;bottom:5px">TEMPS s</div>
-          <div class="empty"><div><strong>NO MEASUREMENT</strong><br>STATE: T0 · NOT_CONNECTED<br>PROOF: NONE</div></div>
+          <div id="waveEmpty" class="empty"><div><strong>NO SERIES</strong><br>STATE: WAITING FOR SAMPLER<br>PROOF: NONE</div></div>
+          <div id="waveMeta" class="waveMeta"><strong>LOCAL STATE SERIES</strong><br>SAMPLES: 0 · PHYSICAL FREQUENCY: NOT INFERRED</div>
         </div>
       </section>
 
@@ -270,7 +273,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -446,6 +449,39 @@ function renderTopologyStatus(){
 }
 function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
 async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
+function renderWaveChart(){
+  const canvas=document.getElementById("waveCanvas");
+  const box=document.getElementById("waveChart");
+  const empty=document.getElementById("waveEmpty");
+  const meta=document.getElementById("waveMeta");
+  if(!canvas||!box)return;
+  const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=box.getBoundingClientRect();
+  canvas.width=Math.max(1,Math.floor(r.width*d));canvas.height=Math.max(1,Math.floor(r.height*d));
+  const g=canvas.getContext("2d");g.setTransform(d,0,0,d,0,0);g.clearRect(0,0,r.width,r.height);
+  const run=SAMPLER.history.slice(SAMPLER.run_start_index);
+  const verified=run.filter(v=>v&&Number.isFinite(v.amplitude)&&Number.isFinite(v.t_mono_ms)&&v.proof_ref&&v.proof_ref!=="NONE");
+  if(verified.length<2){
+    empty.style.display="grid";
+    meta.innerHTML="<strong>LOCAL STATE SERIES</strong><br>SAMPLES: "+verified.length+" · PHYSICAL FREQUENCY: NOT INFERRED";
+    return;
+  }
+  empty.style.display="none";
+  const pad={l:28,r:12,t:20,b:24},w=Math.max(1,r.width-pad.l-pad.r),h=Math.max(1,r.height-pad.t-pad.b);
+  const t0=verified[0].t_mono_ms,t1=verified[verified.length-1].t_mono_ms,span=Math.max(1,t1-t0);
+  g.strokeStyle="#273039";g.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad.t+h*i/4;g.beginPath();g.moveTo(pad.l,y);g.lineTo(pad.l+w,y);g.stroke();}
+  for(let i=0;i<=5;i++){const xx=pad.l+w*i/5;g.beginPath();g.moveTo(xx,pad.t);g.lineTo(xx,pad.t+h);g.stroke();}
+  g.strokeStyle="#dce3e8";g.lineWidth=1.6;g.beginPath();
+  verified.forEach((v,i)=>{
+    const xx=pad.l+((v.t_mono_ms-t0)/span)*w;
+    const yy=pad.t+(1-v.amplitude)*h;
+    if(i===0)g.moveTo(xx,yy);else g.lineTo(xx,yy);
+  });g.stroke();
+  g.fillStyle="#dce3e8";
+  verified.forEach(v=>{const xx=pad.l+((v.t_mono_ms-t0)/span)*w,yy=pad.t+(1-v.amplitude)*h;g.beginPath();g.arc(xx,yy,1.8,0,Math.PI*2);g.fill();});
+  const last=verified[verified.length-1];
+  meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED</strong><br>SAMPLES: "+verified.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · LAST PROOF: "+last.proof_ref;
+}
 function renderSampler(){
   const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
   const ready=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
@@ -458,6 +494,7 @@ function renderSampler(){
   const btn=document.getElementById("samplerToggle");
   btn.disabled=!ready&&!SAMPLER.running;
   btn.textContent=SAMPLER.running?"STOP SAMPLER":"START SAMPLER";
+  renderWaveChart();
 }
 async function captureScheduledSample(runId){
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
@@ -764,8 +801,8 @@ document.getElementById("t5Connect").addEventListener("click",connectT5);
 document.getElementById("samplerToggle").addEventListener("click",toggleSampler);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
-renderObservationBus();renderTimebase();renderSampler();
-window.addEventListener("resize",resize);resize();
+renderObservationBus();renderTimebase();renderSampler();renderWaveChart();
+window.addEventListener("resize",()=>{resize();renderWaveChart();});resize();
 })();
 </script>
 </body>
