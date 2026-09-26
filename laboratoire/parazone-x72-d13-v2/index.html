@@ -33,7 +33,7 @@ body{padding:12px}.shell{max-width:1780px;margin:0 auto}
 .controls{margin-top:9px}.controlGrid{display:grid;grid-template-columns:1.2fr 2fr 1.2fr 1fr;gap:7px 10px;align-items:center;font-size:10px}
 .control{background:#0d1115;border:1px solid #333b43;border-radius:6px;padding:6px 8px;color:#69737c}
 .slider{height:4px;background:#252b31;border-radius:2px;position:relative}.slider:after{content:"";position:absolute;left:50%;top:-5px;width:13px;height:13px;border-radius:50%;background:#606971;border:1px solid #78828a}
-.btn{background:#11161b;border:1px solid #343c43;border-radius:7px;padding:7px 14px;color:#59636c;font-weight:600;text-align:center}
+.btn{background:#11161b;border:1px solid #343c43;border-radius:7px;padding:7px 14px;color:#8fa2b0;font-weight:700;text-align:center;cursor:pointer}.btn:hover{border-color:#00e8ff;color:#e9fbff}.btn:disabled{opacity:.45;cursor:not-allowed}
 .idle{border:1px solid #3b4249;border-radius:8px;padding:5px 10px;color:#8c969f;font-weight:700;text-align:center}
 .note{margin-top:8px;color:#67717a;font:10px Consolas,monospace;letter-spacing:.04em}
 .rule{margin-top:5px;color:#8a949d;font:10px Consolas,monospace}
@@ -69,6 +69,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 #TIMEBASE-01{border-color:#976b26}#TIMEBASE-01 h2,#TIMEBASE-01 strong{color:#ffd58a}
 #SAMPLER-01{border-color:#12815c}#SAMPLER-01 h2,#SAMPLER-01 strong{color:#6fffc5}
 #SAMPLER-QUALITY-01{border-color:#b75a1f}#SAMPLER-QUALITY-01 h2,#SAMPLER-QUALITY-01 strong{color:#ffb36a}
+#SERVER-BRIDGE-01{border-color:#14779d;box-shadow:inset 0 0 22px #00dfff12}#SERVER-BRIDGE-01 h2,#SERVER-BRIDGE-01 strong{color:#7ce8ff}
 #OBS-BUS-01{border-color:#126a9d}#OBS-BUS-01 h2,#OBS-BUS-01 strong{color:#76dfff}
 #PRESET-BANK-01{border-color:#6d3fb5;box-shadow:inset 0 0 22px #7928ff16}#PRESET-BANK-01 h2{color:#d0a7ff}
 #REFERENCE-CATALOG-01{border-color:#9f7026}#REFERENCE-CATALOG-01 h2,.refTable th{color:#ffd58a}.refBadge{border-color:#d69333;color:#ffd58a}
@@ -94,6 +95,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .instrumentDeck>#TIMEBASE-01{grid-column:span 2}
 .instrumentDeck>#SAMPLER-01{grid-column:span 2}
 .instrumentDeck>#SAMPLER-QUALITY-01{grid-column:span 2}
+.instrumentDeck>#SERVER-BRIDGE-01{grid-column:span 4}
 .instrumentDeck>#PRESET-BANK-01{grid-column:span 5}
 .instrumentDeck>#REFERENCE-CATALOG-01{grid-column:span 3}
 .instrumentDeck>#SIGNAL-GENERATOR-01{grid-column:span 4}
@@ -305,6 +307,23 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     </div>
   </section>
 
+  <section class="panel" id="SERVER-BRIDGE-01"><h2>QUEEN SERVER / LIAISON LECTURE SEULE <span class="panelId">SERVER-BRIDGE-01</span></h2>
+    <div class="obsGrid">
+      <div class="obsCell"><strong>STATE</strong><span id="serverState">CONNECTING</span></div>
+      <div class="obsCell"><strong>SOURCE</strong>QUEEN_SERVER_V0_2 · READ ONLY</div>
+      <div class="obsCell"><strong>TRANSPORT</strong><span id="serverTransport">WSS · CONNECTING</span></div>
+      <div class="obsCell"><strong>ENTITY</strong><span id="serverEntity">NONE</span></div>
+      <div class="obsCell"><strong>TICK</strong><span id="serverTick">NONE</span></div>
+      <div class="obsCell"><strong>MODE</strong><span id="serverMode">NONE</span></div>
+      <div class="obsCell"><strong>GENERATION</strong><span id="serverGeneration">NONE</span></div>
+      <div class="obsCell"><strong>ACTIVITY</strong><span id="serverActivity">NONE</span></div>
+      <div class="obsCell"><strong>MEMORY</strong><span id="serverMemory">NONE</span></div>
+      <div class="obsCell"><strong>CRYSTAL</strong><span id="serverCrystal">NONE</span></div>
+      <div class="obsCell"><strong>INTEGRITY</strong><span id="serverIntegrity">UNKNOWN</span></div>
+      <div class="obsCell obsWide"><strong>CONTRACT</strong>SERVER → PARAZONE ONLY · AUCUNE ÉCRITURE · ACTIVITY_LEVEL PEUT ALIMENTER T1 EN MODE QUEEN</div>
+    </div>
+  </section>
+
   <section class="panel presetBank" id="PRESET-BANK-01"><h2>BANQUE DE CONFIGURATIONS <span class="panelId">PRESET-BANK-01</span></h2>
     <div class="presetLayout">
       <div id="presetGrid" class="presetGrid" aria-label="Grille de 100 presets"></div>
@@ -499,11 +518,11 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <span>DIAL-AMP-01</span><div class="slider"></div><span class="control">VALUE: —</span><span class="control">DISABLED</span>
       <span>DIAL-TIME-01</span><span class="control">VALUE: —</span><span>DIAL-SPEED-01</span><span class="control">VALUE: —</span>
       <span>DIAL-BREATH-01</span><span class="control">VALUE: —</span><span>DIAL-STEP-01</span><span class="control">VALUE: —</span>
-      <span>SEQUENCE-01</span><span class="control">UNSET</span><span>FLOW-MODE-01</span><span class="control">NOT_CONNECTED</span>
-      <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
-      <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
+      <span>SEQUENCE-01</span><span id="engineCycles" class="control">CYCLES 0</span><span>SOURCE-MODE-01</span><select id="engineSourceMode" class="presetSelect"><option value="AUTO">AUTO</option><option value="LOCAL_INPUT">LOCAL INPUT</option><option value="QUEEN_ACTIVITY">QUEEN ACTIVITY</option><option value="ARMED_PRESET">ARMED PRESET</option></select>
+      <span>ENGINE-STATE-01</span><span id="engineState" class="control">STOPPED</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
+      <button id="engineStart" class="btn" type="button">START</button><button id="enginePause" class="btn" type="button">PAUSE</button><button id="engineStop" class="btn" type="button">STOP</button><button id="engineReset" class="btn" type="button">RESET LOCAL</button>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. SERVER-BRIDGE-01 lit la Queen X72 existante en WebSocket, valide QUEEN_SERVER_V0_2 et n'effectue aucune écriture. ENGINE-STATE-01 automatise l'injection T1, la connexion T2→T5 et le sampler; T2→T5 restent des connexions logicielles sans prétention de mesure physique. G_REFERENCE actif · G_CANDIDATE=NONE.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -553,6 +572,8 @@ const SPECTRUM={fft_size:64,frames:[],max_frames:96,last:null,gate:{min_samples:
 const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 const SIGNAL_GENERATOR={armed:false,config:null};
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
+const SERVER_BRIDGE={connected:false,verified:false,last:null,last_at:0,ws:null,retry:null,error:"NONE"};
+const ENGINE_CONTROLLER={state:"STOPPED",timer:null,period_ms:500,cycles:0,in_flight:false,last_source:"NONE",last_error:"NONE"};
 const REFERENCE_CATALOG=Object.freeze([
   Object.freeze({id:"USER-HZ-111",label:"111",claimed_hz:111,type:"USER_REFERENCE",status:"UNVALIDATED"}),
   Object.freeze({id:"USER-HZ-222",label:"222",claimed_hz:222,type:"USER_REFERENCE",status:"UNVALIDATED"}),
@@ -1266,6 +1287,120 @@ function renderAmplitudePanel(){
   renderMeasurementHistory();
   return {live:hasT1,measure:hasT1?T1.tick:null,value:hasT1?T1.value:null};
 }
+function queenWebSocketUrl(){
+  const scheme=location.protocol==="https:"?"wss":"ws";
+  return scheme+"://"+location.host+"/laboratoire/embryon-x72/ws";
+}
+function validateQueenState(v){
+  return !!(v&&v.source==="QUEEN_SERVER_V0_2"&&typeof v.entity_id==="string"&&
+    Number.isFinite(v.tick_count)&&Number.isFinite(v.generation)&&
+    Number.isFinite(v.activity_level)&&v.activity_level>=0&&v.activity_level<=1&&
+    Number.isFinite(v.memory_level)&&Number.isFinite(v.crystallization_level)&&
+    typeof v.integrity_match==="boolean");
+}
+function renderServerBridge(){
+  const v=SERVER_BRIDGE.last;
+  document.getElementById("serverState").textContent=SERVER_BRIDGE.verified?"LIVE · VERIFIED":(SERVER_BRIDGE.connected?"CONNECTED · WAITING":"OFFLINE · RETRY");
+  document.getElementById("serverTransport").textContent=SERVER_BRIDGE.connected?"WSS · OPEN":"WSS · CLOSED";
+  document.getElementById("serverEntity").textContent=v?v.entity_id:"NONE";
+  document.getElementById("serverTick").textContent=v?String(v.tick_count):"NONE";
+  document.getElementById("serverMode").textContent=v?String(v.queen_mode):"NONE";
+  document.getElementById("serverGeneration").textContent=v?String(v.generation):"NONE";
+  document.getElementById("serverActivity").textContent=v?Number(v.activity_level).toFixed(6):"NONE";
+  document.getElementById("serverMemory").textContent=v?Number(v.memory_level).toFixed(6):"NONE";
+  document.getElementById("serverCrystal").textContent=v?Number(v.crystallization_level).toFixed(6):"NONE";
+  document.getElementById("serverIntegrity").textContent=v?(v.integrity_match?"MATCH":"MISMATCH"):"UNKNOWN";
+}
+function scheduleServerReconnect(){
+  if(SERVER_BRIDGE.retry!==null)return;
+  SERVER_BRIDGE.retry=setTimeout(()=>{SERVER_BRIDGE.retry=null;startServerBridge();},1500);
+}
+function startServerBridge(){
+  if(SERVER_BRIDGE.ws&&(SERVER_BRIDGE.ws.readyState===WebSocket.OPEN||SERVER_BRIDGE.ws.readyState===WebSocket.CONNECTING))return;
+  try{
+    const ws=new WebSocket(queenWebSocketUrl());
+    SERVER_BRIDGE.ws=ws;SERVER_BRIDGE.connected=false;renderServerBridge();
+    ws.addEventListener("open",()=>{SERVER_BRIDGE.connected=true;SERVER_BRIDGE.error="NONE";renderServerBridge();});
+    ws.addEventListener("message",event=>{
+      try{
+        const value=JSON.parse(event.data);
+        if(!validateQueenState(value))throw new Error("QUEEN_STATE_SCHEMA_INVALID");
+        SERVER_BRIDGE.last=Object.freeze(value);SERVER_BRIDGE.last_at=performance.now();SERVER_BRIDGE.verified=true;SERVER_BRIDGE.error="NONE";renderServerBridge();
+      }catch(err){
+        SERVER_BRIDGE.verified=false;SERVER_BRIDGE.error=String(err&&err.message?err.message:err);renderServerBridge();
+      }
+    });
+    ws.addEventListener("close",()=>{SERVER_BRIDGE.connected=false;SERVER_BRIDGE.verified=false;renderServerBridge();scheduleServerReconnect();});
+    ws.addEventListener("error",()=>{SERVER_BRIDGE.error="WEBSOCKET_ERROR";});
+  }catch(err){
+    SERVER_BRIDGE.connected=false;SERVER_BRIDGE.verified=false;SERVER_BRIDGE.error=String(err&&err.message?err.message:err);renderServerBridge();scheduleServerReconnect();
+  }
+}
+function resolveEngineInput(){
+  const mode=document.getElementById("engineSourceMode").value;
+  if(mode==="QUEEN_ACTIVITY"){
+    if(!SERVER_BRIDGE.verified||!SERVER_BRIDGE.last)throw new Error("QUEEN_ACTIVITY_UNAVAILABLE");
+    return {value:normalizedInput(SERVER_BRIDGE.last.activity_level),source:"QUEEN_SERVER_V0_2.ACTIVITY_LEVEL"};
+  }
+  if(mode==="ARMED_PRESET"){
+    if(!SIGNAL_GENERATOR.armed||!SIGNAL_GENERATOR.config)throw new Error("ARMED_PRESET_REQUIRED");
+    return {value:normalizedInput(SIGNAL_GENERATOR.config.amplitude),source:"SIGNAL_GENERATOR.CONFIG"};
+  }
+  if(mode==="AUTO"){
+    if(SIGNAL_GENERATOR.armed&&SIGNAL_GENERATOR.config)return {value:normalizedInput(SIGNAL_GENERATOR.config.amplitude),source:"SIGNAL_GENERATOR.CONFIG"};
+    if(SERVER_BRIDGE.verified&&SERVER_BRIDGE.last)return {value:normalizedInput(SERVER_BRIDGE.last.activity_level),source:"QUEEN_SERVER_V0_2.ACTIVITY_LEVEL"};
+  }
+  return {value:normalizedInput(document.getElementById("t1Value").value),source:"LOCAL_INPUT"};
+}
+function renderEngineController(){
+  document.getElementById("engineState").textContent=ENGINE_CONTROLLER.state+(ENGINE_CONTROLLER.last_error!=="NONE"?" · "+ENGINE_CONTROLLER.last_error:"");
+  document.getElementById("engineCycles").textContent="CYCLES "+ENGINE_CONTROLLER.cycles+" · "+ENGINE_CONTROLLER.last_source;
+  document.getElementById("engineStart").disabled=ENGINE_CONTROLLER.state==="RUNNING";
+  document.getElementById("enginePause").disabled=ENGINE_CONTROLLER.state!=="RUNNING";
+  document.getElementById("engineStop").disabled=ENGINE_CONTROLLER.state==="STOPPED";
+}
+function cancelEngineTimer(){
+  if(ENGINE_CONTROLLER.timer!==null)clearTimeout(ENGINE_CONTROLLER.timer);
+  ENGINE_CONTROLLER.timer=null;
+}
+async function runEngineCycle(){
+  if(ENGINE_CONTROLLER.state!=="RUNNING"||ENGINE_CONTROLLER.in_flight)return;
+  ENGINE_CONTROLLER.in_flight=true;
+  try{
+    const input=resolveEngineInput();
+    ENGINE_CONTROLLER.last_source=input.source;
+    await injectT1(input.value);
+    await connectT2();await connectT3();await connectT4();await connectT5();
+    if(!SAMPLER.running)toggleSampler();
+    if(SIGNAL_GENERATOR.armed&&SIGNAL_GENERATOR.config&&SIGNAL_GENERATOR.config.mode==="CRYSTAL_CRACKLE"&&!POPCORN_BASIN.samples.length)fillPopcornBasin();
+    ENGINE_CONTROLLER.cycles+=1;ENGINE_CONTROLLER.last_error="NONE";
+  }catch(err){
+    ENGINE_CONTROLLER.last_error=String(err&&err.message?err.message:err);
+    ENGINE_CONTROLLER.state="PAUSED";
+    if(SAMPLER.running)toggleSampler();
+  }finally{
+    ENGINE_CONTROLLER.in_flight=false;renderEngineController();
+    if(ENGINE_CONTROLLER.state==="RUNNING"){
+      cancelEngineTimer();
+      ENGINE_CONTROLLER.timer=setTimeout(runEngineCycle,ENGINE_CONTROLLER.period_ms);
+    }
+  }
+}
+function startEngine(){
+  if(ENGINE_CONTROLLER.state==="RUNNING")return;
+  ENGINE_CONTROLLER.state="RUNNING";ENGINE_CONTROLLER.last_error="NONE";renderEngineController();runEngineCycle();
+}
+function pauseEngine(){
+  if(ENGINE_CONTROLLER.state!=="RUNNING")return;
+  ENGINE_CONTROLLER.state="PAUSED";cancelEngineTimer();if(SAMPLER.running)toggleSampler();renderEngineController();
+}
+function stopEngine(){
+  ENGINE_CONTROLLER.state="STOPPED";cancelEngineTimer();if(SAMPLER.running)toggleSampler();renderEngineController();
+}
+function resetLocalEngine(){
+  stopEngine();
+  location.reload();
+}
 function renderConnectionBadge(){
   const el=document.getElementById("connectionBadge");if(!el)return;
   const count=T1.connected+T2.connected+T3.connected+T4.connected+T5.connected;
@@ -1489,7 +1624,9 @@ document.getElementById("presetClear").addEventListener("click",clearSelectedPre
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+document.getElementById("engineStart").addEventListener("click",startEngine);document.getElementById("enginePause").addEventListener("click",pauseEngine);document.getElementById("engineStop").addEventListener("click",stopEngine);document.getElementById("engineReset").addEventListener("click",resetLocalEngine);
+window.addEventListener("beforeunload",()=>{cancelEngineTimer();if(SERVER_BRIDGE.retry!==null)clearTimeout(SERVER_BRIDGE.retry);if(SERVER_BRIDGE.ws)SERVER_BRIDGE.ws.close();});
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();renderServerBridge();renderEngineController();startServerBridge();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
