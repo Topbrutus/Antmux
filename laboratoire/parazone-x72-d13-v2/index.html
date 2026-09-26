@@ -196,7 +196,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
           <div class="presetField"><strong>FAMILLE</strong><span id="presetFamily">NEUTRAL</span></div>
           <div class="presetField"><strong>NOM</strong><input id="presetName" class="presetInput" maxlength="48" value="EMPTY"></div>
           <div class="presetField"><strong>STATUS</strong><span id="presetStatus">EMPTY</span></div>
-          <div class="presetField"><strong>MODE</strong><select id="presetMode" class="presetSelect"><option value="SINGLE">SINGLE</option><option value="SWEEP">SWEEP</option><option value="STEP">STEP</option><option value="PULSE">PULSE</option><option value="HEART_1HZ">HEART_1HZ</option><option value="LOCAL_STATE_SNAPSHOT">LOCAL_STATE_SNAPSHOT</option></select></div>
+          <div class="presetField"><strong>MODE</strong><select id="presetMode" class="presetSelect"><option value="SINGLE">SINGLE</option><option value="SWEEP">SWEEP</option><option value="STEP">STEP</option><option value="PULSE">PULSE</option><option value="CRYSTAL_CRACKLE">CRYSTAL_CRACKLE</option><option value="HEART_1HZ">HEART_1HZ</option><option value="LOCAL_STATE_SNAPSHOT">LOCAL_STATE_SNAPSHOT</option></select></div>
           <div class="presetField"><strong>FRÉQUENCE Hz</strong><input id="presetHz" class="presetInput" type="number" min="0" step="0.001" placeholder="NONE"></div>
           <div class="presetField"><strong>DURÉE s</strong><input id="presetDuration" class="presetInput" type="number" min="0" step="0.1" value="120"></div>
           <div class="presetField"><strong>AMPLITUDE [0,1]</strong><input id="presetAmp" class="presetInput" type="number" min="0" max="1" step="0.000001" value="0.010000"></div>
@@ -238,19 +238,19 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
     </div>
     <div class="generatorActions">
       <button id="genArm" type="button">ARM SELECTED PRESET</button>
-      <button id="genFillPopcorn" type="button">FILL POPCORN BASIN</button>
+      <button id="genFillPopcorn" type="button">GENERATE CRYSTAL CRACKLE</button>
       <button id="genClear" type="button">CLEAR GENERATOR</button>
     </div>
     <div class="popcornWrap">
-      <div id="popcornBasin" class="popcornBasin" aria-label="Bassin visuel de points synthétiques"></div>
+      <div id="popcornBasin" class="popcornBasin" aria-label="Bassin visuel d'événements synthétiques de craquement de cristal"></div>
       <div class="popcornMeta">
         <div><strong>BUFFER</strong><span id="popcornCount">0 / 256</span></div>
-        <div><strong>MODEL RATE</strong><span id="popcornRate">NONE</span></div>
+        <div><strong>EVENT MODEL RATE</strong><span id="popcornRate">NONE</span></div>
         <div><strong>WINDOW</strong><span id="popcornWindow">NONE</span></div>
         <div><strong>STATUS</strong><span id="popcornStatus">EMPTY · SYNTHETIC ONLY</span></div>
       </div>
     </div>
-    <div class="note">Le « bassin à popcorn » est un buffer visuel de points mathématiques synthétiques. Ce n'est ni une sortie physique, ni une mesure, ni le sampler T1.</div>
+    <div class="note">« POPCORN » = bruit de craquement de cristal. Ici, c'est seulement un modèle synthétique de transitoires de craquement: pas un enregistrement réel, pas une sortie physique, pas une mesure et pas le sampler T1.</div>
   </section>
 
   <section class="panel controls"><h2>CONTRÔLES / CADRANS <span class="panelId">CONTROL-BANK-01</span></h2>
@@ -404,7 +404,7 @@ const TIMEBASE={history:[],proof:"NONE"};
 const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"NONE",run_id:0,run_start_index:0};
 const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 const SIGNAL_GENERATOR={armed:false,config:null};
-const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null};
+const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
   Object.freeze({id:"USER-HZ-111",label:"111",claimed_hz:111,type:"USER_REFERENCE",status:"UNVALIDATED"}),
   Object.freeze({id:"USER-HZ-222",label:"222",claimed_hz:222,type:"USER_REFERENCE",status:"UNVALIDATED"}),
@@ -587,19 +587,32 @@ function renderPopcornBasin(){
   document.getElementById("popcornCount").textContent=POPCORN_BASIN.samples.length+" / "+POPCORN_BASIN.capacity;
   document.getElementById("popcornRate").textContent=Number.isFinite(POPCORN_BASIN.sample_rate_hz)?POPCORN_BASIN.sample_rate_hz.toFixed(3)+" model Hz":"NONE";
   document.getElementById("popcornWindow").textContent=Number.isFinite(POPCORN_BASIN.window_s)?POPCORN_BASIN.window_s.toFixed(6)+" s":"NONE";
-  document.getElementById("popcornStatus").textContent=POPCORN_BASIN.samples.length?"FILLED · SYNTHETIC MATH BUFFER":"EMPTY · SYNTHETIC ONLY";
+  document.getElementById("popcornStatus").textContent=POPCORN_BASIN.samples.length?"FILLED · SYNTHETIC CRACK TRANSIENTS":"EMPTY · SYNTHETIC ONLY";
 }
 function fillPopcornBasin(){
   const c=SIGNAL_GENERATOR.config;
   if(!SIGNAL_GENERATOR.armed||!c){document.getElementById("popcornStatus").textContent="ERROR · ARM GENERATOR FIRST";return false}
-  const f=Number.isFinite(c.frequency_hz)?c.frequency_hz:0;
-  const rate=Math.max(64,Math.ceil(Math.max(1,f)*8));
-  const n=POPCORN_BASIN.capacity,amp=c.amplitude;
-  const samples=[];
+  if(c.mode!=="CRYSTAL_CRACKLE"){document.getElementById("popcornStatus").textContent="ERROR · MODE CRYSTAL_CRACKLE REQUIRED";return false}
+  if(!(c.duration_s>0)){document.getElementById("popcornStatus").textContent="ERROR · POSITIVE DURATION REQUIRED";return false}
+  const rate=512;
+  const maxByDuration=Math.max(1,Math.floor(c.duration_s*rate)+1);
+  const n=Math.min(POPCORN_BASIN.capacity,maxByDuration);
+  const amp=c.amplitude,samples=[];
+  let seed=((c.preset_id+1)*2654435761)>>>0;
+  const nextRand=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296};
+  let envelope=0;
   for(let i=0;i<n;i++){
     const t=i/rate;
-    const value=f>0?amp*Math.sin(2*Math.PI*f*t):amp;
-    samples.push(Object.freeze({schema:"BRUTUS_SYNTHETIC_SAMPLE_V1",index:i+1,t_model_s:t,value,frequency_hz:f,amplitude:amp,source:"SIGNAL-GENERATOR-01"}));
+    const trigger=nextRand()>0.94;
+    if(trigger)envelope=Math.max(envelope,0.35+0.65*nextRand());
+    const polarity=nextRand()>0.5?1:-1;
+    const value=amp*polarity*envelope*(0.55+0.45*nextRand());
+    envelope*=0.72;
+    samples.push(Object.freeze({
+      schema:"BRUTUS_CRYSTAL_CRACK_SYNTH_V1",index:i+1,t_model_s:t,value,
+      transient_trigger:trigger,amplitude:amp,reference_frequency_hz:c.frequency_hz,
+      source:"SIGNAL-GENERATOR-01",model:"CRYSTAL_CRACK_TRANSIENT_V1"
+    }));
   }
   POPCORN_BASIN.samples=samples;
   POPCORN_BASIN.sample_rate_hz=rate;
