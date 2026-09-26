@@ -563,8 +563,37 @@ function registry(rx,ry,rw,rh){
   label("CONNECTED: "+(T1.connected+T2.connected+T3.connected+T4.connected+T5.connected),rx+10,ry+94,"left");label("RECORDS/PROOFS: "+(T1.history.length+T2.history.length+T3.history.length+T4.history.length+T5.history.length)+"/"+(T1.proofs+T2.proofs+T3.proofs+T4.proofs+T5.proofs),rx+10,ry+109,"left");
   label("TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version,rx+10,ry+124,"left","#626c75","7px Consolas")
 }
+function drawAmbientField(w,h,cx,cy){
+  x.save();
+  for(let i=0;i<72;i++){
+    const px=18+((i*83)%Math.max(40,w-36)),py=42+((i*137)%Math.max(80,h-84));
+    const r=(i%5===0)?1.4:0.7;
+    x.fillStyle=i%7===0?"#ffae42aa":(i%3===0?"#9b45ff88":"#00dfff77");
+    x.beginPath();x.arc(px,py,r,0,Math.PI*2);x.fill();
+  }
+  x.translate(cx,cy);
+  for(let i=0;i<5;i++){
+    x.save();x.rotate((i-2)*0.22);x.scale(1,0.45+i*.045);
+    x.strokeStyle=i%2===0?"#ffae4238":"#9b45ff30";x.lineWidth=1;
+    x.beginPath();x.ellipse(0,0,Math.min(w*.33,230)-i*18,Math.min(h*.31,210)-i*14,0,0,Math.PI*2);x.stroke();x.restore();
+  }
+  for(let i=0;i<12;i++){
+    const a=Math.PI*2*i/12,rr=70+(i%3)*22;
+    x.strokeStyle=i%2===0?"#00dfff20":"#198bff1c";
+    x.beginPath();x.moveTo(Math.cos(a)*25,Math.sin(a)*25);x.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);x.stroke();
+  }
+  x.restore();
+}
+function drawCrystalGlyph(p,active){
+  x.save();x.translate(p.x,p.y);x.shadowColor=active?"#ff3344":"#ffae42";x.shadowBlur=active?24:12;x.strokeStyle=active?"#ff6a5d":"#ffae42";x.lineWidth=1.7;
+  const pts=[[0,-30],[18,-6],[11,22],[0,32],[-11,22],[-18,-6]];
+  x.beginPath();pts.forEach((q,i)=>i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]));x.closePath();x.stroke();
+  x.beginPath();x.moveTo(0,-30);x.lineTo(0,32);x.moveTo(-18,-6);x.lineTo(18,-6);x.moveTo(-11,22);x.lineTo(11,22);x.stroke();
+  x.restore();
+}
 function draw(w,h){
   x.clearRect(0,0,w,h);const g=x.createRadialGradient(w*.43,h*.46,0,w*.43,h*.46,Math.max(w,h)*.58);g.addColorStop(0,"#071e48");g.addColorStop(.38,"#041226");g.addColorStop(1,"#02070e");x.fillStyle=g;x.fillRect(0,0,w,h);x.strokeStyle="#126a9d";x.strokeRect(7,7,w-14,h-14);
+  drawAmbientField(w,h,w*.43,h*.48);
   label("BASELINE T0 · FROZEN | CURRENT "+(T5.connected?"T5":(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0")))))+" · CONNECTED "+(T1.connected+T2.connected+T3.connected+T4.connected+T5.connected)+" · MEASUREMENTS "+T1.measurements+" · PROOFS "+(T1.proofs+T2.proofs+T3.proofs+T4.proofs+T5.proofs),20,28,"left","#c8cfd4","700 9px Consolas");
   label("PORTS: I INPUT · O OUTPUT · S STATE · E ERROR · T TIME",w-20,28,"right","#69737c","8px Consolas");
 
@@ -583,20 +612,21 @@ function draw(w,h){
 
   moduleNode(P.b1,"B1",rad);moduleNode(P.b2,"B2",rad);moduleNode(P.b3,"B3",rad);
 
-  x.fillStyle="#080a0c";x.strokeStyle="#7f8992";x.lineWidth=2;x.beginPath();x.arc(P.base.x,P.base.y,10,0,Math.PI*2);x.fill();x.stroke();
-  label("SOURCE-00",P.base.x,P.base.y+28,"center","#89939b","9px Consolas");label(T1.connected?("INPUT=1 · AMP "+T1.value.toFixed(6)):"NOT_CONNECTED",P.base.x,P.base.y+42,"center",T1.connected?"#dce4ea":"#5f6972","8px Consolas");
+  x.save();x.shadowColor=T1.connected?"#00e99a":"#00e99a55";x.shadowBlur=T1.connected?18:8;x.fillStyle="#05261d";x.strokeStyle="#00e99a";x.lineWidth=2;x.beginPath();x.arc(P.base.x,P.base.y,10,0,Math.PI*2);x.fill();x.stroke();x.restore();
+  label("SOURCE-00",P.base.x,P.base.y+28,"center","#75ffc7","9px Consolas");label(T1.connected?("INPUT=1 · AMP "+T1.value.toFixed(6)):"NOT_CONNECTED",P.base.x,P.base.y+42,"center",T1.connected?"#75ffc7":"#557c70","8px Consolas");
 
-  x.fillStyle="#080a0c";x.strokeStyle="#858f97";x.lineWidth=1.4;x.strokeRect(P.g.x-45,P.g.y-11,90,22);
-  label("GATE-01",P.g.x,P.g.y+4,"center","#dfe5ea","9px Consolas");label(T4.connected?"T4 · CONNECTED · NO LOGIC":"NOT_CONNECTED",P.g.x,P.g.y+27,"center",T4.connected?"#dce4ea":"#5f6972","8px Consolas");
+  x.save();x.shadowColor=T4.connected?"#ffae42":"#ffae4244";x.shadowBlur=T4.connected?18:8;x.fillStyle="#221405";x.strokeStyle="#ffae42";x.lineWidth=1.6;x.strokeRect(P.g.x-45,P.g.y-11,90,22);x.restore();
+  label("GATE-01",P.g.x,P.g.y+4,"center","#ffd58a","9px Consolas");label(T4.connected?"T4 · CONNECTED · NO LOGIC":"NOT_CONNECTED",P.g.x,P.g.y+27,"center",T4.connected?"#ffd58a":"#7b6748","8px Consolas");
 
-  x.strokeStyle="#707981";x.lineWidth=1.1;for(let i=0;i<6;i++){const a=Math.PI*2*i/6;x.beginPath();x.moveTo(P.cr.x,P.cr.y);x.lineTo(P.cr.x+Math.cos(a)*25,P.cr.y+Math.sin(a)*25);x.stroke()}
-  label("CRYSTAL-01",P.cr.x,P.cr.y+43,"center","#9da6ad","9px Consolas");label(T5.connected?"T5 · CONNECTED · NO LOGIC":"NOT_CONNECTED",P.cr.x,P.cr.y+57,"center",T5.connected?"#dce4ea":"#5f6972","8px Consolas");
+  drawCrystalGlyph(P.cr,T5.connected===1);
+  label("CRYSTAL-01",P.cr.x,P.cr.y+43,"center","#ffd58a","9px Consolas");label(T5.connected?"T5 · CONNECTED · NO LOGIC":"NOT_CONNECTED",P.cr.x,P.cr.y+57,"center",T5.connected?"#ff8f82":"#78635a","8px Consolas");
 
   registry(w*.66,h*.39,w*.30,138);
 
   x.save();x.setLineDash([4,5]);x.strokeStyle="#343c43";x.strokeRect(w*.68,h*.08,w*.27,h*.18);x.restore();
   label("CHEM-ZONE-01",w*.815,h*.12,"center","#68727a","9px Consolas");label("PLACEHOLDER STRUCTUREL",w*.815,h*.15,"center","#5b656d","8px Consolas");label("NO FUNCTION · NO DATA",w*.815,h*.175,"center","#5b656d","8px Consolas");
 
+  label("VISUAL FIELD: DECORATIVE ONLY · NO MEASUREMENT",w-20,h-22,"right","#755f86","7px Consolas");
   label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T5.connected?"T5":(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0"))))),20,h-22,"left","#69737c","8px Consolas");
 }
 function validateTopology(g){
