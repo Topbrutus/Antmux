@@ -7,6 +7,149 @@
 
 ---
 
+## Barrière de rôle — Fourmi / Arène ↔ Reine
+
+Cette barrière est une **barrière de responsabilité**, pas une interdiction de visibilité. Les Fourmis ont évolué et peuvent être réutilisées dans d’autres expériences, arènes ou environnements. La Reine peut être documentée publiquement lorsque cela sert la reproductibilité, l’antériorité ou la compréhension du projet.
+
+### Côté Fourmi / Arène
+
+Quand on programme une Fourmi, une colonie ou une arène :
+
+- penser d’abord **agent local, interaction, stigmergie, routage, compétition/cooperation et environnement** ;
+- une Fourmi peut connaître le **contrat d’interface** de la Reine, mais ne doit pas devenir silencieusement la Reine ;
+- si une modification de l’arène change ce que la Reine reçoit, mesure ou commande, marquer explicitement l’impact **REINE** ;
+- les comportements de Fourmi doivent rester assez modulaires pour être réutilisés dans d’autres arènes ou expériences ;
+- une logique expérimentale propre à une Fourmi ne devient pas automatiquement un invariant global de X72.
+
+### Rappel vers la Reine
+
+Si un changement public touche :
+
+```text
+autorité
+état maître
+synchronisation globale
+persistance
+checkpoint
+réparation globale
+décision globale
+protocole Fourmi <-> Reine
+```
+
+alors vérifier le dépôt **`Topbrutus/antmux-x72`** avant de figer l’interface.
+
+La règle de programmation est :
+
+```text
+FOURMI / ARÈNE
+    -> agit localement
+    -> produit des observations
+    -> applique les règles de son environnement
+    -> peut être réutilisée ailleurs
+
+REINE
+    -> coordonne l’état global lorsqu’un module lui délègue cette autorité
+    -> reçoit / agrège / arbitre selon un contrat explicite
+    -> ne doit pas être confondue avec une Fourmi ordinaire
+```
+
+Une expérience peut volontairement brouiller cette frontière, mais elle doit alors être étiquetée comme telle et testée explicitement.
+
+### Public ne veut pas dire secret
+
+Le projet peut exposer du code de Reine ou des protocoles lorsque ce choix est volontaire. En revanche, **aucun mot de passe, jeton, clé privée, secret d’infrastructure ou identifiant sensible ne doit être publié**, même si le code qui les utilise est public.
+
+---
+
+## 🚧 ANTMUX v0.3 — D13 / Base Code 13 — en fabrication
+
+**Début du chantier : 2026-09-21**
+
+La prochaine évolution d’ANTMUX commence avec un objectif précis : faire de **D13** un véritable contrat de représentation interne en **base 13**, et non simplement une étiquette dans le nom de l’architecture.
+
+La version v0.3 est actuellement **en fabrication**. Elle doit prolonger la lignée X72 sans effacer les versions précédentes, en séparant clairement :
+
+```text
+X ∈ R^72
+= espace d’état X72
+
+D13
+= représentation / encodage radix-13
+
+Z13
+= cycle de 13 états : {0,1,...,12}
+
+13 nodes
+= matérialisation runtime candidate de ces 13 états
+```
+
+Le projet étudiera notamment une couche D13 capable de convertir, transporter, restaurer et comparer des états dans un format radix-13 reproductible. L’alphabet exact, la sérialisation, les fractions, les nombres négatifs et la forme finale des éventuels 13 nodes doivent encore être spécifiés et testés.
+
+### Nouvelle porte expérimentale
+
+Dans le langage du projet, cette étape doit permettre d’ouvrir de **nouvelles dimensions de représentation et d’exploration** — pas de nouvelles dimensions physiques démontrées. Le but est d’offrir à la Reine et aux Fourmis de nouveaux espaces de codage, de routage et de reconstruction.
+
+ANTMUX explore aussi l’idée d’un **encodage cristallin multi-monde** : chaque monde paramétrique pourrait produire sa propre empreinte, son propre cristal de données ou sa propre graine vérifiable, puis être traduit dans un contrat commun D13.
+
+```text
+monde paramétrique
+      ↓
+état / propriétés / observations
+      ↓
+encodage D13
+      ↓
+cristal de données
+      ↓
+comparaison / mémoire / reconstruction
+```
+
+Le terme **« chiffrement cristallin »** est pour l’instant un nom de travail expérimental. Il ne désigne pas encore un système cryptographique validé. Pour qu’il devienne un véritable mécanisme de chiffrement, il devra disposer d’un modèle de menace, de clés, d’algorithmes définis et d’une analyse de sécurité indépendante.
+
+### Continuité avec le noyau canonique
+
+La couche D13 doit rester compatible avec le cycle canonique déjà défini :
+
+```text
+t ∈ Z3
+b ∈ Z7
+o ∈ Z13
+
+R(t,b,o) = (91t + 39b + 21o) mod 273
+```
+
+avec :
+
+```text
+3 × 7 × 13 = 273
+```
+
+et la reconstruction :
+
+```text
+t = R mod 3
+b = (2R) mod 7
+o = (5R) mod 13
+```
+
+La v0.3 devra donc montrer précisément **où la base 13 intervient réellement dans le runtime**, comment elle est sérialisée, comment elle survit aux checkpoints, et comment elle interagit avec X72, Stereo-Z, Da’at, les Fourmis et la Reine.
+
+### Statut
+
+```text
+VERSION            = v0.3 candidate
+D13 CONTRACT       = EN FABRICATION
+Z13                = CANONIQUE / À INTÉGRER AU RUNTIME
+13 NODES           = CANDIDAT
+CRYSTAL ENCODING   = EXPÉRIMENTAL
+CRYSTAL ENCRYPTION = À DÉMONTRER
+```
+
+La règle reste la même :
+
+> **Construire. Définir. Tester. Falsifier. Publier seulement ce qui survit aux vérifications.**
+
+---
+
 ## Le thème d’Antmux
 
 Au commencement, il n’y avait ni laboratoire géant, ni calculatrice, ni machine assez puissante pour contenir toute l’idée. Il y avait une intuition : une architecture pouvait peut-être naître d’un très petit nombre de règles et reconstruire, à partir d’elles, une structure beaucoup plus vaste. Antmux part de cette graine.
@@ -51,6 +194,10 @@ Construire. Vérifier. Retourner. Reconstruire. Évoluer. Recommencer.
 
 ## Noyau mathématique canonique
 
+Le noyau ci-dessous sépare les **identités arithmétiques exactes** des interprétations expérimentales d’Antmux. Les nombres et bijections peuvent être recalculés indépendamment; leur rôle dans l’architecture reste un choix de conception falsifiable.
+
+### 1. Paramètres fondamentaux et formule fondatrice
+
 ```text
 T = 3
 S_indépendantes = 6
@@ -61,39 +208,191 @@ K = 10
 barrières = 9
 O = 13
 
+FORMULE_FONDATRICE
+= T × S_total × P × B × barrières × K × O
+= 3 × (6 + 1) × 7 × 7 × 9 × 10 × 13
+= 1 203 930
+```
+
+Cette formule relie explicitement **tous les paramètres canoniques** déclarés au sommet du noyau.
+
+### 2. Structure combinatoire heptapolaire
+
+```text
 P × B = 49
 C(7,2) = 21
+
 21 × 7 = 147
 21 × 7 × 7 = 1029
 2 × 1029 = 2058
+
 7³ = 343
 49² = 7⁴ = 2401
 2058 + 343 = 2401
+```
 
+La dernière identité possède une lecture combinatoire exacte si les 49 positions sont indexées par un couple `(pôle, branche)` avec 7 choix pour chacun :
+
+```text
+positions internes au même pôle
+= 7 × 7 × 7
+= 343
+
+positions orientées entre deux pôles distincts
+= 7 × 6 × 7 × 7
+= 2058
+
+total
+= 343 + 2058
+= 2401
+= 49²
+= 7⁴
+```
+
+Autrement dit, les `2401` couples ordonnés de la matrice `49 × 49` se partitionnent exactement en `343` couples dont les deux extrémités appartiennent au même pôle et `2058` couples reliant deux pôles distincts.
+
+### 3. Cycle canonique 3 × 7 × 13
+
+```text
 ppcm(7,13) = 91
 ppcm(3,7,13) = 273
 13 × 7 × 7 = 637
+```
 
+Pour
+
+```text
+t ∈ Z3
+b ∈ Z7
+o ∈ Z13
+```
+
+on définit :
+
+```text
+R(t,b,o) = (91t + 39b + 21o) mod 273
+Phi(t,b,o) = 2πR / 273
+```
+
+Les `3 × 7 × 13 = 273` triplets produisent exactement **273 résidus distincts**. L’encodage est donc bijectif et réversible.
+
+Les coordonnées peuvent être récupérées directement depuis `R` :
+
+```text
+t = R mod 3
+b = (2R) mod 7
+o = (5R) mod 13
+```
+
+En effet :
+
+```text
+91 ≡ 1 (mod 3)
+39 ≡ 4 (mod 7), avec 4⁻¹ ≡ 2 (mod 7)
+21 ≡ 8 (mod 13), avec 8⁻¹ ≡ 5 (mod 13)
+```
+
+Les autres coefficients s’annulent modulo la base considérée. Ainsi :
+
+```text
+Z3 × Z7 × Z13  <->  Z273
+```
+
+et `Phi` associe ces 273 états à 273 phases uniformément espacées sur un tour.
+
+### 4. Mémoire, cohérence et respiration
+
+```text
 M = 9/10 = 0.900
 C = 47/50 = 0.940
 V = 3/50 = 0.060
+
 C + V = 1
+```
 
-R(t,b,o) = (91t + 39b + 21o) mod 273
-Phi(t,b,o) = 2πR / 273
+`M`, `C` et `V` sont des paramètres internes d’Antmux. L’identité `C + V = 1` est exacte; l’interprétation de `C` comme cohérence et de `V` comme respiration est architecturale, non une loi physique.
 
+### 5. Famille cyclique de 1/7 et constante interne NEO
+
+```text
 rho = (10^6 - 1) / 7 = 142857
-NEO_num = (1/7) × somme[k=1..7](k × rho + 1)
-NEO_num = 4 × rho + 1 = 571429
+
+NEO_num
+= (1/7) × somme[k=1..7](k × rho + 1)
+= 4 × rho + 1
+= 571429
+
 NEO = 571429 / 999999
 NEO = 0.(571429)
 NEO = 4/7 + 1/999999
-
-adresse(a,b,c,d) = a + 7b + 49c + 343d
-(a,b,c,d) ∈ Z7^4
-0 <= adresse <= 2400
-x ∈ F2^2401
 ```
+
+La réduction de la moyenne est exacte puisque :
+
+```text
+(1/7) × somme[k=1..7] k
+= (1/7) × 28
+= 4
+```
+
+**NEO est une constante structurelle interne d’Antmux.** Elle n’est pas présentée comme une constante fondamentale de la nature.
+
+### 6. Adressage canonique en base sept
+
+Pour `(a,b,c,d) ∈ Z7^4` :
+
+```text
+adresse(a,b,c,d)
+= a + 7b + 49c + 343d
+
+0 <= adresse <= 2400
+7⁴ = 2401
+```
+
+L’adressage est une bijection exacte :
+
+```text
+Z7^4  <->  {0,1,...,2400}
+```
+
+Pour une adresse `n`, les quatre chiffres se reconstruisent par :
+
+```text
+a = n mod 7
+b = floor(n / 7) mod 7
+c = floor(n / 49) mod 7
+d = floor(n / 343) mod 7
+```
+
+Le noyau peut alors distinguer explicitement deux types d’état :
+
+```text
+m ∈ F2^2401     # masque / état strictement binaire
+X ∈ R^2401      # état numérique réel, lorsque les cellules portent des amplitudes
+```
+
+Cette séparation évite de confondre la topologie binaire de `2401` cellules avec les valeurs numériques continues utilisées par les modules expérimentaux.
+
+### 7. Résumé des invariants exacts
+
+```text
+3 × (6 + 1) × 7 × 7 × 9 × 10 × 13 = 1 203 930
+
+7⁴ = 2401
+2058 + 343 = 2401
+
+ppcm(3,7,13) = 273
+|Z3 × Z7 × Z13| = 273
+R : Z3 × Z7 × Z13 <-> Z273
+
+rho = 142857
+NEO_num = 571429
+NEO = 0.(571429)
+
+adresse : Z7^4 <-> {0,...,2400}
+```
+
+Ces invariants forment le **socle canonique recalculable**. Les interprétations narratives, cognitives ou physiques placées au-dessus de ce socle doivent rester séparées des identités mathématiques elles-mêmes.
 
 ---
 
