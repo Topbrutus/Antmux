@@ -126,24 +126,41 @@ function noFractureBuzzerAt(base){
   scheduleToneAt(118,base,.18,.34);
   scheduleToneAt(96,base+.31,.22,.38);
 }
-function motorVoiceAt(freq,base,gain=.05,dur=.22){
-  scheduleToneAt(freq,base,dur,gain);
-  scheduleToneAt(freq*.992,base+.055,dur*.72,gain*.55);
+function scheduleEngineAt(freq,start,dur=.46,gain=.05,wave='sawtooth',bend=.08){
+  if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=wave;
+  const f0=Math.max(45,freq*(1-bend));
+  const f1=Math.max(48,freq*(1+bend*.35));
+  o.frequency.setValueAtTime(f0,start);
+  o.frequency.exponentialRampToValueAtTime(f1,start+dur*.72);
+  o.frequency.exponentialRampToValueAtTime(Math.max(45,freq*.97),start+dur);
+  g.gain.setValueAtTime(0,start);
+  g.gain.linearRampToValueAtTime(gain*soundVolume,start+.025);
+  g.gain.setValueAtTime(gain*soundVolume,start+dur*.68);
+  g.gain.exponentialRampToValueAtTime(.0001,start+dur);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(start);o.stop(start+dur+.03);
 }
-function stageCueAt(count,base){
-  const cue={1:760,3:640,9:500,36:280}[count]||420;
-  scheduleToneAt(cue,base,.07,.16);
+function motorVoiceAt(freq,base,gain=.05,dur=.46,index=0){
+  const wave=index%3===0?'sawtooth':(index%3===1?'triangle':'square');
+  const bend=.055+((index%5)*.008);
+  scheduleEngineAt(freq,base,dur,gain,wave,bend);
+}
+function stageRumbleAt(count,baseFreq,base,dur){
+  const sub=Math.max(48,baseFreq*(count===36?.22:count===9?.28:count===3?.34:.40));
+  scheduleEngineAt(sub,base,dur, count===36?.11:count===9?.085:.065,'triangle',.035);
 }
 function squadStageAt(count,baseFreq,base){
-  stageCueAt(count,base);
-  const spread={1:0,3:34,9:110,36:240}[count]||80;
-  const gain={1:.14,3:.095,9:.060,36:.030}[count]||.05;
-  const dur={1:.30,3:.32,9:.34,36:.40}[count]||.32;
+  const spread={1:0,3:42,9:125,36:260}[count]||80;
+  const gain={1:.15,3:.090,9:.048,36:.020}[count]||.05;
+  const dur={1:.62,3:.66,9:.72,36:.92}[count]||.64;
+  stageRumbleAt(count,baseFreq,base,dur);
   for(let i=0;i<count;i++){
     const pos=count===1?0:(i/(count-1)-.5);
     const offset=pos*spread;
-    const jitter=((i*17)%23)*.004;
-    motorVoiceAt(Math.max(68,baseFreq+offset),base+.08+jitter,gain,dur);
+    const jitter=((i*17)%29)*.006;
+    motorVoiceAt(Math.max(58,baseFreq+offset),base+jitter,gain,dur,index=i);
   }
 }
 function soundFractureDemo(){if(!audioCtx||audioCtx.state!=='running')return;fractureHitAt(audioCtx.currentTime+.05);}
