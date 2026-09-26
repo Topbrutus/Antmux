@@ -87,7 +87,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .title span{color:var(--violet)}
 .topNav{display:flex;gap:12px;align-items:center;justify-content:center;flex:1;color:#79a9c7;font:700 8px Consolas,monospace;letter-spacing:.08em;white-space:nowrap}
 .topNav span{padding:4px 5px;border-bottom:1px solid transparent}.topNav span:hover{color:#e9fbff;border-color:var(--cyan)}
-.connectionBadge{padding:5px 8px;border:1px solid #00a878;border-radius:6px;background:#06241b;color:#62ffc7;font:800 8px Consolas,monospace;box-shadow:0 0 10px #00e99a22;white-space:nowrap}
+.connectionBadge{padding:5px 8px;border:1px solid #4b5964;border-radius:6px;background:#0b1117;color:#9badb9;font:800 8px Consolas,monospace;box-shadow:0 0 10px #0008;white-space:nowrap}.connectionBadge[data-state="partial"]{border-color:#167da1;background:#061a25;color:#7deaff;box-shadow:0 0 10px #00e8ff22}.connectionBadge[data-state="active"]{border-color:#00a878;background:#06241b;color:#62ffc7;box-shadow:0 0 10px #00e99a22}
 .instrumentDeck{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;margin-top:9px}.monitorWall{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.monitorPanel{min-height:220px}.monitorGraph{height:128px;border:1px solid #17364d;border-radius:6px;background:linear-gradient(180deg,#071421,#030910);position:relative;overflow:hidden}.monitorGraph:before{content:"";position:absolute;inset:0;background-image:linear-gradient(#00e8ff0c 1px,transparent 1px),linear-gradient(90deg,#00e8ff0c 1px,transparent 1px);background-size:18px 18px}.monitorTrace{position:absolute;left:7px;right:7px;bottom:10px;height:38px;opacity:.9}.monitorTrace svg{width:100%;height:100%}.monitorStats{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}.monitorStat{border:1px solid #1d3a50;border-radius:5px;background:#06101a;padding:5px 6px;font:10px Consolas,monospace;color:#83a8c1}.monitorStat strong{display:block;color:#dcecff;margin-bottom:3px;font-size:10px}.monitorNoData{position:absolute;inset:0;display:grid;place-items:center;color:#628198;font:700 8px Consolas,monospace;letter-spacing:.08em;text-align:center}.monitorCyan{border-color:#14779d}.monitorCyan h2{color:#7ce8ff}.monitorViolet{border-color:#6d3db5}.monitorViolet h2{color:#d0a7ff}.monitorGold{border-color:#9d6a25}.monitorGold h2{color:#ffd58a}.monitorRed{border-color:#a43b31}.monitorRed h2{color:#ff9b84}.monitorPanel{position:relative;overflow:hidden;background:linear-gradient(180deg,#07121f,#030810);box-shadow:inset 0 0 24px #00182966,0 0 12px #00dfff10}.monitorPanel:after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,transparent 0 3px,#ffffff08 4px);mix-blend-mode:screen;opacity:.16}.monitorPanel h2:before{content:"●";margin-right:6px;font-size:8px;color:currentColor;text-shadow:0 0 8px currentColor}.monitorPanel h2{padding-bottom:6px;border-bottom:1px solid #1b3a50}.monitorGraph{box-shadow:inset 0 0 18px #00131f99,0 0 0 1px #07111b}.monitorGraph:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 50%,transparent 45%,#00000088 100%)}.monitorStats{position:relative;z-index:1}.monitorStat{min-height:42px}.monitorStat strong{letter-spacing:.08em}.monitorCyan .monitorGraph{border-color:#126887}.monitorViolet .monitorGraph{border-color:#5a3490}.monitorGold .monitorGraph{border-color:#80541e}.monitorRed .monitorGraph{border-color:#7e3028}.statusGrid{background:#04101a;border:1px solid #15364d;border-radius:7px;padding:8px;box-shadow:inset 0 0 14px #00142177}.bar{position:relative}.bar:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff18,transparent);pointer-events:none}.right .panel:nth-child(3){box-shadow:inset 0 0 20px #00e99a0c,0 0 10px #00e99a0e}
 .instrumentDeck>#ANALYSIS-AMP-01{grid-column:span 3}
 .instrumentDeck>#ANALYSIS-HISTORY-01{grid-column:span 3}
@@ -125,7 +125,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <nav class="topNav" aria-label="Navigation visuelle">
       <span>ANALYSE</span><span>RÉSONANCE</span><span>BANQUE</span><span>GÉNÉRATEUR</span><span>ÉCHANTILLONS</span><span>RÉFÉRENCES</span><span>OUTILS</span>
     </nav>
-    <div class="connectionBadge">● CONNECTÉ</div>
+    <div class="connectionBadge" id="connectionBadge" data-state="idle">● LOCAL · T0</div>
     <div class="subtitle"><span class="t0">T0 · FROZEN</span> · <span id="currentState">CURRENT T0 · CONNECTED 0</span></div>
   </header>
 
@@ -812,6 +812,11 @@ function classifyCrackleEvents(){
   if(!data.length){reset("NO DATA");document.getElementById("classStatus").textContent="SYNTHETIC LABELS ONLY · NOT A MATERIAL PROPERTY";return null}
   const valid=data.every(v=>v&&v.schema==="BRUTUS_CRYSTAL_CRACK_SYNTH_V1"&&v.model==="CRYSTAL_CRACK_TRANSIENT_V1"&&Number.isFinite(v.t_model_s)&&Number.isFinite(v.value)&&Number.isFinite(v.amplitude));
   if(!valid){reset("REJECTED");document.getElementById("classStatus").textContent="ERROR · INVALID SYNTHETIC BUFFER SCHEMA";return null}
+  if(data.every(v=>v.amplitude===0)){
+    reset("SILENT · A=0");
+    document.getElementById("classStatus").textContent="ZERO AMPLITUDE · NO CRACK EVENTS TO CLASSIFY";
+    return {events:0,weak:0,medium:0,strong:0,bursts:0};
+  }
   const events=data.filter(v=>v.transient_trigger===true);
   let weak=0,medium=0,strong=0,bursts=0,inBurst=false;
   for(let i=0;i<events.length;i++){
@@ -843,8 +848,13 @@ function renderAuxMonitors(){
   document.getElementById("monitorInputState").textContent=T1.connected===1?"T1 · LIVE":"T0";
   if(hist.length){
     inputEmpty.style.display="none";
-    const pts=hist.map((v,i)=>((i/(Math.max(hist.length-1,1)))*320).toFixed(1)+","+(36-v.after*32).toFixed(1)).join(" ");
-    inputTrace.innerHTML='<svg viewBox="0 0 320 38" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="#00e8ff" stroke-width="2"/></svg>';
+    if(hist.length===1){
+      const y=(36-hist[0].after*32).toFixed(1);
+      inputTrace.innerHTML='<svg viewBox="0 0 320 38" preserveAspectRatio="none"><circle cx="160" cy="'+y+'" r="3" fill="#00e8ff"/></svg>';
+    }else{
+      const pts=hist.map((v,i)=>((i/(hist.length-1))*320).toFixed(1)+","+(36-v.after*32).toFixed(1)).join(" ");
+      inputTrace.innerHTML='<svg viewBox="0 0 320 38" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="#00e8ff" stroke-width="2"/></svg>';
+    }
   }else{inputEmpty.style.display="grid";inputTrace.innerHTML=""}
 
   const timeEmpty=document.getElementById("monitorTimeEmpty"),timeTrace=document.getElementById("monitorTimeTrace");
@@ -890,7 +900,7 @@ function renderCrackDensityMonitor(){
   document.getElementById("monitorCrackBursts").textContent=cls?String(cls.bursts):"0";
   if(!events.length){empty.style.display="grid";trace.innerHTML="";return}
   empty.style.display="none";
-  const w=320,h=38,maxT=Math.max(events[events.length-1].t_model_s,1e-9);
+  const w=320,h=38,maxT=Math.max(window,events[events.length-1].t_model_s,1e-9);
   const bars=events.slice(-48).map((e,i)=>{
     const x=(e.t_model_s/maxT)*w;
     const mag=Math.min(1,Math.abs(e.value)/(e.amplitude>0?e.amplitude:1));
@@ -939,7 +949,7 @@ function fillPopcornBasin(){
   let envelope=0;
   for(let i=0;i<n;i++){
     const t=i/rate;
-    const trigger=nextRand()>0.94;
+    const trigger=amp>0&&nextRand()>0.94;
     if(trigger)envelope=Math.max(envelope,0.35+0.65*nextRand());
     const polarity=nextRand()>0.5?1:-1;
     const value=amp*polarity*envelope*(0.55+0.45*nextRand());
@@ -1256,7 +1266,15 @@ function renderAmplitudePanel(){
   renderMeasurementHistory();
   return {live:hasT1,measure:hasT1?T1.tick:null,value:hasT1?T1.value:null};
 }
+function renderConnectionBadge(){
+  const el=document.getElementById("connectionBadge");if(!el)return;
+  const count=T1.connected+T2.connected+T3.connected+T4.connected+T5.connected;
+  if(count===0){el.dataset.state="idle";el.textContent="● LOCAL · T0";return}
+  if(count===5){el.dataset.state="active";el.textContent="● LOCAL PATH · T5";return}
+  el.dataset.state="partial";el.textContent="● LOCAL PATH · T"+count;
+}
 function renderObservationBus(){
+  renderConnectionBadge();
   const sources=[
     {id:"T1",connected:T1.connected,proof:T1.proof},
     {id:"T2",connected:T2.connected,proof:T2.proof},
