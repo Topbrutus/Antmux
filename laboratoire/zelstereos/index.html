@@ -15,7 +15,7 @@ main{max-width:1180px;margin:auto;padding:12px}
 .rack:before{left:8px}.rack:after{right:8px}
 .face{background:linear-gradient(180deg,#0c1218,#05090d);border:1px solid #06090c;border-radius:8px;box-shadow:inset 0 0 0 1px #29313a,inset 0 2px 7px #000,0 1px 0 rgba(255,255,255,.22)}
 .top{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:12px 15px}.top h1{margin:0;font-size:21px;letter-spacing:.04em}.top small{display:block;color:#a7b2bd;margin-top:2px;font-size:12px}
-.live{padding:8px 13px;border-radius:999px;color:#9cffd8;border:1px solid #34e8aa;background:#07130f;white-space:nowrap}.top-actions{display:flex;align-items:center;gap:8px}.font-btn{width:34px;height:34px;border-radius:8px;border:1px solid #4a5661;background:#071019;color:#dff5ff;font:800 18px/1 ui-monospace,Consolas,monospace;cursor:pointer}.font-btn:hover{border-color:#5fc6ff}.font-size{min-width:48px;text-align:center;color:#9fdcff;font:700 11px/1 ui-monospace,Consolas,monospace}
+.live{padding:8px 13px;border-radius:999px;color:#9cffd8;border:1px solid #34e8aa;background:#07130f;white-space:nowrap}.top-actions{display:flex;align-items:center;gap:8px}.font-btn{width:34px;height:34px;border-radius:8px;border:1px solid #4a5661;background:#071019;color:#dff5ff;font:800 18px/1 ui-monospace,Consolas,monospace;cursor:pointer}.font-btn:hover{border-color:#5fc6ff}.font-size{min-width:48px;text-align:center;color:#9fdcff;font:700 11px/1 ui-monospace,Consolas,monospace}.sound-btn{width:38px;height:34px;border-radius:8px;border:1px solid #4a5661;background:#071019;color:#dff5ff;cursor:pointer}.volume{width:92px;accent-color:#5fc6ff}
 .mode{color:#65c8ff}.safe{color:#d38cff}
 .stages{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.stage{padding:10px 5px;text-align:center;background:linear-gradient(180deg,#090e13,#04080c);border:1px solid #0b0f13;border-radius:8px;box-shadow:inset 0 0 0 1px #303842,inset 0 2px 6px #000}.stage b{display:block;font-size:10px;color:#cbd4df}.stage strong{display:block;margin-top:4px;color:#62c0ff;font:800 22px/1 ui-monospace,Consolas,monospace}.stage.active{border-color:#58d9ff;box-shadow:inset 0 0 0 1px #58d9ff,inset 0 2px 6px #000,0 0 13px rgba(55,192,255,.28)}.stage.done strong{color:#83eebc}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric,.formula{padding:11px 12px;min-height:72px}.metric span,.formula span{display:block;color:#aeb7c2;font-size:10px}.metric strong,.formula strong{display:block;margin-top:5px;font:800 21px/1.05 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
@@ -31,7 +31,7 @@ main{max-width:1180px;margin:auto;padding:12px}
 <body>
 <main>
 <div class="label">01 · PUBLIC SAFE</div>
-<section class="rack"><div class="face top"><div><h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">VITRINE</span> <span class="safe">PUBLIQUE</span></h1><small>Lecture seule · données filtrées · commandes privées non exposées</small></div><div class="top-actions"><button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button><span id="fontSize" class="font-size">100%</span><button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button><div id="live" class="live">CONNEXION…</div></div></div></section>
+<section class="rack"><div class="face top"><div><h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">VITRINE</span> <span class="safe">PUBLIQUE</span></h1><small>Lecture seule · données filtrées · commandes privées non exposées</small></div><div class="top-actions"><button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button><span id="fontSize" class="font-size">100%</span><button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button><button id="soundToggle" class="sound-btn" type="button" aria-label="Activer ou couper le son">🔊</button><input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume"><div id="live" class="live">CONNEXION…</div></div></div></section>
 <div class="label">02 · PIPELINE</div>
 <section class="rack"><div id="stages" class="stages"></div></section>
 
@@ -62,7 +62,20 @@ const counts=[1,3,9,36,9,3,1];
 const $=id=>document.getElementById(id);
 let fontScale=Number(localStorage.getItem('zel-font-scale')||1);
 function applyFontScale(){fontScale=Math.max(.75,Math.min(1.5,fontScale));document.documentElement.style.fontSize=(16*fontScale)+'px';$('fontSize').textContent=Math.round(fontScale*100)+'%';localStorage.setItem('zel-font-scale',String(fontScale));}
-$('fontMinus').addEventListener('click',()=>{fontScale-=.1;applyFontScale();});
+$('fontMinus').addEventListener('click',()=>{fontScale-=.1;applyFontScale();
+let audioCtx=null;
+let soundMuted=localStorage.getItem('zel-sound-muted')==='1';
+let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
+let lastStageIndex=null;
+function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended') audioCtx.resume();}
+function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
+function soundStart(){tone(220,.12,0,.17);tone(330,.12,.09,.15);tone(440,.16,.18,.14);}
+function soundTempo(i){tone(180+(i*24),.055,0,.11);}
+function soundEnd(){tone(440,.11,0,.16);tone(330,.13,.09,.15);tone(220,.19,.18,.17);}
+function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);}
+$('soundToggle').addEventListener('click',()=>{ensureAudio();soundMuted=!soundMuted;localStorage.setItem('zel-sound-muted',soundMuted?'1':'0');syncSoundUI();if(!soundMuted)tone(330,.08,0,.1);});
+$('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();});
+syncSoundUI();});
 $('fontPlus').addEventListener('click',()=>{fontScale+=.1;applyFontScale();});
 applyFontScale();
 function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
@@ -70,6 +83,8 @@ function render(s){
   $('live').textContent=s.status==='OFFLINE'?'HORS LIGNE':(s.status==='SNAPSHOT'?'PUBLIC SNAPSHOT':'PUBLIC LIVE');
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
+  if(lastStageIndex!==null && s.stage_index!==lastStageIndex){if(s.stage_index===0)soundStart();else if(s.stage_index===6)soundEnd();else soundTempo(s.stage_index);}
+  lastStageIndex=s.stage_index;
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
   $('error').textContent=s.global_error.exact+' ≈ '+Number(s.global_error.decimal).toPrecision(6);
   $('f1').textContent=s.f1.formula_id+' · '+s.f1.value+' (k='+s.f1.k+')';$('formula').textContent=s.f1.formula;$('commit').textContent=s.f1.source_commit_short+'…';
