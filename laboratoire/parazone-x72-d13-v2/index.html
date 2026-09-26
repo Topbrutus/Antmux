@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#050607">
-<title>BRUTUS // T0 — squelette technique — ANTMUX</title>
+<title>BRUTUS // moteur de résonance — poste de contrôle — ANTMUX</title>
 <meta name="description" content="Poste de contrôle BRUTUS X72 — configuration, échantillonnage local, mesures et preuves techniques.">
 <style>
 :root{--bg:#020913;--panel:#07101c;--line:#17324a;--text:#dcecff;--muted:#7fa9c8;--soft:#0a1624;--dim:#52708a;--cyan:#00e8ff;--blue:#198bff;--violet:#9b45ff;--gold:#ffae42;--orange:#ff7a1a;--red:#ff3344;--green:#00e99a;--ice:#9eefff}
@@ -1019,7 +1019,7 @@ async function disableMicrophone(){
   if(REAL_INPUT.stream)REAL_INPUT.stream.getTracks().forEach(t=>t.stop());
   if(REAL_INPUT.ctx)try{await REAL_INPUT.ctx.close()}catch(_){}
   Object.assign(REAL_INPUT,{kind:"NONE",stream:null,ctx:null,analyser:null,data:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null});
-  renderMicrophone();return true;
+  renderMicrophone();renderSpectrum();renderSampler();return true;
 }
 function renderSignalGenerator(){
   const c=SIGNAL_GENERATOR.config;
