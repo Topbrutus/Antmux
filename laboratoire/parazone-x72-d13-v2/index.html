@@ -1001,7 +1001,7 @@ function microphoneFrame(ts){
   const amp=Math.sqrt(sum/REAL_INPUT.data.length),prev=REAL_INPUT.amplitude;
   REAL_INPUT.activity=Number.isFinite(prev)?Math.abs(amp-prev):0;
   if(Number.isFinite(REAL_INPUT.last_ts)&&ts>REAL_INPUT.last_ts)REAL_INPUT.cadence_hz=1000/(ts-REAL_INPUT.last_ts);
-  REAL_INPUT.last_ts=ts;REAL_INPUT.amplitude=amp;REAL_INPUT.sample_count++;renderMicrophone();
+  REAL_INPUT.last_ts=ts;REAL_INPUT.amplitude=amp;REAL_INPUT.sample_count++;renderMicrophone();renderSpectrum();renderSampler();
   REAL_INPUT.raf=requestAnimationFrame(microphoneFrame);
 }
 async function enableMicrophone(){
@@ -1214,9 +1214,10 @@ function renderSpectrum(){
   c.width=Math.max(1,Math.floor(r.width*d));c.height=Math.max(1,Math.floor(r.height*d));
   const x=c.getContext("2d");x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,r.width,r.height);
   const run=SAMPLER.history.slice(-80),last=run.length?run[run.length-1]:null,prev=run.length>1?run[run.length-2]:null;
-  const amplitude=last&&Number.isFinite(last.amplitude)?last.amplitude:(T1.value!==null?T1.value:null);
-  const cadence=last&&Number.isFinite(last.dt_ms)&&last.dt_ms>0?1000/last.dt_ms:null;
-  const activity=last&&prev&&Number.isFinite(last.amplitude)&&Number.isFinite(prev.amplitude)?Math.abs(last.amplitude-prev.amplitude):null;
+  const micLive=REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude);
+  const amplitude=micLive?REAL_INPUT.amplitude:(last&&Number.isFinite(last.amplitude)?last.amplitude:(T1.value!==null?T1.value:null));
+  const cadence=micLive&&Number.isFinite(REAL_INPUT.cadence_hz)?REAL_INPUT.cadence_hz:(last&&Number.isFinite(last.dt_ms)&&last.dt_ms>0?1000/last.dt_ms:null);
+  const activity=micLive&&Number.isFinite(REAL_INPUT.activity)?REAL_INPUT.activity:(last&&prev&&Number.isFinite(last.amplitude)&&Number.isFinite(prev.amplitude)?Math.abs(last.amplitude-prev.amplitude):null);
   ampEl.textContent=amplitude===null?"NONE":amplitude.toFixed(6);
   cadEl.textContent=cadence===null?"NONE":cadence.toFixed(3)+" Hz";
   actEl.textContent=activity===null?"NONE":activity.toFixed(6);
@@ -1260,7 +1261,7 @@ function renderSamplerQuality(){
 }
 function renderSampler(){
   const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
-  const ready=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
+  const ready=(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))||(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE");
   document.getElementById("samplerState").textContent=SAMPLER.running?"RUNNING":(ready?"READY":"IDLE");
   document.getElementById("samplerCount").textContent=String(SAMPLER.history.length);
   document.getElementById("samplerDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
@@ -1274,7 +1275,13 @@ function renderSampler(){
 }
 async function captureScheduledSample(runId){
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
-  if(T1.connected!==1||T1.value===null||T1.proof==="NONE")return null;
+  const useMic=REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude);
+  const useT1=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
+  if(!useMic&&!useT1)return null;
+  const sourceAmplitude=useMic?REAL_INPUT.amplitude:T1.value;
+  const sourceName=useMic?"MICROPHONE.RMS":"T1.CURRENT_VALUE";
+  const sourceKind=useMic?"REAL_AUDIO_LOCAL_UNCALIBRATED":"LOCAL_STATE";
+  const sourceProof=useMic?"MICROPHONE_RUNTIME_SOURCE":T1.proof;
   const t_mono_ms=performance.now();
   const hasPreviousInRun=SAMPLER.history.length>SAMPLER.run_start_index;
   const previous=hasPreviousInRun?SAMPLER.history[SAMPLER.history.length-1]:null;
@@ -1283,13 +1290,13 @@ async function captureScheduledSample(runId){
   const packet={
     schema:"BRUTUS_SAMPLER_LOCAL_V1",
     sample_index:SAMPLER.history.length+1,
-    source:"T1.CURRENT_VALUE",
-    source_kind:"LOCAL_STATE",
-    amplitude:T1.value,
+    source:sourceName,
+    source_kind:sourceKind,
+    amplitude:sourceAmplitude,
     t_mono_ms,dt_ms,jitter_ms,
     target_period_ms:SAMPLER.target_period_ms,
     nominal_rate_hz:1000/SAMPLER.target_period_ms,
-    source_proof_ref:T1.proof
+    source_proof_ref:sourceProof
   };
   const proof=await sha256Hex(JSON.stringify(packet));
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
@@ -1311,7 +1318,7 @@ function toggleSampler(){
     if(SAMPLER.timer!==null)clearTimeout(SAMPLER.timer);
     SAMPLER.timer=null;renderSampler();return;
   }
-  if(T1.connected!==1||T1.value===null||T1.proof==="NONE")throw new Error("T1_PROOF_REQUIRED");
+  if(!(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))&&!(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"))throw new Error("ACTIVE_SOURCE_REQUIRED");
   SAMPLER.run_id+=1;
   SAMPLER.run_start_index=SAMPLER.history.length;
   SAMPLER.running=true;renderSampler();scheduleNextSample(SAMPLER.run_id);
