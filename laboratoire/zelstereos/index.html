@@ -174,17 +174,95 @@ function soundSquadDemoAt(base){
   seq.forEach((count,i)=>{squadStageAt(count,freq[i],t);t+=gap[i];});
   soundEndAt(t+.10);
 }
-const liveStageFreq=[620,540,430,260,410,520,650];
+function scheduleMechanicalNoiseAt(start,dur=.70,gain=.035,cutoff=650){
+  if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const frames=Math.max(1,Math.floor(audioCtx.sampleRate*dur));
+  const buffer=audioCtx.createBuffer(1,frames,audioCtx.sampleRate);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<frames;i++){
+    const env=Math.sin(Math.PI*(i/frames));
+    data[i]=((Math.random()*2)-1)*env;
+  }
+  const src=audioCtx.createBufferSource();
+  const filter=audioCtx.createBiquadFilter();
+  const g=audioCtx.createGain();
+  filter.type='lowpass';
+  filter.frequency.setValueAtTime(cutoff,start);
+  filter.Q.setValueAtTime(.7,start);
+  g.gain.setValueAtTime(0,start);
+  g.gain.linearRampToValueAtTime(gain*soundVolume,start+.04);
+  g.gain.setValueAtTime(gain*soundVolume,start+dur*.72);
+  g.gain.exponentialRampToValueAtTime(.0001,start+dur);
+  src.buffer=buffer;
+  src.connect(filter).connect(g).connect(audioCtx.destination);
+  src.start(start);src.stop(start+dur+.02);
+}
+function scheduleLiveMotorAt(freq,start,dur=.72,gain=.08,index=0){
+  if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const filter=audioCtx.createBiquadFilter();
+  const mix=audioCtx.createGain();
+  filter.type='lowpass';
+  filter.frequency.setValueAtTime(720+(index%5)*90,start);
+  filter.Q.setValueAtTime(.85,start);
+  mix.gain.setValueAtTime(0,start);
+  mix.gain.linearRampToValueAtTime(gain*soundVolume,start+.05);
+  mix.gain.setValueAtTime(gain*soundVolume,start+dur*.70);
+  mix.gain.exponentialRampToValueAtTime(.0001,start+dur);
+
+  const crank=audioCtx.createOscillator();
+  crank.type=index%2===0?'sawtooth':'triangle';
+  crank.frequency.setValueAtTime(Math.max(42,freq*.72),start);
+  crank.frequency.exponentialRampToValueAtTime(freq,start+dur*.42);
+  crank.frequency.exponentialRampToValueAtTime(Math.max(42,freq*.94),start+dur);
+
+  const sub=audioCtx.createOscillator();
+  sub.type='triangle';
+  sub.frequency.setValueAtTime(Math.max(32,freq*.48),start);
+  sub.frequency.exponentialRampToValueAtTime(Math.max(34,freq*.52),start+dur*.55);
+
+  const subGain=audioCtx.createGain();
+  subGain.gain.setValueAtTime(.38,start);
+
+  const lfo=audioCtx.createOscillator();
+  const lfoGain=audioCtx.createGain();
+  lfo.type='sine';
+  lfo.frequency.setValueAtTime(7+(index%6)*1.15,start);
+  lfoGain.gain.setValueAtTime(gain*soundVolume*.20,start);
+  lfo.connect(lfoGain).connect(mix.gain);
+
+  crank.connect(filter);
+  sub.connect(subGain).connect(filter);
+  filter.connect(mix).connect(audioCtx.destination);
+  crank.start(start);sub.start(start);lfo.start(start);
+  crank.stop(start+dur+.03);sub.stop(start+dur+.03);lfo.stop(start+dur+.03);
+}
+function liveMotorStageAt(count,baseFreq,base){
+  const dur={1:.74,3:.76,9:.80,36:.92}[count]||.76;
+  const spread={1:0,3:9,9:22,36:42}[count]||12;
+  const gain={1:.16,3:.085,9:.040,36:.014}[count]||.06;
+  const noiseGain={1:.020,3:.028,9:.040,36:.060}[count]||.03;
+  const cutoff={1:520,3:620,9:760,36:940}[count]||650;
+  scheduleMechanicalNoiseAt(base,dur,noiseGain,cutoff);
+  for(let i=0;i<count;i++){
+    const pos=count===1?0:(i/(count-1)-.5);
+    const detune=((i*13)%11-5)*.35;
+    const freq=Math.max(46,baseFreq+(pos*spread)+detune);
+    const jitter=((i*19)%31)*.0035;
+    scheduleLiveMotorAt(freq,base+jitter,dur,gain,i);
+  }
+}
+const liveStageFreq=[94,88,80,64,79,89,98];
 function soundLiveStage(stageIndex){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
   const base=audioCtx.currentTime+.025;
+  const count=counts[stageIndex]||1;
   if(stageIndex===0){
     soundStartAt(base);
-    squadStageAt(counts[0],liveStageFreq[0],base+.58);
+    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52);
     return;
   }
-  squadStageAt(counts[stageIndex]||1,liveStageFreq[stageIndex]||420,base);
-  if(stageIndex===6)soundEndAt(base+.48);
+  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base);
+  if(stageIndex===6)soundEndAt(base+.62);
 }
 function tone(freq,dur=.08,delay=0,gain=.16){
   if(!audioCtx||audioCtx.state!=='running'){ensureAudio().then(()=>tone(freq,dur,delay,gain));return;}
