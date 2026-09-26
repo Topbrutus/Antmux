@@ -40,6 +40,6 @@ A dedicated runner test publishes all seven stages through the authenticated ing
 
 ## Intended transport
 
-PC PUBLIC_SAFE source -> authenticated HTTPS ingest -> Queen relay -> ZELSTERÉRÉOS WebSocket -> browser render -> local audio synthesis.
+PC PUBLIC_SAFE source -> authenticated HTTPS ingest -> Queen relay -> ZELSTÉRÉOS WebSocket -> browser render -> local audio synthesis.
 
 The ingest endpoint must remain disabled until a dedicated authentication secret is configured.
