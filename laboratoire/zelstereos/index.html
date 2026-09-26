@@ -242,13 +242,16 @@ const liveMachineProfiles=[
   {name:'REACTEUR',wave:'sine',mul:1.12,sub:.55,cut:920,q:2.4,lfo:12.5,depth:.09,noise:.022}
 ];
 function clamp01(v){return Math.max(0,Math.min(1,v));}
-function liveWorkMetrics(count,stageDt){
+function liveWorkMetrics(count,stageDt,stageWorkRatio=null,stageExecUs=null){
   const dt=Math.max(.08,Math.min(2.5,Number(stageDt)||.65));
   const load=clamp01(count/36);
-  const slow=clamp01((dt-.08)/(2.5-.08));
+  const dtSlow=clamp01((dt-.08)/(2.5-.08));
+  const measuredRatio=stageWorkRatio===null?null:clamp01(Number(stageWorkRatio)||0);
+  const slow=measuredRatio===null?dtSlow:measuredRatio;
   const speed=1-slow;
-  const effort=clamp01(.18+(load*.57)+(slow*.38));
-  return {dt,load,slow,speed,effort};
+  const execUs=stageExecUs===null?null:Math.max(0,Number(stageExecUs)||0);
+  const effort=clamp01(.14+(load*.46)+(slow*.54));
+  return {dt,load,slow,speed,effort,execUs};
 }
 function scheduleLiveMotorAt(freq,start,dur,gain,index,profile,metrics){
   if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
@@ -298,9 +301,9 @@ function scheduleExhaustPulseAt(freq,start,gain=.05){
   o.connect(g).connect(audioCtx.destination);
   o.start(start);o.stop(start+.065);
 }
-function liveMotorStageAt(count,baseFreq,base,stageIndex,stageDt){
+function liveMotorStageAt(count,baseFreq,base,stageIndex,stageDt,stageWorkRatio=null,stageExecUs=null){
   const descending=stageIndex>=4;
-  const metrics=liveWorkMetrics(count,stageDt);
+  const metrics=liveWorkMetrics(count,stageDt,stageWorkRatio,stageExecUs);
   const dur={1:.82,3:.86,9:.92,36:1.04}[count]||.82;
   const spread={1:0,3:10,9:24,36:46}[count]||12;
   const gain={1:.17,3:.088,9:.042,36:.014}[count]||.06;
@@ -406,18 +409,18 @@ function speakRobot(stageIndex){
     speechSynthesis.speak(u);
   }catch(e){}
 }
-function soundLiveStage(stageIndex,stageDt=.65){
+function soundLiveStage(stageIndex,stageDt=.65,stageWorkRatio=null,stageExecUs=null){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
   const base=audioCtx.currentTime+.025;
   const count=counts[stageIndex]||1;
   if(stageIndex===0){
     soundStartAt(base);
     randomLiveFxAt(base+.30);
-    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,stageDt);
+    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,stageDt,stageWorkRatio,stageExecUs);
     setTimeout(()=>speakRobot(stageIndex),220);
     return;
   }
-  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,stageDt);
+  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,stageDt,stageWorkRatio,stageExecUs);
   randomLiveFxAt(base+.10);
   setTimeout(()=>speakRobot(stageIndex),120);
   if(stageIndex===6)soundEndAt(base+.72);
@@ -436,13 +439,13 @@ $('soundTest').addEventListener('click',async()=>{await ensureAudio();soundMuted
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
-function render(s,{audioFromWebSocket=false,stageDt=.65}={}){
+function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stageExecUs=null}={}){
   $('live').textContent=s.status==='OFFLINE'?'HORS LIGNE':(s.status==='SNAPSHOT'?'PUBLIC SNAPSHOT':'PUBLIC LIVE');
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
   if(audioFromWebSocket){
     const stageChanged=lastAudioStageIndex!==null && s.stage_index!==lastAudioStageIndex;
-    if(stageChanged)soundLiveStage(s.stage_index,stageDt);
+    if(stageChanged)soundLiveStage(s.stage_index,stageDt,stageWorkRatio,stageExecUs);
     lastAudioStageIndex=s.stage_index;
   }
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
@@ -468,9 +471,11 @@ function connectZelWebSocket(){
       const nowPerf=performance.now();
       const stageDt=lastLiveStagePerf?Math.max(.08,Math.min(2.5,(nowPerf-lastLiveStagePerf)/1000)):.65;
       lastLiveStagePerf=nowPerf;
+      const stageWorkRatio=Number.isFinite(Number(s.stage_work_ratio))?Number(s.stage_work_ratio):null;
+      const stageExecUs=Number.isFinite(Number(s.stage_exec_us))?Number(s.stage_exec_us):null;
       // REAL AUDIO CYCLE: value arrives by WebSocket; browser renders it,
       // then synthesizes the corresponding sound locally. Audio bytes never transit.
-      render(s,{audioFromWebSocket:true,stageDt});
+      render(s,{audioFromWebSocket:true,stageDt,stageWorkRatio,stageExecUs});
     }catch(e){}
   });
   zelSocket.addEventListener('close',()=>{wsHasLiveState=false;zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
