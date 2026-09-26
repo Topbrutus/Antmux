@@ -602,6 +602,12 @@ function analyzeCrackleBuffer(){
   const valid=data.every(v=>v&&v.schema==="BRUTUS_CRYSTAL_CRACK_SYNTH_V1"&&v.model==="CRYSTAL_CRACK_TRANSIENT_V1"&&Number.isFinite(v.t_model_s)&&Number.isFinite(v.value));
   if(!valid){
     state.textContent="REJECTED";
+    document.getElementById("crackEvents").textContent="0";
+    document.getElementById("crackRate").textContent="NONE";
+    document.getElementById("crackPeak").textContent="NONE";
+    document.getElementById("crackRms").textContent="NONE";
+    document.getElementById("crackMeanDt").textContent="NONE";
+    document.getElementById("crackWindow").textContent="NONE";
     document.getElementById("crackStatus").textContent="ERROR · INVALID SYNTHETIC BUFFER SCHEMA";
     return null;
   }
@@ -630,6 +636,11 @@ function analyzeCrackleBuffer(){
 function renderPopcornBasin(){
   const basin=document.getElementById("popcornBasin");if(!basin)return;
   basin.innerHTML="";
+  const analysis=analyzeCrackleBuffer();
+  if(POPCORN_BASIN.samples.length&&!analysis){
+    document.getElementById("popcornStatus").textContent="REJECTED · INVALID SYNTHETIC BUFFER";
+    return;
+  }
   const display=POPCORN_BASIN.samples.slice(-80);
   for(let i=0;i<display.length;i++){
     const s=display[i],p=document.createElement("span");
@@ -645,7 +656,6 @@ function renderPopcornBasin(){
   document.getElementById("popcornRate").textContent=Number.isFinite(POPCORN_BASIN.sample_rate_hz)?POPCORN_BASIN.sample_rate_hz.toFixed(3)+" model Hz":"NONE";
   document.getElementById("popcornWindow").textContent=Number.isFinite(POPCORN_BASIN.window_s)?POPCORN_BASIN.window_s.toFixed(6)+" s":"NONE";
   document.getElementById("popcornStatus").textContent=POPCORN_BASIN.samples.length?"FILLED · SYNTHETIC CRACK TRANSIENTS":"EMPTY · SYNTHETIC ONLY";
-  analyzeCrackleBuffer();
 }
 function fillPopcornBasin(){
   const c=SIGNAL_GENERATOR.config;
