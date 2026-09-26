@@ -151,6 +151,22 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
     </div>
   </section>
 
+  <section class="panel" id="SAMPLER-01"><h2>ÉCHANTILLONNEUR LOCAL <span class="panelId">SAMPLER-01</span></h2>
+    <div class="obsGrid">
+      <div class="obsCell"><strong>STATE</strong><span id="samplerState">IDLE</span></div>
+      <div class="obsCell"><strong>SOURCE</strong>T1 CURRENT VALUE</div>
+      <div class="obsCell"><strong>MODE</strong>SCHEDULED LOCAL STATE SAMPLE</div>
+      <div class="obsCell"><strong>TARGET PERIOD</strong><span id="samplerPeriod">100.000 ms</span></div>
+      <div class="obsCell"><strong>NOMINAL RATE</strong><span id="samplerRate">10.000 Hz</span></div>
+      <div class="obsCell"><strong>SAMPLES</strong><span id="samplerCount">0</span></div>
+      <div class="obsCell"><strong>LAST Δt</strong><span id="samplerDelta">NONE</span></div>
+      <div class="obsCell"><strong>LAST JITTER</strong><span id="samplerJitter">NONE</span></div>
+      <div class="obsCell"><strong>ACTUAL RATE</strong><span id="samplerActualRate">NONE</span></div>
+      <div class="obsCell obsWide"><strong>LAST SAMPLE PROOF</strong><span id="samplerProof">NONE</span></div>
+      <div class="obsCell obsWide"><button id="samplerToggle" class="t1Btn" type="button" disabled>START SAMPLER</button></div>
+    </div>
+  </section>
+
   <section class="panel controls"><h2>CONTRÔLES / CADRANS <span class="panelId">CONTROL-BANK-01</span></h2>
     <div class="t1Panel" id="INPUT-TEST-01">
       <div class="t1Grid">
@@ -254,7 +270,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers, SAMPLE_RATE reste NONE et aucune fréquence n'est inférée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -299,6 +315,7 @@ const T3={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T4={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const T5={connected:0,proofs:0,lastTrace:"NONE",proof:"NONE",history:[]};
 const TIMEBASE={history:[],proof:"NONE"};
+const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"NONE"};
 function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
 function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04")||(T5.connected===1&&id==="FLOW-05");x.save();if(!active)x.setLineDash([7,7]);x.strokeStyle=active?"#dce4ea":"#505960";x.lineWidth=active?2.4:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#dce4ea":"#7d8790")}
@@ -429,6 +446,57 @@ function renderTopologyStatus(){
 }
 function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
 async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
+function renderSampler(){
+  const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
+  const ready=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
+  document.getElementById("samplerState").textContent=SAMPLER.running?"RUNNING":(ready?"READY":"IDLE");
+  document.getElementById("samplerCount").textContent=String(SAMPLER.history.length);
+  document.getElementById("samplerDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
+  document.getElementById("samplerJitter").textContent=last&&last.jitter_ms!==null?last.jitter_ms.toFixed(3)+" ms":"NONE";
+  document.getElementById("samplerActualRate").textContent=last&&last.dt_ms>0?(1000/last.dt_ms).toFixed(3)+" Hz":"NONE";
+  document.getElementById("samplerProof").textContent=last?last.proof_ref:"NONE";
+  const btn=document.getElementById("samplerToggle");
+  btn.disabled=!ready&&!SAMPLER.running;
+  btn.textContent=SAMPLER.running?"STOP SAMPLER":"START SAMPLER";
+}
+async function captureScheduledSample(){
+  if(T1.connected!==1||T1.value===null||T1.proof==="NONE")return null;
+  const t_mono_ms=performance.now();
+  const previous=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
+  const dt_ms=previous?t_mono_ms-previous.t_mono_ms:null;
+  const jitter_ms=dt_ms===null?null:dt_ms-SAMPLER.target_period_ms;
+  const packet={
+    schema:"BRUTUS_SAMPLER_LOCAL_V1",
+    sample_index:SAMPLER.history.length+1,
+    source:"T1.CURRENT_VALUE",
+    source_kind:"LOCAL_STATE",
+    amplitude:T1.value,
+    t_mono_ms,dt_ms,jitter_ms,
+    target_period_ms:SAMPLER.target_period_ms,
+    nominal_rate_hz:1000/SAMPLER.target_period_ms,
+    source_proof_ref:T1.proof
+  };
+  const proof=await sha256Hex(JSON.stringify(packet));
+  const record=Object.freeze({...packet,proof_ref:proof});
+  SAMPLER.history.push(record);SAMPLER.proof=proof;renderSampler();
+  return record;
+}
+function scheduleNextSample(){
+  if(!SAMPLER.running)return;
+  SAMPLER.timer=setTimeout(async()=>{
+    await captureScheduledSample();
+    scheduleNextSample();
+  },SAMPLER.target_period_ms);
+}
+function toggleSampler(){
+  if(SAMPLER.running){
+    SAMPLER.running=false;
+    if(SAMPLER.timer!==null)clearTimeout(SAMPLER.timer);
+    SAMPLER.timer=null;renderSampler();return;
+  }
+  if(T1.connected!==1||T1.value===null||T1.proof==="NONE")throw new Error("T1_PROOF_REQUIRED");
+  SAMPLER.running=true;renderSampler();scheduleNextSample();
+}
 function renderTimebase(){
   const last=TIMEBASE.history.length?TIMEBASE.history[TIMEBASE.history.length-1]:null;
   document.getElementById("timeState").textContent=last?"LIVE · EVENT TIME VERIFIED":"NO DATA";
@@ -436,6 +504,7 @@ function renderTimebase(){
   document.getElementById("timeDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
   document.getElementById("timeProof").textContent=last?last.proof_ref:"NONE";
   document.getElementById("histTimebase").textContent=last?"EVENT_TIMEBASE_CONNECTED":"NOT_CONNECTED";
+  renderSampler();
   return {events:TIMEBASE.history.length,lastDt:last?last.dt_ms:null};
 }
 async function captureTimebase(sourceRecord){
@@ -686,9 +755,10 @@ document.getElementById("t2Connect").addEventListener("click",connectT2);
 document.getElementById("t3Connect").addEventListener("click",connectT3);
 document.getElementById("t4Connect").addEventListener("click",connectT4);
 document.getElementById("t5Connect").addEventListener("click",connectT5);
+document.getElementById("samplerToggle").addEventListener("click",toggleSampler);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
-renderObservationBus();renderTimebase();
+renderObservationBus();renderTimebase();renderSampler();
 window.addEventListener("resize",resize);resize();
 })();
 </script>
