@@ -298,16 +298,98 @@ function liveMotorStageAt(count,baseFreq,base,stageIndex){
   }
 }
 const liveStageFreq=[96,88,78,58,76,88,100];
+function scheduleKickAt(base,gain=.13){
+  scheduleToneAt(54,base,.12,gain);
+  scheduleToneAt(42,base+.045,.16,gain*.78);
+}
+function scheduleTomAt(base,gain=.095){
+  scheduleToneAt(92,base,.10,gain);
+  scheduleToneAt(74,base+.07,.13,gain*.82);
+}
+function scheduleZapAt(base,gain=.09){
+  scheduleToneAt(1280,base,.035,gain);
+  scheduleToneAt(760,base+.035,.05,gain*.88);
+  scheduleToneAt(310,base+.085,.07,gain*.74);
+}
+function scheduleChargeAt(base,gain=.085){
+  scheduleToneAt(110,base,.07,gain);
+  scheduleToneAt(170,base+.06,.08,gain*.95);
+  scheduleToneAt(260,base+.13,.09,gain*.90);
+  scheduleToneAt(390,base+.21,.10,gain*.82);
+}
+function scheduleClankAt(base,gain=.08){
+  scheduleToneAt(240,base,.025,gain);
+  scheduleToneAt(178,base+.022,.045,gain*.82);
+  scheduleToneAt(122,base+.055,.07,gain*.68);
+}
+const liveFxBank=[
+  base=>scheduleKickAt(base,.13),
+  base=>{scheduleKickAt(base,.11);scheduleTomAt(base+.16,.08);},
+  base=>scheduleZapAt(base,.09),
+  base=>scheduleChargeAt(base,.085),
+  base=>{scheduleClankAt(base,.08);scheduleClankAt(base+.11,.055);},
+  base=>{scheduleTomAt(base,.075);scheduleTomAt(base+.13,.065);scheduleTomAt(base+.26,.055);},
+  base=>{scheduleZapAt(base,.07);scheduleKickAt(base+.12,.09);}
+];
+let lastLiveFxIndex=-1;
+function randomLiveFxAt(base){
+  let i=Math.floor(Math.random()*liveFxBank.length);
+  if(liveFxBank.length>1 && i===lastLiveFxIndex)i=(i+1)%liveFxBank.length;
+  lastLiveFxIndex=i;
+  liveFxBank[i](base);
+}
+
+const robotPhrases=[
+  'À l attaque',
+  'On démonte',
+  'On démagnétise',
+  'On électrolyse',
+  'On neuroplasticise',
+  'On brutalise',
+  'On ionise',
+  'On cristallise',
+  'On recalibre',
+  'On désynchronise',
+  'On réassemble',
+  'On compresse le signal'
+];
+let lastRobotPhrase=-1;
+let lastRobotSpokenAt=0;
+function speakRobot(stageIndex){
+  if(soundMuted||soundVolume<=0||!('speechSynthesis' in window))return;
+  if(Date.now()-lastRobotSpokenAt<1200)return;
+  const probability=stageIndex===0?.70:(stageIndex===3?.62:(stageIndex===6?.58:.38));
+  if(Math.random()>probability)return;
+  let i=Math.floor(Math.random()*robotPhrases.length);
+  if(robotPhrases.length>1 && i===lastRobotPhrase)i=(i+1)%robotPhrases.length;
+  lastRobotPhrase=i;
+  lastRobotSpokenAt=Date.now();
+  try{
+    const u=new SpeechSynthesisUtterance(robotPhrases[i]);
+    u.lang='fr-CA';
+    u.rate=.92+Math.random()*.16;
+    u.pitch=.48+Math.random()*.18;
+    u.volume=Math.min(1,.70*soundVolume);
+    const voices=speechSynthesis.getVoices();
+    const fr=voices.filter(v=>/^fr(-|_)/i.test(v.lang));
+    if(fr.length)u.voice=fr[Math.floor(Math.random()*fr.length)];
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
 function soundLiveStage(stageIndex){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
   const base=audioCtx.currentTime+.025;
   const count=counts[stageIndex]||1;
   if(stageIndex===0){
     soundStartAt(base);
+    randomLiveFxAt(base+.30);
     liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex);
+    setTimeout(()=>speakRobot(stageIndex),220);
     return;
   }
   liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex);
+  randomLiveFxAt(base+.10);
+  setTimeout(()=>speakRobot(stageIndex),120);
   if(stageIndex===6)soundEndAt(base+.72);
 }
 function tone(freq,dur=.08,delay=0,gain=.16){
