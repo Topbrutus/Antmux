@@ -46,6 +46,12 @@ jobs:
           test -f laboratoire/index.html
           test -f laboratoire/parazone-x72-d13-v2/index.html
           test -f laboratoire/parazone-x72-d13-v2/README.md
+          test -f laboratoire/parazone-x72-d13-v2/five-screens.html
+          test -f laboratoire/parazone-x72-d13-v2/screen-1-master.html
+          test -f laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
+          test -f laboratoire/parazone-x72-d13-v2/screen-3-operator.html
+          test -f laboratoire/parazone-x72-d13-v2/screen-4-control.html
+          test -f laboratoire/parazone-x72-d13-v2/screen-5-settings.html
 
           grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' laboratoire/index.html
           grep -Fq 'BRUTUS // MOTEUR DE RÉSONANCE' laboratoire/parazone-x72-d13-v2/index.html
@@ -68,6 +74,12 @@ jobs:
           grep -Fq 'PARENT_ID' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'EDGE_TYPE' laboratoire/parazone-x72-d13-v2/index.html
           grep -Fq 'INTER_LEVEL' laboratoire/parazone-x72-d13-v2/index.html
+          grep -Fq 'BRUTUS // MODE 5 ÉCRANS' laboratoire/parazone-x72-d13-v2/five-screens.html
+          grep -Fq 'BRUTUS // ÉCRAN 1' laboratoire/parazone-x72-d13-v2/screen-1-master.html
+          grep -Fq 'BRUTUS // ÉCRAN 2' laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
+          grep -Fq 'BRUTUS // ÉCRAN 3' laboratoire/parazone-x72-d13-v2/screen-3-operator.html
+          grep -Fq 'BRUTUS // ÉCRAN 4' laboratoire/parazone-x72-d13-v2/screen-4-control.html
+          grep -Fq 'BRUTUS // ÉCRAN 5' laboratoire/parazone-x72-d13-v2/screen-5-settings.html
           ! grep -Fq 'new WebSocket' laboratoire/parazone-x72-d13-v2/index.html
           ! grep -Fq 'QUEEN_SERVER_V0_2' laboratoire/parazone-x72-d13-v2/index.html
 
@@ -80,10 +92,16 @@ jobs:
           cp laboratoire/index.html _parazone_deploy/laboratoire-index.html
           cp laboratoire/parazone-x72-d13-v2/index.html _parazone_deploy/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/README.md _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/five-screens.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/screen-1-master.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/screen-2-analysis.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/screen-3-operator.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/screen-4-control.html _parazone_deploy/parazone-x72-d13-v2/
+          cp laboratoire/parazone-x72-d13-v2/screen-5-settings.html _parazone_deploy/parazone-x72-d13-v2/
 
           (
             cd _parazone_deploy
-            sha256sum               laboratoire-index.html               parazone-x72-d13-v2/index.html               parazone-x72-d13-v2/README.md               > SHA256SUMS
+            sha256sum               laboratoire-index.html               parazone-x72-d13-v2/index.html               parazone-x72-d13-v2/README.md               parazone-x72-d13-v2/five-screens.html               parazone-x72-d13-v2/screen-1-master.html               parazone-x72-d13-v2/screen-2-analysis.html               parazone-x72-d13-v2/screen-3-operator.html               parazone-x72-d13-v2/screen-4-control.html               parazone-x72-d13-v2/screen-5-settings.html               > SHA256SUMS
           )
 
       - name: Configure pinned SSH identity
@@ -156,6 +174,12 @@ jobs:
           install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/README.md" "$TARGET_ROOT/README.md"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/five-screens.html" "$TARGET_ROOT/five-screens.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-1-master.html" "$TARGET_ROOT/screen-1-master.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-2-analysis.html" "$TARGET_ROOT/screen-2-analysis.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-3-operator.html" "$TARGET_ROOT/screen-3-operator.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-4-control.html" "$TARGET_ROOT/screen-4-control.html"
+          install -m 0644 "$REMOTE_STAGE/parazone-x72-d13-v2/screen-5-settings.html" "$TARGET_ROOT/screen-5-settings.html"
 
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
@@ -167,6 +191,10 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/ -o /tmp/parazone-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/README.md -o /tmp/parazone-readme.md
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/parazone-x72-d13-v2/five-screens.html -o /tmp/parazone-five-screens.html
+          for n in 1-master 2-analysis 3-operator 4-control 5-settings; do
+            curl --fail --silent --show-error --location "https://antmux.com/laboratoire/parazone-x72-d13-v2/screen-$n.html" -o "/tmp/parazone-screen-$n.html"
+          done
 
           grep -Fq 'OUVRIR NOYAU DYNAMIQUE X72' /tmp/lab-index.html
           grep -Fq 'BRUTUS // MOTEUR DE RÉSONANCE' /tmp/parazone-index.html
@@ -193,5 +221,11 @@ jobs:
           ! grep -Fq 'QUEEN_SERVER_V0_2' /tmp/parazone-index.html
           grep -Fq '# BRUTUS — squelette technique hiérarchique T1' /tmp/parazone-readme.md
           grep -Fq 'AUCUNE CONNEXION INVISIBLE' /tmp/parazone-readme.md
+          grep -Fq 'BRUTUS // MODE 5 ÉCRANS' /tmp/parazone-five-screens.html
+          grep -Fq 'BRUTUS // ÉCRAN 1' /tmp/parazone-screen-1-master.html
+          grep -Fq 'BRUTUS // ÉCRAN 2' /tmp/parazone-screen-2-analysis.html
+          grep -Fq 'BRUTUS // ÉCRAN 3' /tmp/parazone-screen-3-operator.html
+          grep -Fq 'BRUTUS // ÉCRAN 4' /tmp/parazone-screen-4-control.html
+          grep -Fq 'BRUTUS // ÉCRAN 5' /tmp/parazone-screen-5-settings.html
 
           echo 'ANTMUX_PARAZONE_PUBLIC=PASS'

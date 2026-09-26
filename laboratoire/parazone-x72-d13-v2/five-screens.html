@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BRUTUS // MODE 5 ÉCRANS</title>
+<style>
+:root{--bg:#020913;--panel:#07101c;--line:#17324a;--text:#dcecff;--cyan:#00e8ff;--blue:#198bff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% 10%,#06205d,#020913 56%);color:var(--text);font-family:Consolas,monospace;min-height:100vh;padding:20px}
+main{max-width:1180px;margin:auto}h1{font-size:22px;color:#9eefff;letter-spacing:.08em}p{color:#7fa9c8;line-height:1.5}.status{padding:8px 10px;border:1px solid #166f62;border-radius:7px;background:#061712;color:#65e9b5;font-size:11px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;margin-top:16px}.card{text-align:left;min-height:150px;border:1px solid #27547a;border-radius:10px;background:linear-gradient(180deg,#071522,#040a11);color:#dcecff;padding:14px;cursor:pointer;box-shadow:inset 0 0 18px #00182755}.card:hover{border-color:var(--cyan);box-shadow:0 0 18px #00e8ff22}.card strong{display:block;color:#9eefff;font-size:12px;margin-bottom:12px}.card span{display:block;color:#7fa9c8;font-size:10px;line-height:1.5;min-height:58px}.card em{display:inline-block;margin-top:10px;color:#00e8ff;font-style:normal;font-weight:800;font-size:9px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.actions button{border:1px solid #315f9b;border-radius:7px;background:#071524;color:#9eefff;padding:10px 14px;font:800 10px Consolas,monospace;cursor:pointer}.note{margin-top:18px;border-top:1px solid #17324a;padding-top:12px;font-size:10px;color:#7895a8}@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>BRUTUS // MODE 5 ÉCRANS</h1>
+<p>Un seul noyau logique. Cinq vues spécialisées. L’écran 3 est le propriétaire du noyau et diffuse l’état aux quatre autres fenêtres via <b>BroadcastChannel</b>.</p>
+<div class="status">1 CORE · 5 VIEWS · 1 STATE · 1 CLOCK · 1 PROOF CHAIN</div>
+<div class="grid"><button class="card" data-screen="1" data-url="screen-1-master.html"><strong>ÉCRAN 1 · MASTER</strong><span>Vue principale · moteur · amplitude · cadence · activité</span><em>OUVRIR</em></button>
+<button class="card" data-screen="2" data-url="screen-2-analysis.html"><strong>ÉCRAN 2 · ANALYSIS</strong><span>Moniteurs · mesures · courbes · qualité</span><em>OUVRIR</em></button>
+<button class="card" data-screen="3" data-url="screen-3-operator.html"><strong>ÉCRAN 3 · OPERATOR</strong><span>Presets · table · microphone · générateur · sortie audio</span><em>OUVRIR</em></button>
+<button class="card" data-screen="4" data-url="screen-4-control.html"><strong>ÉCRAN 4 · CONTROL</strong><span>Chaîne T1 → T5 · connexions · preuves</span><em>OUVRIR</em></button>
+<button class="card" data-screen="5" data-url="screen-5-settings.html"><strong>ÉCRAN 5 · SETTINGS</strong><span>État partagé · topologie · cadrans · START / PAUSE / STOP</span><em>OUVRIR</em></button></div>
+<div class="actions"><button id="openAll">OUVRIR LES 5 FENÊTRES</button><button id="openOperator">OUVRIR OPÉRATEUR D'ABORD</button></div>
+<div class="note">Conseil : ouvrir l’écran 3 en premier. Les autres vues se synchronisent automatiquement lorsqu’elles rejoignent le bus. Le navigateur peut demander l’autorisation pour plusieurs fenêtres : autoriser les pop-ups pour antmux.com si nécessaire.</div>
+</main><script>
+const cards=[...document.querySelectorAll(".card")];
+function openScreen(btn){const n=btn.dataset.screen,u=btn.dataset.url;window.open(u,"BRUTUS_SCREEN_"+n,"popup=yes,width=1280,height=900,resizable=yes,scrollbars=yes")}
+cards.forEach(b=>b.addEventListener("click",()=>openScreen(b)));
+document.getElementById("openOperator").addEventListener("click",()=>openScreen(document.querySelector('[data-screen="3"]')));
+document.getElementById("openAll").addEventListener("click",()=>{[3,1,2,4,5].forEach(n=>openScreen(document.querySelector('[data-screen="'+n+'"]')))});
+</script></body></html>
