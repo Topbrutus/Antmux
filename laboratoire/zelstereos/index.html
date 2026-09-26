@@ -36,7 +36,7 @@ main{max-width:1180px;margin:auto;padding:12px}
 
 <main>
 <div class="label">01 · PUBLIC SAFE</div>
-<section class="rack"><div class="face top"><div><h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">VITRINE</span> <span class="safe">PUBLIQUE</span></h1><small>Lecture seule · données filtrées · commandes privées non exposées</small></div><div class="top-actions"><button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button><span id="fontSize" class="font-size">100%</span><button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button><button id="soundToggle" class="sound-btn sound-icon" type="button" aria-label="Activer ou couper le son">🔊</button><button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button><input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume"><div id="live" class="live">CONNEXION…</div></div></div></section>
+<section class="rack"><div class="face top"><div><h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">VITRINE</span> <span class="safe">PUBLIQUE</span></h1><small>Lecture seule · données filtrées · commandes privées non exposées</small></div><div class="top-actions"><button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button><span id="fontSize" class="font-size">100%</span><button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button><button id="soundToggle" class="sound-btn sound-icon" type="button" aria-label="Activer ou couper le son">🔊</button><span id="audioState" class="font-size">AUDIO: ?</span><button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button><input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume"><div id="live" class="live">CONNEXION…</div></div></div></section>
 <div class="label">02 · PIPELINE</div>
 <section class="rack"><div id="stages" class="stages"></div></section>
 
@@ -74,7 +74,11 @@ let audioCtx=null;
 let soundMuted=localStorage.getItem('zel-sound-muted')==='1';
 let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
 let lastStageIndex=null;
-function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended') audioCtx.resume();}
+async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();syncAudioState();return audioCtx;}
+function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
+document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
+document.addEventListener('touchstart',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
+syncAudioState();
 
 const audioConsent=$('audioConsent');
 const audioConsentEnabled=localStorage.getItem('zel-audio-consent')==='enabled';
@@ -82,7 +86,7 @@ function closeAudioConsent(){audioConsent.classList.remove('show');}
 if(!audioConsentEnabled&&sessionStorage.getItem('zel-audio-consent-later')!=='1')audioConsent.classList.add('show');
 $('audioConsentEnable').addEventListener('click',async()=>{ensureAudio();if(audioCtx&&audioCtx.state==='suspended')await audioCtx.resume();soundMuted=false;localStorage.setItem('zel-sound-muted','0');localStorage.setItem('zel-audio-consent','enabled');syncSoundUI();soundConfirm();setTimeout(()=>soundStart(),380);closeAudioConsent();});
 $('audioConsentLater').addEventListener('click',()=>{sessionStorage.setItem('zel-audio-consent-later','1');closeAudioConsent();});
-function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
+async function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;await ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
 function soundConfirm(){tone(880,.32,0,.45);}
 function activationRelay(){tone(190,.045,0,.24);tone(260,.045,.075,.23);tone(390,.06,.15,.20);}
 function activationServo(){tone(300,.055,0,.18);tone(360,.055,.055,.18);tone(430,.07,.11,.20);}
