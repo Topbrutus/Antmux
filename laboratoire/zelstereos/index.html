@@ -88,16 +88,16 @@ $('audioConsentEnable').addEventListener('click',async()=>{ensureAudio();if(audi
 $('audioConsentLater').addEventListener('click',()=>{sessionStorage.setItem('zel-audio-consent-later','1');closeAudioConsent();});
 async function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;await ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
 function soundConfirm(){tone(880,.32,0,.45);}
-function activationRelay(){tone(190,.045,0,.24);tone(260,.045,.075,.23);tone(390,.06,.15,.20);}
-function activationServo(){tone(300,.055,0,.18);tone(360,.055,.055,.18);tone(430,.07,.11,.20);}
-function activationCapacitor(){tone(140,.05,0,.18);tone(220,.06,.07,.20);tone(420,.09,.15,.22);}
-function activationScanner(){tone(520,.04,0,.14);tone(610,.04,.06,.14);tone(710,.04,.12,.14);tone(820,.07,.18,.17);}
-function activationTurbine(){tone(110,.08,0,.18);tone(150,.08,.08,.18);tone(210,.10,.16,.20);tone(290,.12,.24,.20);}
-function activationLock(){tone(250,.035,0,.23);tone(250,.035,.07,.23);tone(520,.08,.15,.18);}
-function activationPulse(){tone(180,.04,0,.20);tone(360,.05,.06,.19);tone(720,.07,.13,.18);}
-function activationArray(){tone(210,.04,0,.16);tone(315,.04,.05,.16);tone(420,.04,.10,.16);tone(630,.06,.16,.18);}
-function activationSweep(){tone(160,.05,0,.17);tone(240,.05,.06,.17);tone(350,.05,.12,.17);tone(520,.08,.18,.19);}
-function activationCore(){tone(95,.10,0,.22);tone(190,.08,.10,.20);tone(380,.08,.18,.19);tone(760,.10,.26,.18);}
+function activationRelay(){tone(120,.06,0,.38);tone(220,.08,.08,.34);tone(440,.12,.18,.30);tone(720,.10,.31,.26);}
+function activationServo(){tone(150,.07,0,.34);tone(260,.08,.09,.32);tone(390,.10,.20,.30);tone(560,.12,.32,.28);}
+function activationCapacitor(){tone(90,.08,0,.38);tone(180,.10,.10,.34);tone(360,.12,.23,.31);tone(680,.14,.38,.28);}
+function activationScanner(){tone(210,.05,0,.32);tone(380,.07,.08,.30);tone(560,.08,.18,.28);tone(760,.10,.30,.27);}
+function activationTurbine(){tone(85,.10,0,.36);tone(130,.11,.11,.34);tone(210,.12,.24,.31);tone(340,.14,.39,.29);}
+function activationLock(){tone(110,.06,0,.40);tone(110,.06,.09,.40);tone(300,.09,.18,.32);tone(620,.12,.31,.28);}
+function activationPulse(){tone(120,.06,0,.36);tone(240,.08,.09,.33);tone(480,.10,.20,.30);tone(820,.12,.33,.27);}
+function activationArray(){tone(140,.05,0,.34);tone(260,.07,.07,.32);tone(420,.09,.16,.30);tone(650,.11,.28,.28);}
+function activationSweep(){tone(100,.06,0,.36);tone(200,.08,.08,.34);tone(360,.10,.19,.31);tone(620,.12,.32,.29);}
+function activationCore(){tone(70,.12,0,.40);tone(140,.12,.13,.36);tone(280,.12,.27,.33);tone(560,.14,.42,.30);}
 const activationSounds=[activationRelay,activationServo,activationCapacitor,activationScanner,activationTurbine,activationLock,activationPulse,activationArray,activationSweep,activationCore];
 function soundStart(){const i=Math.floor(Math.random()*activationSounds.length);activationSounds[i]();return i;}
 function soundTempo(i){tone(180+(i*24),.055,0,.11);}
