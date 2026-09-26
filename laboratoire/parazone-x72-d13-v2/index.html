@@ -170,6 +170,21 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
     </div>
   </section>
 
+  <section class="panel" id="SAMPLER-QUALITY-01"><h2>QUALITÉ D'ÉCHANTILLONNAGE <span class="panelId">SAMPLER-QUALITY-01</span></h2>
+    <div class="obsGrid">
+      <div class="obsCell"><strong>STATE</strong><span id="qualityState">NO DATA</span></div>
+      <div class="obsCell"><strong>RUN SAMPLES</strong><span id="qualitySamples">0</span></div>
+      <div class="obsCell"><strong>INTERVALS</strong><span id="qualityIntervals">0</span></div>
+      <div class="obsCell"><strong>MEAN Δt</strong><span id="qualityMeanDt">NONE</span></div>
+      <div class="obsCell"><strong>STD Δt</strong><span id="qualityStdDt">NONE</span></div>
+      <div class="obsCell"><strong>MAX |JITTER|</strong><span id="qualityMaxJitter">NONE</span></div>
+      <div class="obsCell"><strong>EFFECTIVE RATE</strong><span id="qualityRate">NONE</span></div>
+      <div class="obsCell"><strong>CV(Δt)</strong><span id="qualityCv">NONE</span></div>
+      <div class="obsCell"><strong>SPECTRUM STATUS</strong><span id="qualitySpectrum">HOLD</span></div>
+      <div class="obsCell obsWide"><strong>NOTE</strong>MESURES DE CADENCE LOCALE UNIQUEMENT · AUCUNE FRÉQUENCE PHYSIQUE DÉDUITE</div>
+    </div>
+  </section>
+
   <section class="panel controls"><h2>CONTRÔLES / CADRANS <span class="panelId">CONTROL-BANK-01</span></h2>
     <div class="t1Panel" id="INPUT-TEST-01">
       <div class="t1Grid">
@@ -273,7 +288,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -477,6 +492,37 @@ function renderWaveChart(){
   const last=verified[verified.length-1];
   meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED POINTS ONLY</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
 }
+function renderSamplerQuality(){
+  const run=SAMPLER.history.slice(SAMPLER.run_start_index);
+  const intervals=run.map(v=>v.dt_ms).filter(v=>Number.isFinite(v)&&v>0);
+  const n=intervals.length;
+  document.getElementById("qualitySamples").textContent=String(run.length);
+  document.getElementById("qualityIntervals").textContent=String(n);
+  if(!n){
+    document.getElementById("qualityState").textContent="NO DATA";
+    document.getElementById("qualityMeanDt").textContent="NONE";
+    document.getElementById("qualityStdDt").textContent="NONE";
+    document.getElementById("qualityMaxJitter").textContent="NONE";
+    document.getElementById("qualityRate").textContent="NONE";
+    document.getElementById("qualityCv").textContent="NONE";
+    document.getElementById("qualitySpectrum").textContent="HOLD · NO INTERVALS";
+    return {intervals:0};
+  }
+  const mean=intervals.reduce((a,b)=>a+b,0)/n;
+  const variance=intervals.reduce((a,b)=>a+(b-mean)*(b-mean),0)/n;
+  const std=Math.sqrt(variance);
+  const maxJitter=run.reduce((max,v)=>{const j=Math.abs(Number.isFinite(v.jitter_ms)?v.jitter_ms:0);return j>max?j:max;},0);
+  const rate=1000/mean;
+  const cv=mean>0?std/mean:null;
+  document.getElementById("qualityState").textContent="MEASURED · LOCAL CLOCK";
+  document.getElementById("qualityMeanDt").textContent=mean.toFixed(3)+" ms";
+  document.getElementById("qualityStdDt").textContent=std.toFixed(3)+" ms";
+  document.getElementById("qualityMaxJitter").textContent=maxJitter.toFixed(3)+" ms";
+  document.getElementById("qualityRate").textContent=rate.toFixed(3)+" Hz";
+  document.getElementById("qualityCv").textContent=cv===null?"NONE":(cv*100).toFixed(3)+"%";
+  document.getElementById("qualitySpectrum").textContent="HOLD · REGULARITY NOT ASSUMED";
+  return {intervals:n,mean_dt_ms:mean,std_dt_ms:std,max_abs_jitter_ms:maxJitter,effective_rate_hz:rate,cv:cv};
+}
 function renderSampler(){
   const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
   const ready=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
@@ -489,7 +535,7 @@ function renderSampler(){
   const btn=document.getElementById("samplerToggle");
   btn.disabled=!ready&&!SAMPLER.running;
   btn.textContent=SAMPLER.running?"STOP SAMPLER":"START SAMPLER";
-  renderWaveChart();
+  renderWaveChart();renderSamplerQuality();
 }
 async function captureScheduledSample(runId){
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
@@ -796,7 +842,7 @@ document.getElementById("t5Connect").addEventListener("click",connectT5);
 document.getElementById("samplerToggle").addEventListener("click",toggleSampler);
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
-renderObservationBus();renderTimebase();renderSampler();renderWaveChart();
+renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
 window.addEventListener("resize",()=>{resize();renderWaveChart();});resize();
 })();
 </script>
