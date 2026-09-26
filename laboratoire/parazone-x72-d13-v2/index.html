@@ -1759,10 +1759,10 @@ function autoFitFiveScreen(){
   const viewportH=Math.max(320,window.innerHeight-12);
   const naturalW=Math.max(shell.scrollWidth,shell.getBoundingClientRect().width);
   const naturalH=Math.max(shell.scrollHeight,shell.getBoundingClientRect().height);
-  const preferred={1:1.08,2:1.00,3:0.90,4:1.08,5:1.08}[SCREEN_MODE]||1;
+  const preferred={1:1.12,2:1.00,3:0.90,4:1.48,5:1.48}[SCREEN_MODE]||1;
   const heightScale=viewportH/Math.max(1,naturalH);
   let scale=Math.min(preferred,heightScale);
-  scale=Math.max(0.64,Math.min(1.12,scale));
+  scale=Math.max(0.64,Math.min(1.60,scale));
   shell.style.width=(100/scale).toFixed(3)+"%";
   shell.style.transform="scale("+scale.toFixed(4)+")";
   const fittedH=shell.scrollHeight*scale;
