@@ -24,9 +24,15 @@ REFERENCE TABLE -> PRESET -> GENERATOR CONFIG -> SOURCE -> SAMPLER -> AMPLITUDE 
 - Connection-only stages T2-T5 are not called measurements.
 - Proof hashes document software records; they do not prove physical efficacy.
 
-## Safety boundary
-SIGNAL-GENERATOR-01 remains a configuration generator with OUTPUT DISCONNECTED.
-No external actuator or physical signal output is enabled by this checkpoint.
+## Output boundary
+OUTPUT-ADAPTER-01 adds an explicit browser-audio output path.
+- Manual enable is required.
+- Sine wave only.
+- Frequency range: 20–20000 Hz.
+- Gain is capped at 0.05 and derived from preset amplitude.
+- The automatic frequency table does not start audio by itself.
+- MASTER STOP always disables audio output.
+- No non-audio external actuator is enabled by this checkpoint.
 
 ## Acceptance checks
 1. JavaScript syntax passes node --check.
