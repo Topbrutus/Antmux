@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#050607">
-<title>BRUTUS // T0 — squelette technique — ANTMUX</title>
-<meta name="description" content="Squelette visuel BRUTUS X72 T0, figé, autonome et non connecté.">
+<title>BRUTUS // moteur de résonance — poste de contrôle — ANTMUX</title>
+<meta name="description" content="Poste de contrôle BRUTUS X72 — configuration, échantillonnage local, mesures et preuves techniques.">
 <style>
 :root{--bg:#020913;--panel:#07101c;--line:#17324a;--text:#dcecff;--muted:#7fa9c8;--soft:#0a1624;--dim:#52708a;--cyan:#00e8ff;--blue:#198bff;--violet:#9b45ff;--gold:#ffae42;--orange:#ff7a1a;--red:#ff3344;--green:#00e99a;--ice:#9eefff}
 *{box-sizing:border-box}
@@ -116,6 +116,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 @media(max-width:900px){.monitorWall{grid-template-columns:1fr}.instrumentDeck{grid-template-columns:1fr}.instrumentDeck>*{grid-column:1!important}.connectionBadge{display:none}}
 @media(max-width:680px){body{padding:7px}.left,.right{grid-template-columns:1fr}.controlGrid{grid-template-columns:1fr!important}.header{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.subtitle{display:block;width:100%;text-align:left}.brandMark{font-size:20px}}
 .freqAutomation{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px;padding:8px;border:1px solid #6e5522;border-radius:8px;background:#100d07;box-shadow:inset 0 0 18px #ffae4212}.freqAutoCell{padding:7px;border:1px solid #5a4823;border-radius:6px;background:#090b0d;color:#d8b873;font:9px Consolas,monospace}.freqAutoCell strong{display:block;color:#ffd58a;margin-bottom:3px}.freqAutoActions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}.freqAutoActions button{background:#161208;border:1px solid #9f7026;border-radius:6px;color:#ffd58a;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}.freqAutoActions button:hover{border-color:#ffae42;box-shadow:0 0 10px #ffae4233}.dialRack{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:9px;margin-top:10px}.dialCard{position:relative;min-height:118px;border:1px solid #26445a;border-radius:10px;background:linear-gradient(180deg,#07131f,#040a11);padding:10px;text-align:center;box-shadow:inset 0 0 18px #00182755}.dialCard strong{display:block;font:800 9px Consolas,monospace;letter-spacing:.08em;margin-bottom:8px}.dialKnob{width:48px;height:48px;margin:2px auto 8px;border-radius:50%;border:2px solid currentColor;background:radial-gradient(circle at 38% 32%,#ffffff22 0 8%,#0b1620 10% 58%,#02070c 60%);box-shadow:0 0 13px currentColor,inset 0 0 10px #000}.dialValue{font:800 12px Consolas,monospace;color:#f2fbff}.dialState{margin-top:4px;font:8px Consolas,monospace;color:#7895a8}.dialFreq{color:#00e8ff}.dialAmp{color:#c890ff}.dialTime{color:#ffd58a}.dialCadence{color:#65e9b5}.dialStep{color:#ff9a72}.dialMode{color:#78b9ff}.controlLaunchBar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}.controlLaunchBar .btn,.controlLaunchBar .idle{padding:9px}.controlLaunchBar .btn{border-color:#24516d;color:#7ca7bf}.controlLaunchBar .idle{border-color:#9f7026;color:#ffd58a;background:#100d07}@media(max-width:1100px){.dialRack{grid-template-columns:repeat(3,minmax(120px,1fr))}.freqAutomation{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.dialRack{grid-template-columns:repeat(2,minmax(110px,1fr))}.freqAutomation{grid-template-columns:1fr}.controlLaunchBar{grid-template-columns:1fr 1fr}}
+.micPanel{margin-top:9px;border-color:#167f70!important;box-shadow:inset 0 0 20px #00e99a12!important}.micGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.micCell{background:#06110f;border:1px solid #185347;border-radius:6px;padding:7px;color:#8bc9bc;font:9px Consolas,monospace}.micCell strong{display:block;color:#65e9b5;margin-bottom:3px}.micActions{grid-column:1/-1;display:flex;gap:7px}.micActions button{background:#071713;border:1px solid #1b7a67;color:#8fffd9;border-radius:6px;padding:7px 10px;font:800 9px Consolas,monospace;cursor:pointer}@media(max-width:900px){.micGrid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -126,8 +127,8 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <nav class="topNav" aria-label="Navigation visuelle">
       <span>ANALYSE</span><span>RÉSONANCE</span><span>BANQUE</span><span>GÉNÉRATEUR</span><span>ÉCHANTILLONS</span><span>RÉFÉRENCES</span><span>OUTILS</span>
     </nav>
-    <div class="connectionBadge">● CONNECTÉ</div>
-    <div class="subtitle"><span class="t0">T0 · FROZEN</span> · <span id="currentState">CURRENT T0 · CONNECTED 0</span></div>
+    <div class="connectionBadge">● INTERFACE ONLINE</div>
+    <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
   </header>
 
   <section class="layout">
@@ -259,7 +260,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="obsCell"><strong>SAMPLES</strong><span id="histCount">0</span></div>
       <div class="obsCell"><strong>ORDER</strong>MEASURE # / TICK</div>
       <div class="obsCell"><strong>TRANSFORM</strong>NONE</div>
-      <div class="obsCell obsWide"><strong>LAST 12 VERIFIED SAMPLES</strong><pre id="histSamples" class="t1History">EMPTY</pre></div>
+      <div class="obsCell obsWide"><strong>LAST 12 PROOF-REFERENCED SAMPLES</strong><pre id="histSamples" class="t1History">EMPTY</pre></div>
     </div>
   </section>
 
@@ -352,6 +353,18 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
         <tbody id="referenceCatalogBody"></tbody>
       </table>
     </div>
+  </section>
+
+  <section class="panel micPanel" id="MICROPHONE-SOURCE-01"><h2>ENTRÉE MICROPHONE <span class="panelId">MICROPHONE-SOURCE-01</span></h2>
+    <div class="micGrid">
+      <div class="micCell"><strong>STATE</strong><span id="micState">OFF</span></div>
+      <div class="micCell"><strong>AMPLITUDE</strong><span id="micAmplitude">NONE</span></div>
+      <div class="micCell"><strong>CADENCE</strong><span id="micCadence">NONE</span></div>
+      <div class="micCell"><strong>ACTIVITÉ</strong><span id="micActivity">NONE</span></div>
+      <div class="micCell"><strong>SAMPLES</strong><span id="micSamples">0</span></div>
+      <div class="micActions"><button id="micEnable" type="button">ACTIVER MICRO</button><button id="micDisable" type="button">COUPER MICRO</button></div>
+    </div>
+    <div class="note">SOURCE AUDIO RÉELLE LOCALE · PERMISSION NAVIGATEUR REQUISE · AMPLITUDE NUMÉRIQUE RMS NON CALIBRÉE · PAS UNE MESURE dB SPL</div>
   </section>
 
   <section class="panel generatorPanel" id="SIGNAL-GENERATOR-01"><h2>GÉNÉRATEUR DE SIGNAL SYNTHÉTIQUE <span class="panelId">SIGNAL-GENERATOR-01</span></h2>
@@ -516,10 +529,10 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <div class="dialCard dialMode"><strong>MODE</strong><div class="dialKnob"></div><div id="dialModeValue" class="dialValue">SINGLE</div><div class="dialState">PRESET MODE</div></div>
     </div>
     <div class="controlLaunchBar">
-      <div class="btn">START · OUTPUT DISCONNECTED</div><div class="btn">PAUSE · CONFIG ONLY</div><div class="btn">STOP · CONFIG ONLY</div><div class="idle">READY · SAFE CONFIG</div>
+      <button id="masterStart" class="btn" type="button">START</button><button id="masterPause" class="btn" type="button">PAUSE</button><button id="masterStop" class="btn" type="button">STOP</button><div id="masterState" class="idle">READY · SAFE CONFIG</div>
     </div>
     <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1. TIMEBASE-01 horodate chaque événement T1 avec performance.now() en temps monotone local; les intervalles sont événementiels et irréguliers. SAMPLER-01 ajoute une cadence locale configurée à 100 ms (10 Hz nominal), mesure le Δt réel et le jitter; cette cadence décrit seulement l'échantillonnage du logiciel local, pas une fréquence physique du signal. ANALYSIS-WAVE-01 trace uniquement la série amplitude-temps des samples vérifiés du run courant; aucune fréquence physique n'est inférée. SAMPLER-QUALITY-01 mesure la régularité réelle de la cadence locale (moyenne Δt, écart-type, jitter max, taux effectif, CV) et maintient le spectre sur HOLD tant que la régularité n'est pas explicitement validée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
-    <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
+    <div class="rule">RÈGLE: toute action active doit déclarer SOURCE · ÉTAT · TEMPS · PREUVE; une connexion seule ne constitue pas une mesure.</div>
   </section>
 </main>
 <script>
@@ -567,7 +580,9 @@ const SAMPLER={running:false,target_period_ms:100,history:[],timer:null,proof:"N
 const SPECTRUM={fft_size:64,frames:[],max_frames:96,last:null,gate:{min_samples:64,max_cv:0.05,max_jitter_ratio:0.25}};
 const PRESET_BANK={selected:0,slots:Array.from({length:100},()=>null),storage_key:"BRUTUS_PRESET_BANK_V1"};
 const SIGNAL_GENERATOR={armed:false,config:null};
+const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
+const MASTER_SESSION={state:"READY",started_at:null};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
@@ -766,7 +781,7 @@ function renderWaveChart(){
   g.fillStyle="#dce3e8";
   verified.forEach(v=>{const xx=pad.l+((v.t_mono_ms-t0)/span)*w,yy=pad.t+(1-v.amplitude)*h;g.beginPath();g.arc(xx,yy,1.8,0,Math.PI*2);g.fill();});
   const last=verified[verified.length-1];
-  meta.innerHTML="<strong>LOCAL STATE SERIES · VERIFIED POINTS ONLY</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
+  meta.innerHTML="<strong>LOCAL STATE SERIES · PROOF-REFERENCED POINTS</strong><br>DISPLAY: "+verified.length+" / TOTAL RUN: "+verifiedAll.length+" · WINDOW: "+(span/1000).toFixed(3)+" s · LAST AMP: "+last.amplitude.toFixed(6)+"<br>PHYSICAL FREQUENCY: NOT INFERRED · NO INTERPOLATION · LAST PROOF: "+last.proof_ref;
 }
 function analyzeCrackleBuffer(){
   const data=POPCORN_BASIN.samples;
@@ -973,6 +988,39 @@ function fillPopcornBasin(){
   renderPopcornBasin();return true;
 }
 function clearPopcornBasin(){POPCORN_BASIN.samples=[];POPCORN_BASIN.sample_rate_hz=null;POPCORN_BASIN.window_s=null;renderPopcornBasin();}
+function renderMicrophone(){
+  document.getElementById("micState").textContent=REAL_INPUT.active?"LIVE · MICROPHONE":"OFF";
+  document.getElementById("micAmplitude").textContent=Number.isFinite(REAL_INPUT.amplitude)?REAL_INPUT.amplitude.toFixed(6):"NONE";
+  document.getElementById("micCadence").textContent=Number.isFinite(REAL_INPUT.cadence_hz)?REAL_INPUT.cadence_hz.toFixed(2)+" Hz":"NONE";
+  document.getElementById("micActivity").textContent=Number.isFinite(REAL_INPUT.activity)?REAL_INPUT.activity.toFixed(6):"NONE";
+  document.getElementById("micSamples").textContent=String(REAL_INPUT.sample_count);
+}
+function microphoneFrame(ts){
+  if(!REAL_INPUT.active||!REAL_INPUT.analyser||!REAL_INPUT.data)return;
+  REAL_INPUT.analyser.getByteTimeDomainData(REAL_INPUT.data);
+  let sum=0;for(let i=0;i<REAL_INPUT.data.length;i++){const v=(REAL_INPUT.data[i]-128)/128;sum+=v*v}
+  const amp=Math.sqrt(sum/REAL_INPUT.data.length),prev=REAL_INPUT.amplitude;
+  REAL_INPUT.activity=Number.isFinite(prev)?Math.abs(amp-prev):0;
+  if(Number.isFinite(REAL_INPUT.last_ts)&&ts>REAL_INPUT.last_ts)REAL_INPUT.cadence_hz=1000/(ts-REAL_INPUT.last_ts);
+  REAL_INPUT.last_ts=ts;REAL_INPUT.amplitude=amp;REAL_INPUT.sample_count++;renderMicrophone();renderSpectrum();renderSampler();
+  REAL_INPUT.raf=requestAnimationFrame(microphoneFrame);
+}
+async function enableMicrophone(){
+  if(REAL_INPUT.active)return true;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error("MICROPHONE_API_UNAVAILABLE");
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC){stream.getTracks().forEach(t=>t.stop());throw new Error("AUDIO_CONTEXT_UNAVAILABLE")}
+  const ctx=new AC(),source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();analyser.fftSize=1024;source.connect(analyser);
+  Object.assign(REAL_INPUT,{kind:"MICROPHONE",active:true,stream,ctx,analyser,data:new Uint8Array(analyser.fftSize),amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0});
+  renderMicrophone();REAL_INPUT.raf=requestAnimationFrame(microphoneFrame);return true;
+}
+async function disableMicrophone(){
+  REAL_INPUT.active=false;if(REAL_INPUT.raf!==null)cancelAnimationFrame(REAL_INPUT.raf);REAL_INPUT.raf=null;
+  if(REAL_INPUT.stream)REAL_INPUT.stream.getTracks().forEach(t=>t.stop());
+  if(REAL_INPUT.ctx)try{await REAL_INPUT.ctx.close()}catch(_){}
+  Object.assign(REAL_INPUT,{kind:"NONE",stream:null,ctx:null,analyser:null,data:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null});
+  renderMicrophone();renderSpectrum();renderSampler();return true;
+}
 function renderSignalGenerator(){
   const c=SIGNAL_GENERATOR.config;
   document.getElementById("genState").textContent=SIGNAL_GENERATOR.armed?"ARMED · OUTPUT DISCONNECTED":"IDLE";
@@ -1002,6 +1050,33 @@ function armSignalGenerator(){
   SIGNAL_GENERATOR.armed=true;renderSignalGenerator();renderAuxMonitors();return true;
 }
 function clearSignalGenerator(){SIGNAL_GENERATOR.armed=false;SIGNAL_GENERATOR.config=null;clearPopcornBasin();renderSignalGenerator();renderAuxMonitors();return true;}
+function renderMasterSession(){
+  const el=document.getElementById("masterState");if(!el)return;
+  const source=REAL_INPUT.active?"MIC":(T1.connected===1?"T1":"NONE");
+  el.textContent=MASTER_SESSION.state+" · SOURCE "+source+" · OUTPUT "+(SIGNAL_GENERATOR.armed?"CONFIG ARMED":"DISCONNECTED");
+}
+async function startMasterSession(){
+  if(MASTER_SESSION.state==="RUNNING")return true;
+  MASTER_SESSION.state="STARTING";renderMasterSession();
+  if(!(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))&&!(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE")){
+    try{await enableMicrophone();await new Promise(r=>setTimeout(r,180))}catch(_){}
+  }
+  if(!(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))&&!(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"))await injectT1();
+  const slot=PRESET_BANK.slots[PRESET_BANK.selected];
+  if(slot&&!SIGNAL_GENERATOR.armed)armSignalGenerator();
+  if(!SAMPLER.running)toggleSampler();
+  MASTER_SESSION.state="RUNNING";MASTER_SESSION.started_at=performance.now();renderMasterSession();return true;
+}
+function pauseMasterSession(){
+  if(SAMPLER.running)toggleSampler();
+  MASTER_SESSION.state="PAUSED";renderMasterSession();return true;
+}
+async function stopMasterSession(){
+  if(SAMPLER.running)toggleSampler();
+  stopFrequencyTable();clearSignalGenerator();
+  if(REAL_INPUT.active)await disableMicrophone();
+  MASTER_SESSION.state="STOPPED";MASTER_SESSION.started_at=null;renderMasterSession();return true;
+}
 function renderControlRack(){
   const hzRaw=document.getElementById("presetHz")?.value?.trim()||"";
   const ampRaw=document.getElementById("t1Value")?.value?.trim()||"";
@@ -1167,9 +1242,10 @@ function renderSpectrum(){
   c.width=Math.max(1,Math.floor(r.width*d));c.height=Math.max(1,Math.floor(r.height*d));
   const x=c.getContext("2d");x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,r.width,r.height);
   const run=SAMPLER.history.slice(-80),last=run.length?run[run.length-1]:null,prev=run.length>1?run[run.length-2]:null;
-  const amplitude=last&&Number.isFinite(last.amplitude)?last.amplitude:(T1.value!==null?T1.value:null);
-  const cadence=last&&Number.isFinite(last.dt_ms)&&last.dt_ms>0?1000/last.dt_ms:null;
-  const activity=last&&prev&&Number.isFinite(last.amplitude)&&Number.isFinite(prev.amplitude)?Math.abs(last.amplitude-prev.amplitude):null;
+  const micLive=REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude);
+  const amplitude=micLive?REAL_INPUT.amplitude:(last&&Number.isFinite(last.amplitude)?last.amplitude:(T1.value!==null?T1.value:null));
+  const cadence=micLive&&Number.isFinite(REAL_INPUT.cadence_hz)?REAL_INPUT.cadence_hz:(last&&Number.isFinite(last.dt_ms)&&last.dt_ms>0?1000/last.dt_ms:null);
+  const activity=micLive&&Number.isFinite(REAL_INPUT.activity)?REAL_INPUT.activity:(last&&prev&&Number.isFinite(last.amplitude)&&Number.isFinite(prev.amplitude)?Math.abs(last.amplitude-prev.amplitude):null);
   ampEl.textContent=amplitude===null?"NONE":amplitude.toFixed(6);
   cadEl.textContent=cadence===null?"NONE":cadence.toFixed(3)+" Hz";
   actEl.textContent=activity===null?"NONE":activity.toFixed(6);
@@ -1213,7 +1289,7 @@ function renderSamplerQuality(){
 }
 function renderSampler(){
   const last=SAMPLER.history.length?SAMPLER.history[SAMPLER.history.length-1]:null;
-  const ready=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
+  const ready=(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))||(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE");
   document.getElementById("samplerState").textContent=SAMPLER.running?"RUNNING":(ready?"READY":"IDLE");
   document.getElementById("samplerCount").textContent=String(SAMPLER.history.length);
   document.getElementById("samplerDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
@@ -1227,7 +1303,13 @@ function renderSampler(){
 }
 async function captureScheduledSample(runId){
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
-  if(T1.connected!==1||T1.value===null||T1.proof==="NONE")return null;
+  const useMic=REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude);
+  const useT1=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE";
+  if(!useMic&&!useT1)return null;
+  const sourceAmplitude=useMic?REAL_INPUT.amplitude:T1.value;
+  const sourceName=useMic?"MICROPHONE.RMS":"T1.CURRENT_VALUE";
+  const sourceKind=useMic?"REAL_AUDIO_LOCAL_UNCALIBRATED":"LOCAL_STATE";
+  const sourceProof=useMic?"MICROPHONE_RUNTIME_SOURCE":T1.proof;
   const t_mono_ms=performance.now();
   const hasPreviousInRun=SAMPLER.history.length>SAMPLER.run_start_index;
   const previous=hasPreviousInRun?SAMPLER.history[SAMPLER.history.length-1]:null;
@@ -1236,13 +1318,13 @@ async function captureScheduledSample(runId){
   const packet={
     schema:"BRUTUS_SAMPLER_LOCAL_V1",
     sample_index:SAMPLER.history.length+1,
-    source:"T1.CURRENT_VALUE",
-    source_kind:"LOCAL_STATE",
-    amplitude:T1.value,
+    source:sourceName,
+    source_kind:sourceKind,
+    amplitude:sourceAmplitude,
     t_mono_ms,dt_ms,jitter_ms,
     target_period_ms:SAMPLER.target_period_ms,
     nominal_rate_hz:1000/SAMPLER.target_period_ms,
-    source_proof_ref:T1.proof
+    source_proof_ref:sourceProof
   };
   const proof=await sha256Hex(JSON.stringify(packet));
   if(runId!==SAMPLER.run_id||!SAMPLER.running)return null;
@@ -1264,14 +1346,14 @@ function toggleSampler(){
     if(SAMPLER.timer!==null)clearTimeout(SAMPLER.timer);
     SAMPLER.timer=null;renderSampler();return;
   }
-  if(T1.connected!==1||T1.value===null||T1.proof==="NONE")throw new Error("T1_PROOF_REQUIRED");
+  if(!(REAL_INPUT.active&&Number.isFinite(REAL_INPUT.amplitude))&&!(T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"))throw new Error("ACTIVE_SOURCE_REQUIRED");
   SAMPLER.run_id+=1;
   SAMPLER.run_start_index=SAMPLER.history.length;
   SAMPLER.running=true;renderSampler();scheduleNextSample(SAMPLER.run_id);
 }
 function renderTimebase(){
   const last=TIMEBASE.history.length?TIMEBASE.history[TIMEBASE.history.length-1]:null;
-  document.getElementById("timeState").textContent=last?"LIVE · EVENT TIME VERIFIED":"NO DATA";
+  document.getElementById("timeState").textContent=last?"EVENT TIME · LOCAL MONOTONIC":"NO DATA";
   document.getElementById("timeEvents").textContent=String(TIMEBASE.history.length);
   document.getElementById("timeDelta").textContent=last&&last.dt_ms!==null?last.dt_ms.toFixed(3)+" ms":"NONE";
   document.getElementById("timeProof").textContent=last?last.proof_ref:"NONE";
@@ -1304,7 +1386,7 @@ async function captureTimebase(sourceRecord){
 function renderMeasurementHistory(){
   const verified=T1.history.filter(r=>r&&r.proof_ref&&r.proof_ref!=="NONE"&&Number.isFinite(r.after));
   const last=verified.slice(-12);
-  document.getElementById("histState").textContent=verified.length?"LIVE · VERIFIED ORDER":"NO DATA";
+  document.getElementById("histState").textContent=verified.length?"LOCAL ORDER · PROOF REFERENCES PRESENT":"NO DATA";
   document.getElementById("histCount").textContent=String(verified.length);
   document.getElementById("histSamples").textContent=last.length?last.map(r=>"#"+String(r.tick).padStart(3,"0")+" · AMP="+r.after.toFixed(6)+" · PROOF="+r.proof_ref).join("\n"):"EMPTY";
   renderTimebase();
@@ -1312,7 +1394,7 @@ function renderMeasurementHistory(){
 }
 function renderAmplitudePanel(){
   const hasT1=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"&&T1.history.length>0;
-  document.getElementById("ampState").textContent=hasT1?"LIVE · T1 VERIFIED":"NO DATA";
+  document.getElementById("ampState").textContent=hasT1?"T1 ACTIVE · PROOF PRESENT":"NO DATA";
   document.getElementById("ampMeasure").textContent=hasT1?String(T1.tick):"NONE";
   document.getElementById("ampValue").textContent=hasT1?T1.value.toFixed(6):"—";
   document.getElementById("ampProof").textContent=hasT1?T1.proof:"NONE";
@@ -1339,6 +1421,16 @@ function renderHistory(){
   const h=document.getElementById("t1History");
   h.textContent=T1.history.length?T1.history.map(r=>"#"+String(r.tick).padStart(3,"0")+" | QUI="+r.who+" | ÉTAT="+r.state+" | AVANT="+(r.before===null?"NONE":r.before.toFixed(6))+" | APRÈS="+r.after.toFixed(6)+" | TOPOLOGY="+r.topology_version+" | RESULT="+r.result+" | PROOF_REF="+r.proof_ref).join("\n"):"APPEND-ONLY LOCAL LOG: EMPTY";
 }
+function invalidateDownstreamFromT1(reason="T1_SOURCE_CHANGED"){
+  for(const [n,state] of [[2,T2],[3,T3],[4,T4],[5,T5]]){
+    state.connected=0;state.proof="NONE";state.lastTrace="NONE";
+    const st=document.getElementById("t"+n+"State"),tr=document.getElementById("t"+n+"Trace"),pr=document.getElementById("t"+n+"Proof"),btn=document.getElementById("t"+n+"Connect");
+    if(st)st.textContent="STATE: INVALIDATED · "+reason;
+    if(tr)tr.textContent="TRACE: NONE";
+    if(pr)pr.textContent="PROOF-T"+n+"-SHA256: NONE";
+    if(btn)btn.disabled=n!==2;
+  }
+}
 async function injectT1(forcedValue){
   const stateEl=document.getElementById("t1State"),traceEl=document.getElementById("t1Trace"),proofEl=document.getElementById("t1Proof");
   try{
@@ -1361,9 +1453,11 @@ async function injectT1(forcedValue){
       result:delta===0?"IDENTITY_OK":"IDENTITY_MISMATCH",proof_ref:proof,
       input_active:1,amplitude,measured,delta,proof
     };
+    await captureTimebase(record);
+    const sourceChanged=T1.proof!=="NONE"&&T1.proof!==proof;
     T1.history.push(Object.freeze(record));
     Object.assign(T1,{tick,connected:1,measurements:T1.measurements+1,proofs:T1.proofs+1,value:amplitude,lastTrace:"SOURCE-00>FLOW-01>B1.INPUT",proof});
-    await captureTimebase(record);
+    if(sourceChanged)invalidateDownstreamFromT1("NEW T1 PROOF");
     stateEl.textContent="STATE: T1 · VALID · INPUT_ACTIVE: 1 · AMP: "+amplitude.toFixed(6)+" · LOCAL ONLY";
     traceEl.textContent="TRACE: "+T1.lastTrace+" · EDGE: FLOW-01 · INTRA_LEVEL · TOPOLOGY: "+TOPOLOGY_REFERENCE.topology_version+" · MEASURE: #"+tick;
     proofEl.textContent="PROOF-T1-SHA256: "+proof;
@@ -1531,16 +1625,21 @@ document.getElementById("samplerToggle").addEventListener("click",toggleSampler)
 document.getElementById("presetSave").addEventListener("click",saveCurrentPreset);
 document.getElementById("presetLoad").addEventListener("click",loadSelectedPreset);
 document.getElementById("presetClear").addEventListener("click",clearSelectedPreset);
+document.getElementById("micEnable").addEventListener("click",()=>enableMicrophone().catch(err=>{document.getElementById("micState").textContent="ERROR · "+err.message}));
+document.getElementById("micDisable").addEventListener("click",()=>disableMicrophone());
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
+document.getElementById("masterStart").addEventListener("click",()=>startMasterSession().catch(err=>{MASTER_SESSION.state="ERROR · "+err.message;renderMasterSession()}));
+document.getElementById("masterPause").addEventListener("click",pauseMasterSession);
+document.getElementById("masterStop").addEventListener("click",()=>stopMasterSession());
 document.getElementById("freqPrev").addEventListener("click",()=>stepFrequencyTable(-1));
 document.getElementById("freqNext").addEventListener("click",()=>stepFrequencyTable(1));
 document.getElementById("freqAutoStart").addEventListener("click",toggleFrequencyTableAuto);
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
 
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderControlRack();renderMicrophone();renderMasterSession();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
