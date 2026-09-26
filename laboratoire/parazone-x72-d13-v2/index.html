@@ -127,6 +127,18 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
     </div>
   </section>
 
+  <section class="panel" id="ANALYSIS-HISTORY-01"><h2>HISTORIQUE DES MESURES <span class="panelId">ANALYSIS-HISTORY-01</span></h2>
+    <div class="obsGrid">
+      <div class="obsCell"><strong>STATE</strong><span id="histState">NO DATA</span></div>
+      <div class="obsCell"><strong>SOURCE</strong>OBS-BUS-01 / T1.history</div>
+      <div class="obsCell"><strong>TIMEBASE</strong>NOT_CONNECTED</div>
+      <div class="obsCell"><strong>SAMPLES</strong><span id="histCount">0</span></div>
+      <div class="obsCell"><strong>ORDER</strong>MEASURE # / TICK</div>
+      <div class="obsCell"><strong>TRANSFORM</strong>NONE</div>
+      <div class="obsCell obsWide"><strong>LAST 12 VERIFIED SAMPLES</strong><pre id="histSamples" class="t1History">EMPTY</pre></div>
+    </div>
+  </section>
+
   <section class="panel controls"><h2>CONTRÔLES / CADRANS <span class="panelId">CONTROL-BANK-01</span></h2>
     <div class="t1Panel" id="INPUT-TEST-01">
       <div class="t1Grid">
@@ -230,7 +242,7 @@ body{padding:12px}.shell{max-width:1560px;margin:0 auto}
       <span>ANCHOR-01</span><span class="control">UNSET</span><span>PORT BANK</span><span class="control">INPUT · OUTPUT · STATE · ERROR · TIME</span>
       <div class="btn">START · DISABLED</div><div class="btn">PAUSE · DISABLED</div><div class="btn">STOP · DISABLED</div><div class="idle">T0 · FROZEN</div>
     </div>
-    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
+    <div class="note">T1 LOCAL — INPUT_ACTIVE=1 · amplitude mesurée par IDENTITY_CAPTURE. T2 — B1.OUTPUT → FLOW-02 → B2.INPUT. T3 — B2.OUTPUT → FLOW-03 → B3.INPUT. T4 — B3.OUTPUT → FLOW-04 → GATE-01.INPUT. T5 — GATE-01.OUTPUT → FLOW-05 → CRYSTAL-01.INPUT. OBS-BUS-01 observe uniquement les états et preuves T1→T5, hors bande, sans écriture moteur et sans nouvelle mesure. ANALYSIS-AMP-01 lit seulement la mesure T1 déjà existante, sans transformation. ANALYSIS-HISTORY-01 conserve uniquement l'ordre vérifié des mesures T1; TIMEBASE reste NOT_CONNECTED, donc aucune durée ni fréquence n'est inférée. G_REFERENCE actif · G_CANDIDATE=NONE · aucune API · aucune écriture serveur · fréquence non connectée.</div>
     <div class="rule">RÈGLE: 1 MODULE → 1 CONNEXION → 1 MESURE → 1 PREUVE.</div>
   </section>
 </main>
@@ -404,12 +416,21 @@ function renderTopologyStatus(){
 }
 function normalizedInput(raw){const v=Number(raw);if(!Number.isFinite(v)||v<0||v>1)throw new Error("INPUT_OUT_OF_RANGE");return v}
 async function sha256Hex(text){const bytes=new TextEncoder().encode(text),hash=await crypto.subtle.digest("SHA-256",bytes);return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("")}
+function renderMeasurementHistory(){
+  const verified=T1.history.filter(r=>r&&r.proof_ref&&r.proof_ref!=="NONE"&&Number.isFinite(r.after));
+  const last=verified.slice(-12);
+  document.getElementById("histState").textContent=verified.length?"LIVE · VERIFIED ORDER":"NO DATA";
+  document.getElementById("histCount").textContent=String(verified.length);
+  document.getElementById("histSamples").textContent=last.length?last.map(r=>"#"+String(r.tick).padStart(3,"0")+" · AMP="+r.after.toFixed(6)+" · PROOF="+r.proof_ref).join("\n"):"EMPTY";
+  return {count:verified.length,lastTick:last.length?last[last.length-1].tick:null};
+}
 function renderAmplitudePanel(){
   const hasT1=T1.connected===1&&T1.value!==null&&T1.proof!=="NONE"&&T1.history.length>0;
   document.getElementById("ampState").textContent=hasT1?"LIVE · T1 VERIFIED":"NO DATA";
   document.getElementById("ampMeasure").textContent=hasT1?String(T1.tick):"NONE";
   document.getElementById("ampValue").textContent=hasT1?T1.value.toFixed(6):"—";
   document.getElementById("ampProof").textContent=hasT1?T1.proof:"NONE";
+  renderMeasurementHistory();
   return {live:hasT1,measure:hasT1?T1.tick:null,value:hasT1?T1.value:null};
 }
 function renderObservationBus(){
