@@ -575,7 +575,8 @@ function drawAmbientField(w,h,cx,cy){
   for(let i=0;i<5;i++){
     x.save();x.rotate((i-2)*0.22);x.scale(1,0.45+i*.045);
     x.strokeStyle=i%2===0?"#ffae4238":"#9b45ff30";x.lineWidth=1;
-    x.beginPath();x.ellipse(0,0,Math.min(w*.33,230)-i*18,Math.min(h*.31,210)-i*14,0,0,Math.PI*2);x.stroke();x.restore();
+    const rx=Math.max(2,Math.min(w*.33,230)-i*18),ry=Math.max(2,Math.min(h*.31,210)-i*14);
+    x.beginPath();x.ellipse(0,0,rx,ry,0,0,Math.PI*2);x.stroke();x.restore();
   }
   for(let i=0;i<12;i++){
     const a=Math.PI*2*i/12,rr=70+(i%3)*22;
@@ -626,8 +627,9 @@ function draw(w,h){
   x.save();x.setLineDash([4,5]);x.strokeStyle="#343c43";x.strokeRect(w*.68,h*.08,w*.27,h*.18);x.restore();
   label("CHEM-ZONE-01",w*.815,h*.12,"center","#68727a","9px Consolas");label("PLACEHOLDER STRUCTUREL",w*.815,h*.15,"center","#5b656d","8px Consolas");label("NO FUNCTION · NO DATA",w*.815,h*.175,"center","#5b656d","8px Consolas");
 
-  label("VISUAL FIELD: DECORATIVE ONLY · NO MEASUREMENT",w-20,h-22,"right","#755f86","7px Consolas");
-  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T5.connected?"T5":(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0"))))),20,h-22,"left","#69737c","8px Consolas");
+  if(w>=520)label("VISUAL FIELD: DECORATIVE ONLY · NO MEASUREMENT",w-20,h-22,"right","#755f86","7px Consolas");
+  else label("VISUAL ONLY",w-20,h-22,"right","#755f86","7px Consolas");
+  label("AGE: 0 · DRIFT: UNKNOWN · ERROR_RATE: 0 · LAST_VALID_STATE: "+(T5.connected?"T5":(T4.connected?"T4":(T3.connected?"T3":(T2.connected?"T2":(T1.connected?"T1":"T0"))))),20,h-38,"left","#69737c","8px Consolas");
 }
 function validateTopology(g){
   const errors=[],moduleIds=new Set(),edgeIds=new Set(),allowedEdgeTypes=new Set(["INTRA_LEVEL","INTER_LEVEL"]);
