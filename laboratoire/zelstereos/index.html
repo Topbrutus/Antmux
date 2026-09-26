@@ -24,11 +24,16 @@ main{max-width:1180px;margin:auto;padding:12px}
 .values{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px}.value{padding:8px 9px;border-radius:7px;background:#05090d;border:1px solid #17202a;box-shadow:inset 0 1px 4px #000;font:700 14px/1.25 ui-monospace,Consolas,monospace;color:#ff665c}.value small{display:block;color:#a5b1be;font:10px/1.2 ui-monospace,Consolas,monospace}
 .events{max-height:330px;overflow:auto;background:#02070a;border:1px solid #101820;border-radius:8px;padding:7px;box-shadow:inset 0 0 14px #000}.event{padding:6px 9px;border-left:3px solid #ffb113;border-bottom:1px solid #10171c;font:12px/1.35 ui-monospace,Consolas,monospace}.event small{display:block;color:#d6a42c}.event code{color:#67c4ff;white-space:pre-wrap}.event.pass{border-left-color:#31e69f}.event.fail{border-left-color:#ff4a4a}.event.pass small{color:#6de2b2}.event.fail small{color:#ff7b7b}
 .note{color:#b7c1cb;font-size:12px}.offline{color:#ff7777}
+
+.audio-consent{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,4,8,.82);backdrop-filter:blur(7px)}
+.audio-consent.show{display:flex}.audio-consent-card{width:min(520px,100%);padding:24px;border:1px solid #4e5c69;border-radius:14px;background:linear-gradient(180deg,#0d151d,#05090d);box-shadow:0 24px 70px #000,inset 0 0 0 1px #26323d;text-align:center}.audio-consent-card h2{margin:0 0 8px;font-size:24px}.audio-consent-card p{margin:0 0 18px;color:#b7c5d3}.audio-consent-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.audio-consent-actions button{min-width:150px;padding:11px 16px;border-radius:9px;border:1px solid #566675;background:#08131d;color:#e9f6ff;font-weight:800;cursor:pointer}.audio-consent-actions .primary{border-color:#55cfff;background:#0b2432;color:#bfeeff}
 @media(max-width:850px){.stages{grid-template-columns:repeat(4,1fr)}.metrics{grid-template-columns:1fr 1fr}.formulas{grid-template-columns:1fr}}
 @media(max-width:520px){.stages,.metrics{grid-template-columns:1fr 1fr}.top{align-items:flex-start}.top h1{font-size:17px}}
 </style>
 </head>
 <body>
+<div id="audioConsent" class="audio-consent" role="dialog" aria-modal="true" aria-labelledby="audioConsentTitle"><div class="audio-consent-card"><h2 id="audioConsentTitle">🔊 Activer le son ?</h2><p>ZELSTÉRÉOS utilise un son de départ, un tempo et un son de fin pendant le cycle.</p><div class="audio-consent-actions"><button id="audioConsentEnable" class="primary" type="button">ACTIVER LE SON</button><button id="audioConsentLater" type="button">PLUS TARD</button></div></div></div>
+
 <main>
 <div class="label">01 · PUBLIC SAFE</div>
 <section class="rack"><div class="face top"><div><h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">VITRINE</span> <span class="safe">PUBLIQUE</span></h1><small>Lecture seule · données filtrées · commandes privées non exposées</small></div><div class="top-actions"><button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button><span id="fontSize" class="font-size">100%</span><button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button><button id="soundToggle" class="sound-btn" type="button" aria-label="Activer ou couper le son">🔊</button><button id="soundTest" class="sound-btn" type="button" aria-label="Tester le son">♪</button><input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume"><div id="live" class="live">CONNEXION…</div></div></div></section>
@@ -70,6 +75,13 @@ let soundMuted=localStorage.getItem('zel-sound-muted')==='1';
 let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
 let lastStageIndex=null;
 function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended') audioCtx.resume();}
+
+const audioConsent=$('audioConsent');
+const audioConsentEnabled=localStorage.getItem('zel-audio-consent')==='enabled';
+function closeAudioConsent(){audioConsent.classList.remove('show');}
+if(!audioConsentEnabled&&sessionStorage.getItem('zel-audio-consent-later')!=='1')audioConsent.classList.add('show');
+$('audioConsentEnable').addEventListener('click',async()=>{ensureAudio();if(audioCtx&&audioCtx.state==='suspended')await audioCtx.resume();soundMuted=false;localStorage.setItem('zel-sound-muted','0');localStorage.setItem('zel-audio-consent','enabled');syncSoundUI();closeAudioConsent();soundStart();});
+$('audioConsentLater').addEventListener('click',()=>{sessionStorage.setItem('zel-audio-consent-later','1');closeAudioConsent();});
 function tone(freq,dur=.08,delay=0,gain=.16){if(soundMuted||soundVolume<=0)return;ensureAudio();const t=audioCtx.currentTime+delay;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain*soundVolume,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+dur+.02);}
 function soundStart(){tone(220,.12,0,.17);tone(330,.12,.09,.15);tone(440,.16,.18,.14);}
 function soundTempo(i){tone(180+(i*24),.055,0,.11);}
