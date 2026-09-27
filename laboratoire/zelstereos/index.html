@@ -76,6 +76,7 @@ let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
 let lastAudioStageIndex=null;
 let lastAudioEventVersion=null;
 let wsHasLiveState=false;
+let lastRenderedPublicState=null;
 let lastWsMessageAt=0;
 let lastLiveStagePerf=0;
 let liveMachineOffset=Math.floor(Math.random()*20);
@@ -441,6 +442,7 @@ let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
 function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stageExecUs=null}={}){
+  lastRenderedPublicState=JSON.parse(JSON.stringify(s));
   $('live').textContent=s.status==='OFFLINE'?'HORS LIGNE':(s.status==='SNAPSHOT'?'PUBLIC SNAPSHOT':'PUBLIC LIVE');
   $('live').className='live'+(s.status==='OFFLINE'?' offline':'');
   if(s.status==='OFFLINE')return;
@@ -489,6 +491,85 @@ function connectZelWebSocket(){
   zelSocket.addEventListener('close',()=>{wsHasLiveState=false;zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
   zelSocket.addEventListener('error',()=>{try{zelSocket.close();}catch(e){}});
 }
+function zelAiDiagnostics(){
+  return {
+    schema:'ANTMUX-ZELSTEREOS-AI-DIAGNOSTIC-v1',
+    source:'PAGE_RUNTIME',
+    page:location.pathname,
+    websocket:{
+      ready_state:zelSocket?zelSocket.readyState:null,
+      has_live_state:wsHasLiveState,
+      last_message_at:lastWsMessageAt||null
+    },
+    audio:{
+      context_state:audioCtx?audioCtx.state:'not-started',
+      muted:soundMuted,
+      volume:soundVolume
+    },
+    rendered_state:lastRenderedPublicState?JSON.parse(JSON.stringify(lastRenderedPublicState)):null
+  };
+}
+function zelAiSelfTest(){
+  const s=lastRenderedPublicState;
+  const checks=[];
+  const add=(name,ok,detail)=>checks.push({name,ok:Boolean(ok),detail});
+  add('stage_topology',JSON.stringify(counts)===JSON.stringify([1,3,9,36,9,3,1]),{counts:[...counts]});
+  if(!s){
+    add('rendered_state_available',false,{reason:'no rendered state'});
+  }else{
+    add('rendered_state_available',true,{status:s.status||null});
+    if(Object.prototype.hasOwnProperty.call(s,'mode'))add('public_safe',s.mode==='PUBLIC_SAFE'&&s.read_only===true,{mode:s.mode,read_only:s.read_only});
+    const f1=s.f1||{};
+    const k=Number(f1.k);
+    const actual=Number(f1.value);
+    const expected=Number.isInteger(k)&&k>=1?4*(21**(k-1)):NaN;
+    add('f1_rank_formula',Number.isFinite(expected)&&Number.isFinite(actual)&&actual===expected,{
+      formula_id:f1.formula_id||null,
+      k:Number.isFinite(k)?k:null,
+      expected:Number.isFinite(expected)?expected:null,
+      actual:Number.isFinite(actual)?actual:null
+    });
+    const ge=s.global_error||{};
+    const geDecimal=Number(ge.decimal);
+    add('global_error_finite',Number.isFinite(geDecimal),{exact:ge.exact??null,decimal:Number.isFinite(geDecimal)?geDecimal:null});
+  }
+  return {
+    schema:'ANTMUX-ZELSTEREOS-AI-SELFTEST-v1',
+    source:'PAGE_RUNTIME',
+    ok:checks.length>0&&checks.every(item=>item.ok),
+    timestamp:Date.now(),
+    checks,
+    diagnostics:zelAiDiagnostics()
+  };
+}
+function zelAiWaitForLive(timeoutMs=5000){
+  const limit=Math.max(0,Math.min(60000,Number(timeoutMs)||5000));
+  if(wsHasLiveState)return Promise.resolve(zelAiDiagnostics());
+  return new Promise((resolve,reject)=>{
+    const started=Date.now();
+    const timer=setInterval(()=>{
+      if(wsHasLiveState){
+        clearInterval(timer);
+        resolve(zelAiDiagnostics());
+      }else if(Date.now()-started>=limit){
+        clearInterval(timer);
+        reject(new Error('ZELSTEREOS_LIVE_TIMEOUT'));
+      }
+    },50);
+  });
+}
+Object.defineProperty(window,'ZELSTEREOS_AI',{
+  value:Object.freeze({
+    version:'1.0',
+    diagnostics:zelAiDiagnostics,
+    selfTest:zelAiSelfTest,
+    waitForLive:zelAiWaitForLive
+  }),
+  writable:false,
+  configurable:false,
+  enumerable:false
+});
+
 async function poll(){
   if(wsHasLiveState && Date.now()-lastWsMessageAt<5000)return;
   try{
