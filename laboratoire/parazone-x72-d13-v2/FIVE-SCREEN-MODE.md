@@ -52,18 +52,18 @@ Chaque vue multi-écrans possède son propre profil de densité afin de rester l
 
 Le fit se recalcule automatiquement au chargement, après synchronisation et lors d'un redimensionnement. Le badge supérieur affiche la valeur active sous la forme `FIT n%`.
 
-## Panneaux repliables et lettrage local
+## Panneaux minimisables et lettrage local
 
-Chaque panneau de travail visible dispose maintenant de contrôles `−`, `+` et `REPLIER / DÉPLIER`.
+Chaque panneau de travail visible dispose de contrôles `−`, `+` et `REPLIER`.
 
 - `−` et `+` modifient uniquement le lettrage du panneau concerné.
 - plage de lettrage : 75 % à 160 %, par pas de 10 %;
-- `REPLIER` réduit le panneau à sa barre de titre;
-- `DÉPLIER` restaure immédiatement son contenu;
-- le cœur du moteur et les commandes maîtres sont également repliables;
-- l'état est mémorisé localement séparément pour chaque vue BRUTUS avec `BRUTUS_PANEL_WORKSPACE_V1:SCREEN_<n>`.
+- `REPLIER` retire complètement le panneau de sa grille et le transforme en icône flottante;
+- l'icône est déplaçable avec un semi-snap de 16 px; un clic la restaure; aucune rangée fantôme n'est conservée.
+- le cœur du moteur et les commandes maîtres sont également minimisables;
+- l'état minimisé et la position de l'icône sont mémorisés localement séparément pour chaque vue BRUTUS avec `BRUTUS_PANEL_WORKSPACE_V1:SCREEN_<n>`.
 
-Le pliage et le zoom sont des préférences d'affichage locales : ils ne modifient ni la chaîne de preuve ni l'état scientifique partagé entre les cinq écrans.
+La minimisation et le zoom sont des préférences d'affichage locales : ils ne modifient ni la chaîne de preuve ni l'état scientifique partagé entre les cinq écrans.
 
 ## Bureau BRUTUS — cartes libres multi-écrans
 
