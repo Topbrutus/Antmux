@@ -85,3 +85,15 @@ Dans ce mode :
 Bus de synchronisation du bureau : `BRUTUS_DESKTOP_WORKSPACE_V1`.
 
 Le transfert d'une carte change son emplacement d'interface, pas la propriété des ressources physiques. Le noyau reste propriétaire des opérations concernées; une commande déplacée continue de passer par le bus BRUTUS existant. En particulier, l'écran 3 reste le propriétaire du noyau dans l'architecture actuelle.
+
+## Six semi-snaps magnétiques
+
+Le bureau BRUTUS et les icônes issues de `REPLIER` disposent de six points d'ancrage magnétiques :
+haut-gauche, haut-centre, haut-droite, bas-gauche, bas-centre et bas-droite.
+
+- rayon d'aimantation : environ 92 px;
+- hors aimant, le placement normal utilise la grille de 16 px;
+- une zone fantôme `SNAP 1` à `SNAP 6` indique l'ancrage actif;
+- maintenir `Shift` pendant le déplacement désactive immédiatement les six aimants et la grille 16 px;
+- avec `Shift`, la position est conservée au pixel près et reste précise après sauvegarde/rechargement;
+- `Shift` désactive également l'arrondi de taille lors d'un redimensionnement en mode BUREAU.

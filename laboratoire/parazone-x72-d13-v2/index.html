@@ -153,6 +153,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .panelMiniIcon:active{cursor:grabbing}.panelMiniIcon:hover{border-color:#00e8ff;color:#fff;box-shadow:0 0 12px #00e8ff44}
 .panelMiniIconMark{flex:0 0 auto;color:#00e8ff;font-size:15px;text-shadow:0 0 8px #00e8ff88}
 .panelMiniIconText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panelMiniMagnetGhost{display:none;position:absolute;pointer-events:none;width:124px;height:42px;border:1px dashed #00e8ff;border-radius:7px;background:#00e8ff0c;box-shadow:0 0 16px #00e8ff33}.panelMiniMagnetGhost.active{display:block}.panelMiniMagnetGhost:after{content:attr(data-zone);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#9eefff;font:800 8px Consolas,monospace}
 .brutusDesktopMode .panelIconOverlay{display:none!important}
 @media(max-width:680px){.panelTools .panelScaleReadout{display:none}.panelTools .panelFoldBtn{min-width:58px}.panelControlBar{gap:4px}.panelMiniIcon{width:108px;height:38px}}
 </style>
@@ -1954,11 +1955,11 @@ function refreshPanelWorkspaceGeometry(refit=false){
     }
   });
 }
-const PANEL_ICON_GRID=16;
-let PANEL_ICON_OVERLAY=null;
+const PANEL_ICON_GRID=16,PANEL_ICON_MAGNET_RADIUS=92;
+let PANEL_ICON_OVERLAY=null,PANEL_ICON_GHOST=null;
 function ensurePanelIconOverlay(){
   if(PANEL_ICON_OVERLAY&&document.body.contains(PANEL_ICON_OVERLAY))return PANEL_ICON_OVERLAY;
-  PANEL_ICON_OVERLAY=document.createElement("div");PANEL_ICON_OVERLAY.className="panelIconOverlay";PANEL_ICON_OVERLAY.setAttribute("aria-label","Panneaux BRUTUS minimisés");document.body.appendChild(PANEL_ICON_OVERLAY);return PANEL_ICON_OVERLAY;
+  PANEL_ICON_OVERLAY=document.createElement("div");PANEL_ICON_OVERLAY.className="panelIconOverlay";PANEL_ICON_OVERLAY.setAttribute("aria-label","Panneaux BRUTUS minimisés");PANEL_ICON_GHOST=document.createElement("div");PANEL_ICON_GHOST.className="panelMiniMagnetGhost";PANEL_ICON_OVERLAY.appendChild(PANEL_ICON_GHOST);document.body.appendChild(PANEL_ICON_OVERLAY);return PANEL_ICON_OVERLAY;
 }
 function panelMiniLabel(panel,key){
   const h=panel.querySelector(":scope > .panelControlBar > h2");
@@ -1966,12 +1967,26 @@ function panelMiniLabel(panel,key){
   const l=panel.querySelector(":scope > .panelControlBar > .panelControlLabel");
   return (l?.textContent||key).trim();
 }
-function panelMiniClamp(x,y){
-  const w=124,h=42,maxX=Math.max(0,Math.floor((window.innerWidth-w)/PANEL_ICON_GRID)*PANEL_ICON_GRID),maxY=Math.max(0,Math.floor((window.innerHeight-h)/PANEL_ICON_GRID)*PANEL_ICON_GRID);
-  return {x:Math.max(0,Math.min(maxX,Math.round(x/PANEL_ICON_GRID)*PANEL_ICON_GRID)),y:Math.max(0,Math.min(maxY,Math.round(y/PANEL_ICON_GRID)*PANEL_ICON_GRID))};
+function panelMiniRawClamp(x,y,w=124,h=42){
+  return {x:Math.max(0,Math.min(Math.max(0,window.innerWidth-w),x)),y:Math.max(0,Math.min(Math.max(0,window.innerHeight-h),y))};
 }
-function persistPanelMiniPosition(key,x,y){
-  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:true,iconX:x,iconY:y};
+function panelMiniMagnets(w=124,h=42){
+  const left=16,center=Math.max(16,(window.innerWidth-w)/2),right=Math.max(16,window.innerWidth-w-16),top=80,bottom=Math.max(80,window.innerHeight-h-16);
+  return [{n:1,x:left,y:top},{n:2,x:center,y:top},{n:3,x:right,y:top},{n:4,x:left,y:bottom},{n:5,x:center,y:bottom},{n:6,x:right,y:bottom}].map(a=>({...a,x:Math.round(a.x/PANEL_ICON_GRID)*PANEL_ICON_GRID,y:Math.round(a.y/PANEL_ICON_GRID)*PANEL_ICON_GRID}));
+}
+function panelMiniPosition(x,y,shift=false,w=124,h=42){
+  const raw=panelMiniRawClamp(x,y,w,h);if(shift)return {...raw,zone:0};
+  let best=null;for(const a of panelMiniMagnets(w,h)){const d=Math.hypot(raw.x-a.x,raw.y-a.y);if(!best||d<best.d)best={...a,d}}
+  if(best&&best.d<=PANEL_ICON_MAGNET_RADIUS)return {x:best.x,y:best.y,zone:best.n};
+  return {...panelMiniRawClamp(Math.round(raw.x/PANEL_ICON_GRID)*PANEL_ICON_GRID,Math.round(raw.y/PANEL_ICON_GRID)*PANEL_ICON_GRID,w,h),zone:0};
+}
+function showPanelMiniGhost(pos){
+  if(!PANEL_ICON_GHOST)return;if(!pos?.zone){PANEL_ICON_GHOST.classList.remove("active");return}
+  PANEL_ICON_GHOST.style.left=pos.x+"px";PANEL_ICON_GHOST.style.top=pos.y+"px";PANEL_ICON_GHOST.dataset.zone="SNAP "+pos.zone;PANEL_ICON_GHOST.classList.add("active");
+}
+function hidePanelMiniGhost(){PANEL_ICON_GHOST?.classList.remove("active")}
+function persistPanelMiniPosition(key,x,y,precise=false){
+  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:true,iconX:x,iconY:y,iconPrecise:!!precise};
   savePanelWorkspaceState();
 }
 function renderPanelMiniIcon(panel){
@@ -1989,8 +2004,8 @@ function renderPanelMiniIcon(panel){
       if(e.button!==0)return;e.preventDefault();moved=false;
       const sx=e.clientX,sy=e.clientY,ox=parseFloat(icon.style.left)||0,oy=parseFloat(icon.style.top)||0;
       try{icon.setPointerCapture(e.pointerId)}catch(_){}
-      const move=ev=>{if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>5)moved=true;icon.style.left=(ox+ev.clientX-sx)+"px";icon.style.top=(oy+ev.clientY-sy)+"px"};
-      const up=ev=>{try{icon.releasePointerCapture?.(ev.pointerId)}catch(_){};icon.removeEventListener("pointermove",move);icon.removeEventListener("pointerup",up);const p=panelMiniClamp(parseFloat(icon.style.left)||0,parseFloat(icon.style.top)||0);icon.style.left=p.x+"px";icon.style.top=p.y+"px";persistPanelMiniPosition(key,p.x,p.y);if(!moved)setPanelFold(panel,false)};
+      const move=ev=>{if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>5)moved=true;const p=panelMiniPosition(ox+ev.clientX-sx,oy+ev.clientY-sy,ev.shiftKey);icon.style.left=p.x+"px";icon.style.top=p.y+"px";showPanelMiniGhost(p)};
+      const up=ev=>{try{icon.releasePointerCapture?.(ev.pointerId)}catch(_){};icon.removeEventListener("pointermove",move);icon.removeEventListener("pointerup",up);hidePanelMiniGhost();const p=panelMiniPosition(parseFloat(icon.style.left)||0,parseFloat(icon.style.top)||0,ev.shiftKey);icon.style.left=p.x+"px";icon.style.top=p.y+"px";persistPanelMiniPosition(key,p.x,p.y,ev.shiftKey);if(!moved)setPanelFold(panel,false)};
       icon.addEventListener("pointermove",move);icon.addEventListener("pointerup",up);
     });
     icon.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setPanelFold(panel,false)}});
@@ -1999,7 +2014,7 @@ function renderPanelMiniIcon(panel){
   try{const r=JSON.parse(panel.dataset.lastVisibleRect||"null");if(r&&Number.isFinite(r.left)&&Number.isFinite(r.top))fallback=r}catch(_){}
   const ordinal=[...overlay.querySelectorAll(".panelMiniIcon")].indexOf(icon);
   if(!Number.isFinite(fallback.left)||!Number.isFinite(fallback.top)){fallback={left:16+(ordinal%8)*128,top:96+Math.floor(ordinal/8)*48}}
-  const p=panelMiniClamp(Number.isFinite(Number(saved.iconX))?Number(saved.iconX):fallback.left,Number.isFinite(Number(saved.iconY))?Number(saved.iconY):fallback.top);
+  const sx=Number.isFinite(Number(saved.iconX))?Number(saved.iconX):fallback.left,sy=Number.isFinite(Number(saved.iconY))?Number(saved.iconY):fallback.top;const p=saved.iconPrecise?{...panelMiniRawClamp(sx,sy),zone:0}:panelMiniPosition(sx,sy,false);
   icon.style.left=p.x+"px";icon.style.top=p.y+"px";
 }
 function removePanelMiniIcon(panel){
