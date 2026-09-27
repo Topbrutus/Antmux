@@ -1,7 +1,7 @@
 (()=>{
 "use strict";
 const SCREEN=Number(new URLSearchParams(location.search).get("screen")||0);if(SCREEN<1||SCREEN>5)return;
-const KEY="BRUTUS_DESKTOP_WORKSPACE_V1",CHAN="BRUTUS_DESKTOP_WORKSPACE_V1",GRID=16,MAGNET_RADIUS=92;let state,surface,icons,channel,z=30,applying=false,magnetGhost=null,windowMenu=null,windowMenuList=null;
+const KEY="BRUTUS_DESKTOP_WORKSPACE_V1",CHAN="BRUTUS_DESKTOP_WORKSPACE_V1",GRID=16,MAGNET_RADIUS=92,ICON_TRANSFER_MIME="application/x-brutus-workspace-icon";let state,surface,icons,channel,z=30,applying=false,magnetGhost=null,windowMenu=null,windowMenuList=null;
 const cards=new Map(),orig=new Map(),A=new Set(["ANALYSIS-AMP-01","ANALYSIS-HISTORY-01","TIMEBASE-01","SAMPLER-01","SAMPLER-QUALITY-01","CRACK-METER-01","CRACK-CLASSIFIER-01"]),O=new Set(["PRESET-BANK-01","REFERENCE-CATALOG-01","MICROPHONE-SOURCE-01","SIGNAL-GENERATOR-01"]),C=new Set(["INPUT-TEST-01","CONNECT-T2-01","CONNECT-T3-01","CONNECT-T4-01","CONNECT-T5-01"]);
 const snap=v=>Math.round(v/GRID)*GRID,clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),clone=x=>JSON.parse(JSON.stringify(x));
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
@@ -57,8 +57,72 @@ function bump(m){m.z=++z;if(z>800){z=31;m.z=z}}
 function dropAt(x,y){const e=document.elementFromPoint(x,y)?.closest?.("[data-screen-open]");return e?+e.dataset.screenOpen:0} function dropHi(x,y){document.querySelectorAll("[data-screen-open]").forEach(b=>b.classList.remove("workspaceDrop"));const n=dropAt(x,y);if(n)document.querySelector('[data-screen-open="'+n+'"]')?.classList.add("workspaceDrop")} function dropClear(){document.querySelectorAll(".workspaceDrop").forEach(b=>b.classList.remove("workspaceDrop"))}
 function dragStart(ev,k){if(!state.enabled||ev.button!==0)return;const e=cards.get(k),m=state.live.modules[k];if(!e||!m||m.min)return;ev.preventDefault();bump(m);const sx=ev.clientX,sy=ev.clientY,ox=m.x,oy=m.y,h=ev.currentTarget;try{h.setPointerCapture(ev.pointerId)}catch(_){};const mv=x=>{const pos=magneticPosition(ox+x.clientX-sx,oy+x.clientY-sy,m.w,m.h,x.shiftKey);m.x=pos.x;m.y=pos.y;e.style.left=m.x+"px";e.style.top=m.y+"px";showMagnetGhost(pos,m.w,m.h);dropHi(x.clientX,x.clientY)},up=x=>{try{h.releasePointerCapture?.(x.pointerId)}catch(_){};h.removeEventListener("pointermove",mv);h.removeEventListener("pointerup",up);const t=dropAt(x.clientX,x.clientY);dropClear();hideMagnetGhost();if(t&&t!==SCREEN){m.screen=t;m.x=16;m.y=48;m.precise=false;bump(m)}else{const pos=magneticPosition(m.x,m.y,m.w,m.h,x.shiftKey);m.x=pos.x;m.y=pos.y;m.precise=!!x.shiftKey}save();apply()};h.addEventListener("pointermove",mv);h.addEventListener("pointerup",up)}
 function resizeStart(ev,k){if(!state.enabled||ev.button!==0)return;ev.preventDefault();ev.stopPropagation();const e=cards.get(k),m=state.live.modules[k],h=ev.currentTarget,sx=ev.clientX,sy=ev.clientY,ow=m.w,oh=m.h;bump(m);try{h.setPointerCapture(ev.pointerId)}catch(_){};const mv=x=>{m.w=Math.max(180,ow+x.clientX-sx);m.h=Math.max(110,oh+x.clientY-sy);e.style.width=m.w+"px";e.style.height=m.h+"px"},up=x=>{try{h.releasePointerCapture?.(x.pointerId)}catch(_){};h.removeEventListener("pointermove",mv);h.removeEventListener("pointerup",up);if(!x.shiftKey){m.w=snap(m.w);m.h=snap(m.h);m.precise=false}else{m.w=Math.max(180,m.w);m.h=Math.max(110,m.h);m.precise=true};bounds(m,!!m.precise);save();cardApply(k,e);dispatchEvent(new Event("resize"))};h.addEventListener("pointermove",mv);h.addEventListener("pointerup",up)}
-function minimize(k){const m=state.live.modules[k];if(!m)return;m.min=true;m.ix=snap(m.x||16);m.iy=snap(m.y||56);bump(m);save();apply()} function restore(k){const m=state.live.modules[k];if(!m)return;m.min=false;bump(m);save();apply()}
-function iconRender(){icons.innerHTML="";for(const[k,m]of Object.entries(state.live.modules)){if(m.closed||!m.min||+m.screen!==SCREEN)continue;bounds(m,!!m.iprecise);const c=cards.get(k);if(!c)continue;const i=document.createElement("div");i.className="workspaceIcon";i.textContent=labelOf(c,k);i.style.left=m.ix+"px";i.style.top=m.iy+"px";let moved=false;i.onpointerdown=ev=>{if(ev.button!==0)return;ev.preventDefault();const sx=ev.clientX,sy=ev.clientY,ox=m.ix,oy=m.iy;moved=false;try{i.setPointerCapture(ev.pointerId)}catch(_){};const mv=x=>{if(Math.abs(x.clientX-sx)+Math.abs(x.clientY-sy)>5)moved=true;const pos=magneticPosition(ox+x.clientX-sx,oy+x.clientY-sy,88,62,x.shiftKey);m.ix=pos.x;m.iy=pos.y;i.style.left=m.ix+"px";i.style.top=m.iy+"px";showMagnetGhost(pos,88,62);dropHi(x.clientX,x.clientY)},up=x=>{try{i.releasePointerCapture?.(x.pointerId)}catch(_){};i.removeEventListener("pointermove",mv);i.removeEventListener("pointerup",up);const t=dropAt(x.clientX,x.clientY);dropClear();hideMagnetGhost();if(t&&t!==SCREEN){m.screen=t;m.ix=16;m.iy=56;m.iprecise=false}else{const pos=magneticPosition(m.ix,m.iy,88,62,x.shiftKey);m.ix=pos.x;m.iy=pos.y;m.iprecise=!!x.shiftKey}save();if(!moved&&(!t||t===SCREEN))restore(k);else apply()};i.addEventListener("pointermove",mv);i.addEventListener("pointerup",up)};icons.appendChild(i)}}
+function minimize(k){const m=state.live.modules[k];if(!m)return;m.min=true;m.ix=snap(m.x||16);m.iy=snap(m.y||56);bump(m);save();apply()}
+function restore(k){const m=state.live.modules[k];if(!m)return;m.min=false;bump(m);save();apply()}
+function restoreHere(k){
+  const m=state.live.modules[k];if(!m)return;
+  m.closed=false;delete m.closedScreen;m.screen=SCREEN;m.min=false;m.x=16;m.y=48;m.precise=false;bump(m);save();apply();
+}
+function iconTransferPayload(k){const m=state.live.modules[k];return JSON.stringify({type:"BRUTUS_WORKSPACE_ICON",key:k,sourceView:SCREEN,screen:Number(m?.screen)||SCREEN})}
+function readIconTransfer(ev){
+  let raw="";
+  try{raw=ev.dataTransfer?.getData(ICON_TRANSFER_MIME)||ev.dataTransfer?.getData("text/plain")||""}catch(_){}
+  try{const d=JSON.parse(raw);if(d?.type==="BRUTUS_WORKSPACE_ICON"&&cards.has(d.key))return d}catch(_){}
+  return null;
+}
+function moveIconLocal(k,clientX,clientY,shift=false){
+  const m=state.live.modules[k];if(!m||!surface)return;
+  const r=surface.getBoundingClientRect(),p=magneticPosition(clientX-r.left-44,clientY-r.top-31,88,62,shift);
+  m.ix=p.x;m.iy=p.y;m.iprecise=!!shift;bump(m);save();apply();
+}
+function transferPanelTo(k,targetScreen,clientX=null,clientY=null,shift=false){
+  const m=state.live.modules[k];if(!m)return;
+  m.closed=false;delete m.closedScreen;m.screen=targetScreen;m.min=false;m.precise=!!shift;
+  if(targetScreen===SCREEN&&surface&&Number.isFinite(clientX)&&Number.isFinite(clientY)){
+    const r=surface.getBoundingClientRect(),p=magneticPosition(clientX-r.left-(Number(m.w)||390)/2,clientY-r.top-(Number(m.h)||260)/2,Number(m.w)||390,Number(m.h)||260,shift);
+    m.x=p.x;m.y=p.y;
+  }else{m.x=16;m.y=48;m.precise=false}
+  bump(m);save();apply();
+}
+function installIconTransfers(){
+  document.addEventListener("dragover",e=>{
+    const types=[...(e.dataTransfer?.types||[])];
+    if(types.includes(ICON_TRANSFER_MIME)||types.includes("text/plain")){e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="move"}
+  },true);
+  document.addEventListener("drop",e=>{
+    const d=readIconTransfer(e);if(!d)return;
+    e.preventDefault();e.stopPropagation();dropClear();hideMagnetGhost();
+    const targetButton=e.target.closest?.("[data-screen-open]"),targetScreen=targetButton?Number(targetButton.dataset.screenOpen):SCREEN;
+    const m=state.live.modules[d.key];if(!m)return;
+    const sameLocalIcon=targetScreen===SCREEN&&Number(d.sourceView)===SCREEN&&Number(m.screen)===SCREEN&&!targetButton;
+    if(sameLocalIcon)moveIconLocal(d.key,e.clientX,e.clientY,e.shiftKey);
+    else transferPanelTo(d.key,targetScreen,e.clientX,e.clientY,e.shiftKey);
+  },true);
+}
+function iconRender(){
+  icons.innerHTML="";
+  for(const[k,m]of Object.entries(state.live.modules)){
+    if(m.closed||!m.min)continue;
+    const c=cards.get(k);if(!c)continue;
+    const W=Math.max(220,(surface?.clientWidth||innerWidth)-16),H=Math.max(180,(surface?.clientHeight||innerHeight)-48);
+    const ix=clamp(Number(m.ix)||16,0,Math.max(0,W-88)),iy=clamp(Number(m.iy)||56,48,Math.max(48,H-62));
+    const i=document.createElement("div");i.className="workspaceIcon";i.draggable=true;i.dataset.panelKey=k;
+    i.textContent=(Number(m.screen)===SCREEN?"":"S"+m.screen+" · ")+labelOf(c,k);
+    i.title=Number(m.screen)===SCREEN?"Cliquer pour rouvrir · glisser pour déplacer/transférer":"SCREEN "+m.screen+" · cliquer pour amener ici · glisser pour transférer";
+    i.style.left=ix+"px";i.style.top=iy+"px";
+    let dragged=false;
+    i.addEventListener("dragstart",ev=>{
+      dragged=true;if(!ev.dataTransfer)return;
+      const payload=iconTransferPayload(k);ev.dataTransfer.effectAllowed="move";
+      try{ev.dataTransfer.setData(ICON_TRANSFER_MIME,payload)}catch(_){}
+      try{ev.dataTransfer.setData("text/plain",payload)}catch(_){}
+      i.style.opacity=".55";
+    });
+    i.addEventListener("dragend",()=>{i.style.opacity="";setTimeout(()=>{dragged=false},0);dropClear();hideMagnetGhost()});
+    i.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(dragged)return;restoreHere(k)});
+    icons.appendChild(i);
+  }
+}
 function profiles(){const s=document.querySelector(".workspaceProfiles");if(!s)return;const cur=state.active||s.value;s.innerHTML='<option value="">MODULES SAUVÉS</option>';Object.keys(state.profiles).sort().forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;s.appendChild(o)});if(state.profiles[cur])s.value=cur}
 function apply(){if(applying)return;applying=true;document.body.classList.toggle("brutusDesktopMode",!!state.enabled);const b=document.querySelector(".workspaceModeBtn");if(b){b.classList.toggle("active",!!state.enabled);b.textContent=state.enabled?"BUREAU ON":"BUREAU"}if(state.enabled){for(const[k,e]of cards){prep(e,k);cardApply(k,e)}iconRender();profiles()}else{for(const e of cards.values())restoreOriginal(e);icons.innerHTML=""}syncClosedClasses();refreshWindowMenu();dispatchEvent(new Event("resize"));applying=false}
 function ui(){const tb=document.getElementById("screenTitleBar");
@@ -69,6 +133,6 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());windowMenu.append(menuBtn,windowMenuList);tb?.insertBefore(windowMenu,tb.children[1]||null);
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn";b.type="button";b.textContent="BUREAU";b.onclick=()=>{state.enabled=!state.enabled;save();apply()};tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · GLISSER SUR SCREEN 1–5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply()}
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply()}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
