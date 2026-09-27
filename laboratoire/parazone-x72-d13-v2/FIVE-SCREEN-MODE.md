@@ -64,3 +64,24 @@ Chaque panneau de travail visible dispose maintenant de contrôles `−`, `+` et
 - l'état est mémorisé localement séparément pour chaque vue BRUTUS avec `BRUTUS_PANEL_WORKSPACE_V1:SCREEN_<n>`.
 
 Le pliage et le zoom sont des préférences d'affichage locales : ils ne modifient ni la chaîne de preuve ni l'état scientifique partagé entre les cinq écrans.
+
+## Bureau BRUTUS — cartes libres multi-écrans
+
+Le bouton `BUREAU` active une couche de travail libre au-dessus des cinq vues sans déplacer le noyau réel.
+
+Dans ce mode :
+- chaque panneau préparé devient une carte indépendante;
+- la barre de titre sert de poignée de déplacement;
+- le coin inférieur droit redimensionne la carte;
+- position et dimensions se recalent sur une grille semi-snap de 16 px;
+- le bouton `▁` réduit une carte en icône 88 × 62 px;
+- les icônes restent déplaçables et se recalent elles aussi sur la grille;
+- un clic sur une icône restaure sa carte;
+- une carte ou une icône peut être glissée sur `SCREEN 1` à `SCREEN 5` pour changer d'écran;
+- `RANGER` remet les cartes dans leur répartition canonique;
+- un arrangement peut être enregistré sous un nom puis rouvert comme module de travail.
+
+État partagé du bureau : `BRUTUS_DESKTOP_WORKSPACE_V1`.
+Bus de synchronisation du bureau : `BRUTUS_DESKTOP_WORKSPACE_V1`.
+
+Le transfert d'une carte change son emplacement d'interface, pas la propriété des ressources physiques. Le noyau reste propriétaire des opérations concernées; une commande déplacée continue de passer par le bus BRUTUS existant. En particulier, l'écran 3 reste le propriétaire du noyau dans l'architecture actuelle.
