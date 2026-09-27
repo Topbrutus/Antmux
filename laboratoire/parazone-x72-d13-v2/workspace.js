@@ -85,6 +85,11 @@ function transferPanelTo(k,targetScreen,clientX=null,clientY=null,shift=false){
   bump(m);save();apply();
 }
 function installIconTransfers(){
+  addEventListener("message",e=>{
+    if(e.origin!==location.origin||e.source!==parent)return;
+    const m=e.data||{};if(m.type!=="BRUTUS_ICON_DROP"||!cards.has(m.key))return;
+    transferPanelTo(m.key,SCREEN,Number(m.clientX),Number(m.clientY),!!m.shiftKey);
+  });
   document.addEventListener("dragover",e=>{
     const types=[...(e.dataTransfer?.types||[])];
     if(types.includes(ICON_TRANSFER_MIME)||types.includes("text/plain")){e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="move"}
@@ -116,9 +121,10 @@ function iconRender(){
       const payload=iconTransferPayload(k);ev.dataTransfer.effectAllowed="move";
       try{ev.dataTransfer.setData(ICON_TRANSFER_MIME,payload)}catch(_){}
       try{ev.dataTransfer.setData("text/plain",payload)}catch(_){}
+      try{if(parent&&parent!==window)parent.postMessage({type:"BRUTUS_ICON_DRAG_START",key:k,sourceScreen:SCREEN},location.origin)}catch(_){}
       i.style.opacity=".55";
     });
-    i.addEventListener("dragend",()=>{i.style.opacity="";setTimeout(()=>{dragged=false},0);dropClear();hideMagnetGhost()});
+    i.addEventListener("dragend",()=>{i.style.opacity="";try{if(parent&&parent!==window)parent.postMessage({type:"BRUTUS_ICON_DRAG_END",key:k,sourceScreen:SCREEN},location.origin)}catch(_){};setTimeout(()=>{dragged=false},0);dropClear();hideMagnetGhost()});
     i.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();if(dragged)return;restoreHere(k)});
     icons.appendChild(i);
   }
