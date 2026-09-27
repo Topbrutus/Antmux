@@ -65,23 +65,36 @@ Chaque panneau de travail visible dispose maintenant de contrôles `−`, `+` et
 
 Le pliage et le zoom sont des préférences d'affichage locales : ils ne modifient ni la chaîne de preuve ni l'état scientifique partagé entre les cinq écrans.
 
-## Bureau BRUTUS — cartes libres multi-écrans
+## Bureau BRUTUS — gestionnaire de fenêtres V2
 
-Le bouton `BUREAU` active une couche de travail libre au-dessus des cinq vues sans déplacer le noyau réel.
+Le bouton `BUREAU` active un gestionnaire de fenêtres libre au-dessus des cinq vues sans déplacer le noyau réel.
+
+Build vérifiable : `BRUTUS_WINDOW_MANAGER_V2`.
 
 Dans ce mode :
-- chaque panneau préparé devient une carte indépendante;
+- chaque panneau préparé devient une fenêtre indépendante;
+- clic sur une fenêtre = focus + remontée au premier plan;
 - la barre de titre sert de poignée de déplacement;
-- le coin inférieur droit redimensionne la carte;
-- position et dimensions se recalent sur une grille semi-snap de 16 px;
-- le bouton `▁` réduit une carte en icône 88 × 62 px;
-- les icônes restent déplaçables et se recalent elles aussi sur la grille;
-- un clic sur une icône restaure sa carte;
-- une carte ou une icône peut être glissée sur `SCREEN 1` à `SCREEN 5` pour changer d'écran;
-- `RANGER` remet les cartes dans leur répartition canonique;
+- double-clic sur la barre de titre = maximiser / restaurer;
+- huit poignées redimensionnent par les quatre bords et les quatre coins;
+- `LOCK / UNLOCK` verrouille ou libère position et dimensions;
+- `▁` réduit une fenêtre en icône 88 × 62 px;
+- `□ / ▣` maximise ou restaure une fenêtre;
+- les icônes restent déplaçables et un clic les restaure;
+- une fenêtre ou une icône peut être glissée sur `SCREEN 1` à `SCREEN 5` pour changer d'écran;
+- la grille peut être réglée sur `OFF / 8 / 16 / 32 px`;
+- `ALT` permet un placement libre sans snap;
+- `MAGNET ON / OFF` contrôle l'aimantation aux bords et aux autres fenêtres;
+- l'inspecteur `X / Y / L / H / SCREEN` permet un placement numérique exact;
+- `CENTRER` place précisément la fenêtre sélectionnée au centre;
+- les flèches déplacent une fenêtre sélectionnée de 1 px;
+- `SHIFT + flèche` utilise un grand pas; `CTRL/CMD + flèche` ajuste la taille;
+- `RANGER` remet les fenêtres dans leur répartition canonique;
 - un arrangement peut être enregistré sous un nom puis rouvert comme module de travail.
 
-État partagé du bureau : `BRUTUS_DESKTOP_WORKSPACE_V1`.
-Bus de synchronisation du bureau : `BRUTUS_DESKTOP_WORKSPACE_V1`.
+Compatibilité conservée :
+- état partagé : `BRUTUS_DESKTOP_WORKSPACE_V1`;
+- bus de synchronisation : `BRUTUS_DESKTOP_WORKSPACE_V1`;
+- les arrangements V1 existants sont normalisés vers le modèle V2 sans changer de clé de stockage.
 
-Le transfert d'une carte change son emplacement d'interface, pas la propriété des ressources physiques. Le noyau reste propriétaire des opérations concernées; une commande déplacée continue de passer par le bus BRUTUS existant. En particulier, l'écran 3 reste le propriétaire du noyau dans l'architecture actuelle.
+Le transfert ou le redimensionnement d'une fenêtre modifie uniquement l'interface. Il ne change ni la topologie D13, ni la chaîne de preuve, ni la propriété des ressources physiques. L'écran 3 reste le propriétaire du noyau dans l'architecture actuelle.

@@ -79,6 +79,7 @@ jobs:
           grep -Fq 'BRUTUS // MODE 5 ÉCRANS' laboratoire/parazone-x72-d13-v2/five-screens.html
           grep -Fq 'BRUTUS_SCREEN_PLACEMENT_V1' laboratoire/parazone-x72-d13-v2/five-screens.js
           grep -Fq 'BRUTUS_DESKTOP_WORKSPACE_V1' laboratoire/parazone-x72-d13-v2/workspace.js
+          grep -Fq 'BRUTUS_WINDOW_MANAGER_V2' laboratoire/parazone-x72-d13-v2/workspace.js
           grep -Fq 'BRUTUS // SCREEN 1' laboratoire/parazone-x72-d13-v2/screen-1-master.html
           grep -Fq 'BRUTUS // SCREEN 2' laboratoire/parazone-x72-d13-v2/screen-2-analysis.html
           grep -Fq 'BRUTUS // SCREEN 3' laboratoire/parazone-x72-d13-v2/screen-3-operator.html
@@ -234,6 +235,7 @@ jobs:
           grep -Fq 'BRUTUS // MODE 5 ÉCRANS' /tmp/parazone-five-screens.html
           grep -Fq 'BRUTUS_SCREEN_PLACEMENT_V1' /tmp/parazone-five-screens.js
           grep -Fq 'BRUTUS_DESKTOP_WORKSPACE_V1' /tmp/parazone-workspace.js
+          grep -Fq 'BRUTUS_WINDOW_MANAGER_V2' /tmp/parazone-workspace.js
           grep -Fq 'BRUTUS // SCREEN 1' /tmp/parazone-screen-1-master.html
           grep -Fq 'BRUTUS // SCREEN 2' /tmp/parazone-screen-2-analysis.html
           grep -Fq 'BRUTUS // SCREEN 3' /tmp/parazone-screen-3-operator.html
