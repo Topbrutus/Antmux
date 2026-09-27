@@ -168,6 +168,91 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());windowMenu.append(menuBtn,windowMenuList);tb?.insertBefore(windowMenu,tb.children[1]||null);
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn";b.type="button";b.textContent="BUREAU";b.onclick=()=>{state.enabled=!state.enabled;save();apply()};tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · FENÊTRES = DIRECTORY GLOBAL S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply()}
+function workspaceSnapshot(){
+  const modules={};
+  for(const [k,e] of cards){
+    const m=state?.live?.modules?.[k];
+    if(!m)continue;
+    modules[k]={
+      key:k,
+      label:labelOf(e,k),
+      home:home(e,k),
+      screen:Number(m.screen)||home(e,k),
+      closed:!!m.closed,
+      minimized:!!m.min,
+      x:Number(m.x)||0,
+      y:Number(m.y)||0,
+      w:Number(m.w)||0,
+      h:Number(m.h)||0,
+      z:Number(m.z)||0
+    };
+  }
+  return {
+    schema:"ANTMUX-BRUTUS-WORKSPACE-CONTROL-v1",
+    screen:SCREEN,
+    ready:!!state&&cards.size>0,
+    desktop_enabled:!!state?.enabled,
+    active_profile:state?.active||"",
+    module_count:Object.keys(modules).length,
+    modules
+  };
+}
+function machineRequire(k){
+  if(!state||!cards.has(k)||!state.live?.modules?.[k])throw new Error("BRUTUS_WINDOW_NOT_FOUND:"+k);
+  return state.live.modules[k];
+}
+function machineDesktop(enabled){
+  if(!state)throw new Error("BRUTUS_WORKSPACE_NOT_READY");
+  state.enabled=!!enabled;save();apply();return workspaceSnapshot();
+}
+function machineRoute(k,targetScreen){
+  machineRequire(k);
+  const target=Number(targetScreen);
+  if(!Number.isInteger(target)||target<1||target>5)throw new RangeError("screen must be 1..5");
+  routeWindow(k,target);
+  return workspaceSnapshot().modules[k];
+}
+function machineClose(k){
+  const m=machineRequire(k);
+  m.closed=true;m.closedScreen=Number(m.screen)||SCREEN;m.min=false;bump(m);save();apply();
+  return workspaceSnapshot().modules[k];
+}
+function machineMinimize(k){
+  const m=machineRequire(k);
+  m.closed=false;delete m.closedScreen;minimize(k);
+  return workspaceSnapshot().modules[k];
+}
+function machineOpen(k,targetScreen=SCREEN){
+  return machineRoute(k,targetScreen);
+}
+function machinePlace(k,spec={}){
+  const m=machineRequire(k);
+  const target=spec.screen===undefined?Number(m.screen)||SCREEN:Number(spec.screen);
+  if(!Number.isInteger(target)||target<1||target>5)throw new RangeError("screen must be 1..5");
+  m.closed=false;delete m.closedScreen;m.min=false;m.screen=target;
+  if(spec.x!==undefined)m.x=Number(spec.x);
+  if(spec.y!==undefined)m.y=Number(spec.y);
+  if(spec.w!==undefined)m.w=Number(spec.w);
+  if(spec.h!==undefined)m.h=Number(spec.h);
+  m.precise=!!spec.precise;
+  for(const name of ["x","y","w","h"])if(!Number.isFinite(Number(m[name])))throw new TypeError(name+" must be finite");
+  bounds(m,m.precise);bump(m);state.enabled=true;save();apply();
+  return workspaceSnapshot().modules[k];
+}
+const WORKSPACE_CONTROL=Object.freeze({
+  version:"1.0",
+  ready:()=>!!state&&cards.size>0,
+  snapshot:workspaceSnapshot,
+  list:()=>Object.values(workspaceSnapshot().modules),
+  desktop:machineDesktop,
+  open:machineOpen,
+  close:machineClose,
+  minimize:machineMinimize,
+  route:machineRoute,
+  place:machinePlace
+});
+Object.defineProperty(window,"BRUTUS_WORKSPACE_CONTROL",{value:WORKSPACE_CONTROL,writable:false,configurable:false,enumerable:false});
+
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply();dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
