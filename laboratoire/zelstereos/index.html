@@ -77,6 +77,11 @@ let lastAudioStageIndex=null;
 let lastAudioEventVersion=null;
 let wsHasLiveState=false;
 let lastRenderedPublicState=null;
+let lastExternalPublicState=null;
+let aiSelectedFormula=null;
+let aiPresentationActive=false;
+let aiPresentationHoldUntil=0;
+let aiLocalEventVersion=1000000;
 let lastWsMessageAt=0;
 let lastLiveStagePerf=0;
 let liveMachineOffset=Math.floor(Math.random()*20);
@@ -459,7 +464,11 @@ function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stag
   }
   $('stage').textContent=s.stage;$('channels').textContent=s.channels;$('trace').textContent=s.trace_points+' / '+s.trace_total;
   $('error').textContent=s.global_error.exact+' ≈ '+Number(s.global_error.decimal).toPrecision(6);
-  $('f1').textContent=s.f1.formula_id+' · '+s.f1.value+' (k='+s.f1.k+')';$('formula').textContent=s.f1.formula;$('commit').textContent=s.f1.source_commit_short+'…';
+  const fm=s.formula_meta||s.f1||{};
+  const suffix=(fm.k!==undefined&&fm.k!==null&&fm.k!=='')?' (k='+fm.k+')':'';
+  $('f1').textContent=(fm.formula_id||'—')+' · '+(fm.value??'—')+suffix;
+  $('formula').textContent=fm.formula||fm.normalized_formula||'—';
+  $('commit').textContent=(fm.source_commit_short||fm.selector||'RECTO')+'…';
   document.querySelectorAll('.stage').forEach((el,i)=>{el.classList.toggle('active',i===s.stage_index);el.classList.toggle('done',i<s.stage_index);});
   $('values').innerHTML='';(s.public_values||[]).forEach((v,i)=>{const d=document.createElement('div');d.className='value';d.innerHTML='<small>CANAL '+String(i+1).padStart(2,'0')+'</small>'+v.exact+'<small>'+Number(v.decimal).toPrecision(9)+'</small>';$('values').appendChild(d);});
   $('valueNote').textContent=(s.public_values_total||0)+' valeur(s) dans cet étage · '+(s.public_values||[]).length+' affichée(s) publiquement.';
@@ -478,6 +487,8 @@ function connectZelWebSocket(){
       if(s.mode!=='PUBLIC_SAFE'||s.read_only!==true||!Number.isInteger(s.stage_index)||s.stage_index<0||s.stage_index>6)return;
       wsHasLiveState=true;
       lastWsMessageAt=Date.now();
+      lastExternalPublicState=JSON.parse(JSON.stringify(s));
+      if(aiPresentationActive||Date.now()<aiPresentationHoldUntil)return;
       const nowPerf=performance.now();
       const stageDt=lastLiveStagePerf?Math.max(.08,Math.min(2.5,(nowPerf-lastLiveStagePerf)/1000)):.65;
       lastLiveStagePerf=nowPerf;
@@ -491,11 +502,36 @@ function connectZelWebSocket(){
   zelSocket.addEventListener('close',()=>{wsHasLiveState=false;zelReconnectTimer=setTimeout(connectZelWebSocket,1500);});
   zelSocket.addEventListener('error',()=>{try{zelSocket.close();}catch(e){}});
 }
+function zelAiClone(value){return JSON.parse(JSON.stringify(value));}
+function zelAiFormulaSummary(meta){
+  if(!meta)return null;
+  return {
+    selector:String(meta.selector||'').slice(0,16),
+    formula_id:String(meta.formula_id||'').slice(0,32),
+    name:String(meta.name||'').slice(0,160),
+    status:String(meta.status||'UNKNOWN').slice(0,32),
+    category:String(meta.category||'').slice(0,80),
+    normalized_formula:String(meta.normalized_formula||meta.formula||'').slice(0,512)
+  };
+}
+function zelAiSelectFormula(meta){
+  if(!meta||typeof meta!=='object')throw new TypeError('formula metadata object required');
+  const safe=zelAiFormulaSummary(meta);
+  if(!safe.formula_id)throw new TypeError('formula_id required');
+  aiSelectedFormula=Object.freeze(safe);
+  return zelAiClone(aiSelectedFormula);
+}
+function zelAiSelectedFormula(){return aiSelectedFormula?zelAiClone(aiSelectedFormula):null;}
 function zelAiDiagnostics(){
   return {
-    schema:'ANTMUX-ZELSTEREOS-AI-DIAGNOSTIC-v1',
+    schema:'ANTMUX-ZELSTEREOS-AI-DIAGNOSTIC-v2',
     source:'PAGE_RUNTIME',
     page:location.pathname,
+    selected_formula:zelAiSelectedFormula(),
+    presentation:{
+      active:aiPresentationActive,
+      hold_until:aiPresentationHoldUntil||null
+    },
     websocket:{
       ready_state:zelSocket?zelSocket.readyState:null,
       has_live_state:wsHasLiveState,
@@ -506,7 +542,7 @@ function zelAiDiagnostics(){
       muted:soundMuted,
       volume:soundVolume
     },
-    rendered_state:lastRenderedPublicState?JSON.parse(JSON.stringify(lastRenderedPublicState)):null
+    rendered_state:lastRenderedPublicState?zelAiClone(lastRenderedPublicState):null
   };
 }
 function zelAiSelfTest(){
@@ -519,22 +555,24 @@ function zelAiSelfTest(){
   }else{
     add('rendered_state_available',true,{status:s.status||null});
     if(Object.prototype.hasOwnProperty.call(s,'mode'))add('public_safe',s.mode==='PUBLIC_SAFE'&&s.read_only===true,{mode:s.mode,read_only:s.read_only});
-    const f1=s.f1||{};
-    const k=Number(f1.k);
-    const actual=Number(f1.value);
-    const expected=Number.isInteger(k)&&k>=1?4*(21**(k-1)):NaN;
-    add('f1_rank_formula',Number.isFinite(expected)&&Number.isFinite(actual)&&actual===expected,{
-      formula_id:f1.formula_id||null,
-      k:Number.isFinite(k)?k:null,
-      expected:Number.isFinite(expected)?expected:null,
-      actual:Number.isFinite(actual)?actual:null
-    });
+    const fm=s.formula_meta||s.f1||{};
+    if(fm.formula_id==='F1'){
+      const k=Number(fm.k);
+      const actual=Number(fm.value);
+      const expected=Number.isInteger(k)&&k>=1?4*(21**(k-1)):NaN;
+      add('f1_rank_formula',Number.isFinite(expected)&&Number.isFinite(actual)&&actual===expected,{
+        formula_id:fm.formula_id||null,
+        k:Number.isFinite(k)?k:null,
+        expected:Number.isFinite(expected)?expected:null,
+        actual:Number.isFinite(actual)?actual:null
+      });
+    }
     const ge=s.global_error||{};
     const geDecimal=Number(ge.decimal);
     add('global_error_finite',Number.isFinite(geDecimal),{exact:ge.exact??null,decimal:Number.isFinite(geDecimal)?geDecimal:null});
   }
   return {
-    schema:'ANTMUX-ZELSTEREOS-AI-SELFTEST-v1',
+    schema:'ANTMUX-ZELSTEREOS-AI-SELFTEST-v2',
     source:'PAGE_RUNTIME',
     ok:checks.length>0&&checks.every(item=>item.ok),
     timestamp:Date.now(),
@@ -558,12 +596,110 @@ function zelAiWaitForLive(timeoutMs=5000){
     },50);
   });
 }
+function zelAiNumericValue(step){
+  const raw=(step&&typeof step==='object'&&'decimal' in step)?step.decimal:(step&&typeof step==='object'&&'value' in step)?step.value:step;
+  const n=Number(raw);
+  return Number.isFinite(n)?n:null;
+}
+function zelAiExactValue(step){
+  if(step&&typeof step==='object'&&step.exact!==undefined)return String(step.exact);
+  if(step&&typeof step==='object'&&step.value!==undefined)return String(step.value);
+  return String(step);
+}
+async function zelAiPlayCalculation(spec={}){
+  if(aiPresentationActive)throw new Error('ZELSTEREOS_AI_PRESENTATION_BUSY');
+  if(spec.formula)zelAiSelectFormula(spec.formula);
+  const formula=aiSelectedFormula;
+  if(!formula)throw new Error('ZELSTEREOS_AI_FORMULA_NOT_SELECTED');
+  if(!Array.isArray(spec.stages)||spec.stages.length!==7)throw new TypeError('exactly seven calculation stages are required');
+  const stepMs=Math.max(120,Math.min(5000,Number(spec.step_ms)||650));
+  const holdMs=Math.max(0,Math.min(60000,Number(spec.hold_ms)||5000));
+  const traceId=String(spec.trace_id||('AI-'+Date.now())).slice(0,80);
+  const startedAt=Date.now();
+  const rendered=[];
+  aiPresentationActive=true;
+  aiPresentationHoldUntil=Number.MAX_SAFE_INTEGER;
+  try{
+    for(let i=0;i<7;i++){
+      const step=spec.stages[i]||{};
+      const decimal=zelAiNumericValue(step);
+      if(decimal===null)throw new TypeError('stage '+i+' requires a finite numeric value');
+      const exact=zelAiExactValue(step);
+      const eventVersion=++aiLocalEventVersion;
+      const state={
+        mode:'PUBLIC_SAFE',
+        read_only:true,
+        status:'LIVE',
+        stage_index:i,
+        stage:names[i],
+        channels:counts[i],
+        trace_points:i+1,
+        trace_total:7,
+        stage_exec_us:Number.isFinite(Number(step.exec_us))?Number(step.exec_us):0,
+        stage_work_ratio:i/6,
+        public_values:[{exact,decimal}],
+        public_values_total:1,
+        global_error:{
+          exact:String(step.error_exact??(i===4?'0':'0')),
+          decimal:Number.isFinite(Number(step.error_decimal))?Number(step.error_decimal):0
+        },
+        formula_meta:{
+          selector:formula.selector,
+          formula_id:formula.formula_id,
+          name:formula.name,
+          status:formula.status,
+          category:formula.category,
+          normalized_formula:formula.normalized_formula,
+          formula:formula.normalized_formula,
+          value:i===6?exact:(spec.output_exact??'…'),
+          source_commit_short:'AI-RECTO'
+        },
+        events:[{
+          seq:i+1,
+          timestamp:Date.now()/1000,
+          source:'ASTRA',
+          kind:i===0?'CALC_INPUT':(i===6?'CALC_OUTPUT':'CALC_STAGE'),
+          label:String(step.label||names[i]).slice(0,160),
+          detail:String(step.detail||'').slice(0,320),
+          status:i===6?'PASS':'RUN'
+        }],
+        event_seq:i+1,
+        timestamp:Date.now()/1000,
+        transport:'AI_RECTO_LOCAL_TRACE',
+        transport_event_version:eventVersion,
+        transport_replay:false,
+        trace_id:traceId
+      };
+      render(state,{audioFromWebSocket:true,stageDt:stepMs/1000,stageWorkRatio:i/6,stageExecUs:state.stage_exec_us});
+      rendered.push({stage_index:i,stage:names[i],channels:counts[i],exact,decimal,label:state.events[0].label,detail:state.events[0].detail});
+      if(i<6)await new Promise(resolve=>setTimeout(resolve,stepMs));
+    }
+    aiPresentationActive=false;
+    aiPresentationHoldUntil=Date.now()+holdMs;
+    return {
+      schema:'ANTMUX-ZELSTEREOS-AI-RECTO-TRACE-v1',
+      ok:true,
+      trace_id:traceId,
+      formula:zelAiSelectedFormula(),
+      started_at:startedAt,
+      completed_at:Date.now(),
+      stages:rendered
+    };
+  }catch(err){
+    aiPresentationActive=false;
+    aiPresentationHoldUntil=Date.now()+1500;
+    throw err;
+  }
+}
 Object.defineProperty(window,'ZELSTEREOS_AI',{
   value:Object.freeze({
-    version:'1.0',
+    version:'2.0',
     diagnostics:zelAiDiagnostics,
     selfTest:zelAiSelfTest,
-    waitForLive:zelAiWaitForLive
+    waitForLive:zelAiWaitForLive,
+    selectFormula:zelAiSelectFormula,
+    selectedFormula:zelAiSelectedFormula,
+    playCalculation:zelAiPlayCalculation
   }),
   writable:false,
   configurable:false,
@@ -571,12 +707,14 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
 });
 
 async function poll(){
+  if(aiPresentationActive||Date.now()<aiPresentationHoldUntil)return;
   if(wsHasLiveState && Date.now()-lastWsMessageAt<5000)return;
   try{
     const r=await fetch('./api/state',{cache:'no-store'});
     const s=await r.json();
+    lastExternalPublicState=JSON.parse(JSON.stringify(s));
     // Polling is display/state fallback only. It MUST NOT trigger cycle audio
-    // and MUST NOT overwrite a fresh WebSocket state.
+    // and MUST NOT overwrite a fresh WebSocket state or Astra presentation.
     render(s,{audioFromWebSocket:false});
   }catch(e){
     if(!wsHasLiveState)render({status:'OFFLINE'},{audioFromWebSocket:false});
