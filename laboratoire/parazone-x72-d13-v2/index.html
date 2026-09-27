@@ -1975,7 +1975,7 @@ function setupPanelWorkspace(){
   const targets=[...document.querySelectorAll(".panel:not(.controls),.engine,.t1Panel,.dialRack,.freqAutomation,.audioOutputPanel,.controlLaunchBar")];
   const seen=new Set();
   targets.forEach((panel,index)=>{
-    if(seen.has(panel)||panel.closest(".screenHiddenByMode"))return;
+    if(seen.has(panel))return;
     seen.add(panel);
     const key=panelWorkspaceKey(panel,index),saved=PANEL_WORKSPACE_STATE[key]||{};
     panel.classList.add("foldablePanel");
@@ -2027,5 +2027,6 @@ renderObservationBus();renderTimebase();renderSampler();renderWaveChart();render
 let fitResizeTimer=null;window.addEventListener("resize",()=>{clearTimeout(fitResizeTimer);fitResizeTimer=setTimeout(()=>{resize();renderWaveChart();autoFitFiveScreen()},90)});resize();if(MULTI_SCREEN.enabled){[160,480,1000].forEach(ms=>setTimeout(autoFitFiveScreen,ms));}
 })();
 </script>
+<script src="workspace.js"></script>
 </body>
 </html>
