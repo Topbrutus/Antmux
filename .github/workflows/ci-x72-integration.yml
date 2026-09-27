@@ -334,8 +334,11 @@ jobs:
         run: |
           set -euo pipefail
           printf 'ANTMUX_X72_DATA_DIR=%s/x72-ci-data\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'ANTMUX_ZEL_INGEST_TOKEN_FILE=%s/zel-ingest-token\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           rm -rf "$RUNNER_TEMP/x72-ci-data"
           mkdir -p "$RUNNER_TEMP/x72-ci-data"
+          printf '%s' 'ci-zelstereos-test-token' > "$RUNNER_TEMP/zel-ingest-token"
+          chmod 600 "$RUNNER_TEMP/zel-ingest-token"
 
       - name: Install Python dependencies
         run: |
@@ -348,6 +351,7 @@ jobs:
           set -euo pipefail
           test -f deploy/x72-shared-queen/app/server.py
           python3 -m py_compile deploy/x72-shared-queen/app/server.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/run_server_tests.py
           python3 deploy/x72-shared-queen/tests/check_runtime_metrics.py
           printf 'QUEEN_SERVER_COMPILE_AND_RUNTIME_CONTRACT=PASS\n'
 
