@@ -651,7 +651,7 @@ const REFERENCE_CATALOG=Object.freeze([
   Object.freeze({id:"USER-HZ-444",label:"444",claimed_hz:444,type:"USER_REFERENCE",status:"UNVALIDATED"}),
   Object.freeze({id:"HEART-REF-1HZ",label:"1 Hz / 60 cycles·min⁻¹",claimed_hz:1,type:"TEST_REFERENCE",status:"REFERENCE_ONLY"})
 ]);
-function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect();c.width=Math.floor(r.width*d);c.height=Math.floor(r.height*d);x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
+function resize(){const d=Math.max(1,Math.min(2,devicePixelRatio||1)),r=c.getBoundingClientRect(),w=Math.floor(r.width*d),h=Math.floor(r.height*d);if(c.width!==w||c.height!==h){c.width=w;c.height=h}x.setTransform(d,0,0,d,0,0);draw(r.width,r.height)}
 function label(t,px,py,align="center",color="#7d8790",font="9px Consolas"){x.fillStyle=color;x.font=font;x.textAlign=align;x.fillText(t,px,py)}
 function conduit(a,b,id){const active=(T1.connected===1&&id==="FLOW-01")||(T2.connected===1&&id==="FLOW-02")||(T3.connected===1&&id==="FLOW-03")||(T4.connected===1&&id==="FLOW-04")||(T5.connected===1&&id==="FLOW-05");x.save();if(!active)x.setLineDash([7,7]);x.shadowColor=active?"#00e8ff":"transparent";x.shadowBlur=active?12:0;x.strokeStyle=active?"#00e8ff":"#24445b";x.lineWidth=active?3:1.5;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();x.restore();label(id+" · "+(active?"CONNECTED":"DISCONNECTED"),(a.x+b.x)/2,(a.y+b.y)/2-7,"center",active?"#9eefff":"#6f8ca0")}
 function returnPath(points,id,side){x.save();x.setLineDash([5,7]);x.strokeStyle="#3f474e";x.lineWidth=1.2;x.beginPath();x.moveTo(points[0].x,points[0].y);for(let i=1;i<points.length;i++)x.lineTo(points[i].x,points[i].y);x.stroke();x.restore();const m=points[Math.floor(points.length/2)];label(id+" · DISCONNECTED",m.x+(side<0?-6:6),m.y-8,side<0?"right":"left","#68727a")}
@@ -1849,7 +1849,6 @@ function applyMultiScreenSnapshot(x){
   if(x.uiText)for(const [id,value] of Object.entries(x.uiText)){const el=document.getElementById(id);if(el)el.textContent=value}
   if(x.uiDisabled)for(const [id,value] of Object.entries(x.uiDisabled)){const el=document.getElementById(id);if(el)el.disabled=!!value}
   MULTI_SCREEN.lastStateAt=Date.now();MULTI_SCREEN.applying=false;
-  setTimeout(autoFitFiveScreen,40);
 }
 function broadcastMultiScreenState(){
   if(MULTI_SCREEN.channel&&MULTI_SCREEN.owner)MULTI_SCREEN.channel.postMessage({type:"STATE",state:multiScreenSnapshot()});
