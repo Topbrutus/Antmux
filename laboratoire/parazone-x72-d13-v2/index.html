@@ -2103,6 +2103,8 @@ renderObservationBus();renderTimebase();renderSampler();renderWaveChart();render
 let fitResizeTimer=null;window.addEventListener("resize",()=>{clearTimeout(fitResizeTimer);fitResizeTimer=setTimeout(()=>{resize();renderWaveChart();autoFitFiveScreen()},90)});resize();if(MULTI_SCREEN.enabled){[160,480,1000].forEach(ms=>setTimeout(autoFitFiveScreen,ms));}
 })();
 </script>
-<script src="workspace.js"></script>
+<script>
+{const rev=new URLSearchParams(location.search).get("v")||Date.now().toString(36),s=document.createElement("script");s.src="workspace.js?v="+encodeURIComponent(rev);document.body.appendChild(s)}
+</script>
 </body>
 </html>
