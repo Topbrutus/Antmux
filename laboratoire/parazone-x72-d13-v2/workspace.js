@@ -17,19 +17,30 @@ function magnetPoints(w,h){const W=Math.max(w+32,surface?.clientWidth||innerWidt
 function magneticPosition(x,y,w,h,shift=false){const raw=rawClamp(x,y,w,h);if(shift)return{...raw,zone:0};let best=null;for(const a of magnetPoints(w,h)){const d=Math.hypot(raw.x-a.x,raw.y-a.y);if(!best||d<best.d)best={...a,d}}if(best&&best.d<=MAGNET_RADIUS)return{x:best.x,y:best.y,zone:best.n};const g=rawClamp(snap(raw.x),snap(raw.y),w,h);return{...g,zone:0}}
 function showMagnetGhost(pos,w,h){if(!magnetGhost)return;if(!pos?.zone){magnetGhost.classList.remove("active");return}magnetGhost.style.left=pos.x+"px";magnetGhost.style.top=pos.y+"px";magnetGhost.style.width=w+"px";magnetGhost.style.height=h+"px";magnetGhost.dataset.zone="SNAP "+pos.zone;magnetGhost.classList.add("active")}
 function hideMagnetGhost(){magnetGhost?.classList.remove("active")}
-function closedForScreen(k,m){
-  if(!m?.closed)return false;
-  const s=Number(m.closedScreen)||Number(m.screen)||home(cards.get(k),k);
-  return s===SCREEN;
+function storedWindowInfo(k,m){
+  if(!m)return null;
+  if(!m.closed&&!m.min)return null;
+  const origin=Number(m.closedScreen)||Number(m.screen)||home(cards.get(k),k);
+  return{origin,status:m.closed?"FERMÉE":"ICÔNE"};
 }
 function refreshWindowMenu(){
   if(!windowMenu||!windowMenuList||!state)return;
-  const closed=[...cards.entries()].filter(([k])=>closedForScreen(k,state.live.modules[k])).sort((a,b)=>labelOf(a[1],a[0]).localeCompare(labelOf(b[1],b[0])));
+  const stored=[...cards.entries()]
+    .map(([k,e])=>({k,e,m:state.live.modules[k],info:storedWindowInfo(k,state.live.modules[k])}))
+    .filter(x=>x.info)
+    .sort((a,b)=>a.info.origin-b.info.origin||labelOf(a.e,a.k).localeCompare(labelOf(b.e,b.k)));
   const btn=windowMenu.querySelector(".workspaceWindowMenuBtn");
-  if(btn)btn.textContent=closed.length?"FENÊTRES · "+closed.length:"FENÊTRES";
+  if(btn)btn.textContent=stored.length?"FENÊTRES · "+stored.length:"FENÊTRES";
   windowMenuList.innerHTML="";
-  if(!closed.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUNE FENÊTRE FERMÉE";windowMenuList.appendChild(e);return}
-  for(const [k,e] of closed){const b=document.createElement("button");b.type="button";b.textContent="↩ "+labelOf(e,k);b.title="Rouvrir "+labelOf(e,k);b.onclick=x=>{x.preventDefault();x.stopPropagation();reopenCard(k);windowMenu.classList.remove("open")};windowMenuList.appendChild(b)}
+  const head=document.createElement("div");head.className="workspaceWindowMenuEmpty";head.textContent="MAGASIN GLOBAL · OUVRIR ICI = SCREEN "+SCREEN;windowMenuList.appendChild(head);
+  if(!stored.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUNE FENÊTRE RANGÉE";windowMenuList.appendChild(e);return}
+  for(const {k,e,info} of stored){
+    const b=document.createElement("button");b.type="button";
+    b.textContent="S"+info.origin+" · "+info.status+" · "+labelOf(e,k);
+    b.title="Ouvrir "+labelOf(e,k)+" ici sur SCREEN "+SCREEN;
+    b.onclick=x=>{x.preventDefault();x.stopPropagation();restoreHere(k);windowMenu.classList.remove("open")};
+    windowMenuList.appendChild(b);
+  }
 }
 function syncClosedClasses(){
   for(const [k,e] of cards){const m=state?.live?.modules?.[k];e.classList.toggle("workspaceClosed",!!m?.closed)}
