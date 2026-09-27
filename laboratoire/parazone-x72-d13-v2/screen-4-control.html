@@ -1,9 +1,19 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BRUTUS // SCREEN 4</title>
 <script>window.name="BRUTUS_SCREEN_4";</script>
 <style>html,body{width:100%;height:100%;margin:0;background:#020913;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0;background:#020913}</style>
 </head><body>
-<iframe src="index.html?screen=4" title="BRUTUS // SCREEN 4" allow="microphone; autoplay"></iframe>
-<script src="screen-dnd-bridge.js"></script>
+<iframe id="brutusScreenFrame" title="BRUTUS // SCREEN 4" allow="microphone; autoplay"></iframe>
+<script>
+(()=>{
+  const rev=new URLSearchParams(location.search).get("v")||Date.now().toString(36);
+  window.BRUTUS_BOOT_REV=rev;
+  const frame=document.getElementById("brutusScreenFrame");
+  frame.src="index.html?screen=4&v="+encodeURIComponent(rev);
+  const bridge=document.createElement("script");
+  bridge.src="screen-dnd-bridge.js?v="+encodeURIComponent(rev);
+  document.body.appendChild(bridge);
+})();
+</script>
 </body></html>
