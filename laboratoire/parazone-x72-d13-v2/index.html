@@ -145,7 +145,16 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .instrumentDeck>.foldablePanel.isFolded,.monitorWall>.foldablePanel.isFolded{min-height:0!important;align-self:start}
 .freqAutomation.foldablePanel>.panelControlBar,.controlLaunchBar.foldablePanel>.panelControlBar{grid-column:1/-1}
 .engine.foldablePanel:before,.engine.foldablePanel:after{display:none}.engine.foldablePanel>.panelControlBar{margin:0 4px 6px}.engine.foldablePanel{padding-top:6px}
-@media(max-width:680px){.panelTools .panelScaleReadout{display:none}.panelTools .panelFoldBtn{min-width:58px}.panelControlBar{gap:4px}}
+/* PANEL-ICON-02 — vrai minimize hors grille */
+.foldablePanel.panelMinimized{display:none!important}
+.col:has(>.foldablePanel.panelMinimized){grid-template-columns:minmax(0,1fr)!important;grid-template-rows:none!important;grid-auto-flow:row!important;grid-auto-rows:minmax(0,1fr)!important;align-content:stretch!important}
+.panelIconOverlay{position:fixed;inset:0;pointer-events:none;z-index:4600}
+.panelMiniIcon{position:absolute;width:124px;height:42px;pointer-events:auto;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid #315f9b;border-radius:7px;background:#06111df2;color:#bdeeff;box-shadow:0 5px 16px #000b,0 0 10px #00e8ff22;cursor:grab;user-select:none;font:800 8px Consolas,monospace;letter-spacing:.03em;overflow:hidden}
+.panelMiniIcon:active{cursor:grabbing}.panelMiniIcon:hover{border-color:#00e8ff;color:#fff;box-shadow:0 0 12px #00e8ff44}
+.panelMiniIconMark{flex:0 0 auto;color:#00e8ff;font-size:15px;text-shadow:0 0 8px #00e8ff88}
+.panelMiniIconText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brutusDesktopMode .panelIconOverlay{display:none!important}
+@media(max-width:680px){.panelTools .panelScaleReadout{display:none}.panelTools .panelFoldBtn{min-width:58px}.panelControlBar{gap:4px}.panelMiniIcon{width:108px;height:38px}}
 </style>
 </head>
 <body>
@@ -1945,28 +1954,81 @@ function refreshPanelWorkspaceGeometry(refit=false){
     }
   });
 }
+const PANEL_ICON_GRID=16;
+let PANEL_ICON_OVERLAY=null;
+function ensurePanelIconOverlay(){
+  if(PANEL_ICON_OVERLAY&&document.body.contains(PANEL_ICON_OVERLAY))return PANEL_ICON_OVERLAY;
+  PANEL_ICON_OVERLAY=document.createElement("div");PANEL_ICON_OVERLAY.className="panelIconOverlay";PANEL_ICON_OVERLAY.setAttribute("aria-label","Panneaux BRUTUS minimisés");document.body.appendChild(PANEL_ICON_OVERLAY);return PANEL_ICON_OVERLAY;
+}
+function panelMiniLabel(panel,key){
+  const h=panel.querySelector(":scope > .panelControlBar > h2");
+  if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());const t=c.textContent.trim();if(t)return t}
+  const l=panel.querySelector(":scope > .panelControlBar > .panelControlLabel");
+  return (l?.textContent||key).trim();
+}
+function panelMiniClamp(x,y){
+  const w=124,h=42,maxX=Math.max(0,Math.floor((window.innerWidth-w)/PANEL_ICON_GRID)*PANEL_ICON_GRID),maxY=Math.max(0,Math.floor((window.innerHeight-h)/PANEL_ICON_GRID)*PANEL_ICON_GRID);
+  return {x:Math.max(0,Math.min(maxX,Math.round(x/PANEL_ICON_GRID)*PANEL_ICON_GRID)),y:Math.max(0,Math.min(maxY,Math.round(y/PANEL_ICON_GRID)*PANEL_ICON_GRID))};
+}
+function persistPanelMiniPosition(key,x,y){
+  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:true,iconX:x,iconY:y};
+  savePanelWorkspaceState();
+}
+function renderPanelMiniIcon(panel){
+  const key=panel.dataset.workspaceKey;if(!key)return;
+  const overlay=ensurePanelIconOverlay();
+  let icon=overlay.querySelector('.panelMiniIcon[data-panel-key="'+CSS.escape(key)+'"]');
+  const saved=PANEL_WORKSPACE_STATE[key]||{};
+  if(!icon){
+    icon=document.createElement("div");icon.className="panelMiniIcon";icon.dataset.panelKey=key;icon.tabIndex=0;icon.setAttribute("role","button");icon.title="Rouvrir ce panneau";
+    const mark=document.createElement("span");mark.className="panelMiniIconMark";mark.textContent="▣";
+    const text=document.createElement("span");text.className="panelMiniIconText";text.textContent=panelMiniLabel(panel,key);
+    icon.append(mark,text);overlay.appendChild(icon);
+    let moved=false;
+    icon.addEventListener("pointerdown",e=>{
+      if(e.button!==0)return;e.preventDefault();moved=false;
+      const sx=e.clientX,sy=e.clientY,ox=parseFloat(icon.style.left)||0,oy=parseFloat(icon.style.top)||0;
+      try{icon.setPointerCapture(e.pointerId)}catch(_){}
+      const move=ev=>{if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>5)moved=true;icon.style.left=(ox+ev.clientX-sx)+"px";icon.style.top=(oy+ev.clientY-sy)+"px"};
+      const up=ev=>{try{icon.releasePointerCapture?.(ev.pointerId)}catch(_){};icon.removeEventListener("pointermove",move);icon.removeEventListener("pointerup",up);const p=panelMiniClamp(parseFloat(icon.style.left)||0,parseFloat(icon.style.top)||0);icon.style.left=p.x+"px";icon.style.top=p.y+"px";persistPanelMiniPosition(key,p.x,p.y);if(!moved)setPanelFold(panel,false)};
+      icon.addEventListener("pointermove",move);icon.addEventListener("pointerup",up);
+    });
+    icon.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setPanelFold(panel,false)}});
+  }
+  let fallback={left:16,top:96};
+  try{const r=JSON.parse(panel.dataset.lastVisibleRect||"null");if(r&&Number.isFinite(r.left)&&Number.isFinite(r.top))fallback=r}catch(_){}
+  const ordinal=[...overlay.querySelectorAll(".panelMiniIcon")].indexOf(icon);
+  if(!Number.isFinite(fallback.left)||!Number.isFinite(fallback.top)){fallback={left:16+(ordinal%8)*128,top:96+Math.floor(ordinal/8)*48}}
+  const p=panelMiniClamp(Number.isFinite(Number(saved.iconX))?Number(saved.iconX):fallback.left,Number.isFinite(Number(saved.iconY))?Number(saved.iconY):fallback.top);
+  icon.style.left=p.x+"px";icon.style.top=p.y+"px";
+}
+function removePanelMiniIcon(panel){
+  const key=panel.dataset.workspaceKey;if(!key||!PANEL_ICON_OVERLAY)return;
+  PANEL_ICON_OVERLAY.querySelector('.panelMiniIcon[data-panel-key="'+CSS.escape(key)+'"]')?.remove();
+}
 function setPanelFold(panel,folded,persist=true){
-  panel.classList.toggle("isFolded",!!folded);
-  panel.dataset.folded=folded?"1":"0";
+  const minimized=!!folded;
+  const before=panel.getBoundingClientRect();
+  if(minimized)panel.dataset.lastVisibleRect=JSON.stringify({left:before.left,top:before.top,width:before.width,height:before.height});
+  panel.classList.remove("isFolded");
+  panel.classList.toggle("panelMinimized",minimized);
+  panel.dataset.folded="0";panel.dataset.minimized=minimized?"1":"0";
   const btn=panel.querySelector(":scope > .panelControlBar .panelFoldBtn");
-  if(btn){
-    btn.textContent=folded?"DÉPLIER":"REPLIER";
-    btn.setAttribute("aria-expanded",folded?"false":"true");
-    btn.title=folded?"Déplier ce panneau":"Replier ce panneau";
-  }
+  if(btn){btn.textContent="REPLIER";btn.setAttribute("aria-expanded","true");btn.title="Réduire ce panneau en icône"}
+  if(minimized)renderPanelMiniIcon(panel);else removePanelMiniIcon(panel);
   if(persist){
-    const key=panel.dataset.workspaceKey;
-    PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:!!folded,scale:Number(panel.dataset.textScale)||1};
+    const key=panel.dataset.workspaceKey,saved=PANEL_WORKSPACE_STATE[key]||{};
+    PANEL_WORKSPACE_STATE[key]={...saved,folded:false,minimized,scale:Number(panel.dataset.textScale)||1};
     savePanelWorkspaceState();
+    refreshPanelWorkspaceGeometry(true);
   }
-  if(persist)refreshPanelWorkspaceGeometry(true);
 }
 function changePanelFontScale(panel,delta){
   const current=Number(panel.dataset.textScale)||1;
   const next=Math.round(Math.max(PANEL_FONT_MIN,Math.min(PANEL_FONT_MAX,current+delta))*100)/100;
   applyPanelFontScale(panel,next);
   const key=panel.dataset.workspaceKey;
-  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:panel.classList.contains("isFolded"),scale:next};
+  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:panel.classList.contains("panelMinimized"),scale:next};
   savePanelWorkspaceState();
   refreshPanelWorkspaceGeometry(false);
 }
@@ -1992,10 +2054,10 @@ function setupPanelWorkspace(){
     tools.append(minus,readout,plus,fold);bar.appendChild(tools);panel.prepend(bar);
     const scale=Number.isFinite(Number(saved.scale))?Number(saved.scale):1;
     applyPanelFontScale(panel,scale);
-    setPanelFold(panel,!!saved.folded,false);
+    setPanelFold(panel,saved.minimized!==undefined?!!saved.minimized:!!saved.folded,false);
     minus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,-PANEL_FONT_STEP)});
     plus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,PANEL_FONT_STEP)});
-    fold.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelFold(panel,!panel.classList.contains("isFolded"))});
+    fold.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelFold(panel,true)});
     const observer=new MutationObserver(mutations=>{
       if(mutations.some(m=>m.addedNodes.length&&!m.target.closest?.(".panelTools")))applyPanelFontScale(panel,Number(panel.dataset.textScale)||1,false);
     });
