@@ -97,3 +97,34 @@ haut-gauche, haut-centre, haut-droite, bas-gauche, bas-centre et bas-droite.
 - maintenir `Shift` pendant le déplacement désactive immédiatement les six aimants et la grille 16 px;
 - avec `Shift`, la position est conservée au pixel près et reste précise après sauvegarde/rechargement;
 - `Shift` désactive également l'arrondi de taille lors d'un redimensionnement en mode BUREAU.
+
+## Gestionnaire de fenêtres V2 — contrôle fin
+
+Le bureau BRUTUS conserve les six ancres magnétiques de la version précédente et ajoute une couche de contrôle fin sans modifier le noyau D13.
+
+Build vérifiable : `BRUTUS_WINDOW_MANAGER_V2`.
+
+Contrôles :
+- glisser la barre de titre pour déplacer une fenêtre;
+- glisser une fenêtre ou une icône sur `SCREEN 1–5` pour changer d'écran;
+- 8 poignées de redimensionnement : N, E, S, O et les quatre coins;
+- clic sur une fenêtre : focus et remontée au premier plan;
+- `LOCK / UNLOCK` : verrouille ou libère position et taille;
+- `□ / ▣` ou double-clic sur la barre de titre : maximiser / restaurer;
+- réduction en icône conservée;
+- `GRID OFF / 8 / 16 / 32` : pas de grille ou granularité choisie;
+- `MAGNET ON / OFF` : active ou désactive les six ancres magnétiques;
+- `SHIFT` pendant un drag : placement libre précis, comportement #146 conservé;
+- inspecteur `X / Y / L / H / SCREEN` : placement numérique exact au pixel;
+- `CENTRER` : recentrage exact de la fenêtre sélectionnée;
+- flèches : déplacement de 1 px;
+- `SHIFT + flèche` : grand pas selon la grille;
+- `CTRL/CMD + flèche` : ajuste largeur ou hauteur;
+- `RANGER`, sauvegarde et réouverture des modules restent compatibles.
+
+Compatibilité :
+- stockage et bus restent `BRUTUS_DESKTOP_WORKSPACE_V1`;
+- les six snaps magnétiques et leur fantôme visuel restent actifs;
+- les géométries précises existantes sont conservées;
+- déplacer/redimensionner une fenêtre ne change ni la topologie D13, ni la chaîne de preuve, ni la propriété du noyau.
+
