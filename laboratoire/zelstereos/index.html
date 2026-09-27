@@ -79,6 +79,7 @@ let wsHasLiveState=false;
 let lastRenderedPublicState=null;
 let lastExternalPublicState=null;
 let aiSelectedFormula=null;
+let aiSfxStageMap=['SFX06','SFX03','SFX08','SFX24','SFX12','SFX30','SFX35'];
 let aiPresentationActive=false;
 let aiPresentationHoldUntil=0;
 let aiLocalEventVersion=1000000;
@@ -250,7 +251,7 @@ const liveMachineProfiles=[
 ];
 function clamp01(v){return Math.max(0,Math.min(1,v));}
 function liveWorkMetrics(count,stageDt,stageWorkRatio=null,stageExecUs=null){
-  const dt=Math.max(.08,Math.min(2.5,Number(stageDt)||.65));
+  const dt=Math.max(.08,Math.min(60,Number(stageDt)||.65));
   const load=clamp01(count/36);
   const dtSlow=clamp01((dt-.08)/(2.5-.08));
   const measuredRatio=stageWorkRatio===null?null:clamp01(Number(stageWorkRatio)||0);
@@ -416,19 +417,53 @@ function speakRobot(stageIndex){
     speechSynthesis.speak(u);
   }catch(e){}
 }
+function scheduleLongWorkBedAt(freq,start,dur,stageIndex){
+  if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const d=Math.max(.4,Math.min(60,Number(dur)||.4));
+  const o=audioCtx.createOscillator(),sub=audioCtx.createOscillator();
+  const g=audioCtx.createGain(),filter=audioCtx.createBiquadFilter();
+  o.type=stageIndex===3?'sawtooth':'triangle';
+  sub.type='sine';
+  o.frequency.setValueAtTime(Math.max(38,freq),start);
+  o.frequency.linearRampToValueAtTime(Math.max(40,freq*(.92+stageIndex*.012)),start+d);
+  sub.frequency.setValueAtTime(Math.max(26,freq*.42),start);
+  filter.type='lowpass';
+  filter.frequency.setValueAtTime(stageIndex===3?520:760,start);
+  g.gain.setValueAtTime(0,start);
+  g.gain.linearRampToValueAtTime(.055*soundVolume,start+.08);
+  g.gain.setValueAtTime(.055*soundVolume,start+Math.max(.09,d-.18));
+  g.gain.exponentialRampToValueAtTime(.0001,start+d);
+  o.connect(filter);sub.connect(filter);filter.connect(g).connect(audioCtx.destination);
+  o.start(start);sub.start(start);o.stop(start+d+.03);sub.stop(start+d+.03);
+}
+function fallbackSfxCueAt(id,base){
+  const n=Number(String(id||'').replace(/\D/g,''))||0;
+  const bank=[
+    ()=>scheduleClankAt(base,.075),
+    ()=>scheduleZapAt(base,.075),
+    ()=>scheduleChargeAt(base,.075),
+    ()=>scheduleKickAt(base,.11),
+    ()=>scheduleTomAt(base,.08),
+    ()=>{scheduleClankAt(base,.06);scheduleZapAt(base+.09,.05);}
+  ];
+  bank[n%bank.length]();
+}
 function soundLiveStage(stageIndex,stageDt=.65,stageWorkRatio=null,stageExecUs=null){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
   const base=audioCtx.currentTime+.025;
   const count=counts[stageIndex]||1;
+  const mappedSfx=aiSfxStageMap[stageIndex]||null;
   if(stageIndex===0){
     soundStartAt(base);
-    randomLiveFxAt(base+.30);
+    fallbackSfxCueAt(mappedSfx,base+.30);
     liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,stageDt,stageWorkRatio,stageExecUs);
+    if(stageDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex],base+1.05,stageDt-1.0,stageIndex);
     setTimeout(()=>speakRobot(stageIndex),220);
     return;
   }
   liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,stageDt,stageWorkRatio,stageExecUs);
-  randomLiveFxAt(base+.10);
+  fallbackSfxCueAt(mappedSfx,base+.10);
+  if(stageDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex]||82,base+.72,stageDt-.62,stageIndex);
   setTimeout(()=>speakRobot(stageIndex),120);
   if(stageIndex===6)soundEndAt(base+.72);
 }
@@ -522,12 +557,48 @@ function zelAiSelectFormula(meta){
   return zelAiClone(aiSelectedFormula);
 }
 function zelAiSelectedFormula(){return aiSelectedFormula?zelAiClone(aiSelectedFormula):null;}
+function zelAiValidSfxId(id){return /^SFX(?:0[1-9]|[12][0-9]|3[0-6])$/.test(String(id||''));}
+function zelAiSetSfxMap(ids){
+  if(!Array.isArray(ids)||ids.length!==7)throw new TypeError('exactly seven SFX ids are required');
+  const normalized=ids.map(id=>String(id||'').toUpperCase());
+  if(!normalized.every(zelAiValidSfxId))throw new TypeError('SFX ids must be SFX01..SFX36');
+  aiSfxStageMap=[...normalized];
+  return [...aiSfxStageMap];
+}
+function zelAiSfxMap(){return [...aiSfxStageMap];}
+function zelAiStageExecMs(step){
+  for(const key of ['exec_ms','elapsed_ms','compute_ms']){
+    const n=Number(step?.[key]);
+    if(Number.isFinite(n)&&n>=0)return n;
+  }
+  const us=Number(step?.exec_us);
+  if(Number.isFinite(us)&&us>=0)return us/1000;
+  return null;
+}
+function zelAiVisibleStageMs(step,spec){
+  const minMs=Math.max(80,Math.min(5000,Number(spec.min_stage_ms)||350));
+  const maxMs=Math.max(minMs,Math.min(120000,Number(spec.max_stage_ms)||60000));
+  const scale=Math.max(.05,Math.min(10,Number(spec.timing_scale)||1));
+  const fallback=Math.max(minMs,Math.min(maxMs,Number(spec.step_ms)||650));
+  const execMs=zelAiStageExecMs(step);
+  if(execMs===null)return {exec_ms:null,visible_ms:fallback,mode:'fallback'};
+  const scaled=execMs*scale;
+  let visible;
+  if(scaled<1)visible=Math.max(minMs,350);
+  else if(scaled<10)visible=Math.max(minMs,450);
+  else if(scaled<100)visible=Math.max(minMs,650);
+  else if(scaled<1000)visible=Math.max(minMs,800+(scaled*.25));
+  else visible=Math.max(minMs,scaled);
+  return {exec_ms:execMs,visible_ms:Math.round(Math.min(maxMs,visible)),mode:'measured'};
+}
 function zelAiDiagnostics(){
   return {
     schema:'ANTMUX-ZELSTEREOS-AI-DIAGNOSTIC-v2',
     source:'PAGE_RUNTIME',
     page:location.pathname,
     selected_formula:zelAiSelectedFormula(),
+    sfx_stage_map:zelAiSfxMap(),
+    timing_policy:{min_stage_ms_default:350,max_stage_ms_default:60000,long_stage_real_time:true},
     presentation:{
       active:aiPresentationActive,
       hold_until:aiPresentationHoldUntil||null
@@ -612,7 +683,7 @@ async function zelAiPlayCalculation(spec={}){
   const formula=aiSelectedFormula;
   if(!formula)throw new Error('ZELSTEREOS_AI_FORMULA_NOT_SELECTED');
   if(!Array.isArray(spec.stages)||spec.stages.length!==7)throw new TypeError('exactly seven calculation stages are required');
-  const stepMs=Math.max(120,Math.min(5000,Number(spec.step_ms)||650));
+  if(spec.sfx_map)zelAiSetSfxMap(spec.sfx_map);
   const holdMs=Math.max(0,Math.min(60000,Number(spec.hold_ms)||5000));
   const traceId=String(spec.trace_id||('AI-'+Date.now())).slice(0,80);
   const startedAt=Date.now();
@@ -635,7 +706,7 @@ async function zelAiPlayCalculation(spec={}){
         channels:counts[i],
         trace_points:i+1,
         trace_total:7,
-        stage_exec_us:Number.isFinite(Number(step.exec_us))?Number(step.exec_us):0,
+        stage_exec_us:0,
         stage_work_ratio:i/6,
         public_values:[{exact,decimal}],
         public_values_total:1,
@@ -670,14 +741,18 @@ async function zelAiPlayCalculation(spec={}){
         transport_replay:false,
         trace_id:traceId
       };
-      render(state,{audioFromWebSocket:true,stageDt:stepMs/1000,stageWorkRatio:i/6,stageExecUs:state.stage_exec_us});
-      rendered.push({stage_index:i,stage:names[i],channels:counts[i],exact,decimal,label:state.events[0].label,detail:state.events[0].detail});
-      if(i<6)await new Promise(resolve=>setTimeout(resolve,stepMs));
+      const timing=zelAiVisibleStageMs(step,spec);
+      state.stage_exec_us=timing.exec_ms===null?0:Math.round(timing.exec_ms*1000);
+      state.stage_visible_ms=timing.visible_ms;
+      state.sfx_id=aiSfxStageMap[i]||null;
+      render(state,{audioFromWebSocket:true,stageDt:timing.visible_ms/1000,stageWorkRatio:i/6,stageExecUs:state.stage_exec_us});
+      rendered.push({stage_index:i,stage:names[i],channels:counts[i],exact,decimal,label:state.events[0].label,detail:state.events[0].detail,exec_ms:timing.exec_ms,visible_ms:timing.visible_ms,timing_mode:timing.mode,sfx_id:state.sfx_id});
+      if(i<6)await new Promise(resolve=>setTimeout(resolve,timing.visible_ms));
     }
     aiPresentationActive=false;
     aiPresentationHoldUntil=Date.now()+holdMs;
     return {
-      schema:'ANTMUX-ZELSTEREOS-AI-RECTO-TRACE-v1',
+      schema:'ANTMUX-ZELSTEREOS-AI-RECTO-TRACE-v2',
       ok:true,
       trace_id:traceId,
       formula:zelAiSelectedFormula(),
@@ -693,12 +768,14 @@ async function zelAiPlayCalculation(spec={}){
 }
 Object.defineProperty(window,'ZELSTEREOS_AI',{
   value:Object.freeze({
-    version:'2.0',
+    version:'2.1',
     diagnostics:zelAiDiagnostics,
     selfTest:zelAiSelfTest,
     waitForLive:zelAiWaitForLive,
     selectFormula:zelAiSelectFormula,
     selectedFormula:zelAiSelectedFormula,
+    setSfxMap:zelAiSetSfxMap,
+    sfxMap:zelAiSfxMap,
     playCalculation:zelAiPlayCalculation
   }),
   writable:false,
