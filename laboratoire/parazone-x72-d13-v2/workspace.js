@@ -17,36 +17,36 @@ function magnetPoints(w,h){const W=Math.max(w+32,surface?.clientWidth||innerWidt
 function magneticPosition(x,y,w,h,shift=false){const raw=rawClamp(x,y,w,h);if(shift)return{...raw,zone:0};let best=null;for(const a of magnetPoints(w,h)){const d=Math.hypot(raw.x-a.x,raw.y-a.y);if(!best||d<best.d)best={...a,d}}if(best&&best.d<=MAGNET_RADIUS)return{x:best.x,y:best.y,zone:best.n};const g=rawClamp(snap(raw.x),snap(raw.y),w,h);return{...g,zone:0}}
 function showMagnetGhost(pos,w,h){if(!magnetGhost)return;if(!pos?.zone){magnetGhost.classList.remove("active");return}magnetGhost.style.left=pos.x+"px";magnetGhost.style.top=pos.y+"px";magnetGhost.style.width=w+"px";magnetGhost.style.height=h+"px";magnetGhost.dataset.zone="SNAP "+pos.zone;magnetGhost.classList.add("active")}
 function hideMagnetGhost(){magnetGhost?.classList.remove("active")}
-function storedWindowInfo(k,m){
+function windowDirectoryInfo(k,m){
   if(!m)return null;
-  if(!m.closed&&!m.min)return null;
   const origin=Number(m.closedScreen)||Number(m.screen)||home(cards.get(k),k);
-  return{origin,status:m.closed?"FERMÉE":"ICÔNE"};
+  const status=m.closed?"FERMÉE":(m.min?"ICÔNE":"OUVERTE");
+  return{origin,status};
 }
 function refreshWindowMenu(){
   if(!windowMenu||!windowMenuList||!state)return;
-  const stored=[...cards.entries()]
-    .map(([k,e])=>({k,e,m:state.live.modules[k],info:storedWindowInfo(k,state.live.modules[k])}))
+  const directory=[...cards.entries()]
+    .map(([k,e])=>({k,e,m:state.live.modules[k],info:windowDirectoryInfo(k,state.live.modules[k])}))
     .filter(x=>x.info)
     .sort((a,b)=>a.info.origin-b.info.origin||labelOf(a.e,a.k).localeCompare(labelOf(b.e,b.k)));
   const btn=windowMenu.querySelector(".workspaceWindowMenuBtn");
-  if(btn)btn.textContent=stored.length?"FENÊTRES · "+stored.length:"FENÊTRES";
+  if(btn)btn.textContent=directory.length?"FENÊTRES · "+directory.length:"FENÊTRES";
   windowMenuList.innerHTML="";
-  const head=document.createElement("div");head.className="workspaceWindowMenuEmpty";head.textContent="MAGASIN GLOBAL · OUVRIR ICI = SCREEN "+SCREEN;windowMenuList.appendChild(head);
-  if(!stored.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUNE FENÊTRE RANGÉE";windowMenuList.appendChild(e);return}
-  for(const {k,e,info} of stored){
+  const head=document.createElement("div");head.className="workspaceWindowMenuEmpty";head.textContent="DIRECTORY GLOBAL · TOUTES LES FENÊTRES · ICI = SCREEN "+SCREEN;windowMenuList.appendChild(head);
+  if(!directory.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUNE FENÊTRE DISPONIBLE";windowMenuList.appendChild(e);return}
+  for(const {k,e,info} of directory){
     const row=document.createElement("div");row.className="workspaceWindowRow";
     const open=document.createElement("button");open.type="button";open.className="workspaceWindowOpen";
     open.textContent="S"+info.origin+" · "+info.status+" · "+labelOf(e,k);
-    open.title="Ouvrir "+labelOf(e,k)+" ici sur SCREEN "+SCREEN;
-    open.onclick=x=>{x.preventDefault();x.stopPropagation();routeStoredWindow(k,SCREEN);windowMenu.classList.remove("open")};
+    open.title="Amener "+labelOf(e,k)+" ici sur SCREEN "+SCREEN;
+    open.onclick=x=>{x.preventDefault();x.stopPropagation();routeWindow(k,SCREEN);windowMenu.classList.remove("open")};
     const targets=document.createElement("div");targets.className="workspaceWindowTargets";
     const here=document.createElement("button");here.type="button";here.className="workspaceHere";here.textContent="ICI";here.title="Ouvrir sur SCREEN "+SCREEN;
-    here.onclick=x=>{x.preventDefault();x.stopPropagation();routeStoredWindow(k,SCREEN);windowMenu.classList.remove("open")};targets.appendChild(here);
+    here.onclick=x=>{x.preventDefault();x.stopPropagation();routeWindow(k,SCREEN);windowMenu.classList.remove("open")};targets.appendChild(here);
     for(let n=1;n<=5;n++){
       const t=document.createElement("button");t.type="button";t.textContent="S"+n;t.title="Envoyer sur SCREEN "+n;
       if(n===Number(info.origin))t.classList.add("workspaceTargetActive");
-      t.onclick=x=>{x.preventDefault();x.stopPropagation();routeStoredWindow(k,n);windowMenu.classList.remove("open")};
+      t.onclick=x=>{x.preventDefault();x.stopPropagation();routeWindow(k,n);windowMenu.classList.remove("open")};
       targets.appendChild(t);
     }
     row.append(open,targets);windowMenuList.appendChild(row);
@@ -84,7 +84,7 @@ function restoreHere(k){
   const m=state.live.modules[k];if(!m)return;
   m.closed=false;delete m.closedScreen;m.screen=SCREEN;m.min=false;m.x=16;m.y=48;m.precise=false;bump(m);save();apply();
 }
-function routeStoredWindow(k,targetScreen){
+function routeWindow(k,targetScreen){
   const m=state.live.modules[k],target=Number(targetScreen);if(!m||target<1||target>5)return;
   state.enabled=true;
   m.closed=false;delete m.closedScreen;m.min=false;m.screen=target;m.x=16;m.y=48;m.precise=false;bump(m);save();apply();
@@ -167,7 +167,7 @@ windowMenuList=document.createElement("div");windowMenuList.className="workspace
 menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();windowMenu.classList.toggle("open");refreshWindowMenu()});
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());windowMenu.append(menuBtn,windowMenuList);tb?.insertBefore(windowMenu,tb.children[1]||null);
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
-const b=document.createElement("button");b.className="workspaceModeBtn";b.type="button";b.textContent="BUREAU";b.onclick=()=>{state.enabled=!state.enabled;save();apply()};tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · FENÊTRES = ROUTAGE S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
+const b=document.createElement("button");b.className="workspaceModeBtn";b.type="button";b.textContent="BUREAU";b.onclick=()=>{state.enabled=!state.enabled;save();apply()};tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · FENÊTRES = DIRECTORY GLOBAL S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
 function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply()}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
