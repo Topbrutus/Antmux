@@ -1,10 +1,8 @@
 import fs from "node:fs";
 import vm from "node:vm";
-import crypto from "node:crypto";
 import assert from "node:assert/strict";
 
 globalThis.window=globalThis;
-globalThis.crypto=crypto.webcrypto;
 globalThis.CustomEvent=class CustomEvent{
   constructor(type,options={}){this.type=type;this.detail=options.detail}
 };
