@@ -679,7 +679,7 @@ const AUDIO_OUTPUT={running:false,ctx:null,osc:null,gain:null,frequency_hz:null,
 const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
 const MASTER_SESSION={state:"READY",started_at:null};
-const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,ws:null,retry:null,retry_count:0,last_at:0,error:"NONE"};
+const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,ws:null,retry:null,retry_count:0,last_at:0,error:"NONE",fallback:false,fallback_timer:null};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
@@ -711,7 +711,7 @@ function renderMotorBridge(){
     badge.textContent=MOTOR_BRIDGE.verified?"● MOTOR · LIVE":(MOTOR_BRIDGE.connected?"● MOTOR · WAITING":"● MOTOR · OFFLINE");
   }
   document.getElementById("motorState").textContent=MOTOR_BRIDGE.verified?"LIVE · VERIFIED":(MOTOR_BRIDGE.connected?"CONNECTED · WAITING":"OFFLINE · RETRY");
-  document.getElementById("motorTransport").textContent=MOTOR_BRIDGE.connected?"WSS · OPEN":"WSS · CLOSED";
+  document.getElementById("motorTransport").textContent=MOTOR_BRIDGE.fallback?"HTTP · FALLBACK":(MOTOR_BRIDGE.connected?"WSS · OPEN":"WSS · CLOSED");
   document.getElementById("motorAuthority").textContent=MOTOR_BRIDGE.verified?"NOYAU_ENGINE_HEADLESS":"NONE";
   document.getElementById("motorTick").textContent=n?String(n.tick):"NONE";
   document.getElementById("motorWorld").textContent=n?String(n.world_name):"NONE";
@@ -758,6 +758,35 @@ function startMotorBridge(){
   }catch(err){
     MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=false;MOTOR_BRIDGE.error=String(err&&err.message?err.message:err);renderMotorBridge();scheduleMotorReconnect();
   }
+}
+async function probeMotorFallback(){
+  if(!MULTI_SCREEN.enabled||MULTI_SCREEN.owner)return;
+  if(Date.now()-MULTI_SCREEN.lastStateAt<=1500){
+    if(MOTOR_BRIDGE.fallback)MOTOR_BRIDGE.fallback=false;
+    return;
+  }
+  try{
+    const response=await fetch("/laboratoire/embryon-x72/api/state",{cache:"no-store"});
+    if(!response.ok)throw new Error("NOYAU_MOTOR_HTTP_"+response.status);
+    const value=await response.json();
+    if(!validateMotorFrame(value))throw new Error("NOYAU_MOTOR_SCHEMA_INVALID");
+    MOTOR_BRIDGE.frame=Object.freeze(value);
+    MOTOR_BRIDGE.noyau=Object.freeze(value.noyau_runtime.noyau);
+    MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=true;MOTOR_BRIDGE.fallback=true;
+    MOTOR_BRIDGE.last_at=performance.now();MOTOR_BRIDGE.error="NONE";
+    renderMotorBridge();resize();
+  }catch(err){
+    if(Date.now()-MULTI_SCREEN.lastStateAt>1500){
+      MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=false;MOTOR_BRIDGE.fallback=false;
+      MOTOR_BRIDGE.error=String(err&&err.message?err.message:err);
+      renderMotorBridge();
+    }
+  }
+}
+function startMotorFallback(){
+  if(!MULTI_SCREEN.enabled||MULTI_SCREEN.owner||MOTOR_BRIDGE.fallback_timer!==null)return;
+  probeMotorFallback();
+  MOTOR_BRIDGE.fallback_timer=setInterval(probeMotorFallback,2000);
 }
 function drawMotorDrive(w,h){
   const n=MOTOR_BRIDGE.noyau;
@@ -1969,7 +1998,7 @@ function applyMultiScreenSnapshot(x){
   if(x.AUDIO_OUTPUT)Object.assign(AUDIO_OUTPUT,x.AUDIO_OUTPUT,{ctx:null,osc:null,gain:null});
   if(x.FREQ_TABLE)Object.assign(FREQ_TABLE,x.FREQ_TABLE,{timer:null});
   if(x.MASTER_SESSION)Object.assign(MASTER_SESSION,x.MASTER_SESSION);
-  if(x.MOTOR_BRIDGE){Object.assign(MOTOR_BRIDGE,{connected:!!x.MOTOR_BRIDGE.connected,verified:!!x.MOTOR_BRIDGE.verified,noyau:x.MOTOR_BRIDGE.noyau||null,error:x.MOTOR_BRIDGE.error||"NONE",last_at:Number(x.MOTOR_BRIDGE.last_at)||0,ws:null,retry:null});}
+  if(x.MOTOR_BRIDGE){Object.assign(MOTOR_BRIDGE,{connected:!!x.MOTOR_BRIDGE.connected,verified:!!x.MOTOR_BRIDGE.verified,noyau:x.MOTOR_BRIDGE.noyau||null,error:x.MOTOR_BRIDGE.error||"NONE",last_at:Number(x.MOTOR_BRIDGE.last_at)||0,ws:null,retry:null,fallback:false});}
   if(x.PRESET){PRESET_BANK.selected=x.PRESET.selected;PRESET_BANK.slots=x.PRESET.slots}
   if(x.fields)for(const [id,value] of Object.entries(x.fields)){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=value}
   renderHistory();renderObservationBus();renderAmplitudePanel();renderTimebase();renderSampler();renderSignalGenerator();renderAudioOutput();renderFreqAutomation();renderControlRack();renderMicrophone();renderMasterSession();renderPresetGrid();renderPresetDetail();renderAuxMonitors();renderMotorBridge();resize();
@@ -2253,8 +2282,8 @@ document.getElementById("freqAutoStart").addEventListener("click",toggleFrequenc
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
 
-window.addEventListener("beforeunload",()=>{if(MOTOR_BRIDGE.retry!==null)clearTimeout(MOTOR_BRIDGE.retry);if(MOTOR_BRIDGE.ws)MOTOR_BRIDGE.ws.close();});
-restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();setupFiveScreenBus();setupPanelWorkspace();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();renderMotorBridge();startMotorBridge();
+window.addEventListener("beforeunload",()=>{if(MOTOR_BRIDGE.retry!==null)clearTimeout(MOTOR_BRIDGE.retry);if(MOTOR_BRIDGE.fallback_timer!==null)clearInterval(MOTOR_BRIDGE.fallback_timer);if(MOTOR_BRIDGE.ws)MOTOR_BRIDGE.ws.close();});
+restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();setupFiveScreenBus();setupPanelWorkspace();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();renderMotorBridge();startMotorBridge();startMotorFallback();
 const topologyCheck=renderTopologyStatus();
 if(!topologyCheck.valid)throw new Error("REFERENCE_TOPOLOGY_INVALID:"+topologyCheck.errors.join(","));
 renderObservationBus();renderTimebase();renderSampler();renderWaveChart();renderSamplerQuality();
