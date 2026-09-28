@@ -12,10 +12,14 @@ function fontTargetElements(){
   const selector="button,span,div,p,h1,h2,h3,h4,label,input,select,textarea,pre,td,th,strong,em,small,a";
   return [...document.querySelectorAll(selector)].filter(el=>{
     if(el.closest("script,style,svg,canvas"))return false;
-    if(el.closest(".foldablePanel,.workspaceCard,.panelMiniIcon,.workspaceSurface"))return false;
     const n=Number.parseFloat(getComputedStyle(el).fontSize);
     return Number.isFinite(n)&&n>0;
   });
+}
+function moduleZoomForText(el){
+  const panel=el.closest(".foldablePanel");
+  if(!panel||el.closest(".panelControlBar"))return 1;
+  return Math.max(.50,Math.min(2.00,Number(panel.dataset.moduleZoom)||1));
 }
 function applyGlobalFont(){
   for(const el of fontTargetElements()){
@@ -24,7 +28,8 @@ function applyGlobalFont(){
       if(Number.isFinite(now)&&now>0)el.dataset.brutusGlobalFontBasePx=String(now);
     }
     const base=Number(el.dataset.brutusGlobalFontBasePx);
-    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*fontScale).toFixed(2)+"px";
+    const moduleZoom=moduleZoomForText(el);
+    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*fontScale/moduleZoom).toFixed(2)+"px";
   }
   const r=document.getElementById("globalFontReadout");if(r)r.textContent=Math.round(fontScale*100)+"%";
 }
@@ -43,6 +48,9 @@ function initGlobalFont(){
     fontChannel.onmessage=e=>{if(e.data?.type==="FONT_SCALE"){fontScale=Math.round(fontClamp(e.data.scale)*100)/100;applyGlobalFont()}};
   }
   addEventListener("storage",e=>{if(e.key===FONT_KEY&&e.newValue){try{const x=JSON.parse(e.newValue);fontScale=Math.round(fontClamp(x.scale)*100)/100;applyGlobalFont()}catch(_){}}});
+  addEventListener("BRUTUS_MODULE_ZOOM_CHANGED",()=>applyGlobalFont());
+  const fontObserver=new MutationObserver(ms=>{if(ms.some(m=>m.addedNodes.length))applyGlobalFont()});
+  fontObserver.observe(document.body,{childList:true,subtree:true});
   applyGlobalFont();
 }
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
