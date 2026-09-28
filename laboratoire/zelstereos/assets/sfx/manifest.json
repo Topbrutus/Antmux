@@ -1,0 +1,222 @@
+{
+  "schema": "ANTMUX-ZELSTEREOS-SFX36-RUNTIME-v1",
+  "count": 36,
+  "clips": [
+    {
+      "id": "SFX01",
+      "file": "SFX01_robot_mechanical.mp3",
+      "duration_s": 2.04,
+      "family": "robot_mechanical"
+    },
+    {
+      "id": "SFX02",
+      "file": "SFX02_hud_alarm.mp3",
+      "duration_s": 2.04,
+      "family": "hud_alarm"
+    },
+    {
+      "id": "SFX03",
+      "file": "SFX03_robot_mechanical.mp3",
+      "duration_s": 2.04,
+      "family": "robot_mechanical"
+    },
+    {
+      "id": "SFX04",
+      "file": "SFX04_footstep_impact.mp3",
+      "duration_s": 2.04,
+      "family": "footstep_impact"
+    },
+    {
+      "id": "SFX05",
+      "file": "SFX05_footstep_impact.mp3",
+      "duration_s": 2.04,
+      "family": "footstep_impact"
+    },
+    {
+      "id": "SFX06",
+      "file": "SFX06_keypad_interface.mp3",
+      "duration_s": 2.04,
+      "family": "keypad_interface"
+    },
+    {
+      "id": "SFX07",
+      "file": "SFX07_impact_transition.mp3",
+      "duration_s": 2.04,
+      "family": "impact_transition"
+    },
+    {
+      "id": "SFX08",
+      "file": "SFX08_matrix_digital.mp3",
+      "duration_s": 2.04,
+      "family": "matrix_digital"
+    },
+    {
+      "id": "SFX09",
+      "file": "SFX09_matrix_digital.mp3",
+      "duration_s": 2.04,
+      "family": "matrix_digital"
+    },
+    {
+      "id": "SFX10",
+      "file": "SFX10_matrix_digital.mp3",
+      "duration_s": 2.04,
+      "family": "matrix_digital"
+    },
+    {
+      "id": "SFX11",
+      "file": "SFX11_dark_transition.mp3",
+      "duration_s": 2.04,
+      "family": "dark_transition"
+    },
+    {
+      "id": "SFX12",
+      "file": "SFX12_scanner_hud.mp3",
+      "duration_s": 2.04,
+      "family": "scanner_hud"
+    },
+    {
+      "id": "SFX13",
+      "file": "SFX13_music_hit.mp3",
+      "duration_s": 2.04,
+      "family": "music_hit"
+    },
+    {
+      "id": "SFX14",
+      "file": "SFX14_music_hit.mp3",
+      "duration_s": 2.04,
+      "family": "music_hit"
+    },
+    {
+      "id": "SFX15",
+      "file": "SFX15_music_hit.mp3",
+      "duration_s": 2.04,
+      "family": "music_hit"
+    },
+    {
+      "id": "SFX16",
+      "file": "SFX16_music_hit.mp3",
+      "duration_s": 2.04,
+      "family": "music_hit"
+    },
+    {
+      "id": "SFX17",
+      "file": "SFX17_body_impact.mp3",
+      "duration_s": 2.04,
+      "family": "body_impact"
+    },
+    {
+      "id": "SFX18",
+      "file": "SFX18_crash_stunt.mp3",
+      "duration_s": 2.04,
+      "family": "crash_stunt"
+    },
+    {
+      "id": "SFX19",
+      "file": "SFX19_drum_hit.mp3",
+      "duration_s": 2.04,
+      "family": "drum_hit"
+    },
+    {
+      "id": "SFX20",
+      "file": "SFX20_drum_hit.mp3",
+      "duration_s": 2.04,
+      "family": "drum_hit"
+    },
+    {
+      "id": "SFX21",
+      "file": "SFX21_drum_hit.mp3",
+      "duration_s": 2.04,
+      "family": "drum_hit"
+    },
+    {
+      "id": "SFX22",
+      "file": "SFX22_drum_hit.mp3",
+      "duration_s": 2.04,
+      "family": "drum_hit"
+    },
+    {
+      "id": "SFX23",
+      "file": "SFX23_drum_hit.mp3",
+      "duration_s": 2.04,
+      "family": "drum_hit"
+    },
+    {
+      "id": "SFX24",
+      "file": "SFX24_engine_mechanical.mp3",
+      "duration_s": 2.04,
+      "family": "engine_mechanical"
+    },
+    {
+      "id": "SFX25",
+      "file": "SFX25_tool_impact.mp3",
+      "duration_s": 2.04,
+      "family": "tool_impact"
+    },
+    {
+      "id": "SFX26",
+      "file": "SFX26_tool_impact.mp3",
+      "duration_s": 2.04,
+      "family": "tool_impact"
+    },
+    {
+      "id": "SFX27",
+      "file": "SFX27_tool_impact.mp3",
+      "duration_s": 2.04,
+      "family": "tool_impact"
+    },
+    {
+      "id": "SFX28",
+      "file": "SFX28_tool_impact.mp3",
+      "duration_s": 2.04,
+      "family": "tool_impact"
+    },
+    {
+      "id": "SFX29",
+      "file": "SFX29_tool_impact.mp3",
+      "duration_s": 2.04,
+      "family": "tool_impact"
+    },
+    {
+      "id": "SFX30",
+      "file": "SFX30_interface_click.mp3",
+      "duration_s": 2.04,
+      "family": "interface_click"
+    },
+    {
+      "id": "SFX31",
+      "file": "SFX31_interface_click.mp3",
+      "duration_s": 2.04,
+      "family": "interface_click"
+    },
+    {
+      "id": "SFX32",
+      "file": "SFX32_web_interface.mp3",
+      "duration_s": 2.04,
+      "family": "web_interface"
+    },
+    {
+      "id": "SFX33",
+      "file": "SFX33_web_interface.mp3",
+      "duration_s": 2.04,
+      "family": "web_interface"
+    },
+    {
+      "id": "SFX34",
+      "file": "SFX34_whoosh_boom.mp3",
+      "duration_s": 2.04,
+      "family": "whoosh_boom"
+    },
+    {
+      "id": "SFX35",
+      "file": "SFX35_low_boom.mp3",
+      "duration_s": 2.04,
+      "family": "low_boom"
+    },
+    {
+      "id": "SFX36",
+      "file": "SFX36_whoosh_boom.mp3",
+      "duration_s": 2.04,
+      "family": "whoosh_boom"
+    }
+  ]
+}
