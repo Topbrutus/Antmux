@@ -3,6 +3,7 @@
 const SCREEN=Number(new URLSearchParams(location.search).get("screen")||0);if(SCREEN<1||SCREEN>5)return;
 const KEY="BRUTUS_DESKTOP_WORKSPACE_V2",LEGACY_KEY="BRUTUS_DESKTOP_WORKSPACE_V1",CHAN="BRUTUS_DESKTOP_WORKSPACE_V2",GRID=16,MAGNET_RADIUS=92,ICON_TRANSFER_MIME="application/x-brutus-workspace-icon";let state,surface,icons,channel,z=30,applying=false,magnetGhost=null,windowMenu=null,windowMenuList=null;
 const FONT_KEY="BRUTUS_GLOBAL_FONT_V1",FONT_CHAN="BRUTUS_GLOBAL_FONT_V1",FONT_MIN=.80,FONT_MAX=1.80,FONT_STEP=.10;let fontScale=1,fontChannel=null;
+const SCREEN_ZOOM_KEY="BRUTUS_SCREEN1_ZOOM_V1",LEGACY_ACCESS_KEY="BRUTUS_ACCESSIBILITY_V1",SCREEN_ZOOM_MIN=.75,SCREEN_ZOOM_MAX=1.50,SCREEN_ZOOM_STEP=.05;let screenZoom=1;
 const cards=new Map(),orig=new Map(),A=new Set(["ANALYSIS-AMP-01","ANALYSIS-HISTORY-01","TIMEBASE-01","SAMPLER-01","SAMPLER-QUALITY-01","CRACK-METER-01","CRACK-CLASSIFIER-01"]),O=new Set(["PRESET-BANK-01","REFERENCE-CATALOG-01","MICROPHONE-SOURCE-01","SIGNAL-GENERATOR-01"]),C=new Set(["INPUT-TEST-01","CONNECT-T2-01","CONNECT-T3-01","CONNECT-T4-01","CONNECT-T5-01"]);
 const SCREEN_GROUP_NAMES={1:"MASTER",2:"ANALYSIS",3:"OPERATOR",4:"CONTROL",5:"SETTINGS"};
 const snap=v=>Math.round(v/GRID)*GRID,clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),clone=x=>JSON.parse(JSON.stringify(x));
@@ -52,6 +53,42 @@ function initGlobalFont(){
   const fontObserver=new MutationObserver(ms=>{if(ms.some(m=>m.addedNodes.length))applyGlobalFont()});
   fontObserver.observe(document.body,{childList:true,subtree:true});
   applyGlobalFont();
+}
+function screenZoomClamp(v){return Math.max(SCREEN_ZOOM_MIN,Math.min(SCREEN_ZOOM_MAX,Number(v)||1))}
+function loadScreenZoom(){
+  try{
+    const cur=JSON.parse(localStorage.getItem(SCREEN_ZOOM_KEY)||"null");
+    if(cur&&Number(cur.scale))screenZoom=screenZoomClamp(cur.scale);
+    else{
+      const legacy=JSON.parse(localStorage.getItem(LEGACY_ACCESS_KEY)||"null");
+      screenZoom=screenZoomClamp(legacy?.screen1Zoom||1);
+    }
+  }catch(_){screenZoom=1}
+}
+function saveScreenZoom(){
+  try{localStorage.setItem(SCREEN_ZOOM_KEY,JSON.stringify({version:1,scale:screenZoom,updatedAt:Date.now()}))}catch(_){}
+}
+function applyScreenZoom(){
+  if(SCREEN!==1)return;
+  window.BRUTUS_SCREEN1_ZOOM_FACTOR=screenZoom;
+  const r=document.getElementById("screenZoomReadout");if(r)r.textContent=Math.round(screenZoom*100)+"%";
+  requestAnimationFrame(()=>dispatchEvent(new Event("resize")));
+}
+function setScreenZoom(next){
+  screenZoom=Math.round(screenZoomClamp(next)*100)/100;
+  saveScreenZoom();
+  applyScreenZoom();
+}
+function initScreenZoom(){
+  const host=document.getElementById("screenAccessibilityControls");
+  if(!host||SCREEN!==1)return;
+  loadScreenZoom();
+  host.hidden=false;
+  host.innerHTML='<span class="screenAccessGroup"><span class="screenAccessLabel">ZOOM</span><button id="screenZoomMinus" class="screenAccessBtn" type="button" data-local-control="1" title="Réduire le zoom de SCREEN 1">−</button><span id="screenZoomReadout" class="screenAccessReadout">100%</span><button id="screenZoomPlus" class="screenAccessBtn" type="button" data-local-control="1" title="Agrandir le zoom de SCREEN 1">+</button></span>';
+  const minus=document.getElementById("screenZoomMinus"),plus=document.getElementById("screenZoomPlus");
+  minus.onclick=e=>{e.preventDefault();e.stopPropagation();setScreenZoom(screenZoom-SCREEN_ZOOM_STEP)};
+  plus.onclick=e=>{e.preventDefault();e.stopPropagation();setScreenZoom(screenZoom+SCREEN_ZOOM_STEP)};
+  applyScreenZoom();
 }
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
 function home(e,k){if(e.dataset.desktopHome)return +e.dataset.desktopHome;if(e.closest(".layout"))return 1;if(e.closest(".monitorWall")||A.has(k))return 2;if(O.has(k)||/MICROPHONE|GENERATOR|PRESET|REFERENCE/.test(k))return 3;if(C.has(k)||/^CONNECT-T/.test(k))return 4;return 5}
@@ -272,6 +309,6 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn active";b.type="button";b.textContent="RANGER TOUT";b.title="Fermer et ranger toutes les fenêtres";b.onclick=()=>closeAllWindows();tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · MODULE = PROGRAMMES CACHÉS S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){initGlobalFont();document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();initGlobalFont();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){initGlobalFont();initScreenZoom();document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();initGlobalFont();initScreenZoom();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
