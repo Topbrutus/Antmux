@@ -4,6 +4,7 @@ const frame=document.querySelector("iframe");
 if(!frame)return;
 const SCREEN=Number(new URL(frame.getAttribute("src"),location.href).searchParams.get("screen")||0);
 const channel=("BroadcastChannel"in window)?new BroadcastChannel("BRUTUS_FRAME_DND_V1"):null;
+const placementChannel=("BroadcastChannel"in window)?new BroadcastChannel("BRUTUS_SCREEN_GEOMETRY_V1"):null;
 let active=null,timer=null;
 const overlay=document.createElement("div");
 overlay.id="brutusFrameDropBridge";
@@ -25,6 +26,31 @@ if(channel)channel.onmessage=e=>{
   const m=e.data||{};
   if(m.type==="START")show(m);
   if(m.type==="END"&&(!active||!m.key||m.key===active.key))hide();
+};
+function windowGeometry(){
+  return {
+    screen:SCREEN,
+    x:Number(window.screenX)||0,
+    y:Number(window.screenY)||0,
+    width:Math.max(320,Number(window.outerWidth)||window.innerWidth||1280),
+    height:Math.max(240,Number(window.outerHeight)||window.innerHeight||900),
+    ts:Date.now()
+  };
+}
+if(placementChannel)placementChannel.onmessage=e=>{
+  const m=e.data||{};
+  if(m.type==="CAPTURE_REQUEST"){
+    placementChannel.postMessage({type:"GEOMETRY",requestId:String(m.requestId||""),geometry:windowGeometry()});
+    return;
+  }
+  if(m.type==="APPLY_GEOMETRY"&&Number(m.targetScreen)===SCREEN){
+    const g=m.geometry||{};
+    try{
+      if(Number.isFinite(Number(g.x))&&Number.isFinite(Number(g.y)))window.moveTo(Number(g.x),Number(g.y));
+      if(Number.isFinite(Number(g.width))&&Number.isFinite(Number(g.height)))window.resizeTo(Math.max(320,Number(g.width)),Math.max(240,Number(g.height)));
+    }catch(_){}
+    setTimeout(()=>placementChannel.postMessage({type:"GEOMETRY_APPLIED",requestId:String(m.requestId||""),geometry:windowGeometry()}),160);
+  }
 };
 overlay.addEventListener("dragenter",e=>{if(active)e.preventDefault()});
 overlay.addEventListener("dragover",e=>{if(!active)return;e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="move"});

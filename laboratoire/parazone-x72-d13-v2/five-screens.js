@@ -7,6 +7,8 @@ const LOGICAL=[
   {n:5,name:"SETTINGS",url:"screen-5-settings.html"}
 ];
 const PLACEMENT_KEY="BRUTUS_SCREEN_PLACEMENT_V1";
+const GEOMETRY_KEY="BRUTUS_SCREEN_GEOMETRY_V1";
+const geometryChannel=("BroadcastChannel"in window)?new BroadcastChannel("BRUTUS_SCREEN_GEOMETRY_V1"):null;
 let physicalScreens=[];
 let screenDetailsHandle=null;
 function screenSignature(s){return [s.left,s.top,s.width,s.height].join(":")}
@@ -32,6 +34,90 @@ function savePlacement(){
   const map={};
   document.querySelectorAll("select[data-logical]").forEach(sel=>map[sel.dataset.logical]=sel.value);
   localStorage.setItem(PLACEMENT_KEY,JSON.stringify(map));
+}
+function loadWindowGeometry(){
+  try{return JSON.parse(localStorage.getItem(GEOMETRY_KEY)||"null")}catch(_){return null}
+}
+function geometryCount(saved){
+  return Object.keys(saved?.windows||{}).filter(k=>Number(k)>=1&&Number(k)<=5).length;
+}
+function captureWindowGeometry(timeoutMs=900){
+  return new Promise(resolve=>{
+    if(!geometryChannel)return resolve({});
+    const requestId="CAPTURE-"+Date.now()+"-"+Math.random().toString(36).slice(2);
+    const found={};let done=false;
+    const finish=()=>{if(done)return;done=true;geometryChannel.removeEventListener("message",onMessage);resolve(found)};
+    const onMessage=e=>{
+      const m=e.data||{};
+      if(m.type!=="GEOMETRY"||String(m.requestId||"")!==requestId)return;
+      const g=m.geometry||{},n=Number(g.screen);
+      if(!Number.isInteger(n)||n<1||n>5)return;
+      found[n]={
+        x:Number(g.x)||0,
+        y:Number(g.y)||0,
+        width:Math.max(320,Number(g.width)||1280),
+        height:Math.max(240,Number(g.height)||900)
+      };
+      if(Object.keys(found).length===5)finish();
+    };
+    geometryChannel.addEventListener("message",onMessage);
+    geometryChannel.postMessage({type:"CAPTURE_REQUEST",requestId});
+    setTimeout(finish,timeoutMs);
+  });
+}
+async function saveCurrentWindowPlacement(){
+  const status=document.getElementById("placementStatus");
+  if(!geometryChannel){
+    status.textContent="SAUVEGARDE IMPOSSIBLE · BroadcastChannel non disponible";
+    status.classList.add("warn");
+    return;
+  }
+  status.textContent="LECTURE DE LA POSITION DES 5 FENÊTRES…";
+  const windows=await captureWindowGeometry();
+  const count=Object.keys(windows).length;
+  if(!count){
+    status.textContent="AUCUNE FENÊTRE BRUTUS N'A RÉPONDU · laisse les fenêtres ouvertes puis réessaie";
+    status.classList.add("warn");
+    return;
+  }
+  const saved={version:1,savedAt:Date.now(),windows};
+  localStorage.setItem(GEOMETRY_KEY,JSON.stringify(saved));
+  status.textContent="PLACEMENT MANUEL SAUVEGARDÉ · "+count+"/5 FENÊTRES";
+  status.classList.toggle("warn",count<5);
+}
+function applySavedWindowPlacement(timeoutMs=1100){
+  return new Promise(resolve=>{
+    const saved=loadWindowGeometry(),windows=saved?.windows||{};
+    if(!geometryChannel||!Object.keys(windows).length)return resolve({requested:0,applied:0});
+    const requestId="RESTORE-"+Date.now()+"-"+Math.random().toString(36).slice(2);
+    const applied=new Set();let done=false;
+    const finish=()=>{if(done)return;done=true;geometryChannel.removeEventListener("message",onMessage);resolve({requested:Object.keys(windows).length,applied:applied.size})};
+    const onMessage=e=>{
+      const m=e.data||{};
+      if(m.type!=="GEOMETRY_APPLIED"||String(m.requestId||"")!==requestId)return;
+      const n=Number(m.geometry?.screen);
+      if(Number.isInteger(n)&&n>=1&&n<=5)applied.add(n);
+      if(applied.size>=Object.keys(windows).length)finish();
+    };
+    geometryChannel.addEventListener("message",onMessage);
+    for(const [n,g] of Object.entries(windows)){
+      geometryChannel.postMessage({type:"APPLY_GEOMETRY",requestId,targetScreen:Number(n),geometry:g});
+    }
+    setTimeout(finish,timeoutMs);
+  });
+}
+async function restoreCurrentWindowPlacement(){
+  const status=document.getElementById("placementStatus");
+  const saved=loadWindowGeometry(),count=geometryCount(saved);
+  if(!count){
+    status.textContent="AUCUN PLACEMENT MANUEL SAUVEGARDÉ";
+    status.classList.add("warn");
+    return;
+  }
+  status.textContent="REPLACEMENT DES FENÊTRES…";
+  const result=await applySavedWindowPlacement();
+  status.textContent="PLACEMENT RESTAURÉ · "+result.applied+"/"+result.requested+" FENÊTRES ONT CONFIRMÉ";
+  status.classList.toggle("warn",result.applied<result.requested);
 }
 function sortedScreens(items){
   return [...items].sort((a,b)=>(a.left-b.left)||(a.top-b.top)||(a.index-b.index));
@@ -139,10 +225,17 @@ document.getElementById("openOperator").addEventListener("click",()=>
 document.getElementById("openAll").addEventListener("click",()=>{
   [3,1,2,4,5].forEach(n=>openScreen(document.querySelector('[data-screen="'+n+'"]')));
 });
+document.getElementById("saveCurrentPlacement").addEventListener("click",saveCurrentWindowPlacement);
+document.getElementById("restoreCurrentPlacement").addEventListener("click",restoreCurrentWindowPlacement);
 document.getElementById("resetPlacement").addEventListener("click",()=>{
   localStorage.removeItem(PLACEMENT_KEY);
+  localStorage.removeItem(GEOMETRY_KEY);
   renderMapping();
-  document.getElementById("placementStatus").textContent="PLACEMENT MÉMORISÉ EFFACÉ";
+  document.getElementById("placementStatus").textContent="PLACEMENTS MÉMORISÉS EFFACÉS";
 });
 physicalScreens=[fallbackScreen()];
 renderMapping();
+const savedGeometry=loadWindowGeometry();
+if(geometryCount(savedGeometry)){
+  document.getElementById("placementStatus").textContent="PLACEMENT MANUEL SAUVEGARDÉ · "+geometryCount(savedGeometry)+"/5 FENÊTRES";
+}
