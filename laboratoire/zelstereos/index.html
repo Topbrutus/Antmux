@@ -80,13 +80,40 @@ let lastRenderedPublicState=null;
 let lastExternalPublicState=null;
 let aiSelectedFormula=null;
 let aiSfxStageMap=['SFX06','SFX03','SFX08','SFX24','SFX12','SFX30','SFX35'];
+let zelSfxManifest=null;
+let zelSfxManifestPromise=null;
+const zelSfxBuffers=new Map();
+const zelSfxLoading=new Map();
 let aiPresentationActive=false;
 let aiPresentationHoldUntil=0;
 let aiLocalEventVersion=1000000;
 let lastWsMessageAt=0;
 let lastLiveStagePerf=0;
 let liveMachineOffset=Math.floor(Math.random()*20);
-async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();syncAudioState();return audioCtx;}
+const ZEL_SFX_MANIFEST_URL='./assets/sfx/manifest.json';
+async function zelSfxLoadManifest(){
+  if(zelSfxManifest)return zelSfxManifest;
+  if(!zelSfxManifestPromise)zelSfxManifestPromise=fetch(ZEL_SFX_MANIFEST_URL,{cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error('SFX_MANIFEST_HTTP_'+r.status);return r.json();}).then(m=>{if(!m||m.count!==36||!Array.isArray(m.clips))throw new Error('SFX_MANIFEST_INVALID');zelSfxManifest=m;return m;}).catch(e=>{zelSfxManifestPromise=null;throw e;});
+  return zelSfxManifestPromise;
+}
+async function zelSfxLoadBuffer(id){
+  const key=String(id||'').toUpperCase();
+  if(zelSfxBuffers.has(key))return zelSfxBuffers.get(key);
+  if(zelSfxLoading.has(key))return zelSfxLoading.get(key);
+  if(!audioCtx)return null;
+  const p=(async()=>{const m=await zelSfxLoadManifest();const clip=m.clips.find(c=>c.id===key);if(!clip)throw new Error('SFX_ID_UNKNOWN_'+key);const r=await fetch('./assets/sfx/'+encodeURIComponent(clip.file),{cache:'force-cache'});if(!r.ok)throw new Error('SFX_HTTP_'+r.status);const b=await audioCtx.decodeAudioData((await r.arrayBuffer()).slice(0));zelSfxBuffers.set(key,b);return b;})().finally(()=>zelSfxLoading.delete(key));
+  zelSfxLoading.set(key,p);return p;
+}
+function zelSfxWarm(ids=aiSfxStageMap){if(!audioCtx)return Promise.resolve([]);return Promise.allSettled([...new Set(ids)].map(id=>zelSfxLoadBuffer(id)));}
+function zelSfxWarmAll(){return zelSfxLoadManifest().then(m=>zelSfxWarm(m.clips.map(c=>c.id))).catch(()=>[]);}
+function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
+  const b=zelSfxBuffers.get(String(id||'').toUpperCase());if(!b){zelSfxWarm([id]);return false;}
+  if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return false;
+  const dur=Math.min(b.duration,Math.max(.30,Math.min(2.0,Number(stageDt)||.65))),src=audioCtx.createBufferSource(),g=audioCtx.createGain();
+  src.buffer=b;g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(gain*soundVolume,start+.015);g.gain.setValueAtTime(gain*soundVolume,start+Math.max(.02,dur-.09));g.gain.exponentialRampToValueAtTime(.0001,start+dur);
+  src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.025);return true;
+}
+async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running')zelSfxWarm(aiSfxStageMap);syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
 document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
 document.addEventListener('touchstart',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
@@ -455,14 +482,14 @@ function soundLiveStage(stageIndex,stageDt=.65,stageWorkRatio=null,stageExecUs=n
   const mappedSfx=aiSfxStageMap[stageIndex]||null;
   if(stageIndex===0){
     soundStartAt(base);
-    fallbackSfxCueAt(mappedSfx,base+.30);
+    if(!zelSfxPlayAt(mappedSfx,base+.30,stageDt,.86))fallbackSfxCueAt(mappedSfx,base+.30);
     liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,stageDt,stageWorkRatio,stageExecUs);
     if(stageDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex],base+1.05,stageDt-1.0,stageIndex);
     setTimeout(()=>speakRobot(stageIndex),220);
     return;
   }
   liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,stageDt,stageWorkRatio,stageExecUs);
-  fallbackSfxCueAt(mappedSfx,base+.10);
+  if(!zelSfxPlayAt(mappedSfx,base+.10,stageDt,.82))fallbackSfxCueAt(mappedSfx,base+.10);
   if(stageDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex]||82,base+.72,stageDt-.62,stageIndex);
   setTimeout(()=>speakRobot(stageIndex),120);
   if(stageIndex===6)soundEndAt(base+.72);
@@ -563,6 +590,7 @@ function zelAiSetSfxMap(ids){
   const normalized=ids.map(id=>String(id||'').toUpperCase());
   if(!normalized.every(zelAiValidSfxId))throw new TypeError('SFX ids must be SFX01..SFX36');
   aiSfxStageMap=[...normalized];
+  if(audioCtx)zelSfxWarm(aiSfxStageMap);
   return [...aiSfxStageMap];
 }
 function zelAiSfxMap(){return [...aiSfxStageMap];}
@@ -598,6 +626,7 @@ function zelAiDiagnostics(){
     page:location.pathname,
     selected_formula:zelAiSelectedFormula(),
     sfx_stage_map:zelAiSfxMap(),
+    sfx_runtime:{manifest_loaded:Boolean(zelSfxManifest),manifest_count:zelSfxManifest?zelSfxManifest.count:null,loaded_buffers:zelSfxBuffers.size,loading_buffers:zelSfxLoading.size,real_assets:true},
     timing_policy:{min_stage_ms_default:350,max_stage_ms_default:60000,long_stage_real_time:true},
     presentation:{
       active:aiPresentationActive,
@@ -768,7 +797,7 @@ async function zelAiPlayCalculation(spec={}){
 }
 Object.defineProperty(window,'ZELSTEREOS_AI',{
   value:Object.freeze({
-    version:'2.1',
+    version:'2.2',
     diagnostics:zelAiDiagnostics,
     selfTest:zelAiSelfTest,
     waitForLive:zelAiWaitForLive,
@@ -776,6 +805,7 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     selectedFormula:zelAiSelectedFormula,
     setSfxMap:zelAiSetSfxMap,
     sfxMap:zelAiSfxMap,
+    preloadSfx:zelSfxWarmAll,
     playCalculation:zelAiPlayCalculation
   }),
   writable:false,

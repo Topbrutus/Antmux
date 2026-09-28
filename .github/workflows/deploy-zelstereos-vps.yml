@@ -8,6 +8,7 @@ on:
       - '.github/workflows/deploy-zelstereos-vps.yml'
       - 'laboratoire/zelstereos/index.html'
       - 'laboratoire/zelstereos/api/state'
+      - 'laboratoire/zelstereos/assets/sfx/**'
       - 'laboratoire/index.html'
   workflow_dispatch:
     inputs:
@@ -44,16 +45,28 @@ jobs:
           set -euo pipefail
           test -f laboratoire/zelstereos/index.html
           test -f laboratoire/zelstereos/api/state
+          test -f laboratoire/zelstereos/assets/sfx/manifest.json
           test -f laboratoire/index.html
+          test "$(find laboratoire/zelstereos/assets/sfx -maxdepth 1 -type f -name 'SFX*.mp3' | wc -l)" -eq 36
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' laboratoire/zelstereos/index.html
           grep -Fq './zelstereos/' laboratoire/index.html
           ! grep -Eq 'Â|Ã|â' laboratoire/zelstereos/index.html
+          python - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('laboratoire/zelstereos/assets/sfx')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          assert m['count']==36
+          assert [c['id'] for c in m['clips']]==[f'SFX{i:02d}' for i in range(1,37)]
+          assert all((root/c['file']).is_file() and (root/c['file']).stat().st_size>1000 for c in m['clips'])
+          print('ZELSTEREOS_SFX36_PAYLOAD=PASS')
+          PY
           rm -rf _zelstereos_deploy
-          mkdir -p _zelstereos_deploy/api
+          mkdir -p _zelstereos_deploy/api _zelstereos_deploy/assets/sfx
           cp laboratoire/zelstereos/index.html _zelstereos_deploy/index.html
           cp laboratoire/zelstereos/api/state _zelstereos_deploy/api/state
+          cp -a laboratoire/zelstereos/assets/sfx/. _zelstereos_deploy/assets/sfx/
           cp laboratoire/index.html _zelstereos_deploy/laboratoire-index.html
-          (cd _zelstereos_deploy && sha256sum index.html api/state laboratoire-index.html > SHA256SUMS)
+          (cd _zelstereos_deploy && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 
       - name: Configure pinned SSH identity
         env:
@@ -107,10 +120,15 @@ jobs:
           sha256sum -c SHA256SUMS
           mkdir -p "$BACKUP_ROOT"
           if test -f "$TARGET_ROOT/index.html"; then cp -a "$TARGET_ROOT/index.html" "$BACKUP_ROOT/index.html"; fi
+          if test -d "$TARGET_ROOT/assets/sfx"; then mkdir -p "$BACKUP_ROOT/assets"; cp -a "$TARGET_ROOT/assets/sfx" "$BACKUP_ROOT/assets/sfx"; fi
           if test -f "$LAB_ROOT/index.html"; then cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html"; fi
-          install -d -m 0755 "$TARGET_ROOT/api"
+          install -d -m 0755 "$TARGET_ROOT/api" "$TARGET_ROOT/assets"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/api/state" "$TARGET_ROOT/api/state"
+          rm -rf "$TARGET_ROOT/assets/sfx"
+          cp -a "$REMOTE_STAGE/assets/sfx" "$TARGET_ROOT/assets/sfx"
+          find "$TARGET_ROOT/assets/sfx" -type d -exec chmod 0755 {} +
+          find "$TARGET_ROOT/assets/sfx" -type f -exec chmod 0644 {} +
           install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
@@ -121,6 +139,7 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/ -o /tmp/zelstereos.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/api/state -o /tmp/zelstereos-state.json
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/assets/sfx/manifest.json -o /tmp/zelstereos-sfx.json
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/laboratoire.html
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' /tmp/zelstereos.html
           grep -Fq 'Lecture seule · données filtrées · commandes privées non exposées' /tmp/zelstereos.html
@@ -132,6 +151,15 @@ jobs:
           assert d['mode']=='PUBLIC_SAFE'
           assert d['read_only'] is True
           assert d['status']=='SNAPSHOT'
+          m=json.load(open('/tmp/zelstereos-sfx.json',encoding='utf-8'))
+          assert m['count']==36
+          assert [c['id'] for c in m['clips']]==[f'SFX{i:02d}' for i in range(1,37)]
+          open('/tmp/zelstereos-sfx-files.txt','w',encoding='utf-8').write('\n'.join(c['file'] for c in m['clips'])+'\n')
           print('ZELSTEREOS_STATE_JSON=PASS')
+          print('ZELSTEREOS_SFX36_MANIFEST=PASS')
           PY
+          while IFS= read -r f; do
+            curl --fail --silent --show-error --location --range 0-63 "https://antmux.com/laboratoire/zelstereos/assets/sfx/$f" -o /dev/null
+          done < /tmp/zelstereos-sfx-files.txt
+          echo 'ZELSTEREOS_SFX36_PUBLIC=PASS'
           echo 'ZELSTEREOS_PUBLIC_DEPLOY=PASS'
