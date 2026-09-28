@@ -1899,9 +1899,9 @@ document.getElementById("audioOutFollow").addEventListener("click",toggleAudioFo
 document.getElementById("genArm").addEventListener("click",armSignalGenerator);
 document.getElementById("genFillPopcorn").addEventListener("click",fillPopcornBasin);
 document.getElementById("genClear").addEventListener("click",clearSignalGenerator);
-const SCREEN_NAMES={1:"MASTER",2:"ANALYSIS",3:"OPERATOR",4:"CONTROL",5:"SETTINGS"};
+const SCREEN_NAMES={1:"LABORATOIRE",2:"EXTENSION 1",3:"EXTENSION 2",4:"EXTENSION 3",5:"EXTENSION 4"};
 const SCREEN_MODE=Number(new URLSearchParams(location.search).get("screen")||0);
-const MULTI_SCREEN={enabled:SCREEN_MODE>=1&&SCREEN_MODE<=5,screen:SCREEN_MODE,owner:SCREEN_MODE===3||SCREEN_MODE===0,channel:null,applying:false,lastStateAt:0};
+const MULTI_SCREEN={enabled:SCREEN_MODE>=1&&SCREEN_MODE<=5,screen:SCREEN_MODE,owner:SCREEN_MODE===1||SCREEN_MODE===0,channel:null,applying:false,lastStateAt:0};
 function setScreenVisibility(el,screens){
   if(!el)return;
   const allowed=screens.includes(SCREEN_MODE);
@@ -1911,27 +1911,12 @@ function applyFiveScreenLayout(){
   if(!MULTI_SCREEN.enabled)return;
   document.body.classList.add("brutusScreenMode","screenMode"+SCREEN_MODE);
   document.getElementById("screenTitle").textContent="BRUTUS // SCREEN "+SCREEN_MODE;
-  document.getElementById("screenRole").textContent=SCREEN_NAMES[SCREEN_MODE]+" · "+(MULTI_SCREEN.owner?"CORE OWNER":"SYNCHRONIZED VIEW");
-  document.getElementById("fiveScreenBadge").textContent="SCREEN "+SCREEN_MODE+" / 5 · "+(MULTI_SCREEN.owner?"CORE":"VIEW");
+  document.getElementById("screenRole").textContent=SCREEN_MODE===1?"LABORATOIRE PRINCIPAL · CORE OWNER":"EXTENSION LIBRE · TABLE DE LABORATOIRE";
+  document.getElementById("fiveScreenBadge").textContent="SCREEN "+SCREEN_MODE+" / 5 · "+(SCREEN_MODE===1?"LAB":"EXT");
   setScreenVisibility(document.querySelector(".layout"),[1]);
-  document.querySelectorAll(".monitorWall").forEach(el=>setScreenVisibility(el,[2]));
-  const deck=document.querySelector(".instrumentDeck");
-  setScreenVisibility(deck,[2,3]);
-  const analysisIds=["ANALYSIS-AMP-01","ANALYSIS-HISTORY-01","TIMEBASE-01","SAMPLER-01","SAMPLER-QUALITY-01","MOTOR-BRIDGE-01","CRACK-METER-01","CRACK-CLASSIFIER-01"];
-  const operatorIds=["PRESET-BANK-01","REFERENCE-CATALOG-01","MICROPHONE-SOURCE-01","SIGNAL-GENERATOR-01"];
-  analysisIds.forEach(id=>setScreenVisibility(document.getElementById(id),[2]));
-  operatorIds.forEach(id=>setScreenVisibility(document.getElementById(id),[3]));
-  const controls=document.querySelector(".controls");
-  setScreenVisibility(controls,[4,5]);
-  if(controls){
-    [...controls.children].forEach(el=>{
-      if(el.tagName==="H2")return setScreenVisibility(el,[4,5]);
-      const id=el.id||"";
-      if(["INPUT-TEST-01","CONNECT-T2-01","CONNECT-T3-01","CONNECT-T4-01","CONNECT-T5-01"].includes(id))setScreenVisibility(el,[4]);
-      else if(["OBS-BUS-01","TOPOLOGY-REGISTRY-01","CONTROL-DIAL-RACK-01"].includes(id)||el.classList.contains("controlLaunchBar")||el.classList.contains("note")||el.classList.contains("rule"))setScreenVisibility(el,[5]);
-      else setScreenVisibility(el,[5]);
-    });
-  }
+  document.querySelectorAll(".monitorWall").forEach(el=>setScreenVisibility(el,[1]));
+  setScreenVisibility(document.querySelector(".instrumentDeck"),[1]);
+  setScreenVisibility(document.querySelector(".controls"),[1]);
   requestAnimationFrame(()=>{resize();renderWaveChart();renderSpectrum();requestAnimationFrame(autoFitFiveScreen);});
 }
 function autoFitFiveScreen(){
@@ -1945,7 +1930,7 @@ function autoFitFiveScreen(){
   const viewportH=Math.max(320,window.innerHeight-12);
   const naturalW=Math.max(shell.scrollWidth,shell.getBoundingClientRect().width);
   const naturalH=Math.max(shell.scrollHeight,shell.getBoundingClientRect().height);
-  const preferred={1:1.12,2:1.00,3:0.90,4:1.48,5:1.48}[SCREEN_MODE]||1;
+  const preferred=SCREEN_MODE===1?1.12:1.00;
   const heightScale=viewportH/Math.max(1,naturalH);
   const accessibilityZoom=SCREEN_MODE===1?Math.max(0.75,Math.min(1.50,Number(window.BRUTUS_SCREEN1_ZOOM_FACTOR)||1)):1;
   let scale=Math.min(preferred,heightScale)*accessibilityZoom;
