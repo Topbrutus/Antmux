@@ -34,6 +34,19 @@ def main() -> None:
             assert first["emoji_close"] == "✉️🐜"
             assert first["remaining_after_this"] == 2
 
+            ant = first["ant"]
+            assert ant["schema"] == "ANTMUX-ANT-BIRTH-v1"
+            assert ant["ant_id"] == first["id"]
+            assert ant["emoji"] == "🐜"
+            assert len(ant["triad_name"]) >= 3
+            assert ant["state"] == "READY_TO_SING"
+            assert ant["project_soul"]["meaning"] == "software identity + memory + timing + lineage"
+            assert ant["baggage"]["language_triplet"] == "🔤🎧〰️"
+            assert ant["baggage"]["symbolic_song"].startswith("◉→")
+            assert ant["baggage"]["symbolic_song"].endswith("→♡")
+            assert "email" not in ant["baggage"]
+            assert all("PARAZONE" not in str(phase).upper() for phase in ant["lifecycle"])
+
             # Pending submissions must never leak to the public feed.
             assert store.public_posts(40) == []
 
@@ -110,6 +123,8 @@ def main() -> None:
             print("PUBLIC_JOURNAL_MODERATION=PASS")
             print("PUBLIC_JOURNAL_ADMIN_GATE=PASS")
             print("PUBLIC_JOURNAL_EMOJI_FRAMING=PASS")
+            print("PUBLIC_JOURNAL_ANT_BIRTH=PASS")
+            print("PUBLIC_JOURNAL_READY_TO_SING=PASS")
         finally:
             journal.time.time = original_time
 
