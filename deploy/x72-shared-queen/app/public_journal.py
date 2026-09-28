@@ -177,24 +177,6 @@ class JournalStore:
                 )
                 """
             )
-            db.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ants (
-                    id TEXT PRIMARY KEY,
-                    post_id TEXT NOT NULL UNIQUE,
-                    state TEXT NOT NULL,
-                    receipt_json TEXT NOT NULL,
-                    created_at REAL NOT NULL,
-                    updated_at REAL NOT NULL
-                )
-                """
-            )
-            db.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_ants_state_time
-                ON ants(state, updated_at DESC)
-                """
-            )
             db.commit()
 
     def public_contact_email(self) -> str:
@@ -256,7 +238,6 @@ class JournalStore:
         post_id = f"ANT-{uuid.uuid4().hex[:12].upper()}"
         emoji_open, emoji_close, core = PUBLIC_KINDS[kind]
         emoji_index = f"🐜{core}📚"
-        ant_receipt = build_ant_receipt(post_id, title, body, now)
         with closing(sqlite3.connect(self.db_path)) as db:
             # BEGIN IMMEDIATE serializes the quota check + insert, preventing
             # concurrent submissions from racing past the 3-per-window limit.
@@ -276,25 +257,7 @@ class JournalStore:
                 ),
             )
             db.execute(
-                """
-                INSERT INTO ants(id, post_id, state, receipt_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    post_id,
-                    post_id,
-                    ant_receipt["state"],
-                    json.dumps(ant_receipt, ensure_ascii=False, separators=(",", ":")),
-                    now,
-                    now,
-                ),
-            )
-            db.execute(
                 "INSERT INTO audit(post_id, action, detail, created_at) VALUES (?, 'SUBMITTED', 'visitor pending moderation', ?)",
-                (post_id, now),
-            )
-            db.execute(
-                "INSERT INTO audit(post_id, action, detail, created_at) VALUES (?, 'ANT_BORN', 'ant lifecycle created; Life Clock state assigned; Parazone port pending', ?)",
                 (post_id, now),
             )
             db.commit()
@@ -306,68 +269,7 @@ class JournalStore:
             "emoji_open": emoji_open,
             "emoji_close": emoji_close,
             "remaining_after_this": max(0, remaining_before - 1),
-            "ant": ant_receipt,
         }
-
-    def _load_ant(self, ant_id: str) -> dict[str, Any]:
-        ant_id = normalize_text(ant_id, 64, required=True)
-        with closing(sqlite3.connect(self.db_path)) as db:
-            row = db.execute(
-                "SELECT receipt_json FROM ants WHERE id=?",
-                (ant_id,),
-            ).fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="ant not found")
-        return json.loads(str(row[0]))
-
-    def _save_ant(self, ant_id: str, receipt: dict[str, Any], action: str, detail: str) -> dict[str, Any]:
-        now = time.time()
-        with closing(sqlite3.connect(self.db_path)) as db:
-            db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT id FROM ants WHERE id=?", (ant_id,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="ant not found")
-            db.execute(
-                "UPDATE ants SET state=?, receipt_json=?, updated_at=? WHERE id=?",
-                (
-                    receipt["state"],
-                    json.dumps(receipt, ensure_ascii=False, separators=(",", ":")),
-                    now,
-                    ant_id,
-                ),
-            )
-            db.execute(
-                "INSERT INTO audit(post_id, action, detail, created_at) VALUES (?, ?, ?, ?)",
-                (ant_id, action, detail, now),
-            )
-            db.commit()
-        return receipt
-
-    def confirm_parazone(self, ant_id: str) -> dict[str, Any]:
-        current = self._load_ant(ant_id)
-        try:
-            updated = parazone_complete(current)
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return self._save_ant(
-            ant_id,
-            updated,
-            "PARAZONE_TRANSFER_CONFIRMED",
-            "song + language ingress confirmed; ant moved to dormitory egg",
-        )
-
-    def crystallize_ant(self, ant_id: str) -> dict[str, Any]:
-        current = self._load_ant(ant_id)
-        try:
-            updated = queen_crystallize(current)
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return self._save_ant(
-            ant_id,
-            updated,
-            "QUEEN_CRYSTALLIZED",
-            "dormitory egg crystallized and ready for a new cycle",
-        )
 
     def create_official(self, payload: OfficialPost) -> dict[str, Any]:
         kind = payload.kind.strip().upper()
@@ -471,10 +373,6 @@ async def journal_config() -> dict[str, Any]:
             {"id": "JOB", "open": "🐜💼", "close": "💼🐜", "label": "Job / proposition"},
         ],
         "contact_email": store.public_contact_email(),
-        "entry_policy": ENTRY_POLICY,
-        "launch_phrase": LAUNCH_PHRASE,
-        "ant_lifecycle_schema": "ANTMUX-ANT-LIFECYCLE-v1",
-        "parazone_port": "READY_TO_CONNECT",
         "privacy": "Les courriels des visiteurs restent privés et ne sont jamais renvoyés par l'API publique.",
     }
 
@@ -502,15 +400,3 @@ async def journal_admin_publish(payload: OfficialPost, request: Request) -> dict
 async def journal_admin_moderate(post_id: str, payload: ModerationRequest, request: Request) -> dict[str, Any]:
     store.require_admin(request.headers.get("authorization", ""))
     return store.moderate(post_id, payload.status)
-
-
-@router.post("/admin/ant/{ant_id}/parazone-complete")
-async def journal_admin_parazone_complete(ant_id: str, request: Request) -> dict[str, Any]:
-    store.require_admin(request.headers.get("authorization", ""))
-    return {"ok": True, "ant": store.confirm_parazone(ant_id)}
-
-
-@router.post("/admin/ant/{ant_id}/crystallize")
-async def journal_admin_crystallize_ant(ant_id: str, request: Request) -> dict[str, Any]:
-    store.require_admin(request.headers.get("authorization", ""))
-    return {"ok": True, "ant": store.crystallize_ant(ant_id)}
