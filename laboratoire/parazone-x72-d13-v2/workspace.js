@@ -100,11 +100,13 @@ function restore(k){const m=state.live.modules[k];if(!m)return;m.min=false;bump(
 function restoreHere(k){
   const m=state.live.modules[k];if(!m)return;
   m.closed=false;delete m.closedScreen;m.screen=SCREEN;m.min=false;m.x=16;m.y=48;m.precise=false;bump(m);save();apply();
+  dispatchEvent(new CustomEvent("BRUTUS_PANEL_REOPENED",{detail:{key:k,screen:SCREEN}}));
 }
 function routeWindow(k,targetScreen){
   const m=state.live.modules[k],target=Number(targetScreen);if(!m||target<1||target>5)return;
   state.enabled=true;
   m.closed=false;delete m.closedScreen;m.min=false;m.screen=target;m.x=16;m.y=48;m.precise=false;bump(m);save();apply();
+  dispatchEvent(new CustomEvent("BRUTUS_PANEL_REOPENED",{detail:{key:k,screen:target}}));
 }
 function iconTransferPayload(k){const m=state.live.modules[k];return JSON.stringify({type:"BRUTUS_WORKSPACE_ICON",key:k,sourceView:SCREEN,screen:Number(m?.screen)||SCREEN})}
 function readIconTransfer(ev){
@@ -126,6 +128,7 @@ function transferPanelTo(k,targetScreen,clientX=null,clientY=null,shift=false){
     m.x=p.x;m.y=p.y;
   }else{m.x=16;m.y=48;m.precise=false}
   bump(m);save();apply();
+  dispatchEvent(new CustomEvent("BRUTUS_PANEL_REOPENED",{detail:{key:k,screen:targetScreen}}));
 }
 function installIconTransfers(){
   addEventListener("message",e=>{
@@ -192,6 +195,6 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());windowMenu.append(menuBtn,windowMenuList);tb?.insertBefore(windowMenu,tb.children[1]||null);
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn active";b.type="button";b.textContent="RANGER TOUT";b.title="Fermer et ranger toutes les fenêtres";b.onclick=()=>closeAllWindows();tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · FENÊTRES = DIRECTORY GLOBAL S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply()}
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size)return;for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply()}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
