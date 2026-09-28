@@ -67,6 +67,10 @@ jobs:
           mkdir -p _x72_runner_data
           printf '%s' 'ci-zelstereos-test-token' > _x72_runner_data/zel-ingest-token
           chmod 600 _x72_runner_data/zel-ingest-token
+          ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data/journal-test" \\
+          PYTHONPATH="$PWD/deploy/x72-shared-queen:$PWD/_x72_runner_vendor" \\
+          python3 deploy/x72-shared-queen/tests/test_public_journal.py
+          printf 'PUBLIC_JOURNAL_RUNNER=PASS\\n'
           export ANTMUX_ZEL_INGEST_TOKEN_FILE="$PWD/_x72_runner_data/zel-ingest-token"
           ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data" \
           PYTHONPATH="$PWD/_x72_runner_vendor" \
@@ -117,10 +121,12 @@ jobs:
           set -euo pipefail
           test -n "${ZEL_INGEST_TOKEN:-}"
           rm -rf _x72_shared_queen_deploy
-          mkdir -p _x72_shared_queen_deploy
+          mkdir -p _x72_shared_queen_deploy _x72_shared_queen_deploy/public/fourmiliere
           cp -a deploy/x72-shared-queen/app _x72_shared_queen_deploy/
           cp -a deploy/x72-shared-queen/tests _x72_shared_queen_deploy/
           cp -a deploy/x72-shared-queen/frontend _x72_shared_queen_deploy/
+          cp laboratoire/fourmiliere/index.html _x72_shared_queen_deploy/public/fourmiliere/index.html
+          cp laboratoire/index.html _x72_shared_queen_deploy/public/laboratoire-index.html
           cp -a _x72_runner_vendor _x72_shared_queen_deploy/vendor
           printf '%s' "$ZEL_INGEST_TOKEN" > _x72_shared_queen_deploy/zel-ingest-token
           chmod 600 _x72_shared_queen_deploy/zel-ingest-token
