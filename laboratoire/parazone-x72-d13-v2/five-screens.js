@@ -1,10 +1,10 @@
 const cards=[...document.querySelectorAll(".card")];
 const LOGICAL=[
-  {n:1,name:"MASTER",url:"screen-1-master.html"},
-  {n:2,name:"ANALYSIS",url:"screen-2-analysis.html"},
-  {n:3,name:"OPERATOR",url:"screen-3-operator.html"},
-  {n:4,name:"CONTROL",url:"screen-4-control.html"},
-  {n:5,name:"SETTINGS",url:"screen-5-settings.html"}
+  {n:1,name:"LABORATOIRE",url:"screen-1-master.html"},
+  {n:2,name:"EXTENSION 1",url:"screen-2-analysis.html"},
+  {n:3,name:"EXTENSION 2",url:"screen-3-operator.html"},
+  {n:4,name:"EXTENSION 3",url:"screen-4-control.html"},
+  {n:5,name:"EXTENSION 4",url:"screen-5-settings.html"}
 ];
 const LEGACY_PLACEMENT_KEY="BRUTUS_SCREEN_PLACEMENT_V1";
 const GEOMETRY_KEY="BRUTUS_SCREEN_GEOMETRY_V1";
