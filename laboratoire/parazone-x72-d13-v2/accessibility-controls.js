@@ -47,20 +47,8 @@ function panelAdjustedBase(el){
   const panelScale=panel?Number(panel.dataset.textScale)||1:1;
   return base*panelScale;
 }
-function applyTextScale(root=document){
-  const scale=state.textScale;
-  for(const el of textTargets(root)){
-    let base=panelAdjustedBase(el);
-    if(base===null){
-      if(!el.dataset.brutusGlobalFontBasePx){
-        const current=Number.parseFloat(getComputedStyle(el).fontSize);
-        if(Number.isFinite(current)&&current>0)el.dataset.brutusGlobalFontBasePx=String(current/(Number(window.BRUTUS_GLOBAL_TEXT_SCALE_PREVIOUS)||1));
-      }
-      base=Number(el.dataset.brutusGlobalFontBasePx);
-    }
-    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*scale).toFixed(2)+"px";
-  }
-  window.BRUTUS_GLOBAL_TEXT_SCALE_PREVIOUS=scale;
+function applyTextScale(){
+  // Global font scaling moved to font-controls.js so modules keep independent typography.
 }
 function refreshZoom(){
   window.BRUTUS_SCREEN1_ZOOM_FACTOR=state.screen1Zoom;
@@ -130,12 +118,7 @@ function installControls(){
   host.innerHTML="";
   const zoomMinus=button("−","Zoom out SCREEN 1",()=>setZoom(state.screen1Zoom-ZOOM_STEP));
   const zoomPlus=button("+","Zoom in SCREEN 1",()=>setZoom(state.screen1Zoom+ZOOM_STEP));
-  const textMinus=button("A−","Réduire le texte sur les cinq écrans",()=>setTextScale(state.textScale-TEXT_STEP));
-  const textPlus=button("A+","Agrandir le texte sur les cinq écrans",()=>setTextScale(state.textScale+TEXT_STEP));
-  host.append(
-    group("ZOOM","screenZoomReadout",zoomMinus,zoomPlus),
-    group("TEXTE","globalTextReadout",textMinus,textPlus)
-  );
+  host.append(group("ZOOM","screenZoomReadout",zoomMinus,zoomPlus));
   updateReadouts();
 }
 function installSync(){
