@@ -50,8 +50,6 @@ function initGlobalFont(){
   }
   addEventListener("storage",e=>{if(e.key===FONT_KEY&&e.newValue){try{const x=JSON.parse(e.newValue);fontScale=Math.round(fontClamp(x.scale)*100)/100;applyGlobalFont()}catch(_){}}});
   addEventListener("BRUTUS_MODULE_ZOOM_CHANGED",()=>applyGlobalFont());
-  const fontObserver=new MutationObserver(ms=>{if(ms.some(m=>m.addedNodes.length))applyGlobalFont()});
-  fontObserver.observe(document.body,{childList:true,subtree:true});
   applyGlobalFont();
 }
 function screenZoomClamp(v){return Math.max(SCREEN_ZOOM_MIN,Math.min(SCREEN_ZOOM_MAX,Number(v)||1))}
@@ -142,7 +140,7 @@ function refreshWindowMenu(){
   if(btn)btn.textContent=directory.length?"MODULE · "+directory.length:"MODULE";
   windowMenuList.innerHTML="";
   const head=document.createElement("div");head.className="workspaceWindowMenuEmpty";head.textContent="MODULES CACHÉS · CLIQUER POUR OUVRIR ICI · SCREEN "+SCREEN;windowMenuList.appendChild(head);
-  if(!directory.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUN MODULE CACHÉ";windowMenuList.appendChild(e);return}
+  if(!directory.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUN MODULE CACHÉ";windowMenuList.appendChild(e);applyGlobalFont();return}
   let lastOrigin=0;
   for(const {k,e,info} of directory){
     if(info.origin!==lastOrigin){const group=document.createElement("div");group.className="workspaceWindowMenuEmpty";group.textContent="SCREEN "+info.origin+" · "+(SCREEN_GROUP_NAMES[info.origin]||"");windowMenuList.appendChild(group);lastOrigin=info.origin}
@@ -162,6 +160,7 @@ function refreshWindowMenu(){
     }
     row.append(open,targets);windowMenuList.appendChild(row);
   }
+  applyGlobalFont();
 }
 function syncClosedClasses(){
   for(const [k,e] of cards){const m=state?.live?.modules?.[k];e.classList.toggle("workspaceClosed",!!m?.closed)}
@@ -294,7 +293,7 @@ function closeAllWindows(){
   state.enabled=true;save();apply();
 }
 function profiles(){const s=document.querySelector(".workspaceProfiles");if(!s)return;const cur=state.active||s.value;s.innerHTML='<option value="">MODULES SAUVÉS</option>';Object.keys(state.profiles).sort().forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;s.appendChild(o)});if(state.profiles[cur])s.value=cur}
-function apply(){if(applying)return;applying=true;state.enabled=true;document.body.classList.add("brutusDesktopMode");const b=document.querySelector(".workspaceModeBtn");if(b){b.classList.add("active");b.textContent="RANGER TOUT"}for(const[k,e]of cards){prep(e,k);cardApply(k,e)}iconRender();profiles();syncClosedClasses();refreshWindowMenu();dispatchEvent(new Event("resize"));applying=false}
+function apply(){if(applying)return;applying=true;state.enabled=true;document.body.classList.add("brutusDesktopMode");const b=document.querySelector(".workspaceModeBtn");if(b){b.classList.add("active");b.textContent="RANGER TOUT"}for(const[k,e]of cards){prep(e,k);cardApply(k,e)}iconRender();profiles();syncClosedClasses();refreshWindowMenu();applyGlobalFont();dispatchEvent(new Event("resize"));applying=false}
 function ui(){const tb=document.getElementById("screenTitleBar");
 windowMenu=document.getElementById("workspaceModuleMenu");
 let menuBtn=document.getElementById("workspaceModuleButton");
