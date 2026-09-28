@@ -185,7 +185,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
       <span>ANALYSE</span><span>RÉSONANCE</span><span>BANQUE</span><span>GÉNÉRATEUR</span><span>ÉCHANTILLONS</span><span>RÉFÉRENCES</span><span>OUTILS</span>
     </nav>
     <div class="connectionBadge" id="motorConnectionBadge" data-state="connecting">● MOTOR · CONNECTING</div>
-    <button id="openFiveScreens" class="screenLaunchBtn" type="button">5 ÉCRANS</button>
+    <a id="openFiveScreens" class="screenLaunchBtn" href="five-screens.html">5 ÉCRANS</a>
     <div class="screenShortcutBar" aria-label="Raccourcis des cinq écrans BRUTUS"><button class="screenShortcutBtn" data-screen-open="1" type="button">SCREEN 1</button><button class="screenShortcutBtn" data-screen-open="2" type="button">SCREEN 2</button><button class="screenShortcutBtn" data-screen-open="3" type="button">SCREEN 3</button><button class="screenShortcutBtn" data-screen-open="4" type="button">SCREEN 4</button><button class="screenShortcutBtn" data-screen-open="5" type="button">SCREEN 5</button></div>
     <div id="fiveScreenBadge" class="fiveScreenBadge">MULTI-SCREEN</div>
     <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
@@ -2241,7 +2241,7 @@ function setupPanelWorkspace(){
   });
   refreshPanelWorkspaceGeometry(true);
 }
-function openFiveScreenLauncher(){location.href="five-screens.html";}
+function openFiveScreenLauncher(e){if(e)e.stopPropagation();}
 const SCREEN_URLS={1:"screen-1-master.html",2:"screen-2-analysis.html",3:"screen-3-operator.html",4:"screen-4-control.html",5:"screen-5-settings.html"};
 function openNamedBrutusScreen(n){const u=SCREEN_URLS[n];if(!u)return;const w=window.open(u,"BRUTUS_SCREEN_"+n);if(w)try{w.focus()}catch(_){}}
 document.querySelectorAll("[data-screen-open]").forEach(btn=>{const n=Number(btn.dataset.screenOpen);if(n===SCREEN_MODE)btn.classList.add("active");btn.addEventListener("click",()=>openNamedBrutusScreen(n));});
