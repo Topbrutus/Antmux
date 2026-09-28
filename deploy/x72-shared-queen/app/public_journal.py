@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -15,6 +16,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+from .ant_birth import build_ant_birth
 
 
 ROUTER_PREFIX = "/api/journal"
@@ -177,6 +180,17 @@ class JournalStore:
                 )
                 """
             )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ants (
+                    id TEXT PRIMARY KEY,
+                    post_id TEXT NOT NULL UNIQUE,
+                    state TEXT NOT NULL,
+                    receipt_json TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                )
+                """
+            )
             db.commit()
 
     def public_contact_email(self) -> str:
@@ -238,6 +252,7 @@ class JournalStore:
         post_id = f"ANT-{uuid.uuid4().hex[:12].upper()}"
         emoji_open, emoji_close, core = PUBLIC_KINDS[kind]
         emoji_index = f"🐜{core}📚"
+        ant_receipt = build_ant_birth(post_id, title, body, now)
         with closing(sqlite3.connect(self.db_path)) as db:
             # BEGIN IMMEDIATE serializes the quota check + insert, preventing
             # concurrent submissions from racing past the 3-per-window limit.
@@ -257,7 +272,24 @@ class JournalStore:
                 ),
             )
             db.execute(
+                """
+                INSERT INTO ants(id, post_id, state, receipt_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    post_id,
+                    post_id,
+                    ant_receipt["state"],
+                    json.dumps(ant_receipt, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            db.execute(
                 "INSERT INTO audit(post_id, action, detail, created_at) VALUES (?, 'SUBMITTED', 'visitor pending moderation', ?)",
+                (post_id, now),
+            )
+            db.execute(
+                "INSERT INTO audit(post_id, action, detail, created_at) VALUES (?, 'ANT_READY_TO_SING', 'ant born, baggage attached, Life Clock memory/identity assigned', ?)",
                 (post_id, now),
             )
             db.commit()
@@ -269,6 +301,7 @@ class JournalStore:
             "emoji_open": emoji_open,
             "emoji_close": emoji_close,
             "remaining_after_this": max(0, remaining_before - 1),
+            "ant": ant_receipt,
         }
 
     def create_official(self, payload: OfficialPost) -> dict[str, Any]:
@@ -373,6 +406,8 @@ async def journal_config() -> dict[str, Any]:
             {"id": "JOB", "open": "🐜💼", "close": "💼🐜", "label": "Job / proposition"},
         ],
         "contact_email": store.public_contact_email(),
+        "ant_birth_schema": "ANTMUX-ANT-BIRTH-v1",
+        "ant_birth_stops_at": "READY_TO_SING",
         "privacy": "Les courriels des visiteurs restent privés et ne sont jamais renvoyés par l'API publique.",
     }
 
