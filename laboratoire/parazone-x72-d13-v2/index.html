@@ -174,7 +174,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <div id="fiveScreenBadge" class="fiveScreenBadge">MULTI-SCREEN</div>
     <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
   </header>
-  <div id="screenTitleBar" class="screenTitleBar"><span id="screenTitle">BRUTUS MULTI-SCREEN</span><span><button id="screenQuickStart" class="screenLaunchBtn" type="button">START</button> <button id="screenQuickPause" class="screenLaunchBtn" type="button">PAUSE</button> <button id="screenQuickStop" class="screenLaunchBtn" type="button">MASTER STOP</button></span><span><span id="screenFitBadge">FIT 100%</span> · <span id="screenRole">ROLE</span></span></div>
+  <div id="screenTitleBar" class="screenTitleBar"><span id="screenTitle">BRUTUS MULTI-SCREEN</span><span><button id="screenQuickStart" class="screenLaunchBtn" type="button">START</button> <button id="screenQuickPause" class="screenLaunchBtn" type="button">PAUSE</button> <button id="screenQuickStop" class="screenLaunchBtn" type="button">MASTER STOP</button></span><span id="screenAccessibilityControls" class="screenAccessibilityControls" hidden></span><span class="screenStatusGroup"><span id="screenFitBadge">FIT 100%</span><span class="screenStatusDivider" aria-hidden="true">•</span><span id="screenRole">ROLE</span></span></div>
 
   <section class="layout">
     <div class="col left">
@@ -1901,8 +1901,9 @@ function autoFitFiveScreen(){
   const naturalH=Math.max(shell.scrollHeight,shell.getBoundingClientRect().height);
   const preferred={1:1.12,2:1.00,3:0.90,4:1.48,5:1.48}[SCREEN_MODE]||1;
   const heightScale=viewportH/Math.max(1,naturalH);
-  let scale=Math.min(preferred,heightScale);
-  scale=Math.max(0.64,Math.min(1.60,scale));
+  const accessibilityZoom=SCREEN_MODE===1?Math.max(0.75,Math.min(1.50,Number(window.BRUTUS_SCREEN1_ZOOM_FACTOR)||1)):1;
+  let scale=Math.min(preferred,heightScale)*accessibilityZoom;
+  scale=Math.max(0.56,Math.min(2.00,scale));
   shell.style.width=(100/scale).toFixed(3)+"%";
   shell.style.transform="scale("+scale.toFixed(4)+")";
   const fittedH=shell.scrollHeight*scale;
@@ -2042,7 +2043,8 @@ function applyPanelFontScale(panel,scale,updateReadout=true){
       if(Number.isFinite(px)&&px>0)el.dataset.brutusBaseFontPx=String(px);
     }
     const base=Number(el.dataset.brutusBaseFontPx);
-    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*safe).toFixed(2)+"px";
+    const globalText=Math.max(0.80,Math.min(2.00,Number(window.BRUTUS_GLOBAL_TEXT_SCALE)||1));
+    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*safe*globalText).toFixed(2)+"px";
   }
   const readout=panel.querySelector(":scope > .panelControlBar .panelScaleReadout");
   if(updateReadout&&readout)readout.textContent=Math.round(safe*100)+"%";
@@ -2212,7 +2214,7 @@ let fitResizeTimer=null;window.addEventListener("resize",()=>{clearTimeout(fitRe
 })();
 </script>
 <script>
-{const rev=new URLSearchParams(location.search).get("v")||Date.now().toString(36),s=document.createElement("script");s.src="workspace.js?v="+encodeURIComponent(rev);document.body.appendChild(s)}
+{const rev=new URLSearchParams(location.search).get("v")||Date.now().toString(36),a=document.createElement("script");a.src="accessibility-controls.js?v="+encodeURIComponent(rev);a.onload=()=>{const s=document.createElement("script");s.src="workspace.js?v="+encodeURIComponent(rev);document.body.appendChild(s)};document.body.appendChild(a)}
 </script>
 </body>
 </html>
