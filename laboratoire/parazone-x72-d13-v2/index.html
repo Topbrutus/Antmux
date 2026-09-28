@@ -4,12 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#050607">
+<script>
+(()=>{
+  const n=Number(new URLSearchParams(location.search).get("screen")||0);
+  if(n>=1&&n<=5)document.documentElement.classList.add("brutusWorkspaceBoot");
+})();
+</script>
 <title>BRUTUS // moteur de résonance — poste de contrôle — ANTMUX</title>
 <meta name="description" content="Poste de contrôle BRUTUS X72 — configuration, échantillonnage local, mesures et preuves techniques.">
 <style>
 :root{--bg:#020913;--panel:#07101c;--line:#17324a;--text:#dcecff;--muted:#7fa9c8;--soft:#0a1624;--dim:#52708a;--cyan:#00e8ff;--blue:#198bff;--violet:#9b45ff;--gold:#ffae42;--orange:#ff7a1a;--red:#ff3344;--green:#00e99a;--ice:#9eefff}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:"Segoe UI",Inter,Arial,sans-serif}
+html.brutusWorkspaceBoot .layout,
+html.brutusWorkspaceBoot .monitorWall,
+html.brutusWorkspaceBoot .instrumentDeck,
+html.brutusWorkspaceBoot .controls,
+html.brutusWorkspaceBoot .panelIconOverlay{visibility:hidden!important}
 body{padding:12px}.shell{max-width:1780px;margin:0 auto}
 .header{display:flex;align-items:center;gap:18px;margin:0 0 9px}
 .title{font-size:18px;font-weight:800;letter-spacing:2px}
