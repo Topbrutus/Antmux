@@ -18,17 +18,40 @@ function magnetPoints(w,h){const W=Math.max(w+32,surface?.clientWidth||innerWidt
 function magneticPosition(x,y,w,h,shift=false){const raw=rawClamp(x,y,w,h);if(shift)return{...raw,zone:0};let best=null;for(const a of magnetPoints(w,h)){const d=Math.hypot(raw.x-a.x,raw.y-a.y);if(!best||d<best.d)best={...a,d}}if(best&&best.d<=MAGNET_RADIUS)return{x:best.x,y:best.y,zone:best.n};const g=rawClamp(snap(raw.x),snap(raw.y),w,h);return{...g,zone:0}}
 function showMagnetGhost(pos,w,h){if(!magnetGhost)return;if(!pos?.zone){magnetGhost.classList.remove("active");return}magnetGhost.style.left=pos.x+"px";magnetGhost.style.top=pos.y+"px";magnetGhost.style.width=w+"px";magnetGhost.style.height=h+"px";magnetGhost.dataset.zone="SNAP "+pos.zone;magnetGhost.classList.add("active")}
 function hideMagnetGhost(){magnetGhost?.classList.remove("active")}
-function windowDirectoryInfo(k,m){
+function panelIsLocallyHidden(e){
+  return !!e&&(e.classList.contains("panelClosed")||e.classList.contains("panelMinimized")||e.dataset.closed==="1"||e.dataset.minimized==="1");
+}
+function windowIsHiddenHere(e,m){
+  return !!m&&(!!m.closed||!!m.min||Number(m.screen)!==SCREEN||panelIsLocallyHidden(e));
+}
+function windowDirectoryInfo(k,m,e){
   if(!m)return null;
-  const origin=Number(m.closedScreen)||Number(m.screen)||home(cards.get(k),k);
-  const status=m.closed?"FERMÉE":(m.min?"ICÔNE":"OUVERTE");
+  const origin=Number(m.closedScreen)||Number(m.screen)||home(e||cards.get(k),k);
+  const localClosed=!!e&&(e.classList.contains("panelClosed")||e.dataset.closed==="1");
+  const localMin=!!e&&(e.classList.contains("panelMinimized")||e.dataset.minimized==="1");
+  const status=(m.closed||localClosed)?"FERMÉE":((m.min||localMin)?"ICÔNE":"AUTRE ÉCRAN");
   return{origin,status};
+}
+function reconcilePanelHiddenState(){
+  if(!state?.live?.modules)return;
+  let changed=false;
+  for(const [k,e] of cards){
+    const m=state.live.modules[k];if(!m)continue;
+    const localClosed=e.classList.contains("panelClosed")||e.dataset.closed==="1";
+    const localMin=e.classList.contains("panelMinimized")||e.dataset.minimized==="1";
+    if(localClosed&&!m.closed){
+      m.closed=true;m.closedScreen=Number(m.screen)||home(e,k);m.min=false;changed=true;
+    }else if(localMin&&!m.closed&&!m.min){
+      m.min=true;changed=true;
+    }
+  }
+  if(changed)save(false);
 }
 function refreshWindowMenu(){
   if(!windowMenu||!windowMenuList||!state)return;
   const directory=[...cards.entries()]
-    .map(([k,e])=>({k,e,m:state.live.modules[k],info:windowDirectoryInfo(k,state.live.modules[k])}))
-    .filter(x=>x.info&&(x.m?.closed||x.m?.min||Number(x.m?.screen)!==SCREEN))
+    .map(([k,e])=>({k,e,m:state.live.modules[k],info:windowDirectoryInfo(k,state.live.modules[k],e)}))
+    .filter(x=>x.info&&windowIsHiddenHere(x.e,x.m))
     .sort((a,b)=>a.info.origin-b.info.origin||labelOf(a.e,a.k).localeCompare(labelOf(b.e,b.k)));
   const btn=windowMenu.querySelector(".workspaceWindowMenuBtn");
   if(btn)btn.textContent=directory.length?"MODULE · "+directory.length:"MODULE";
@@ -201,6 +224,6 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn active";b.type="button";b.textContent="RANGER TOUT";b.title="Fermer et ranger toutes les fenêtres";b.onclick=()=>closeAllWindows();tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · MODULE = PROGRAMMES CACHÉS S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));apply()}catch(_){}}});profiles();apply();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
