@@ -39,7 +39,8 @@ def main() -> None:
             assert ant["ant_id"] == first["id"]
             assert ant["emoji"] == "🐜"
             assert len(ant["triad_name"]) >= 3
-            assert ant["state"] == "READY_TO_SING"
+            assert ant["state"] == "SINGING_TO_MEET"
+            assert ant["form"] == "DUMPTY_EGG"
             assert ant["role"] == "SYNAPSE"
             assert ant["synapse"]["song_channel"] == "OUTBOUND"
             assert ant["synapse"]["gratitude_channel"] == "INBOUND"
@@ -127,7 +128,8 @@ def main() -> None:
             print("PUBLIC_JOURNAL_ADMIN_GATE=PASS")
             print("PUBLIC_JOURNAL_EMOJI_FRAMING=PASS")
             print("PUBLIC_JOURNAL_ANT_BIRTH=PASS")
-            print("PUBLIC_JOURNAL_READY_TO_SING=PASS")
+            print("PUBLIC_JOURNAL_DUMPTY_BEFORE_SONG=PASS")
+            print("PUBLIC_JOURNAL_SONG_BEFORE_MEETING=PASS")
             print("PUBLIC_JOURNAL_ANT_SYNAPSE=PASS")
         finally:
             journal.time.time = original_time
