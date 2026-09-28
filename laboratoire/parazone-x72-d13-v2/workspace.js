@@ -3,6 +3,7 @@
 const SCREEN=Number(new URLSearchParams(location.search).get("screen")||0);if(SCREEN<1||SCREEN>5)return;
 const KEY="BRUTUS_DESKTOP_WORKSPACE_V2",LEGACY_KEY="BRUTUS_DESKTOP_WORKSPACE_V1",CHAN="BRUTUS_DESKTOP_WORKSPACE_V2",GRID=16,MAGNET_RADIUS=92,ICON_TRANSFER_MIME="application/x-brutus-workspace-icon";let state,surface,icons,channel,z=30,applying=false,magnetGhost=null,windowMenu=null,windowMenuList=null;
 const cards=new Map(),orig=new Map(),A=new Set(["ANALYSIS-AMP-01","ANALYSIS-HISTORY-01","TIMEBASE-01","SAMPLER-01","SAMPLER-QUALITY-01","CRACK-METER-01","CRACK-CLASSIFIER-01"]),O=new Set(["PRESET-BANK-01","REFERENCE-CATALOG-01","MICROPHONE-SOURCE-01","SIGNAL-GENERATOR-01"]),C=new Set(["INPUT-TEST-01","CONNECT-T2-01","CONNECT-T3-01","CONNECT-T4-01","CONNECT-T5-01"]);
+const SCREEN_GROUP_NAMES={1:"MASTER",2:"ANALYSIS",3:"OPERATOR",4:"CONTROL",5:"SETTINGS"};
 const snap=v=>Math.round(v/GRID)*GRID,clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),clone=x=>JSON.parse(JSON.stringify(x));
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
 function home(e,k){if(e.dataset.desktopHome)return +e.dataset.desktopHome;if(e.closest(".layout"))return 1;if(e.closest(".monitorWall")||A.has(k))return 2;if(O.has(k)||/MICROPHONE|GENERATOR|PRESET|REFERENCE/.test(k))return 3;if(C.has(k)||/^CONNECT-T/.test(k))return 4;return 5}
@@ -34,7 +35,9 @@ function refreshWindowMenu(){
   windowMenuList.innerHTML="";
   const head=document.createElement("div");head.className="workspaceWindowMenuEmpty";head.textContent="DIRECTORY GLOBAL · TOUTES LES FENÊTRES · ICI = SCREEN "+SCREEN;windowMenuList.appendChild(head);
   if(!directory.length){const e=document.createElement("div");e.className="workspaceWindowMenuEmpty";e.textContent="AUCUNE FENÊTRE DISPONIBLE";windowMenuList.appendChild(e);return}
+  let lastOrigin=0;
   for(const {k,e,info} of directory){
+    if(info.origin!==lastOrigin){const group=document.createElement("div");group.className="workspaceWindowMenuEmpty";group.textContent="SCREEN "+info.origin+" · "+(SCREEN_GROUP_NAMES[info.origin]||"");windowMenuList.appendChild(group);lastOrigin=info.origin}
     const row=document.createElement("div");row.className="workspaceWindowRow";
     const open=document.createElement("button");open.type="button";open.className="workspaceWindowOpen";
     open.textContent="S"+info.origin+" · "+info.status+" · "+labelOf(e,k);
