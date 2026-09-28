@@ -187,7 +187,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     <div id="fiveScreenBadge" class="fiveScreenBadge">MULTI-SCREEN</div>
     <div class="subtitle"><span class="t0">BASELINE · READY</span> · <span id="currentState">CURRENT · NO ACTIVE T1</span></div>
   </header>
-  <div id="screenTitleBar" class="screenTitleBar"><span id="screenTitle">BRUTUS MULTI-SCREEN</span><div id="workspaceModuleMenu" class="workspaceWindowMenu"><button id="workspaceModuleButton" class="screenLaunchBtn workspaceWindowMenuBtn" type="button">MODULE</button><div id="workspaceModuleList" class="workspaceWindowMenuList" aria-label="Modules cachés"></div></div><span><button id="screenQuickStart" class="screenLaunchBtn" type="button">START</button> <button id="screenQuickPause" class="screenLaunchBtn" type="button">PAUSE</button> <button id="screenQuickStop" class="screenLaunchBtn" type="button">MASTER STOP</button></span><span id="screenAccessibilityControls" class="screenAccessibilityControls" hidden></span><span class="screenStatusGroup"><span id="screenFitBadge">FIT 100%</span><span class="screenStatusDivider" aria-hidden="true">•</span><span id="screenRole">ROLE</span></span></div>
+  <div id="screenTitleBar" class="screenTitleBar"><span id="screenTitle">BRUTUS MULTI-SCREEN</span><div id="workspaceModuleMenu" class="workspaceWindowMenu"><button id="workspaceModuleButton" class="screenLaunchBtn workspaceWindowMenuBtn" type="button" data-local-control="1">MODULE</button><div id="workspaceModuleList" class="workspaceWindowMenuList" aria-label="Modules cachés"></div></div><span><button id="screenQuickStart" class="screenLaunchBtn" type="button">START</button> <button id="screenQuickPause" class="screenLaunchBtn" type="button">PAUSE</button> <button id="screenQuickStop" class="screenLaunchBtn" type="button">MASTER STOP</button></span><span id="screenAccessibilityControls" class="screenAccessibilityControls" hidden></span><span class="screenStatusGroup"><span id="screenFitBadge">FIT 100%</span><span class="screenStatusDivider" aria-hidden="true">•</span><span id="screenRole">ROLE</span></span></div>
 
   <section class="layout">
     <div class="col left">
@@ -1997,7 +1997,7 @@ function setupFiveScreenBus(){
   }else{
     document.addEventListener("click",e=>{
       const el=e.target.closest("button[id]");
-      if(!el)return;
+      if(!el||el.dataset.localControl==="1")return;
       e.preventDefault();e.stopImmediatePropagation();
       MULTI_SCREEN.channel.postMessage({type:"COMMAND_CLICK",id:el.id});
     },true);
