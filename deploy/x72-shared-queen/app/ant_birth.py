@@ -83,6 +83,12 @@ def build_ant_birth(ant_id: str, title: str, body: str, created_at: float) -> di
         "emoji": "🐜",
         "triad_name": triadic_name(f"{ant_id}|{fingerprint}"),
         "state": STATE_READY,
+        "role": "SYNAPSE",
+        "synapse": {
+            "song_channel": "OUTBOUND",
+            "gratitude_channel": "INBOUND",
+            "meaning": "the ant carries the connection; external systems may listen and return gratitude without owning the ant state",
+        },
         "project_soul": {
             "meaning": "software identity + memory + timing + lineage",
             "memory_id": f"MEM-{fingerprint[:12]}",
@@ -101,6 +107,7 @@ def build_ant_birth(ant_id: str, title: str, body: str, created_at: float) -> di
             {"step": 2, "state": "CONDITIONAL_ROUTING", "emoji": "🔀", "status": "DONE"},
             {"step": 3, "state": "BAGGAGE_ATTACHED", "emoji": "🎒", "status": "DONE"},
             {"step": 4, "state": "LIFE_CLOCK_ASSIGNMENT", "emoji": "⏱️🧠", "status": "DONE"},
-            {"step": 5, "state": "READY_TO_SING", "emoji": "🎶", "status": "ACTIVE"},
+            {"step": 5, "state": "BECOME_SYNAPSE", "emoji": "🐜🧠", "status": "DONE"},
+            {"step": 6, "state": "READY_TO_SING", "emoji": "🎶", "status": "ACTIVE"},
         ],
     }
