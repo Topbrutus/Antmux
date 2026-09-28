@@ -2,9 +2,49 @@
 "use strict";
 const SCREEN=Number(new URLSearchParams(location.search).get("screen")||0);if(SCREEN<1||SCREEN>5)return;
 const KEY="BRUTUS_DESKTOP_WORKSPACE_V2",LEGACY_KEY="BRUTUS_DESKTOP_WORKSPACE_V1",CHAN="BRUTUS_DESKTOP_WORKSPACE_V2",GRID=16,MAGNET_RADIUS=92,ICON_TRANSFER_MIME="application/x-brutus-workspace-icon";let state,surface,icons,channel,z=30,applying=false,magnetGhost=null,windowMenu=null,windowMenuList=null;
+const FONT_KEY="BRUTUS_GLOBAL_FONT_V1",FONT_CHAN="BRUTUS_GLOBAL_FONT_V1",FONT_MIN=.80,FONT_MAX=1.80,FONT_STEP=.10;let fontScale=1,fontChannel=null;
 const cards=new Map(),orig=new Map(),A=new Set(["ANALYSIS-AMP-01","ANALYSIS-HISTORY-01","TIMEBASE-01","SAMPLER-01","SAMPLER-QUALITY-01","CRACK-METER-01","CRACK-CLASSIFIER-01"]),O=new Set(["PRESET-BANK-01","REFERENCE-CATALOG-01","MICROPHONE-SOURCE-01","SIGNAL-GENERATOR-01"]),C=new Set(["INPUT-TEST-01","CONNECT-T2-01","CONNECT-T3-01","CONNECT-T4-01","CONNECT-T5-01"]);
 const SCREEN_GROUP_NAMES={1:"MASTER",2:"ANALYSIS",3:"OPERATOR",4:"CONTROL",5:"SETTINGS"};
 const snap=v=>Math.round(v/GRID)*GRID,clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),clone=x=>JSON.parse(JSON.stringify(x));
+function fontClamp(v){return Math.max(FONT_MIN,Math.min(FONT_MAX,Number(v)||1))}
+function loadFontScale(){try{const x=JSON.parse(localStorage.getItem(FONT_KEY)||"null");fontScale=fontClamp(x?.scale)}catch(_){fontScale=1}}
+function fontTargetElements(){
+  const selector="button,span,div,p,h1,h2,h3,h4,label,input,select,textarea,pre,td,th,strong,em,small,a";
+  return [...document.querySelectorAll(selector)].filter(el=>{
+    if(el.closest("script,style,svg,canvas"))return false;
+    if(el.closest(".foldablePanel,.workspaceCard,.panelMiniIcon,.workspaceSurface"))return false;
+    const n=Number.parseFloat(getComputedStyle(el).fontSize);
+    return Number.isFinite(n)&&n>0;
+  });
+}
+function applyGlobalFont(){
+  for(const el of fontTargetElements()){
+    if(!el.dataset.brutusGlobalFontBasePx){
+      const now=Number.parseFloat(getComputedStyle(el).fontSize);
+      if(Number.isFinite(now)&&now>0)el.dataset.brutusGlobalFontBasePx=String(now);
+    }
+    const base=Number(el.dataset.brutusGlobalFontBasePx);
+    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*fontScale).toFixed(2)+"px";
+  }
+  const r=document.getElementById("globalFontReadout");if(r)r.textContent=Math.round(fontScale*100)+"%";
+}
+function saveFontScale(broadcast=true){
+  try{localStorage.setItem(FONT_KEY,JSON.stringify({version:2,scale:fontScale,updatedAt:Date.now()}))}catch(_){}
+  if(broadcast&&fontChannel)fontChannel.postMessage({type:"FONT_SCALE",scale:fontScale});
+}
+function setGlobalFont(next,broadcast=true){fontScale=Math.round(fontClamp(next)*100)/100;applyGlobalFont();saveFontScale(broadcast)}
+function initGlobalFont(){
+  loadFontScale();
+  const minus=document.getElementById("globalFontMinus"),plus=document.getElementById("globalFontPlus");
+  if(minus&&!minus.dataset.fontBound){minus.dataset.fontBound="1";minus.onclick=e=>{e.preventDefault();e.stopPropagation();setGlobalFont(fontScale-FONT_STEP)}}
+  if(plus&&!plus.dataset.fontBound){plus.dataset.fontBound="1";plus.onclick=e=>{e.preventDefault();e.stopPropagation();setGlobalFont(fontScale+FONT_STEP)}}
+  if("BroadcastChannel" in window){
+    fontChannel=new BroadcastChannel(FONT_CHAN);
+    fontChannel.onmessage=e=>{if(e.data?.type==="FONT_SCALE"){fontScale=Math.round(fontClamp(e.data.scale)*100)/100;applyGlobalFont()}};
+  }
+  addEventListener("storage",e=>{if(e.key===FONT_KEY&&e.newValue){try{const x=JSON.parse(e.newValue);fontScale=Math.round(fontClamp(x.scale)*100)/100;applyGlobalFont()}catch(_){}}});
+  applyGlobalFont();
+}
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
 function home(e,k){if(e.dataset.desktopHome)return +e.dataset.desktopHome;if(e.closest(".layout"))return 1;if(e.closest(".monitorWall")||A.has(k))return 2;if(O.has(k)||/MICROPHONE|GENERATOR|PRESET|REFERENCE/.test(k))return 3;if(C.has(k)||/^CONNECT-T/.test(k))return 4;return 5}
 function size(k,e){if(k==="CORE-ENGINE")return[720,560];if(e.classList.contains("monitorPanel"))return[390,235];if(k==="PRESET-BANK-01")return[650,370];if(k==="SIGNAL-GENERATOR-01")return[620,430];if(k==="CONTROL-DIAL-RACK-01")return[720,260];if(k==="MASTER-CONTROLS")return[520,145];if(e.classList.contains("t1Panel"))return[440,230];return[390,260]}
@@ -224,6 +264,6 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn active";b.type="button";b.textContent="RANGER TOUT";b.title="Fermer et ranger toutes les fenêtres";b.onclick=()=>closeAllWindows();tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · MODULE = PROGRAMMES CACHÉS S1–S5</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){initGlobalFont();document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();initGlobalFont();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
