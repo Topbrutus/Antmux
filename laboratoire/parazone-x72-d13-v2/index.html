@@ -679,7 +679,7 @@ const AUDIO_OUTPUT={running:false,ctx:null,osc:null,gain:null,frequency_hz:null,
 const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
 const MASTER_SESSION={state:"READY",started_at:null};
-const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,ws:null,retry:null,last_at:0,error:"NONE"};
+const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,ws:null,retry:null,retry_count:0,last_at:0,error:"NONE"};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
@@ -729,14 +729,18 @@ function renderMotorBridge(){
 }
 function scheduleMotorReconnect(){
   if(MOTOR_BRIDGE.retry!==null)return;
-  MOTOR_BRIDGE.retry=setTimeout(()=>{MOTOR_BRIDGE.retry=null;startMotorBridge();},1500);
+  if(MULTI_SCREEN.enabled&&!MULTI_SCREEN.owner)return;
+  const delay=Math.min(30000,1500*Math.pow(2,Math.min(MOTOR_BRIDGE.retry_count,5)));
+  MOTOR_BRIDGE.retry_count++;
+  MOTOR_BRIDGE.retry=setTimeout(()=>{MOTOR_BRIDGE.retry=null;startMotorBridge();},delay);
 }
 function startMotorBridge(){
+  if(MULTI_SCREEN.enabled&&!MULTI_SCREEN.owner)return;
   if(MOTOR_BRIDGE.ws&&(MOTOR_BRIDGE.ws.readyState===WebSocket.OPEN||MOTOR_BRIDGE.ws.readyState===WebSocket.CONNECTING))return;
   try{
     const ws=new WebSocket(motorWebSocketUrl());
     MOTOR_BRIDGE.ws=ws;MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=false;renderMotorBridge();
-    ws.addEventListener("open",()=>{MOTOR_BRIDGE.connected=true;MOTOR_BRIDGE.error="NONE";renderMotorBridge();});
+    ws.addEventListener("open",()=>{MOTOR_BRIDGE.connected=true;MOTOR_BRIDGE.error="NONE";MOTOR_BRIDGE.retry_count=0;renderMotorBridge();});
     ws.addEventListener("message",event=>{
       try{
         const value=JSON.parse(event.data);
@@ -1937,6 +1941,7 @@ function multiScreenSnapshot(){
     AUDIO_OUTPUT:{running:AUDIO_OUTPUT.running,frequency_hz:AUDIO_OUTPUT.frequency_hz,gain_value:AUDIO_OUTPUT.gain_value,follow_table:AUDIO_OUTPUT.follow_table,hold_ref_hz:AUDIO_OUTPUT.hold_ref_hz},
     FREQ_TABLE:{index:FREQ_TABLE.index,running:FREQ_TABLE.running,period_ms:FREQ_TABLE.period_ms},
     MASTER_SESSION:{state:MASTER_SESSION.state,started_at:MASTER_SESSION.started_at},
+    MOTOR_BRIDGE:{connected:MOTOR_BRIDGE.connected,verified:MOTOR_BRIDGE.verified,noyau:MOTOR_BRIDGE.noyau,error:MOTOR_BRIDGE.error,last_at:MOTOR_BRIDGE.last_at},
     PRESET:{selected:PRESET_BANK.selected,slots:PRESET_BANK.slots},
     uiText:Object.fromEntries(["currentState","t1State","t1Trace","t1Proof","t2State","t2Trace","t2Proof","t3State","t3Trace","t3Proof","t4State","t4Trace","t4Proof","t5State","t5Trace","t5Proof","obsObserved","obsLastSource","obsLastProof","topologyReference","topologyCandidate","topologyDelta","topologyValidation"].map(id=>[id,document.getElementById(id)?.textContent||""])),
     uiDisabled:Object.fromEntries(["t1Inject","t1Sweep","t2Connect","t3Connect","t4Connect","t5Connect","samplerToggle"].map(id=>[id,!!document.getElementById(id)?.disabled])),
@@ -1964,9 +1969,10 @@ function applyMultiScreenSnapshot(x){
   if(x.AUDIO_OUTPUT)Object.assign(AUDIO_OUTPUT,x.AUDIO_OUTPUT,{ctx:null,osc:null,gain:null});
   if(x.FREQ_TABLE)Object.assign(FREQ_TABLE,x.FREQ_TABLE,{timer:null});
   if(x.MASTER_SESSION)Object.assign(MASTER_SESSION,x.MASTER_SESSION);
+  if(x.MOTOR_BRIDGE){Object.assign(MOTOR_BRIDGE,{connected:!!x.MOTOR_BRIDGE.connected,verified:!!x.MOTOR_BRIDGE.verified,noyau:x.MOTOR_BRIDGE.noyau||null,error:x.MOTOR_BRIDGE.error||"NONE",last_at:Number(x.MOTOR_BRIDGE.last_at)||0,ws:null,retry:null});}
   if(x.PRESET){PRESET_BANK.selected=x.PRESET.selected;PRESET_BANK.slots=x.PRESET.slots}
   if(x.fields)for(const [id,value] of Object.entries(x.fields)){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=value}
-  renderHistory();renderObservationBus();renderAmplitudePanel();renderTimebase();renderSampler();renderSignalGenerator();renderAudioOutput();renderFreqAutomation();renderControlRack();renderMicrophone();renderMasterSession();renderPresetGrid();renderPresetDetail();renderAuxMonitors();resize();
+  renderHistory();renderObservationBus();renderAmplitudePanel();renderTimebase();renderSampler();renderSignalGenerator();renderAudioOutput();renderFreqAutomation();renderControlRack();renderMicrophone();renderMasterSession();renderPresetGrid();renderPresetDetail();renderAuxMonitors();renderMotorBridge();resize();
   if(x.uiText)for(const [id,value] of Object.entries(x.uiText)){const el=document.getElementById(id);if(el)el.textContent=value}
   if(x.uiDisabled)for(const [id,value] of Object.entries(x.uiDisabled)){const el=document.getElementById(id);if(el)el.disabled=!!value}
   MULTI_SCREEN.lastStateAt=Date.now();MULTI_SCREEN.applying=false;
