@@ -40,6 +40,9 @@ def main() -> None:
             assert ant["emoji"] == "🐜"
             assert len(ant["triad_name"]) >= 3
             assert ant["state"] == "READY_TO_SING"
+            assert ant["role"] == "SYNAPSE"
+            assert ant["synapse"]["song_channel"] == "OUTBOUND"
+            assert ant["synapse"]["gratitude_channel"] == "INBOUND"
             assert ant["project_soul"]["meaning"] == "software identity + memory + timing + lineage"
             assert ant["baggage"]["language_triplet"] == "🔤🎧〰️"
             assert ant["baggage"]["symbolic_song"].startswith("◉→")
@@ -125,6 +128,7 @@ def main() -> None:
             print("PUBLIC_JOURNAL_EMOJI_FRAMING=PASS")
             print("PUBLIC_JOURNAL_ANT_BIRTH=PASS")
             print("PUBLIC_JOURNAL_READY_TO_SING=PASS")
+            print("PUBLIC_JOURNAL_ANT_SYNAPSE=PASS")
         finally:
             journal.time.time = original_time
 
