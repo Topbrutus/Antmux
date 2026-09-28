@@ -117,6 +117,7 @@ jobs:
       - name: Assemble deployment payload
         env:
           ZEL_INGEST_TOKEN: ${{ secrets.ANTMUX_ZEL_INGEST_TOKEN }}
+          PUBLIC_CONTACT_EMAIL: ${{ secrets.ANTMUX_PUBLIC_CONTACT_EMAIL }}
         run: |
           set -euo pipefail
           test -n "${ZEL_INGEST_TOKEN:-}"
@@ -130,6 +131,9 @@ jobs:
           cp -a _x72_runner_vendor _x72_shared_queen_deploy/vendor
           printf '%s' "$ZEL_INGEST_TOKEN" > _x72_shared_queen_deploy/zel-ingest-token
           chmod 600 _x72_shared_queen_deploy/zel-ingest-token
+          if [ -n "${PUBLIC_CONTACT_EMAIL:-}" ]; then
+            printf '%s\\n' "$PUBLIC_CONTACT_EMAIL" > _x72_shared_queen_deploy/public-contact-email.txt
+          fi
           mv _x72_shared_queen_deploy/tests/run_server_tests.py _x72_shared_queen_deploy/run_server_tests.py
           rm -rf _x72_shared_queen_deploy/tests
           (
@@ -293,6 +297,9 @@ jobs:
           test -s "$REMOTE_STAGE/zel-ingest-token"
           install -m 0600 "$REMOTE_STAGE/zel-ingest-token" "$APP_ROOT/zel-ingest-token"
           export ANTMUX_ZEL_INGEST_TOKEN_FILE="$APP_ROOT/zel-ingest-token"
+          if [ -f "$REMOTE_STAGE/public-contact-email.txt" ]; then
+            install -m 0644 "$REMOTE_STAGE/public-contact-email.txt" "$APP_ROOT/data/public-contact-email.txt"
+          fi
           install -m 0644 "$REMOTE_STAGE/run_server_tests.py" "$APP_ROOT/run_server_tests.py"
           test -f "$REMOTE_STAGE/frontend/app.js"
           test -f "$REMOTE_STAGE/frontend/index.html"
