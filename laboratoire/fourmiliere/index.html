@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#07100d" />
+  <title>ANTMUX · 🐜 Fourmilière publique</title>
+  <meta name="description" content="Journal de bord public ANTMUX et boîte de contact : messages, jobs, propositions et traces publiques." />
+  <link rel="stylesheet" href="../../styles.css" />
+  <style>
+    :root { --ant:#ffd75e; --ant2:#73ffbd; --panel:#0a1411; --line:rgba(115,255,189,.2); }
+    body { background:
+      radial-gradient(circle at 12% 8%, rgba(115,255,189,.08), transparent 30rem),
+      radial-gradient(circle at 88% 18%, rgba(255,215,94,.06), transparent 26rem),
+      #050a08; }
+    .ant-shell { width:min(1120px,calc(100% - 28px)); margin:0 auto; padding:28px 0 70px; }
+    .ant-hero { padding:30px; border:1px solid var(--line); border-radius:22px; background:linear-gradient(145deg,rgba(10,20,17,.96),rgba(5,10,8,.96)); box-shadow:0 24px 80px rgba(0,0,0,.28); }
+    .ant-title { margin:.25rem 0; font-size:clamp(2.1rem,7vw,5rem); line-height:.95; }
+    .ant-lede { max-width:820px; color:var(--muted); line-height:1.65; }
+    .emoji-index { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
+    .emoji-chip { padding:8px 11px; border:1px solid var(--line); border-radius:999px; background:rgba(115,255,189,.05); font-size:.82rem; }
+    .layout { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr); gap:18px; margin-top:18px; }
+    .panel { border:1px solid var(--line); border-radius:20px; background:rgba(8,17,14,.93); padding:20px; }
+    .panel h2 { margin-top:0; }
+    .journal { display:grid; gap:14px; }
+    .entry { border:1px solid rgba(255,255,255,.1); border-radius:18px; background:#07100d; overflow:hidden; }
+    .entry-cap { padding:10px 14px; font-size:1.15rem; letter-spacing:.08em; background:rgba(255,255,255,.025); }
+    .entry-body { padding:16px; }
+    .entry-title { margin:0 0 8px; font-size:1.08rem; }
+    .entry-text { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:#dce8e2; line-height:1.6; }
+    .entry-meta { display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px; color:var(--muted); font-size:.76rem; }
+    .entry-index { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .empty { color:var(--muted); padding:28px 8px; text-align:center; }
+    form { display:grid; gap:12px; }
+    label { display:grid; gap:6px; color:#dce8e2; font-size:.85rem; font-weight:700; }
+    input, select, textarea { width:100%; box-sizing:border-box; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:11px 12px; background:#030806; color:#fff; font:inherit; }
+    textarea { min-height:150px; resize:vertical; }
+    input:focus, select:focus, textarea:focus { outline:2px solid rgba(115,255,189,.35); border-color:var(--ant2); }
+    .honeypot { position:absolute!important; left:-10000px!important; width:1px!important; height:1px!important; overflow:hidden!important; }
+    .submit { border:1px solid rgba(115,255,189,.45); border-radius:11px; padding:12px 14px; background:rgba(115,255,189,.12); color:#eafff5; font-weight:900; cursor:pointer; }
+    .submit:hover { background:rgba(115,255,189,.2); }
+    .submit:disabled { opacity:.45; cursor:wait; }
+    .notice { border-left:3px solid var(--ant); padding:11px 12px; background:rgba(255,215,94,.055); color:#e7dfbd; font-size:.82rem; line-height:1.5; }
+    .status { min-height:1.3em; font-size:.82rem; color:var(--ant2); }
+    .direct-mail { display:none; margin-top:12px; }
+    .direct-mail.visible { display:block; }
+    .direct-mail a { color:var(--ant2); overflow-wrap:anywhere; }
+    .top-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .top-actions a { text-decoration:none; }
+    @media (max-width:850px) { .layout { grid-template-columns:1fr; } .ant-hero { padding:22px; } }
+  </style>
+</head>
+<body>
+  <main class="ant-shell">
+    <header class="ant-hero">
+      <p class="eyebrow">ANTMUX · EMOJILOGIC · JOURNAL PUBLIC</p>
+      <h1 class="ant-title">🐜 Fourmilière publique 🐜</h1>
+      <p class="ant-lede">
+        Un journal de bord lisible par les humains et les fourmis. Chaque entrée possède une signature emoji,
+        un type, une trace et un statut. Les messages et propositions des visiteurs entrent d’abord en modération.
+      </p>
+      <div class="emoji-index" aria-label="Index EmojiLogic">
+        <span class="emoji-chip">🐜📓 Journal 📓🐜</span>
+        <span class="emoji-chip">🐜✉️ Message ✉️🐜</span>
+        <span class="emoji-chip">🐜💼 Job 💼🐜</span>
+        <span class="emoji-chip">🧾 Trace</span>
+        <span class="emoji-chip">🛡️ 3 / 24 h</span>
+        <span class="emoji-chip">📚 Mémoire publique</span>
+      </div>
+      <div class="top-actions">
+        <a class="secondary" href="../">← LABORATOIRE</a>
+        <a class="secondary" href="../../">ACCUEIL ANTMUX</a>
+      </div>
+    </header>
+
+    <section class="layout">
+      <section class="panel" aria-labelledby="journal-title">
+        <p class="kicker">📓 JOURNAL DE BORD</p>
+        <h2 id="journal-title">Traces publiques</h2>
+        <div id="journal" class="journal" aria-live="polite">
+          <p class="empty">🐜 Chargement du journal…</p>
+        </div>
+      </section>
+
+      <aside class="panel" aria-labelledby="write-title">
+        <p class="kicker">✉️ ÉCRIRE À LA FOURMILIÈRE</p>
+        <h2 id="write-title">Message ou proposition</h2>
+        <p class="notice">
+          🛡️ Maximum <strong>3 envois sur 24 h</strong> par adresse réseau et par courriel.
+          Les messages ne sont pas publiés automatiquement. Votre courriel reste privé.
+        </p>
+
+        <form id="contactForm" novalidate>
+          <label>
+            Type
+            <select name="kind" required>
+              <option value="MESSAGE">🐜✉️ Message / discussion</option>
+              <option value="JOB">🐜💼 Job / mandat / proposition</option>
+            </select>
+          </label>
+          <label>
+            Votre nom
+            <input name="name" maxlength="80" autocomplete="name" placeholder="Nom ou pseudonyme" />
+          </label>
+          <label>
+            Votre courriel
+            <input name="email" type="email" maxlength="254" autocomplete="email" required placeholder="vous@exemple.com" />
+          </label>
+          <label>
+            Sujet
+            <input name="title" maxlength="160" required placeholder="Une ligne claire" />
+          </label>
+          <label>
+            Message
+            <textarea name="body" maxlength="3000" required placeholder="Votre message, proposition ou idée…"></textarea>
+          </label>
+          <label class="honeypot" aria-hidden="true">
+            Site web
+            <input name="website" tabindex="-1" autocomplete="off" />
+          </label>
+          <button id="submitBtn" class="submit" type="submit">🐜 ENVOYER À LA FOURMILIÈRE</button>
+          <div id="formStatus" class="status" role="status"></div>
+        </form>
+
+        <div id="directMail" class="direct-mail">
+          <p class="kicker">📧 COURRIEL DIRECT</p>
+          <a id="directMailLink" href="#"></a>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const API = new URL("../embryon-x72/api/journal/", window.location.href);
+    const journalEl = document.getElementById("journal");
+    const form = document.getElementById("contactForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const statusEl = document.getElementById("formStatus");
+    const directMail = document.getElementById("directMail");
+    const directMailLink = document.getElementById("directMailLink");
+
+    function endpoint(path) {
+      return new URL(path, API).toString();
+    }
+
+    function entryNode(post) {
+      const article = document.createElement("article");
+      article.className = "entry";
+
+      const top = document.createElement("div");
+      top.className = "entry-cap";
+      top.textContent = post.emoji_open || "🐜📓";
+
+      const body = document.createElement("div");
+      body.className = "entry-body";
+
+      const title = document.createElement("h3");
+      title.className = "entry-title";
+      title.textContent = post.title || "Sans titre";
+
+      const text = document.createElement("p");
+      text.className = "entry-text";
+      text.textContent = post.body || "";
+
+      const meta = document.createElement("div");
+      meta.className = "entry-meta";
+
+      const author = document.createElement("span");
+      author.textContent = "👤 " + (post.author_name || "ANTMUX");
+
+      const date = document.createElement("time");
+      date.dateTime = post.published_at || post.created_at || "";
+      const d = new Date(date.dateTime);
+      date.textContent = Number.isNaN(d.valueOf()) ? "🕒 —" : "🕒 " + d.toLocaleString("fr-CA");
+
+      const index = document.createElement("span");
+      index.className = "entry-index";
+      index.textContent = post.emoji_index || "";
+
+      meta.append(author, date, index);
+      body.append(title, text, meta);
+
+      const bottom = document.createElement("div");
+      bottom.className = "entry-cap";
+      bottom.textContent = post.emoji_close || "📓🐜";
+
+      article.append(top, body, bottom);
+      return article;
+    }
+
+    async function loadConfig() {
+      const response = await fetch(endpoint("config"), {cache:"no-store"});
+      if (!response.ok) throw new Error("Configuration indisponible");
+      const config = await response.json();
+      if (config.contact_email) {
+        directMail.classList.add("visible");
+        directMailLink.href = "mailto:" + config.contact_email;
+        directMailLink.textContent = "✉️ " + config.contact_email;
+      }
+    }
+
+    async function loadJournal() {
+      const response = await fetch(endpoint("public?limit=50"), {cache:"no-store"});
+      if (!response.ok) throw new Error("Journal indisponible");
+      const payload = await response.json();
+      journalEl.replaceChildren();
+      const posts = Array.isArray(payload.posts) ? payload.posts : [];
+      if (!posts.length) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "🐜📓 Le journal public est prêt. Aucune entrée publiée pour le moment. 📓🐜";
+        journalEl.append(empty);
+        return;
+      }
+      posts.forEach(post => journalEl.append(entryNode(post)));
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      statusEl.textContent = "";
+      submitBtn.disabled = true;
+      const data = new FormData(form);
+      const payload = {
+        kind: String(data.get("kind") || "MESSAGE"),
+        name: String(data.get("name") || ""),
+        email: String(data.get("email") || ""),
+        title: String(data.get("title") || ""),
+        body: String(data.get("body") || ""),
+        website: String(data.get("website") || "")
+      };
+      try {
+        const response = await fetch(endpoint("submit"), {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(payload)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || ("HTTP " + response.status));
+        statusEl.textContent = (result.emoji_open || "🐜") + " Reçu " + result.id + " · en attente de modération · " + (result.emoji_close || "🐜");
+        form.reset();
+      } catch (error) {
+        statusEl.textContent = "⚠️ " + String(error.message || error);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    Promise.allSettled([loadConfig(), loadJournal()]).then(results => {
+      if (results[1].status === "rejected") {
+        journalEl.innerHTML = "";
+        const p = document.createElement("p");
+        p.className = "empty";
+        p.textContent = "⚠️ Journal temporairement indisponible.";
+        journalEl.append(p);
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
