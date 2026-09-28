@@ -188,6 +188,8 @@ function ensureCloseButton(k,e){
   const tools=ensurePanelTools(e,k);
   let b=tools.querySelector(".workspaceCloseBtn");
   if(b)return b;
+  b=tools.querySelector(".panelCloseBtn");
+  if(b){b.classList.add("workspaceCloseBtn");return b}
   b=document.createElement("button");b.type="button";b.className="workspaceCloseBtn";b.textContent="X";b.title="Fermer et ranger cette fenêtre";
   b.setAttribute("aria-label","Fermer et ranger "+labelOf(e,k));
   b.addEventListener("click",x=>{x.preventDefault();x.stopPropagation();closeCard(k)});
