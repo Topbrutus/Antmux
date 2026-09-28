@@ -2015,7 +2015,7 @@ function setupFiveScreenBus(){
   }
 }
 const PANEL_WORKSPACE_KEY="BRUTUS_PANEL_WORKSPACE_V1:SCREEN_"+String(SCREEN_MODE||0);
-const PANEL_FONT_MIN=0.75,PANEL_FONT_MAX=1.60,PANEL_FONT_STEP=0.10;
+const PANEL_ZOOM_MIN=0.50,PANEL_ZOOM_MAX=2.00,PANEL_ZOOM_STEP=0.10;
 let PANEL_WORKSPACE_STATE={};
 function loadPanelWorkspaceState(){
   try{const raw=localStorage.getItem(PANEL_WORKSPACE_KEY);PANEL_WORKSPACE_STATE=raw?JSON.parse(raw):{}}catch(_){PANEL_WORKSPACE_STATE={}}
@@ -2043,24 +2043,17 @@ function panelWorkspaceLabel(panel,key){
   }
   return key.replace(/[-_]+/g," ");
 }
-function panelFontNodes(panel){
-  return [...panel.querySelectorAll("h2,h3,p,span,strong,em,label,button,input,select,textarea,pre,td,th,.info,.note,.rule,.control,.idle")]
-    .filter(el=>!el.closest(".panelTools")&&el.closest(".foldablePanel")===panel);
+function panelZoomNodes(panel){
+  return [...panel.children].filter(el=>!el.classList.contains("panelControlBar")&&!el.classList.contains("workspaceResize"));
 }
-function applyPanelFontScale(panel,scale,updateReadout=true){
-  const safe=Math.max(PANEL_FONT_MIN,Math.min(PANEL_FONT_MAX,Number(scale)||1));
-  panel.dataset.textScale=safe.toFixed(2);
-  for(const el of panelFontNodes(panel)){
-    if(!el.dataset.brutusBaseFontPx){
-      const px=parseFloat(getComputedStyle(el).fontSize);
-      if(Number.isFinite(px)&&px>0)el.dataset.brutusBaseFontPx=String(px);
-    }
-    const base=Number(el.dataset.brutusBaseFontPx);
-    const globalText=Math.max(0.80,Math.min(2.00,Number(window.BRUTUS_GLOBAL_TEXT_SCALE)||1));
-    if(Number.isFinite(base)&&base>0)el.style.fontSize=(base*safe*globalText).toFixed(2)+"px";
-  }
+function applyPanelZoom(panel,scale,updateReadout=true,notify=true){
+  const safe=Math.max(PANEL_ZOOM_MIN,Math.min(PANEL_ZOOM_MAX,Number(scale)||1));
+  panel.dataset.moduleZoom=safe.toFixed(2);
+  panel.style.overflow="auto";
+  for(const el of panelZoomNodes(panel))el.style.zoom=String(safe);
   const readout=panel.querySelector(":scope > .panelControlBar .panelScaleReadout");
   if(updateReadout&&readout)readout.textContent=Math.round(safe*100)+"%";
+  if(notify)dispatchEvent(new CustomEvent("BRUTUS_MODULE_ZOOM_CHANGED",{detail:{key:panel.dataset.workspaceKey||"",zoom:safe}}));
 }
 function refreshPanelWorkspaceGeometry(refit=false){
   requestAnimationFrame(()=>{
@@ -2122,7 +2115,7 @@ function setPanelClosed(panel,closed,persist=true){
   }
   if(persist){
     const saved=PANEL_WORKSPACE_STATE[key]||{};
-    PANEL_WORKSPACE_STATE[key]={...saved,closed:isClosed,minimized:isClosed?false:!!saved.minimized,folded:false,scale:Number(panel.dataset.textScale)||Number(saved.scale)||1};
+    PANEL_WORKSPACE_STATE[key]={...saved,closed:isClosed,minimized:isClosed?false:!!saved.minimized,folded:false,zoom:Number(panel.dataset.moduleZoom)||Number(saved.zoom)||Number(saved.scale)||1};
     savePanelWorkspaceState();
   }
   dispatchEvent(new CustomEvent(isClosed?"BRUTUS_PANEL_CLOSE_REQUEST":"BRUTUS_PANEL_OPEN_REQUEST",{detail:{key,screen:SCREEN_MODE}}));
@@ -2187,19 +2180,18 @@ function setPanelFold(panel,folded,persist=true){
   if(minimized)renderPanelMiniIcon(panel);else removePanelMiniIcon(panel);
   if(persist){
     const key=panel.dataset.workspaceKey,saved=PANEL_WORKSPACE_STATE[key]||{};
-    PANEL_WORKSPACE_STATE[key]={...saved,folded:false,minimized,closed:false,scale:Number(panel.dataset.textScale)||1};
+    PANEL_WORKSPACE_STATE[key]={...saved,folded:false,minimized,closed:false,zoom:Number(panel.dataset.moduleZoom)||Number(saved.zoom)||Number(saved.scale)||1};
     savePanelWorkspaceState();
     refreshPanelWorkspaceGeometry(true);
   }
 }
-function changePanelFontScale(panel,delta){
-  const current=Number(panel.dataset.textScale)||1;
-  const next=Math.round(Math.max(PANEL_FONT_MIN,Math.min(PANEL_FONT_MAX,current+delta))*100)/100;
-  applyPanelFontScale(panel,next);
+function changePanelZoom(panel,delta){
+  const current=Number(panel.dataset.moduleZoom)||1;
+  const next=Math.round(Math.max(PANEL_ZOOM_MIN,Math.min(PANEL_ZOOM_MAX,current+delta))*100)/100;
+  applyPanelZoom(panel,next);
   const key=panel.dataset.workspaceKey;
-  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:panel.classList.contains("panelMinimized"),scale:next};
+  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:panel.classList.contains("panelMinimized"),zoom:next};
   savePanelWorkspaceState();
-  refreshPanelWorkspaceGeometry(false);
 }
 function setupPanelWorkspace(){
   loadPanelWorkspaceState();
@@ -2216,23 +2208,23 @@ function setupPanelWorkspace(){
     if(heading)bar.appendChild(heading);
     else{const label=document.createElement("div");label.className="panelControlLabel";label.textContent=panelWorkspaceLabel(panel,key);bar.appendChild(label)}
     const tools=document.createElement("div");tools.className="panelTools";
-    const minus=document.createElement("button");minus.type="button";minus.textContent="−";minus.title="Réduire le lettrage";
+    const minus=document.createElement("button");minus.type="button";minus.textContent="−";minus.title="Réduire le zoom du module";
     const readout=document.createElement("span");readout.className="panelScaleReadout";
-    const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.title="Agrandir le lettrage";
+    const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.title="Agrandir le zoom du module";
     const fold=document.createElement("button");fold.type="button";fold.className="panelFoldBtn";
     const close=document.createElement("button");close.type="button";close.className="panelCloseBtn";close.textContent="X";close.title="Fermer et ranger ce panneau";
     close.setAttribute("aria-label","Fermer et ranger "+panelWorkspaceLabel(panel,key));
     tools.append(minus,readout,plus,fold,close);bar.appendChild(tools);panel.prepend(bar);
-    const scale=Number.isFinite(Number(saved.scale))?Number(saved.scale):1;
-    applyPanelFontScale(panel,scale);
+    const zoom=Number.isFinite(Number(saved.zoom))?Number(saved.zoom):(Number.isFinite(Number(saved.scale))?Number(saved.scale):1);
+    applyPanelZoom(panel,zoom);
     setPanelFold(panel,saved.minimized!==undefined?!!saved.minimized:!!saved.folded,false);
     if(saved.closed)setPanelClosed(panel,true,false);
-    minus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,-PANEL_FONT_STEP)});
-    plus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,PANEL_FONT_STEP)});
+    minus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelZoom(panel,-PANEL_ZOOM_STEP)});
+    plus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelZoom(panel,PANEL_ZOOM_STEP)});
     fold.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelFold(panel,true)});
     close.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelClosed(panel,true)});
     const observer=new MutationObserver(mutations=>{
-      if(mutations.some(m=>m.addedNodes.length&&!m.target.closest?.(".panelTools")))applyPanelFontScale(panel,Number(panel.dataset.textScale)||1,false);
+      if(mutations.some(m=>m.addedNodes.length&&!m.target.closest?.(".panelTools")))applyPanelZoom(panel,Number(panel.dataset.moduleZoom)||1,false,false);
     });
     observer.observe(panel,{childList:true,subtree:true});
   });
