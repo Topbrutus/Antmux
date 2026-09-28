@@ -137,6 +137,11 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .panelTools button:hover{border-color:#00e8ff;color:#fff;box-shadow:0 0 8px #00e8ff33}
 .panelTools .panelFoldBtn{min-width:70px;color:#ffd58a;border-color:#7b5c25;font-size:8px}
 .panelTools .panelScaleReadout{min-width:38px;text-align:center;color:#74d9ff;font:700 8px Consolas,monospace}
+.panelTools .panelCloseBtn{min-width:27px;color:#ff9a9a;border-color:#7a2a32;font-size:12px;line-height:1}
+.panelTools .panelCloseBtn:hover{border-color:#ff3344;color:#fff;box-shadow:0 0 9px #ff334455}
+.foldablePanel.panelClosed{display:none!important}
+.panelMiniCloseBtn{margin-left:auto;flex:0 0 auto;width:22px;height:22px;border:1px solid #7a2a32;border-radius:5px;background:#16090d;color:#ff9a9a;font:900 11px/1 Consolas,monospace;cursor:pointer}
+.panelMiniCloseBtn:hover{border-color:#ff3344;color:#fff;box-shadow:0 0 8px #ff334455}
 .foldablePanel.isFolded{min-height:0!important;height:auto!important;padding-bottom:5px!important}
 .foldablePanel.isFolded>.panelControlBar{margin-bottom:0;border-bottom:0;padding-bottom:0}
 .foldablePanel.isFolded>:not(.panelControlBar){display:none!important}
@@ -2094,9 +2099,38 @@ function showPanelMiniGhost(pos){
 }
 function hidePanelMiniGhost(){PANEL_ICON_GHOST?.classList.remove("active")}
 function persistPanelMiniPosition(key,x,y,precise=false){
-  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:true,iconX:x,iconY:y,iconPrecise:!!precise};
+  PANEL_WORKSPACE_STATE[key]={...(PANEL_WORKSPACE_STATE[key]||{}),folded:false,minimized:true,closed:false,iconX:x,iconY:y,iconPrecise:!!precise};
   savePanelWorkspaceState();
 }
+function setPanelClosed(panel,closed,persist=true){
+  const key=panel?.dataset?.workspaceKey;if(!key)return;
+  const isClosed=!!closed;
+  panel.classList.toggle("panelClosed",isClosed);
+  panel.dataset.closed=isClosed?"1":"0";
+  if(isClosed){
+    panel.classList.remove("panelMinimized");
+    panel.dataset.minimized="0";
+    removePanelMiniIcon(panel);
+  }
+  if(persist){
+    const saved=PANEL_WORKSPACE_STATE[key]||{};
+    PANEL_WORKSPACE_STATE[key]={...saved,closed:isClosed,minimized:isClosed?false:!!saved.minimized,folded:false,scale:Number(panel.dataset.textScale)||Number(saved.scale)||1};
+    savePanelWorkspaceState();
+  }
+  dispatchEvent(new CustomEvent(isClosed?"BRUTUS_PANEL_CLOSE_REQUEST":"BRUTUS_PANEL_OPEN_REQUEST",{detail:{key,screen:SCREEN_MODE}}));
+  refreshPanelWorkspaceGeometry(true);
+}
+function findPanelByWorkspaceKey(key){
+  return [...document.querySelectorAll(".foldablePanel")].find(panel=>panel.dataset.workspaceKey===key)||null;
+}
+addEventListener("BRUTUS_PANEL_REOPENED",e=>{
+  const key=String(e.detail?.key||"");if(!key)return;
+  const panel=findPanelByWorkspaceKey(key);if(!panel)return;
+  panel.classList.remove("panelClosed");panel.dataset.closed="0";
+  const saved=PANEL_WORKSPACE_STATE[key]||{};
+  PANEL_WORKSPACE_STATE[key]={...saved,closed:false,minimized:false,folded:false};
+  savePanelWorkspaceState();
+});
 function renderPanelMiniIcon(panel){
   const key=panel.dataset.workspaceKey;if(!key)return;
   const overlay=ensurePanelIconOverlay();
@@ -2106,7 +2140,10 @@ function renderPanelMiniIcon(panel){
     icon=document.createElement("div");icon.className="panelMiniIcon";icon.dataset.panelKey=key;icon.tabIndex=0;icon.setAttribute("role","button");icon.title="Rouvrir ce panneau";
     const mark=document.createElement("span");mark.className="panelMiniIconMark";mark.textContent="▣";
     const text=document.createElement("span");text.className="panelMiniIconText";text.textContent=panelMiniLabel(panel,key);
-    icon.append(mark,text);overlay.appendChild(icon);
+    const close=document.createElement("button");close.type="button";close.className="panelMiniCloseBtn";close.textContent="X";close.title="Fermer et ranger ce panneau";close.setAttribute("aria-label","Fermer et ranger "+panelMiniLabel(panel,key));
+    close.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation()});
+    close.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelClosed(panel,true)});
+    icon.append(mark,text,close);overlay.appendChild(icon);
     let moved=false;
     icon.addEventListener("pointerdown",e=>{
       if(e.button!==0)return;e.preventDefault();moved=false;
@@ -2131,6 +2168,7 @@ function removePanelMiniIcon(panel){
 }
 function setPanelFold(panel,folded,persist=true){
   const minimized=!!folded;
+  if(!minimized&&panel.classList.contains("panelClosed"))setPanelClosed(panel,false,false);
   const before=panel.getBoundingClientRect();
   if(minimized)panel.dataset.lastVisibleRect=JSON.stringify({left:before.left,top:before.top,width:before.width,height:before.height});
   panel.classList.remove("isFolded");
@@ -2141,7 +2179,7 @@ function setPanelFold(panel,folded,persist=true){
   if(minimized)renderPanelMiniIcon(panel);else removePanelMiniIcon(panel);
   if(persist){
     const key=panel.dataset.workspaceKey,saved=PANEL_WORKSPACE_STATE[key]||{};
-    PANEL_WORKSPACE_STATE[key]={...saved,folded:false,minimized,scale:Number(panel.dataset.textScale)||1};
+    PANEL_WORKSPACE_STATE[key]={...saved,folded:false,minimized,closed:false,scale:Number(panel.dataset.textScale)||1};
     savePanelWorkspaceState();
     refreshPanelWorkspaceGeometry(true);
   }
@@ -2174,13 +2212,17 @@ function setupPanelWorkspace(){
     const readout=document.createElement("span");readout.className="panelScaleReadout";
     const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.title="Agrandir le lettrage";
     const fold=document.createElement("button");fold.type="button";fold.className="panelFoldBtn";
-    tools.append(minus,readout,plus,fold);bar.appendChild(tools);panel.prepend(bar);
+    const close=document.createElement("button");close.type="button";close.className="panelCloseBtn";close.textContent="X";close.title="Fermer et ranger ce panneau";
+    close.setAttribute("aria-label","Fermer et ranger "+panelWorkspaceLabel(panel,key));
+    tools.append(minus,readout,plus,fold,close);bar.appendChild(tools);panel.prepend(bar);
     const scale=Number.isFinite(Number(saved.scale))?Number(saved.scale):1;
     applyPanelFontScale(panel,scale);
     setPanelFold(panel,saved.minimized!==undefined?!!saved.minimized:!!saved.folded,false);
+    if(saved.closed)setPanelClosed(panel,true,false);
     minus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,-PANEL_FONT_STEP)});
     plus.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();changePanelFontScale(panel,PANEL_FONT_STEP)});
     fold.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelFold(panel,true)});
+    close.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();setPanelClosed(panel,true)});
     const observer=new MutationObserver(mutations=>{
       if(mutations.some(m=>m.addedNodes.length&&!m.target.closest?.(".panelTools")))applyPanelFontScale(panel,Number(panel.dataset.textScale)||1,false);
     });
