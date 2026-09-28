@@ -2241,7 +2241,7 @@ function setupPanelWorkspace(){
   });
   refreshPanelWorkspaceGeometry(true);
 }
-function openFiveScreenLauncher(){window.open("five-screens.html","BRUTUS_FIVE_SCREENS");}
+function openFiveScreenLauncher(){location.href="five-screens.html";}
 const SCREEN_URLS={1:"screen-1-master.html",2:"screen-2-analysis.html",3:"screen-3-operator.html",4:"screen-4-control.html",5:"screen-5-settings.html"};
 function openNamedBrutusScreen(n){const u=SCREEN_URLS[n];if(!u)return;const w=window.open(u,"BRUTUS_SCREEN_"+n);if(w)try{w.focus()}catch(_){}}
 document.querySelectorAll("[data-screen-open]").forEach(btn=>{const n=Number(btn.dataset.screenOpen);if(n===SCREEN_MODE)btn.classList.add("active");btn.addEventListener("click",()=>openNamedBrutusScreen(n));});
