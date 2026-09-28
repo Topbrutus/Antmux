@@ -199,17 +199,16 @@ class JournalStore:
         if not supplied or not hmac.compare_digest(supplied, expected):
             raise HTTPException(status_code=401, detail="unauthorized")
 
-    def _rate_check(self, ip_hash: str, email_hash: str, now: float) -> int:
+    def _rate_check(self, db: sqlite3.Connection, ip_hash: str, email_hash: str, now: float) -> int:
         cutoff = now - WINDOW_SECONDS
-        with closing(sqlite3.connect(self.db_path)) as db:
-            ip_rows = db.execute(
-                "SELECT created_at FROM posts WHERE ip_hash=? AND created_at>=? ORDER BY created_at DESC",
-                (ip_hash, cutoff),
-            ).fetchall()
-            email_rows = db.execute(
-                "SELECT created_at FROM posts WHERE email_hash=? AND created_at>=? ORDER BY created_at DESC",
-                (email_hash, cutoff),
-            ).fetchall()
+        ip_rows = db.execute(
+            "SELECT created_at FROM posts WHERE ip_hash=? AND created_at>=? ORDER BY created_at DESC",
+            (ip_hash, cutoff),
+        ).fetchall()
+        email_rows = db.execute(
+            "SELECT created_at FROM posts WHERE email_hash=? AND created_at>=? ORDER BY created_at DESC",
+            (email_hash, cutoff),
+        ).fetchall()
 
         if ip_rows and now - float(ip_rows[0][0]) < MIN_DELAY_SECONDS:
             raise HTTPException(status_code=429, detail=f"wait {MIN_DELAY_SECONDS} seconds between messages")
@@ -236,13 +235,14 @@ class JournalStore:
         now = time.time()
         ip_hash = self._hash(ip)
         email_hash = self._hash(email)
-        remaining_before = self._rate_check(ip_hash, email_hash, now)
-
         post_id = f"ANT-{uuid.uuid4().hex[:12].upper()}"
         emoji_open, emoji_close, core = PUBLIC_KINDS[kind]
         emoji_index = f"🐜{core}📚"
         with closing(sqlite3.connect(self.db_path)) as db:
+            # BEGIN IMMEDIATE serializes the quota check + insert, preventing
+            # concurrent submissions from racing past the 3-per-window limit.
             db.execute("BEGIN IMMEDIATE")
+            remaining_before = self._rate_check(db, ip_hash, email_hash, now)
             db.execute(
                 """
                 INSERT INTO posts(
