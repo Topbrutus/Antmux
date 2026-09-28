@@ -218,5 +218,10 @@
       "duration_s": 2.04,
       "family": "whoosh_boom"
     }
-  ]
+  ],
+  "normalization": {
+    "method": "per-clip peak normalization",
+    "target_peak_dbfs": -3.0,
+    "limiter_linear": 0.891251
+  }
 }
