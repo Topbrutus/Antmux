@@ -6,7 +6,7 @@ from typing import Any
 
 
 SCHEMA = "ANTMUX-ANT-BIRTH-v1"
-STATE_READY = "READY_TO_SING"
+STATE_READY = "SINGING_TO_MEET"
 
 NAME_A = ("🟦", "🟥", "🟩", "🟨", "🟪", "⬜", "⬛")
 NAME_B = ("🥚", "💎", "🌱", "🌙", "☀️", "🍄", "🪶")
@@ -83,6 +83,7 @@ def build_ant_birth(ant_id: str, title: str, body: str, created_at: float) -> di
         "emoji": "🐜",
         "triad_name": triadic_name(f"{ant_id}|{fingerprint}"),
         "state": STATE_READY,
+        "form": "DUMPTY_EGG",
         "role": "SYNAPSE",
         "synapse": {
             "song_channel": "OUTBOUND",
@@ -107,7 +108,11 @@ def build_ant_birth(ant_id: str, title: str, body: str, created_at: float) -> di
             {"step": 2, "state": "CONDITIONAL_ROUTING", "emoji": "🔀", "status": "DONE"},
             {"step": 3, "state": "BAGGAGE_ATTACHED", "emoji": "🎒", "status": "DONE"},
             {"step": 4, "state": "LIFE_CLOCK_ASSIGNMENT", "emoji": "⏱️🧠", "status": "DONE"},
-            {"step": 5, "state": "BECOME_SYNAPSE", "emoji": "🐜🧠", "status": "DONE"},
-            {"step": 6, "state": "READY_TO_SING", "emoji": "🎶", "status": "ACTIVE"},
+            {"step": 5, "state": "DUMPTY_EGG", "emoji": "🥚", "status": "DONE"},
+            {"step": 6, "state": "BECOME_SYNAPSE", "emoji": "🐜🧠", "status": "DONE"},
+            {"step": 7, "state": "SINGING_TO_MEET", "emoji": "🎶", "status": "ACTIVE"},
+            {"step": 8, "state": "MEETING", "emoji": "💞", "status": "WAITING"},
+            {"step": 9, "state": "RECOMBINATION", "emoji": "🧬", "status": "WAITING"},
+            {"step": 10, "state": "EXPERIENCE", "emoji": "🧠", "status": "WAITING"},
         ],
     }
