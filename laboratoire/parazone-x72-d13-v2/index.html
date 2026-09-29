@@ -118,6 +118,8 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
   linear-gradient(180deg,#06101d,#02060c);border-color:#1a66a5;box-shadow:inset 0 0 35px #006cff1f,0 0 14px #00dfff17}
 .engine:before{content:"CŒUR DU MOTEUR DE RÉSONANCE";position:absolute;left:10px;top:7px;color:#bdeeff;font:800 10px Consolas,monospace;letter-spacing:.08em;text-shadow:0 0 8px #00dfff88}
 .engine:after{content:"CORE-ENGINE";position:absolute;right:10px;top:7px;color:#4eb8de;font:8px Consolas,monospace}
+.motorHeldControl{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:45;display:grid;gap:6px;min-width:min(92%,660px);padding:8px 10px;border:1px solid #206f63;border-radius:9px;background:#03110ed9;box-shadow:0 6px 22px #000b,0 0 18px #00e99a22;backdrop-filter:blur(8px)}
+.motorHeldHead{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#87cbb8;font:800 8px Consolas,monospace;letter-spacing:.06em}.motorHeldHead strong{color:#9effdc;font-size:9px}.motorHeldButtons{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.motorHeldBtn{min-width:46px;height:27px;border:1px solid #245d55;border-radius:6px;background:#061814;color:#8fd6c3;font:800 8px Consolas,monospace;cursor:pointer}.motorHeldBtn:hover{border-color:#00e99a;color:#fff}.motorHeldBtn.active{border-color:#00e99a;background:#063326;color:#b8ffe8;box-shadow:0 0 10px #00e99a44}.motorHeldBtn.off.active{border-color:#ff6677;background:#301016;color:#ffb4bd;box-shadow:0 0 10px #ff445533}.motorHeldBtn:disabled{opacity:.45;cursor:wait}.motorHeldError{color:#ff9aa7!important}
 #engineCanvas{min-height:624px}
 .panel{position:relative}
 .panel:before{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;background:linear-gradient(90deg,#00e8ff08,transparent 18%,transparent 82%,#9b45ff08)}
@@ -211,7 +213,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     </div>
 
     <div class="center">
-      <section class="engine"><canvas id="engineCanvas" aria-label="BRUTUS T0 — squelette technique non connecté"></canvas></section>
+      <section class="engine"><canvas id="engineCanvas" aria-label="BRUTUS T0 — squelette technique non connecté"></canvas><div id="motorHeldControl" class="motorHeldControl"><div class="motorHeldHead"><strong>OUVERTURE MAINTENUE DU MOTEUR</strong><span id="motorHeldReadout">ÉTAT SERVEUR EN ATTENTE</span></div><div class="motorHeldButtons"><button id="motorHeld0" class="motorHeldBtn off" type="button" data-motor-held="0">FERMÉ</button><button id="motorHeld1" class="motorHeldBtn" type="button" data-motor-held="0.01">1%</button><button id="motorHeld5" class="motorHeldBtn" type="button" data-motor-held="0.05">5%</button><button id="motorHeld10" class="motorHeldBtn" type="button" data-motor-held="0.10">10%</button><button id="motorHeld25" class="motorHeldBtn" type="button" data-motor-held="0.25">25%</button><button id="motorHeld50" class="motorHeldBtn" type="button" data-motor-held="0.50">50%</button><button id="motorHeld75" class="motorHeldBtn" type="button" data-motor-held="0.75">75%</button><button id="motorHeld100" class="motorHeldBtn" type="button" data-motor-held="1.00">100%</button></div></div></section>
     </div>
 
     <div class="col right">
@@ -679,7 +681,7 @@ const AUDIO_OUTPUT={running:false,ctx:null,osc:null,gain:null,frequency_hz:null,
 const REAL_INPUT={kind:"NONE",active:false,stream:null,ctx:null,analyser:null,data:null,raf:null,amplitude:null,activity:null,cadence_hz:null,last_ts:null,sample_count:0};
 const FREQ_TABLE={index:-1,running:false,timer:null,period_ms:1000};
 const MASTER_SESSION={state:"READY",started_at:null};
-const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,ws:null,retry:null,retry_count:0,last_at:0,error:"NONE",fallback:false,fallback_timer:null};
+const MOTOR_BRIDGE={connected:false,verified:false,frame:null,noyau:null,control:null,control_pending:false,ws:null,retry:null,retry_count:0,last_at:0,error:"NONE",fallback:false,fallback_timer:null};
 
 const POPCORN_BASIN={capacity:256,samples:[],sample_rate_hz:null,window_s:null,model:"CRYSTAL_CRACK_TRANSIENT_V1"};
 const REFERENCE_CATALOG=Object.freeze([
@@ -726,6 +728,42 @@ function renderMotorBridge(){
   document.getElementById("motorBasinOut").textContent=basin?Number(basin.outflow).toFixed(6):"NONE";
   document.getElementById("motorCrystalIndex").textContent=basin?Number(basin.crystal_index).toFixed(6):"NONE";
   document.getElementById("motorHash").textContent=n?n.whole_h256:"NONE";
+  const held=MOTOR_BRIDGE.control&&Number.isFinite(Number(MOTOR_BRIDGE.control.held_input))?Number(MOTOR_BRIDGE.control.held_input):null;
+  const heldReadout=document.getElementById("motorHeldReadout");
+  if(heldReadout){
+    heldReadout.classList.toggle("motorHeldError",MOTOR_BRIDGE.error.startsWith("CONTROL_"));
+    heldReadout.textContent=MOTOR_BRIDGE.error.startsWith("CONTROL_")?MOTOR_BRIDGE.error:(held===null?"ÉTAT SERVEUR EN ATTENTE":(held<=0?"FERMÉ · 0%":"OUVERT · "+(held*100).toFixed(held*100<10?1:0)+"% · MAINTENU"));
+  }
+  document.querySelectorAll("[data-motor-held]").forEach(btn=>{
+    const value=Number(btn.dataset.motorHeld);
+    btn.classList.toggle("active",held!==null&&Math.abs(value-held)<1e-9);
+    btn.disabled=!!MOTOR_BRIDGE.control_pending;
+  });
+}
+async function setMotorHeldInput(raw){
+  if(MOTOR_BRIDGE.control_pending)return false;
+  const value=Number(raw);
+  if(!Number.isFinite(value)||value<0||value>1)return false;
+  MOTOR_BRIDGE.control_pending=true;MOTOR_BRIDGE.error="NONE";renderMotorBridge();
+  try{
+    const response=await fetch("/laboratoire/embryon-x72/api/noyau/held-input",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({value})
+    });
+    const json=await response.json().catch(()=>({detail:"NON_JSON_RESPONSE"}));
+    if(!response.ok)throw new Error(json.detail||("HTTP_"+response.status));
+    const wrap=json.noyau_runtime||(json.state&&json.state.noyau_runtime);
+    if(wrap&&wrap.control)MOTOR_BRIDGE.control=Object.freeze(wrap.control);
+    if(wrap&&wrap.noyau)MOTOR_BRIDGE.noyau=Object.freeze(wrap.noyau);
+    MOTOR_BRIDGE.error="NONE";
+    return true;
+  }catch(err){
+    MOTOR_BRIDGE.error="CONTROL_"+String(err&&err.message?err.message:err).replace(/\s+/g,"_");
+    return false;
+  }finally{
+    MOTOR_BRIDGE.control_pending=false;renderMotorBridge();resize();
+  }
 }
 function scheduleMotorReconnect(){
   if(MOTOR_BRIDGE.retry!==null)return;
@@ -747,6 +785,7 @@ function startMotorBridge(){
         if(!validateMotorFrame(value))throw new Error("NOYAU_MOTOR_SCHEMA_INVALID");
         MOTOR_BRIDGE.frame=Object.freeze(value);
         MOTOR_BRIDGE.noyau=Object.freeze(value.noyau_runtime.noyau);
+        MOTOR_BRIDGE.control=value.noyau_runtime.control?Object.freeze(value.noyau_runtime.control):null;
         MOTOR_BRIDGE.last_at=performance.now();MOTOR_BRIDGE.verified=true;MOTOR_BRIDGE.error="NONE";
         renderMotorBridge();resize();
       }catch(err){
@@ -772,6 +811,7 @@ async function probeMotorFallback(){
     if(!validateMotorFrame(value))throw new Error("NOYAU_MOTOR_SCHEMA_INVALID");
     MOTOR_BRIDGE.frame=Object.freeze(value);
     MOTOR_BRIDGE.noyau=Object.freeze(value.noyau_runtime.noyau);
+    MOTOR_BRIDGE.control=value.noyau_runtime.control?Object.freeze(value.noyau_runtime.control):null;
     MOTOR_BRIDGE.connected=false;MOTOR_BRIDGE.verified=true;MOTOR_BRIDGE.fallback=true;
     MOTOR_BRIDGE.last_at=performance.now();MOTOR_BRIDGE.error="NONE";
     renderMotorBridge();resize();
@@ -1955,7 +1995,7 @@ function multiScreenSnapshot(){
     AUDIO_OUTPUT:{running:AUDIO_OUTPUT.running,frequency_hz:AUDIO_OUTPUT.frequency_hz,gain_value:AUDIO_OUTPUT.gain_value,follow_table:AUDIO_OUTPUT.follow_table,hold_ref_hz:AUDIO_OUTPUT.hold_ref_hz},
     FREQ_TABLE:{index:FREQ_TABLE.index,running:FREQ_TABLE.running,period_ms:FREQ_TABLE.period_ms},
     MASTER_SESSION:{state:MASTER_SESSION.state,started_at:MASTER_SESSION.started_at},
-    MOTOR_BRIDGE:{connected:MOTOR_BRIDGE.connected,verified:MOTOR_BRIDGE.verified,noyau:MOTOR_BRIDGE.noyau,error:MOTOR_BRIDGE.error,last_at:MOTOR_BRIDGE.last_at},
+    MOTOR_BRIDGE:{connected:MOTOR_BRIDGE.connected,verified:MOTOR_BRIDGE.verified,noyau:MOTOR_BRIDGE.noyau,control:MOTOR_BRIDGE.control,error:MOTOR_BRIDGE.error,last_at:MOTOR_BRIDGE.last_at},
     PRESET:{selected:PRESET_BANK.selected,slots:PRESET_BANK.slots},
     uiText:Object.fromEntries(["currentState","t1State","t1Trace","t1Proof","t2State","t2Trace","t2Proof","t3State","t3Trace","t3Proof","t4State","t4Trace","t4Proof","t5State","t5Trace","t5Proof","obsObserved","obsLastSource","obsLastProof","topologyReference","topologyCandidate","topologyDelta","topologyValidation"].map(id=>[id,document.getElementById(id)?.textContent||""])),
     uiDisabled:Object.fromEntries(["t1Inject","t1Sweep","t2Connect","t3Connect","t4Connect","t5Connect","samplerToggle"].map(id=>[id,!!document.getElementById(id)?.disabled])),
@@ -1983,7 +2023,7 @@ function applyMultiScreenSnapshot(x){
   if(x.AUDIO_OUTPUT)Object.assign(AUDIO_OUTPUT,x.AUDIO_OUTPUT,{ctx:null,osc:null,gain:null});
   if(x.FREQ_TABLE)Object.assign(FREQ_TABLE,x.FREQ_TABLE,{timer:null});
   if(x.MASTER_SESSION)Object.assign(MASTER_SESSION,x.MASTER_SESSION);
-  if(x.MOTOR_BRIDGE){Object.assign(MOTOR_BRIDGE,{connected:!!x.MOTOR_BRIDGE.connected,verified:!!x.MOTOR_BRIDGE.verified,noyau:x.MOTOR_BRIDGE.noyau||null,error:x.MOTOR_BRIDGE.error||"NONE",last_at:Number(x.MOTOR_BRIDGE.last_at)||0,ws:null,retry:null,fallback:false});}
+  if(x.MOTOR_BRIDGE){Object.assign(MOTOR_BRIDGE,{connected:!!x.MOTOR_BRIDGE.connected,verified:!!x.MOTOR_BRIDGE.verified,noyau:x.MOTOR_BRIDGE.noyau||null,control:x.MOTOR_BRIDGE.control||null,error:x.MOTOR_BRIDGE.error||"NONE",last_at:Number(x.MOTOR_BRIDGE.last_at)||0,ws:null,retry:null,fallback:false});}
   if(x.PRESET){PRESET_BANK.selected=x.PRESET.selected;PRESET_BANK.slots=x.PRESET.slots}
   if(x.fields)for(const [id,value] of Object.entries(x.fields)){const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=value}
   renderHistory();renderObservationBus();renderAmplitudePanel();renderTimebase();renderSampler();renderSignalGenerator();renderAudioOutput();renderFreqAutomation();renderControlRack();renderMicrophone();renderMasterSession();renderPresetGrid();renderPresetDetail();renderAuxMonitors();renderMotorBridge();resize();
@@ -2266,6 +2306,7 @@ document.getElementById("freqNext").addEventListener("click",()=>stepFrequencyTa
 document.getElementById("freqAutoStart").addEventListener("click",toggleFrequencyTableAuto);
 document.getElementById("freqAutoStop").addEventListener("click",stopFrequencyTable);
 ["presetHz","presetDuration","presetMode","t1Value"].forEach(id=>document.getElementById(id).addEventListener("input",renderControlRack));
+document.querySelectorAll("[data-motor-held]").forEach(btn=>btn.addEventListener("click",()=>setMotorHeldInput(btn.dataset.motorHeld)));
 
 window.addEventListener("beforeunload",()=>{if(MOTOR_BRIDGE.retry!==null)clearTimeout(MOTOR_BRIDGE.retry);if(MOTOR_BRIDGE.fallback_timer!==null)clearInterval(MOTOR_BRIDGE.fallback_timer);if(MOTOR_BRIDGE.ws)MOTOR_BRIDGE.ws.close();});
 restorePresetBank();renderPresetGrid();renderPresetDetail();renderReferenceCatalog();renderSignalGenerator();renderAudioOutput();renderControlRack();renderMicrophone();renderMasterSession();setupFiveScreenBus();setupPanelWorkspace();renderPopcornBasin();renderCrackDensityMonitor();renderAuxMonitors();renderMotorBridge();startMotorBridge();startMotorFallback();
