@@ -34,14 +34,23 @@ Les points des 118 éléments sont visualisés neuf fois, mais les données ne s
 
 ## Horloge de la Vie
 
-Cette v0.1 possède une horloge déterministe locale de laboratoire. Elle sert à prouver le routage et l'animation sans modifier le runtime principal de l'Horloge de la Vie.
+Cette v0.1 reprend la référence temporelle actuellement utilisée par l'Horloge de la Vie :
 
-À chaque tick :
+- nominal : 240.1 Hz;
+- exact calculé : 240.10000000005764801000001384128720100332329305696089 Hz;
+- poussière : 0.00000000005764801000001384128720100332329305696089 Hz;
+- cycle 6·7·13 : ppcm = 546.
+
+Le battement exact reste séparé de l'animation : le monde échantillonne une action collective par seconde afin que les déplacements restent visibles, tout en affichant le beat, les résidus 6/7/13 et la phase 546.
+
+À chaque tick d'action :
 1. le monde actif avance sur le serpent;
 2. la phase C3 avance;
 3. l'élément actif avance;
 4. l'adresse ECHO est reconstruite;
 5. les fourmis avancent.
+
+Le module est local au laboratoire C3RUTUS et ne modifie pas le runtime X72 existant.
 
 ## Limites
 
