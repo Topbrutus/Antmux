@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from .relation_runtime import RelationRuntime
 from .noyau_runtime import NoyauConfig, NoyauEngine, NoyauServerAdapter
 from .z3_runtime import Z3RuntimeBridge
+from .public_journal import router as public_journal_router
 
 
 BASE36_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -623,6 +624,7 @@ DB_PATH = DATA_DIR / "queen.db"
 REPORT_PATH = DATA_DIR / "ANTMUX_X72_SERVER_SHARED_QUEEN_TEST_REPORT.json"
 
 app = FastAPI(title="ANTMUX X72 Shared Queen Server", version="0.2")
+app.include_router(public_journal_router)
 persistence = Persistence(DB_PATH)
 queen = persistence.load_latest() or QueenCore(seed=72)
 state_lock = asyncio.Lock()

@@ -67,6 +67,10 @@ jobs:
           mkdir -p _x72_runner_data
           printf '%s' 'ci-zelstereos-test-token' > _x72_runner_data/zel-ingest-token
           chmod 600 _x72_runner_data/zel-ingest-token
+          ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data/journal-test" \\
+          PYTHONPATH="$PWD/deploy/x72-shared-queen:$PWD/_x72_runner_vendor" \\
+          python3 deploy/x72-shared-queen/tests/test_public_journal.py
+          printf 'PUBLIC_JOURNAL_RUNNER=PASS\\n'
           export ANTMUX_ZEL_INGEST_TOKEN_FILE="$PWD/_x72_runner_data/zel-ingest-token"
           ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data" \
           PYTHONPATH="$PWD/_x72_runner_vendor" \
@@ -113,17 +117,23 @@ jobs:
       - name: Assemble deployment payload
         env:
           ZEL_INGEST_TOKEN: ${{ secrets.ANTMUX_ZEL_INGEST_TOKEN }}
+          PUBLIC_CONTACT_EMAIL: ${{ secrets.ANTMUX_PUBLIC_CONTACT_EMAIL }}
         run: |
           set -euo pipefail
           test -n "${ZEL_INGEST_TOKEN:-}"
           rm -rf _x72_shared_queen_deploy
-          mkdir -p _x72_shared_queen_deploy
+          mkdir -p _x72_shared_queen_deploy _x72_shared_queen_deploy/public/fourmiliere
           cp -a deploy/x72-shared-queen/app _x72_shared_queen_deploy/
           cp -a deploy/x72-shared-queen/tests _x72_shared_queen_deploy/
           cp -a deploy/x72-shared-queen/frontend _x72_shared_queen_deploy/
+          cp laboratoire/fourmiliere/index.html _x72_shared_queen_deploy/public/fourmiliere/index.html
+          cp laboratoire/index.html _x72_shared_queen_deploy/public/laboratoire-index.html
           cp -a _x72_runner_vendor _x72_shared_queen_deploy/vendor
           printf '%s' "$ZEL_INGEST_TOKEN" > _x72_shared_queen_deploy/zel-ingest-token
           chmod 600 _x72_shared_queen_deploy/zel-ingest-token
+          if [ -n "${PUBLIC_CONTACT_EMAIL:-}" ]; then
+            printf '%s\\n' "$PUBLIC_CONTACT_EMAIL" > _x72_shared_queen_deploy/public-contact-email.txt
+          fi
           mv _x72_shared_queen_deploy/tests/run_server_tests.py _x72_shared_queen_deploy/run_server_tests.py
           rm -rf _x72_shared_queen_deploy/tests
           (
@@ -210,7 +220,9 @@ jobs:
           }
 
           APP_ROOT="$HOME/antmux-x72-queen"
-          TARGET_ROOT="/var/www/antmux.com/public_html/laboratoire/embryon-x72"
+          LAB_ROOT="/var/www/antmux.com/public_html/laboratoire"
+          TARGET_ROOT="$LAB_ROOT/embryon-x72"
+          FOURMILIERE_ROOT="$LAB_ROOT/fourmiliere"
           REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
           BACKUP_ROOT="$HOME/antmux-x72-queen-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
           REPORT_PATH="$APP_ROOT/data/ANTMUX_X72_SERVER_SHARED_QUEEN_TEST_REPORT.json"
@@ -256,6 +268,10 @@ jobs:
           printf 'PORT_8720=PASS\n'
           test -d "$TARGET_ROOT"
           test -w "$TARGET_ROOT"
+          test -d "$LAB_ROOT"
+          test -w "$LAB_ROOT"
+          test -f "$REMOTE_STAGE/public/fourmiliere/index.html"
+          test -f "$REMOTE_STAGE/public/laboratoire-index.html"
           test -d "$REMOTE_STAGE"
           cd "$REMOTE_STAGE"
           sha256sum -c SHA256SUMS
@@ -269,6 +285,8 @@ jobs:
           section "backup"
           mkdir -p "$BACKUP_ROOT/frontend"
           cp -a "$TARGET_ROOT/." "$BACKUP_ROOT/frontend/"
+          if [ -d "$FOURMILIERE_ROOT" ]; then cp -a "$FOURMILIERE_ROOT" "$BACKUP_ROOT/fourmiliere.before"; fi
+          if [ -f "$LAB_ROOT/index.html" ]; then cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.before.html"; fi
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
 
           section "install application files and vendor"
@@ -279,11 +297,17 @@ jobs:
           test -s "$REMOTE_STAGE/zel-ingest-token"
           install -m 0600 "$REMOTE_STAGE/zel-ingest-token" "$APP_ROOT/zel-ingest-token"
           export ANTMUX_ZEL_INGEST_TOKEN_FILE="$APP_ROOT/zel-ingest-token"
+          if [ -f "$REMOTE_STAGE/public-contact-email.txt" ]; then
+            install -m 0644 "$REMOTE_STAGE/public-contact-email.txt" "$APP_ROOT/data/public-contact-email.txt"
+          fi
           install -m 0644 "$REMOTE_STAGE/run_server_tests.py" "$APP_ROOT/run_server_tests.py"
           test -f "$REMOTE_STAGE/frontend/app.js"
           test -f "$REMOTE_STAGE/frontend/index.html"
           install -m 0644 "$REMOTE_STAGE/frontend/app.js" "$TARGET_ROOT/app.js"
           install -m 0644 "$REMOTE_STAGE/frontend/index.html" "$TARGET_ROOT/index.html"
+          install -d -m 0755 "$FOURMILIERE_ROOT"
+          install -m 0644 "$REMOTE_STAGE/public/fourmiliere/index.html" "$FOURMILIERE_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE/public/laboratoire-index.html" "$LAB_ROOT/index.html"
 
           section "VPS vendor import"
           cd "$APP_ROOT"
@@ -315,6 +339,14 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8720/api/report >/tmp/x72-report.json
           printf 'HEALTH_API=PASS\n'
           printf 'STATE_API=PASS\n'
+          curl --fail --silent --show-error http://127.0.0.1:8720/api/journal/config >/tmp/x72-journal-config.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/x72-journal-config.json',encoding='utf-8'))
+          assert d['schema']=='ANTMUX-PUBLIC-JOURNAL-v1'
+          assert d['max_posts_per_24h']==3
+          print('JOURNAL_CONFIG_API=PASS')
+          PY
 
           section "ensure clean baseline before backend tests"
           python3 - <<'PY'
@@ -941,6 +973,22 @@ jobs:
           print("PUBLIC_RELATION_RUNTIME=PASS")
           PY
 
+      - name: Verify public Fourmiliere journal
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/fourmiliere/ -o /tmp/fourmiliere.html
+          curl --fail --silent --show-error https://antmux.com/laboratoire/embryon-x72/api/journal/config -o /tmp/fourmiliere-config.json
+          grep -Fq '🐜 Fourmilière publique 🐜' /tmp/fourmiliere.html
+          grep -Fq '3 envois sur 24 h' /tmp/fourmiliere.html
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/fourmiliere-config.json',encoding='utf-8'))
+          assert d['schema']=='ANTMUX-PUBLIC-JOURNAL-v1'
+          assert d['max_posts_per_24h']==3
+          assert d['min_delay_seconds']==120
+          print('PUBLIC_FOURMILIERE=PASS')
+          PY
+
       - name: Upload relation-runtime deployment log
         if: always()
         uses: actions/upload-artifact@v4
@@ -971,6 +1019,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile deploy/x72-shared-queen/app/server.py
+          python3 -m py_compile deploy/x72-shared-queen/app/public_journal.py
           python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
           python3 -m py_compile deploy/x72-shared-queen/app/relation_runtime.py
           python3 -m py_compile deploy/x72-shared-queen/z3_echo/*.py

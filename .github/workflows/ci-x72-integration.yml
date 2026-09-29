@@ -81,6 +81,9 @@ jobs:
           test -f deploy/x72-shared-queen/tests/test_stereo27.py
           test -f deploy/x72-shared-queen/tests/test_complete_relations_k7.py
           test -f deploy/x72-shared-queen/tests/test_relation_runtime.py
+          test -f deploy/x72-shared-queen/app/public_journal.py
+          test -f deploy/x72-shared-queen/tests/test_public_journal.py
+          test -f laboratoire/fourmiliere/index.html
           printf 'FILE_PRESENCE=PASS\n'
 
       - name: JS syntax check
@@ -111,6 +114,8 @@ jobs:
           python3 -m py_compile deploy/x72-shared-queen/app/z3_runtime.py
           python3 -m py_compile deploy/x72-shared-queen/app/stereo27.py
           python3 -m py_compile deploy/x72-shared-queen/app/relation_runtime.py
+          python3 -m py_compile deploy/x72-shared-queen/app/public_journal.py
+          python3 -m py_compile deploy/x72-shared-queen/tests/test_public_journal.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_z3_runtime_bridge.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_z3_runtime_bridge_adversarial.py
           python3 -m py_compile deploy/x72-shared-queen/tests/test_z3_clean_birth_lifecycle.py
@@ -371,6 +376,14 @@ jobs:
           assert report["tests_failed"] == 0
           print("ROBUSTNESS_SUITE_30_OF_30=PASS")
           PY
+
+      - name: Smoke test — public Fourmiliere journal guards
+        run: |
+          set -euo pipefail
+          ANTMUX_X72_DATA_DIR="$RUNNER_TEMP/x72-journal-ci-data" \
+          PYTHONPATH="$PWD/deploy/x72-shared-queen" \
+          python3 deploy/x72-shared-queen/tests/test_public_journal.py
+          printf 'PUBLIC_JOURNAL_ACCEPTANCE=PASS\n'
 
       - name: Start local Queen server
         run: |
