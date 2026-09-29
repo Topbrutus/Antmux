@@ -85,6 +85,7 @@ class NoyauState:
             "world_index": self.world_index,
             "world_name": self.world_name,
             "speed": self.speed,
+            "held_input": self.held_input,
             "coherence": self.coherence,
             "feedback": self.feedback,
             "phase_left": self.phase_left,
@@ -111,6 +112,7 @@ class NoyauEngine:
         self.tick = 0
         self.sim_time = 0.0
         self.speed = 1.0
+        self.held_input = 0.0
         self.coherence = 0.55
         self.feedback = 0.25
         self.world_index = 0
@@ -128,6 +130,12 @@ class NoyauEngine:
 
     def set_speed(self, value: float) -> None:
         self.speed = clamp(float(value), 0.1, 4.0)
+
+    def set_held_input(self, value: float) -> None:
+        value = float(value)
+        if not math.isfinite(value) or value < 0.0 or value > 1.0:
+            raise ValueError("held input must be finite and between 0 and 1")
+        self.held_input = value
 
     def set_coherence(self, value: float) -> None:
         self.coherence = clamp(float(value), 0.0, 1.0)
@@ -159,19 +167,19 @@ class NoyauEngine:
         base = 0.45 + 0.30 * math.sin(2.0 * self.sim_time + phase)
         mod = 0.18 * math.sin(5.0 * self.sim_time - 0.7 * phase)
         sync = 0.20 * self.coherence
-        return max(0.0, base + mod + sync)
+        return max(0.0, base + mod + sync) * self.held_input
 
     def _basin1(self, update_stability: bool = True) -> BasinState:
-        inflow = (
+        base_inflow = (
             0.95
             + 0.55 * math.sin(2.3 * self.sim_time)
             + 0.28 * math.sin(6.2 * self.sim_time + 1.2)
-            + self._injection_pending
         )
+        inflow = base_inflow * self.held_input + self._injection_pending
         inflow *= 0.80 + 0.40 * self.coherence
         inflow = max(0.0, inflow)
         crystal_index = inflow * (0.45 + self.coherence) * (1.0 + 0.5 * self.feedback)
-        raw_out = 0.62 * inflow + 0.26 * crystal_index + 0.18 * math.sin(2.3 * self.sim_time - 0.9)
+        raw_out = 0.62 * inflow + 0.26 * crystal_index + 0.18 * self.held_input * math.sin(2.3 * self.sim_time - 0.9)
         interception = clamp(self._interception_pending, 0.0, 0.95)
         outflow = max(0.0, raw_out * (1.0 - interception))
 
@@ -317,6 +325,7 @@ class NoyauEngine:
         engine.tick = int(checkpoint["tick"])
         engine.sim_time = float(checkpoint["sim_time"])
         engine.speed = clamp(float(checkpoint["speed"]), 0.1, 4.0)
+        engine.held_input = clamp(float(checkpoint.get("held_input", 0.0)), 0.0, 1.0)
         engine.coherence = clamp(float(checkpoint["coherence"]), 0.0, 1.0)
         engine.feedback = clamp(float(checkpoint["feedback"]), 0.0, 1.2)
         engine.switch_world(int(checkpoint["world_index"]))
