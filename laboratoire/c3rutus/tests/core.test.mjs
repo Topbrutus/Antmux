@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PERIODIC_TABLE } from "../periodic-table.mjs";
+import { LIFE_CLOCK, lifeClockSample } from "../life-clock.mjs";
 import {
   C3,
   buildWorlds,
@@ -67,4 +68,20 @@ test("ECHO address is deterministic", () => {
     echoAddress(7, 6, 42),
     "ECHO://C3RUTUS/W07/E006/T00000042/Z7-NZ6-VERSO"
   );
+});
+
+
+test("Life Clock keeps the 240.1+dust reference and derives deterministic residues", () => {
+  assert.equal(LIFE_CLOCK.nominalText, "240.1");
+  assert.equal(
+    LIFE_CLOCK.exactText,
+    "240.10000000005764801000001384128720100332329305696089"
+  );
+  const s = lifeClockSample(1000);
+  assert.equal(s.beat, 240);
+  assert.equal(s.actionTick, 1);
+  assert.equal(s.r6, 0);
+  assert.equal(s.r7, 2);
+  assert.equal(s.r13, 6);
+  assert.equal(s.phase546, 240);
 });
