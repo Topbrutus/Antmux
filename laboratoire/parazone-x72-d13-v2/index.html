@@ -121,6 +121,22 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
 .motorControlPanel{min-height:180px;border-color:#206f63;box-shadow:inset 0 0 24px #00e99a12,0 0 12px #00e99a10}
 .motorHeldControl{display:grid;gap:10px;width:100%;min-width:0;padding:10px;border:1px solid #206f63;border-radius:8px;background:#03110e;box-shadow:inset 0 0 18px #00e99a10}
 .motorHeldHead{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#87cbb8;font:800 8px Consolas,monospace;letter-spacing:.06em;flex-wrap:wrap}.motorHeldHead strong{color:#9effdc;font-size:9px}.motorHeldButtons{display:grid;grid-template-columns:repeat(4,minmax(58px,1fr));gap:6px}.motorHeldBtn{min-width:0;height:31px;border:1px solid #245d55;border-radius:6px;background:#061814;color:#8fd6c3;font:800 8px Consolas,monospace;cursor:pointer}.motorHeldBtn:hover{border-color:#00e99a;color:#fff}.motorHeldBtn.active{border-color:#00e99a;background:#063326;color:#b8ffe8;box-shadow:0 0 10px #00e99a44}.motorHeldBtn.off.active{border-color:#ff6677;background:#301016;color:#ffb4bd;box-shadow:0 0 10px #ff445533}.motorHeldBtn:disabled{opacity:.45;cursor:not-allowed}.motorHeldError{color:#ff9aa7!important}
+.lifeClockPanel{min-height:500px;border-color:#4a3f8a;box-shadow:inset 0 0 28px #8b6cff12,0 0 14px #8b6cff14}
+.lifeClockBody{display:grid;grid-template-columns:minmax(245px,1.1fr) minmax(190px,.9fr);gap:10px;min-width:0}
+.lifeClockStage{position:relative;display:grid;place-items:center;min-height:300px;border:1px solid #294c75;border-radius:10px;background:radial-gradient(circle at 50% 50%,#13213a 0 12%,#071221 44%,#02070d 100%);overflow:hidden}
+.lifeClockStage svg{width:min(100%,300px);height:auto;filter:drop-shadow(0 0 8px #00e8ff22)}
+.lifeClockRing{fill:none;stroke-width:2}.lifeClockRing6{stroke:#65e9b5}.lifeClockRing7{stroke:#ffd58a}.lifeClockRing13{stroke:#b78cff}
+.lifeClockDot{stroke:#fff;stroke-width:1}.lifeClockDot6{fill:#65e9b5}.lifeClockDot7{fill:#ffd58a}.lifeClockDot13{fill:#b78cff}
+.lifeClockZero{fill:#00e8ff;filter:drop-shadow(0 0 9px #00e8ff)}
+.lifeClockAxis{stroke:#214967;stroke-width:1;stroke-dasharray:3 5}
+.lifeClockLegend{position:absolute;left:8px;bottom:7px;display:flex;gap:7px;flex-wrap:wrap;font:800 7px Consolas,monospace;color:#7f9eb4}.lifeClockLegend b{font-weight:900}.lifeClockLegend .c6{color:#65e9b5}.lifeClockLegend .c7{color:#ffd58a}.lifeClockLegend .c13{color:#b78cff}
+.lifeClockData{display:grid;gap:7px;align-content:start}
+.lifeClockCell{padding:7px;border:1px solid #243f5a;border-radius:7px;background:#050d17;color:#8eb4ca;font:8px Consolas,monospace;overflow:hidden}.lifeClockCell strong{display:block;margin-bottom:3px;color:#d7f3ff;font-size:8px}.lifeClockCell span{display:block;overflow-wrap:anywhere}
+.lifeClockResidues{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.lifeClockResidues .lifeClockCell{text-align:center}.lifeClockResidues .r6{border-color:#276b59}.lifeClockResidues .r7{border-color:#745f2e}.lifeClockResidues .r13{border-color:#5b4389}
+.lifeClockActions{display:flex;gap:6px;flex-wrap:wrap}.lifeClockActions button{min-height:28px;border:1px solid #315f9b;border-radius:6px;background:#071524;color:#a9dcff;padding:0 9px;font:800 8px Consolas,monospace;cursor:pointer}.lifeClockActions button:hover,.lifeClockActions button.active{border-color:#00e8ff;color:#fff;box-shadow:0 0 9px #00e8ff33}
+.lifeClockDustTrack{height:8px;border:1px solid #344b6d;border-radius:99px;background:#02070d;overflow:hidden}.lifeClockDustBar{height:100%;width:0;background:linear-gradient(90deg,#00e8ff,#b78cff);box-shadow:0 0 9px #8b6cff}
+.lifeClockNote{grid-column:1/-1;color:#58778d;font:7px Consolas,monospace;letter-spacing:.03em}
+@media(max-width:760px){.lifeClockBody{grid-template-columns:1fr}.lifeClockStage{min-height:250px}}
 #engineCanvas{min-height:624px}
 .panel{position:relative}
 .panel:before{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;background:linear-gradient(90deg,#00e8ff08,transparent 18%,transparent 82%,#9b45ff08)}
@@ -276,6 +292,44 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
         <button id="motorHeld75" class="motorHeldBtn" type="button" data-motor-held="0.75">75%</button>
         <button id="motorHeld100" class="motorHeldBtn" type="button" data-motor-held="1.00">100%</button>
       </div>
+    </div>
+  </section>
+
+  <section class="panel lifeClockPanel" id="LIFE-CLOCK-13-7-6-01">
+    <h2>HORLOGE DE LA VIE · 13·7·6 <span class="panelId">LIFE-CLOCK-13-7-6-01</span></h2>
+    <div class="lifeClockBody">
+      <div class="lifeClockStage">
+        <svg viewBox="0 0 240 240" role="img" aria-label="Trois cycles 6, 7 et 13 autour du point zéro">
+          <line class="lifeClockAxis" x1="18" y1="120" x2="222" y2="120"></line>
+          <line class="lifeClockAxis" x1="120" y1="18" x2="120" y2="222"></line>
+          <circle class="lifeClockRing lifeClockRing6" cx="120" cy="120" r="44"></circle>
+          <circle class="lifeClockRing lifeClockRing7" cx="120" cy="120" r="68"></circle>
+          <circle class="lifeClockRing lifeClockRing13" cx="120" cy="120" r="92"></circle>
+          <circle id="lifeClockDot6" class="lifeClockDot lifeClockDot6" data-radius="44" cx="120" cy="76" r="5"></circle>
+          <circle id="lifeClockDot7" class="lifeClockDot lifeClockDot7" data-radius="68" cx="120" cy="52" r="5"></circle>
+          <circle id="lifeClockDot13" class="lifeClockDot lifeClockDot13" data-radius="92" cx="120" cy="28" r="5"></circle>
+          <circle class="lifeClockZero" cx="120" cy="120" r="7"></circle>
+          <text x="120" y="123" text-anchor="middle" fill="#001018" font-size="6" font-family="Consolas" font-weight="900">0</text>
+        </svg>
+        <div class="lifeClockLegend"><b class="c6">6 · BEAT</b><b class="c7">7 · MÉMOIRE</b><b class="c13">13 · LOGIQUE</b></div>
+      </div>
+      <div class="lifeClockData">
+        <div class="lifeClockCell"><strong>FRÉQUENCE NOMINALE</strong><span id="lifeClockNominal">240.1 Hz</span></div>
+        <div class="lifeClockCell"><strong>FRÉQUENCE EXACTE</strong><span id="lifeClockExact">—</span></div>
+        <div class="lifeClockCell"><strong>POUSSIÈRE Δ</strong><span id="lifeClockDust">—</span></div>
+        <div class="lifeClockResidues">
+          <div class="lifeClockCell r6"><strong>R6</strong><span id="lifeClockR6">0/5</span></div>
+          <div class="lifeClockCell r7"><strong>R7</strong><span id="lifeClockR7">0/6</span></div>
+          <div class="lifeClockCell r13"><strong>R13</strong><span id="lifeClockR13">0/12</span></div>
+        </div>
+        <div class="lifeClockCell"><strong>PHASE COMBINÉE 6×7×13</strong><span id="lifeClockPhase">000/545</span></div>
+        <div class="lifeClockCell"><strong>TICKS CALCULÉS</strong><span id="lifeClockTicks">0</span></div>
+        <div class="lifeClockCell"><strong>POUSSIÈRE VISUELLE <span id="lifeClockDustGain">×10^9</span></strong><span id="lifeClockDustVisual">0</span><div class="lifeClockDustTrack"><div id="lifeClockDustBar" class="lifeClockDustBar"></div></div></div>
+        <div class="lifeClockActions"><button type="button" data-life-dust-gain="1000000">×10⁶</button><button type="button" data-life-dust-gain="1000000000">×10⁹</button><button type="button" data-life-dust-gain="1000000000000">×10¹²</button></div>
+        <div class="lifeClockActions"><button id="lifeClockAudioStart" type="button">▶ SON 240,1 Hz</button><button id="lifeClockAudioStop" type="button">■ STOP</button></div>
+        <div class="lifeClockCell"><strong>AUDIO</strong><span id="lifeClockAudioState">SON · OFF</span></div>
+      </div>
+      <div class="lifeClockNote">VISUALISATION DE PHASE RENDUE À LA CADENCE DE L’ÉCRAN · LE SIGNAL AUDIO EST GÉNÉRÉ DIRECTEMENT À 240,1 Hz · LE GAIN DE POUSSIÈRE NE MODIFIE QUE L’AFFICHAGE.</div>
     </div>
   </section>
 
@@ -2335,7 +2389,7 @@ let fitResizeTimer=null;window.addEventListener("resize",()=>{clearTimeout(fitRe
 })();
 </script>
 <script>
-{const rev=new URLSearchParams(location.search).get("v")||Date.now().toString(36),s=document.createElement("script");s.src="workspace.js?v="+encodeURIComponent(rev);document.body.appendChild(s)}
+{const rev=new URLSearchParams(location.search).get("v")||Date.now().toString(36);for(const src of ["life-clock-13-7-6.js","workspace.js"]){const s=document.createElement("script");s.src=src+"?v="+encodeURIComponent(rev);s.async=false;document.body.appendChild(s)}}
 </script>
 </body>
 </html>
