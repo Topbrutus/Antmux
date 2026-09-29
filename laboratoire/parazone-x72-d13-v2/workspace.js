@@ -91,7 +91,7 @@ function initScreenZoom(){
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
 function legacyHome(e,k){if(e.closest(".layout"))return 1;if(e.closest(".monitorWall")||LEGACY_A.has(k))return 2;if(LEGACY_O.has(k)||/MICROPHONE|GENERATOR|PRESET|REFERENCE/.test(k))return 3;if(LEGACY_C.has(k)||/^CONNECT-T/.test(k))return 4;return 5}
 function home(){return 1}
-const WORKSPACE_MODEL="LAB_BUILD_MOTOR_V1";
+const WORKSPACE_MODEL="LAB_BUILD_MOTOR_CONTROL_V1";
 function migrateLegacyLive(live){
   if(!live?.modules)return live;
   for(const[k,e]of cards){
@@ -112,6 +112,17 @@ function centerMotor(m){
   m.x=snap(Math.max(0,(W-m.w)/2));m.y=snap(Math.max(48,40+(H-m.h)/2));
   m.ix=16;m.iy=56;m.precise=false;m.z=100;
 }
+function placeMotorControl(live){
+  if(!live?.modules)return live;
+  const e=cards.get("MOTOR-CONTROL-01");if(!e)return live;
+  const d=size("MOTOR-CONTROL-01",e),motor=live.modules["CORE-ENGINE"];
+  let control=live.modules["MOTOR-CONTROL-01"];
+  if(!control)control=live.modules["MOTOR-CONTROL-01"]={screen:1,closed:false,x:16,y:48,w:d[0],h:d[1],min:false,ix:16,iy:56,z:101};
+  const mx=Number(motor?.x)||16,my=Number(motor?.y)||48,mw=Number(motor?.w)||720;
+  control.screen=1;control.closed=false;delete control.closedScreen;control.min=false;
+  control.w=d[0];control.h=d[1];control.x=mx+mw+32;control.y=my+64;control.precise=false;control.z=Math.max(101,Number(control.z)||0);
+  return live;
+}
 function seedFirstMotor(live){
   if(!live?.modules)return live;
   for(const m of Object.values(live.modules)){m.closed=true;m.closedScreen=Number(m.screen)||1;m.min=false}
@@ -121,14 +132,19 @@ function seedFirstMotor(live){
     motor=live.modules["CORE-ENGINE"]={screen:1,closed:false,x:16,y:48,w:d[0],h:d[1],min:false,ix:16,iy:56,z:100};
   }
   motor.screen=1;motor.closed=false;delete motor.closedScreen;motor.min=false;centerMotor(motor);
+  placeMotorControl(live);
   return live;
 }
 function defaults(){const g={1:[],2:[],3:[],4:[],5:[]},m={};for(const [k,e] of cards)g[home(e,k)].push([k,e]);for(let s=1;s<=5;s++)g[s].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k,e],i)=>{const d=size(k,e);m[k]={screen:s,closed:true,closedScreen:s,x:16+(i%3)*416,y:48+Math.floor(i/3)*288,w:d[0],h:d[1],min:false,ix:16+(i%10)*96,iy:56+Math.floor(i/10)*72,z:10+i}});seedFirstMotor({modules:m});return{modules:m}}
 function normalize(x){
   if(!x||typeof x!=="object")x={version:3,workspaceModel:WORKSPACE_MODEL,enabled:true,active:"",live:defaults(),profiles:{}};
-  const needsMigration=Number(x.version)<3||x.workspaceModel!==WORKSPACE_MODEL;
+  const previousModel=String(x.workspaceModel||"");
+  const needsMigration=Number(x.version)<3||previousModel!==WORKSPACE_MODEL;
   x.enabled=true;if(!x.live?.modules)x.live=defaults();if(!x.profiles)x.profiles={};
-  if(needsMigration){migrateLegacyLive(x.live);seedFirstMotor(x.live)}
+  if(needsMigration){
+    migrateLegacyLive(x.live);
+    if(previousModel==="LAB_BUILD_MOTOR_V1")placeMotorControl(x.live);else seedFirstMotor(x.live);
+  }
   for(const profile of Object.values(x.profiles)){
     if(!profile||typeof profile!=="object")continue;
     if(profile.workspaceModel!==WORKSPACE_MODEL)migrateLegacyLive(profile.live);
