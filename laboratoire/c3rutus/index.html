@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>C͡3RUTUS — Genesis World</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main class="lab">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">ANTMUX · GENESIS WORLD · RUN 0001</p>
+        <h1>C͡3RUTUS</h1>
+        <p class="subtitle">La fresque se reconstruit à partir des règles, pas à partir d'une image enregistrée.</p>
+      </div>
+      <div class="signature" aria-label="Constantes du prototype">
+        <span>Z = 7</span><span>−Z = 6</span><span>13 = enveloppe</span><span>42 = maille</span><span>RECTO = 555</span>
+      </div>
+    </header>
+
+    <section class="stage">
+      <div id="viewport" class="viewport" aria-label="Monde 3D C3RUTUS"></div>
+      <aside class="panel">
+        <h2>Horloge de la Vie</h2>
+        <div class="metric"><span>Tick collectif</span><strong id="tick">0</strong></div>
+        <div class="metric"><span>Phase C3</span><strong id="phase">1/3</strong></div>
+        <div class="metric"><span>Monde actif</span><strong id="active-world">W02</strong></div>
+        <div class="metric"><span>Élément actif</span><strong id="active-element">H · 1</strong></div>
+        <div class="metric"><span>Écho</span><code id="echo">ECHO://C3RUTUS/...</code></div>
+
+        <div class="controls">
+          <button id="toggle" type="button">Démarrer</button>
+          <button id="step" type="button">+1 tick</button>
+          <button id="reset" type="button">Réinitialiser</button>
+        </div>
+        <label for="speed">Vitesse visuelle <output id="speed-value">1.0×</output></label>
+        <input id="speed" type="range" min="0.25" max="4" step="0.25" value="1">
+
+        <h2>Règle de la couette</h2>
+        <p class="formula">R(2,3)=1 · R(3,1)=2 · R(1,2)=3</p>
+        <p class="muted">Triangle fermé à l'intérieur. Serpent entre les trois triangles.</p>
+
+        <h2>Sélection</h2>
+        <div id="selection" class="selection">Clique une bulle pour inspecter son monde.</div>
+      </aside>
+    </section>
+
+    <section class="legend">
+      <article><strong>9 mondes</strong><span>3 triangles × 3 positions</span></article>
+      <article><strong>118 éléments</strong><span>1 table canonique partagée 9 fois</span></article>
+      <article><strong>Verso</strong><span>interface entre Z et −Z</span></article>
+      <article><strong>Fourmis spatiales</strong><span>agents synchronisés par tick</span></article>
+    </section>
+  </main>
+
+  <script type="module" src="./world.mjs"></script>
+</body>
+</html>
