@@ -118,8 +118,9 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
   linear-gradient(180deg,#06101d,#02060c);border-color:#1a66a5;box-shadow:inset 0 0 35px #006cff1f,0 0 14px #00dfff17}
 .engine:before{content:"CŒUR DU MOTEUR DE RÉSONANCE";position:absolute;left:10px;top:7px;color:#bdeeff;font:800 10px Consolas,monospace;letter-spacing:.08em;text-shadow:0 0 8px #00dfff88}
 .engine:after{content:"CORE-ENGINE";position:absolute;right:10px;top:7px;color:#4eb8de;font:8px Consolas,monospace}
-.motorHeldControl{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:45;display:grid;gap:6px;min-width:min(92%,660px);padding:8px 10px;border:1px solid #206f63;border-radius:9px;background:#03110ed9;box-shadow:0 6px 22px #000b,0 0 18px #00e99a22;backdrop-filter:blur(8px)}
-.motorHeldHead{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#87cbb8;font:800 8px Consolas,monospace;letter-spacing:.06em}.motorHeldHead strong{color:#9effdc;font-size:9px}.motorHeldButtons{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}.motorHeldBtn{min-width:46px;height:27px;border:1px solid #245d55;border-radius:6px;background:#061814;color:#8fd6c3;font:800 8px Consolas,monospace;cursor:pointer}.motorHeldBtn:hover{border-color:#00e99a;color:#fff}.motorHeldBtn.active{border-color:#00e99a;background:#063326;color:#b8ffe8;box-shadow:0 0 10px #00e99a44}.motorHeldBtn.off.active{border-color:#ff6677;background:#301016;color:#ffb4bd;box-shadow:0 0 10px #ff445533}.motorHeldBtn:disabled{opacity:.45;cursor:wait}.motorHeldError{color:#ff9aa7!important}
+.motorControlPanel{min-height:180px;border-color:#206f63;box-shadow:inset 0 0 24px #00e99a12,0 0 12px #00e99a10}
+.motorHeldControl{display:grid;gap:10px;width:100%;min-width:0;padding:10px;border:1px solid #206f63;border-radius:8px;background:#03110e;box-shadow:inset 0 0 18px #00e99a10}
+.motorHeldHead{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#87cbb8;font:800 8px Consolas,monospace;letter-spacing:.06em;flex-wrap:wrap}.motorHeldHead strong{color:#9effdc;font-size:9px}.motorHeldButtons{display:grid;grid-template-columns:repeat(4,minmax(58px,1fr));gap:6px}.motorHeldBtn{min-width:0;height:31px;border:1px solid #245d55;border-radius:6px;background:#061814;color:#8fd6c3;font:800 8px Consolas,monospace;cursor:pointer}.motorHeldBtn:hover{border-color:#00e99a;color:#fff}.motorHeldBtn.active{border-color:#00e99a;background:#063326;color:#b8ffe8;box-shadow:0 0 10px #00e99a44}.motorHeldBtn.off.active{border-color:#ff6677;background:#301016;color:#ffb4bd;box-shadow:0 0 10px #ff445533}.motorHeldBtn:disabled{opacity:.45;cursor:not-allowed}.motorHeldError{color:#ff9aa7!important}
 #engineCanvas{min-height:624px}
 .panel{position:relative}
 .panel:before{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;background:linear-gradient(90deg,#00e8ff08,transparent 18%,transparent 82%,#9b45ff08)}
@@ -213,7 +214,7 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
     </div>
 
     <div class="center">
-      <section class="engine"><canvas id="engineCanvas" aria-label="BRUTUS T0 — squelette technique non connecté"></canvas><div id="motorHeldControl" class="motorHeldControl"><div class="motorHeldHead"><strong>OUVERTURE MAINTENUE DU MOTEUR</strong><span id="motorHeldReadout">ÉTAT SERVEUR EN ATTENTE</span></div><div class="motorHeldButtons"><button id="motorHeld0" class="motorHeldBtn off" type="button" data-motor-held="0">FERMÉ</button><button id="motorHeld1" class="motorHeldBtn" type="button" data-motor-held="0.01">1%</button><button id="motorHeld5" class="motorHeldBtn" type="button" data-motor-held="0.05">5%</button><button id="motorHeld10" class="motorHeldBtn" type="button" data-motor-held="0.10">10%</button><button id="motorHeld25" class="motorHeldBtn" type="button" data-motor-held="0.25">25%</button><button id="motorHeld50" class="motorHeldBtn" type="button" data-motor-held="0.50">50%</button><button id="motorHeld75" class="motorHeldBtn" type="button" data-motor-held="0.75">75%</button><button id="motorHeld100" class="motorHeldBtn" type="button" data-motor-held="1.00">100%</button></div></div></section>
+      <section class="engine"><canvas id="engineCanvas" aria-label="BRUTUS T0 — squelette technique non connecté"></canvas></section>
     </div>
 
     <div class="col right">
@@ -258,6 +259,23 @@ body{background:radial-gradient(circle at 50% -20%,#061a33 0,var(--bg) 48%,#0105
           <span>CRISTAL</span><div class="bar"><div class="fill" style="width:0%"></div></div><span>0 · T0</span>
         </div>
       </section>
+    </div>
+  </section>
+
+  <section class="panel motorControlPanel" id="MOTOR-CONTROL-01">
+    <h2>OUVERTURE MOTEUR <span class="panelId">MOTOR-CONTROL-01</span></h2>
+    <div id="motorHeldControl" class="motorHeldControl">
+      <div class="motorHeldHead"><strong>COMMANDE MAINTENUE</strong><span id="motorHeldReadout">ÉTAT SERVEUR EN ATTENTE</span></div>
+      <div class="motorHeldButtons">
+        <button id="motorHeld0" class="motorHeldBtn off" type="button" data-motor-held="0">FERMÉ</button>
+        <button id="motorHeld1" class="motorHeldBtn" type="button" data-motor-held="0.01">1%</button>
+        <button id="motorHeld5" class="motorHeldBtn" type="button" data-motor-held="0.05">5%</button>
+        <button id="motorHeld10" class="motorHeldBtn" type="button" data-motor-held="0.10">10%</button>
+        <button id="motorHeld25" class="motorHeldBtn" type="button" data-motor-held="0.25">25%</button>
+        <button id="motorHeld50" class="motorHeldBtn" type="button" data-motor-held="0.50">50%</button>
+        <button id="motorHeld75" class="motorHeldBtn" type="button" data-motor-held="0.75">75%</button>
+        <button id="motorHeld100" class="motorHeldBtn" type="button" data-motor-held="1.00">100%</button>
+      </div>
     </div>
   </section>
 
