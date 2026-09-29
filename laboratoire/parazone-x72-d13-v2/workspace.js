@@ -104,7 +104,7 @@ function migrateLegacyLive(live){
   }
   return live;
 }
-function size(k,e){if(k==="CORE-ENGINE")return[720,560];if(k==="MOTOR-CONTROL-01")return[420,220];if(e.classList.contains("monitorPanel"))return[390,235];if(k==="PRESET-BANK-01")return[650,370];if(k==="SIGNAL-GENERATOR-01")return[620,430];if(k==="CONTROL-DIAL-RACK-01")return[720,260];if(k==="MASTER-CONTROLS")return[520,145];if(e.classList.contains("t1Panel"))return[440,230];return[390,260]}
+function size(k,e){if(k==="CORE-ENGINE")return[720,560];if(k==="MOTOR-CONTROL-01")return[420,220];if(k==="LIFE-CLOCK-13-7-6-01")return[520,540];if(e.classList.contains("monitorPanel"))return[390,235];if(k==="PRESET-BANK-01")return[650,370];if(k==="SIGNAL-GENERATOR-01")return[620,430];if(k==="CONTROL-DIAL-RACK-01")return[720,260];if(k==="MASTER-CONTROLS")return[520,145];if(e.classList.contains("t1Panel"))return[440,230];return[390,260]}
 function centerMotor(m){
   const d=size("CORE-ENGINE",cards.get("CORE-ENGINE"));
   const W=Math.max(220,(surface?.clientWidth||innerWidth)-16),H=Math.max(180,(surface?.clientHeight||innerHeight)-48);
@@ -123,6 +123,16 @@ function placeMotorControl(live){
   control.w=d[0];control.h=d[1];control.x=mx+mw+32;control.y=my+64;control.precise=false;control.z=Math.max(101,Number(control.z)||0);
   return live;
 }
+function placeLifeClock(live){
+  if(!live?.modules)return live;
+  const e=cards.get("LIFE-CLOCK-13-7-6-01");if(!e)return live;
+  const d=size("LIFE-CLOCK-13-7-6-01",e);
+  let clock=live.modules["LIFE-CLOCK-13-7-6-01"];
+  if(!clock)clock=live.modules["LIFE-CLOCK-13-7-6-01"]={screen:1,closed:false,x:32,y:96,w:d[0],h:d[1],min:false,ix:16,iy:56,z:102};
+  clock.screen=1;clock.closed=false;delete clock.closedScreen;clock.min=false;
+  clock.w=d[0];clock.h=d[1];clock.x=32;clock.y=96;clock.precise=false;clock.z=Math.max(102,Number(clock.z)||0);
+  return live;
+}
 function seedFirstMotor(live){
   if(!live?.modules)return live;
   for(const m of Object.values(live.modules)){m.closed=true;m.closedScreen=Number(m.screen)||1;m.min=false}
@@ -133,6 +143,7 @@ function seedFirstMotor(live){
   }
   motor.screen=1;motor.closed=false;delete motor.closedScreen;motor.min=false;centerMotor(motor);
   placeMotorControl(live);
+  placeLifeClock(live);
   return live;
 }
 function defaults(){const g={1:[],2:[],3:[],4:[],5:[]},m={};for(const [k,e] of cards)g[home(e,k)].push([k,e]);for(let s=1;s<=5;s++)g[s].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k,e],i)=>{const d=size(k,e);m[k]={screen:s,closed:true,closedScreen:s,x:16+(i%3)*416,y:48+Math.floor(i/3)*288,w:d[0],h:d[1],min:false,ix:16+(i%10)*96,iy:56+Math.floor(i/10)*72,z:10+i}});seedFirstMotor({modules:m});return{modules:m}}
@@ -157,6 +168,8 @@ function normalize(x){
       const motor=x.live.modules["CORE-ENGINE"];
       const mx=Number(motor?.x)||16,my=Number(motor?.y)||48,mw=Number(motor?.w)||720;
       x.live.modules[k]={screen:1,closed:false,x:mx+mw+32,y:my+64,w:d[0],h:d[1],min:false,ix:16,iy:56,z:101};
+    }else if(k==="LIFE-CLOCK-13-7-6-01"){
+      x.live.modules[k]={screen:1,closed:false,x:32,y:96,w:d[0],h:d[1],min:false,ix:16,iy:56,z:102};
     }else{
       x.live.modules[k]={screen:s,closed:true,closedScreen:s,x:16+(n%3)*416,y:48+Math.floor(n/3)*288,w:d[0],h:d[1],min:false,ix:16,iy:56,z:10+n};
     }
