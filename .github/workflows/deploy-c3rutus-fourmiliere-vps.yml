@@ -55,7 +55,7 @@ jobs:
           node --check laboratoire/c3rutus/world.mjs
           node --test laboratoire/c3rutus/tests/core.test.mjs
           grep -Fq 'MATTER/CARBON' laboratoire/c3rutus/index.html
-          grep -Fq 'INFORMATION/CRYPTO' laboratoire/c3rutus/index.html
+          grep -Fq 'INFORMATION/CRYPTO' laboratoire/c3rutus/world-router.mjs
           grep -Fq 'VERSO GLOBAL' laboratoire/c3rutus/world.mjs
 
       - name: Validate Fourmiliere payload
