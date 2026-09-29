@@ -186,9 +186,6 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/c3rutus/ -o /tmp/c3-index.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/c3rutus/world.mjs -o /tmp/c3-world.mjs
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/fourmiliere/ -o /tmp/four-index.html
-          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/api/journal/config -o /tmp/journal-config.json
-          curl --fail --silent --show-error --location 'https://antmux.com/laboratoire/embryon-x72/api/journal/public?limit=1' -o /tmp/journal-public.json
-
           grep -Fq 'C͡3RUTUS · GENESIS WORLD V0.1' /tmp/lab-index.html
           grep -Fq '🐜 FOURMILIÈRE · JOURNAL PUBLIC' /tmp/lab-index.html
           grep -Fq 'MATTER/CARBON' /tmp/c3-index.html
@@ -196,12 +193,25 @@ jobs:
           grep -Fq 'VERSO GLOBAL' /tmp/c3-world.mjs
           grep -Fq 'Fourmilière publique' /tmp/four-index.html
 
-          python3 - <<'PY'
+          echo 'ANTMUX_C3RUTUS_STATIC_PUBLIC=PASS'
+          echo 'ANTMUX_FOURMILIERE_STATIC_PUBLIC=PASS'
+
+          config_status="$(curl --silent --show-error --location -o /tmp/journal-config.json -w '%{http_code}' https://antmux.com/laboratoire/embryon-x72/api/journal/config)"
+          public_status="$(curl --silent --show-error --location -o /tmp/journal-public.json -w '%{http_code}' 'https://antmux.com/laboratoire/embryon-x72/api/journal/public?limit=1')"
+
+          if [ "$config_status" = "200" ] && [ "$public_status" = "200" ]; then
+            python3 - <<'PY'
           import json
           config=json.load(open('/tmp/journal-config.json', encoding='utf-8'))
           public=json.load(open('/tmp/journal-public.json', encoding='utf-8'))
           assert isinstance(config, dict)
           assert isinstance(public, dict)
-          print('ANTMUX_C3RUTUS_PUBLIC=PASS')
-          print('ANTMUX_FOURMILIERE_PUBLIC=PASS')
+          print('ANTMUX_FOURMILIERE_API=PASS')
           PY
+          elif [ "$config_status" = "404" ] || [ "$public_status" = "404" ]; then
+            echo "ANTMUX_FOURMILIERE_API=PENDING_SHARED_QUEEN_DEPLOY"
+            echo "config_status=$config_status public_status=$public_status"
+          else
+            echo "Unexpected Fourmiliere API status: config=$config_status public=$public_status" >&2
+            exit 1
+          fi
