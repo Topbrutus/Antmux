@@ -529,6 +529,10 @@ class FaultRequest(BaseModel):
     synapse_id: str = "RANDOM"
 
 
+class NoyauHeldInputRequest(BaseModel):
+    value: float = 0.0
+
+
 DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-queen/data"))
 def load_zel_ingest_token() -> str:
     token = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
@@ -623,6 +627,7 @@ persistence = Persistence(DB_PATH)
 queen = persistence.load_latest() or QueenCore(seed=72)
 state_lock = asyncio.Lock()
 last_mutation_by_ip: dict[str, float] = {}
+last_control_mutation_by_ip: dict[str, float] = {}
 tick_task: asyncio.Task[None] | None = None
 checkpoint_task: asyncio.Task[None] | None = None
 server_started_monotonic = time.monotonic()
@@ -643,6 +648,14 @@ def enforce_rate_limit(ip: str) -> None:
     if now - last < 3:
         raise HTTPException(status_code=429, detail="rate limit: one public mutation per IP per 3 seconds")
     last_mutation_by_ip[ip] = now
+
+
+def enforce_control_rate_limit(ip: str) -> None:
+    now = time.monotonic()
+    last = last_control_mutation_by_ip.get(ip, 0)
+    if now - last < 0.20:
+        raise HTTPException(status_code=429, detail="rate limit: motor control limited to 5 changes per second")
+    last_control_mutation_by_ip[ip] = now
 
 
 def observability_snapshot() -> dict[str, Any]:
@@ -743,6 +756,30 @@ async def events() -> dict[str, Any]:
 async def report() -> dict[str, Any]:
     async with state_lock:
         return asdict(queen.last_repair_report)
+
+
+@app.post("/api/noyau/held-input")
+async def set_noyau_held_input(body: NoyauHeldInputRequest, request: Request) -> dict[str, Any]:
+    value = float(body.value)
+    if not math.isfinite(value) or value < 0.0 or value > 1.0:
+        raise HTTPException(status_code=422, detail="value must be between 0 and 1")
+    enforce_control_rate_limit(client_ip(request))
+    async with state_lock:
+        payload = queen.noyau_runtime.set_held_input(value)
+        queen.bus.emit(
+            queen.tick,
+            "NOYAU_HELD_INPUT_SET",
+            held_input=round(value, 6),
+            held_percent=round(value * 100.0, 3),
+        )
+        persistence.save(queen)
+        return {
+            "ok": True,
+            "held_input": value,
+            "held_percent": round(value * 100.0, 3),
+            "noyau_runtime": payload,
+            "state": queen.visual_state(),
+        }
 
 
 @app.post("/api/fault")
