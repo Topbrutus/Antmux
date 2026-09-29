@@ -189,7 +189,7 @@ jobs:
           grep -Fq 'C͡3RUTUS · GENESIS WORLD V0.1' /tmp/lab-index.html
           grep -Fq '🐜 FOURMILIÈRE · JOURNAL PUBLIC' /tmp/lab-index.html
           grep -Fq 'MATTER/CARBON' /tmp/c3-index.html
-          grep -Fq 'INFORMATION/CRYPTO' /tmp/c3-index.html
+          grep -Fq 'INFORMATION/CRYPTO' /tmp/c3-world.mjs
           grep -Fq 'VERSO GLOBAL' /tmp/c3-world.mjs
           grep -Fq 'Fourmilière publique' /tmp/four-index.html
 
