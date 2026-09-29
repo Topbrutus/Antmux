@@ -21,8 +21,17 @@ class NoyauServerAdapter:
         return {
             "schema": ADAPTER_SCHEMA,
             "authority": "NOYAU_ENGINE_HEADLESS",
+            "control": {
+                "held_input": self.engine.held_input,
+                "held_percent": round(self.engine.held_input * 100.0, 3),
+                "mode": "HELD",
+            },
             "noyau": state.to_dict(),
         }
+
+    def set_held_input(self, value: float) -> dict[str, Any]:
+        self.engine.set_held_input(value)
+        return self.visual_payload()
 
     def inject(self, strength: float = 1.15) -> dict[str, Any]:
         self.engine.inject(strength)
