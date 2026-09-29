@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>C͡3RUTUS — Genesis World</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main class="lab">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">ANTMUX · GENESIS WORLD · RUN 0001</p>
+        <h1>C͡3RUTUS</h1>
+        <p class="subtitle">ANTMUX contient les mondes dans une bulle globale. Chaque monde garde son Verso local; le Verso global assure les passages inter-mondes définis.</p>
+      </div>
+      <div class="signature" aria-label="Constantes du prototype">
+        <span>Z = 7</span><span>−Z = 6</span><span>13 = enveloppe</span><span>42 = maille</span><span>RECTO = 555</span>
+      </div>
+    </header>
+
+    <section class="stage">
+      <div id="viewport" class="viewport" aria-label="Monde 3D C3RUTUS"></div>
+      <aside class="panel">
+        <h2>Horloge de la Vie</h2>
+        <div class="metric"><span>Tick d’action</span><strong id="tick">0</strong></div>
+        <div class="metric"><span>Beat 240,1+dust</span><strong id="life-beat">0</strong></div>
+        <div class="metric"><span>Phase 546</span><strong id="life-phase">000/545</strong></div>
+        <div class="metric"><span>Résidus 6·7·13</span><strong id="life-residues">0 · 0 · 0</strong></div>
+        <div class="metric"><span>Phase C3</span><strong id="phase">1/3</strong></div>
+        <div class="metric"><span>Monde actif</span><strong id="active-world">MATTER/CARBON</strong></div>
+        <div class="metric"><span>Projection C3</span><strong id="active-projection">P02</strong></div>
+        <div class="metric"><span>Élément actif</span><strong id="active-element">H · 1</strong></div>
+        <div class="metric"><span>Écho</span><code id="echo">ECHO://C3RUTUS/...</code></div>
+
+        <div class="controls">
+          <button id="toggle" type="button">Démarrer</button>
+          <button id="step" type="button">+1 tick</button>
+          <button id="reset" type="button">Réinitialiser</button>
+        </div>
+        <label for="speed">Échelle temporelle <output id="speed-value">1.0×</output></label>
+        <input id="speed" type="range" min="0.25" max="4" step="0.25" value="1">
+
+        <h2>Routeur des mondes</h2>
+        <label for="world-from">Départ</label>
+        <select id="world-from"></select>
+        <label for="world-to">Destination</label>
+        <select id="world-to"></select>
+        <button id="route-world" type="button">Traverser le Verso global</button>
+        <div id="route-status" class="selection">Aucune traversée demandée.</div>
+        <div id="carrier-output" class="selection">Transport : —</div>
+
+        <h2>Règle de la couette</h2>
+        <p class="formula">R(2,3)=1 · R(3,1)=2 · R(1,2)=3</p>
+        <p class="muted">Les 9 positions sont maintenant des projections locales d’un monde, pas neuf mondes différents.</p>
+
+        <h2>Sélection</h2>
+        <div id="selection" class="selection">Clique une bulle pour inspecter son monde.</div>
+      </aside>
+    </section>
+
+    <section class="legend">
+      <article><strong>Bulle globale</strong><span>contient les familles et leurs mondes</span></article>
+      <article><strong>9 projections locales</strong><span>3 triangles × 3 positions dans le monde actif</span></article>
+      <article><strong>Deux niveaux de Verso</strong><span>local Z↔−Z · global monde↔monde</span></article>
+      <article><strong>World Router</strong><span>un passage n’existe que si son contrat est défini</span></article>
+    </section>
+  </main>
+
+  <script type="module" src="./world.mjs"></script>
+</body>
+</html>

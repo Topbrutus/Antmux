@@ -1,0 +1,24 @@
+name: C3RUTUS Core Validation
+
+on:
+  push:
+    branches:
+      - feature/c3rutus-genesis-world-v0-1
+    paths:
+      - "laboratoire/c3rutus/**"
+      - ".github/workflows/c3rutus-core.yml"
+  pull_request:
+    paths:
+      - "laboratoire/c3rutus/**"
+      - ".github/workflows/c3rutus-core.yml"
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run C3RUTUS invariant tests
+        run: node --test laboratoire/c3rutus/tests/core.test.mjs
