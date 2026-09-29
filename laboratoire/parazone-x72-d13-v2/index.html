@@ -737,7 +737,7 @@ function renderMotorBridge(){
   document.querySelectorAll("[data-motor-held]").forEach(btn=>{
     const value=Number(btn.dataset.motorHeld);
     btn.classList.toggle("active",held!==null&&Math.abs(value-held)<1e-9);
-    btn.disabled=!!MOTOR_BRIDGE.control_pending;
+    btn.disabled=!!MOTOR_BRIDGE.control_pending||held===null;
   });
 }
 async function setMotorHeldInput(raw){
