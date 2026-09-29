@@ -20,6 +20,8 @@ on:
       - 'laboratoire/genesis/demo/**'
       - 'laboratoire/embryon-x72/**'
       - 'laboratoire/parazone-x72-d13-v2/**'
+      - 'laboratoire/c3rutus/**'
+      - 'laboratoire/fourmiliere/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -59,6 +61,8 @@ jobs:
           mkdir -p _site/laboratoire/genesis/demo
           mkdir -p _site/laboratoire/embryon-x72
           mkdir -p _site/laboratoire/parazone-x72-d13-v2
+          mkdir -p _site/laboratoire/c3rutus
+          mkdir -p _site/laboratoire/fourmiliere
 
           cp index.html styles.css app.js _site/
           cp -R generator carrou _site/
@@ -86,6 +90,9 @@ jobs:
           cp laboratoire/parazone-x72-d13-v2/index.html _site/laboratoire/parazone-x72-d13-v2/
           cp laboratoire/parazone-x72-d13-v2/README.md _site/laboratoire/parazone-x72-d13-v2/
 
+          cp -R laboratoire/c3rutus/. _site/laboratoire/c3rutus/
+          cp -R laboratoire/fourmiliere/. _site/laboratoire/fourmiliere/
+
       - name: Assert laboratory publication boundary
         run: |
           test -f _site/createur/index.html
@@ -102,6 +109,9 @@ jobs:
           test -f _site/laboratoire/embryon-x72/core/ANTMUX_X72_CORE_V02_TEST_REPORT.json
           test -f _site/laboratoire/parazone-x72-d13-v2/index.html
           test -f _site/laboratoire/parazone-x72-d13-v2/README.md
+          test -f _site/laboratoire/c3rutus/index.html
+          test -f _site/laboratoire/c3rutus/world.mjs
+          test -f _site/laboratoire/fourmiliere/index.html
           test ! -e _site/laboratoire/genesis/validate-demo.mjs
           test ! -e _site/laboratoire/genesis/test-validator.mjs
           test ! -e _site/laboratoire/genesis/browser-cockpit.mjs
