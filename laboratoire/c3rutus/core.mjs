@@ -7,7 +7,7 @@ export const C3 = Object.freeze({
   midBase: 6.5,
   polarityZero: 0,
   recto: 555,
-  worldCount: 9,
+  projectionCount: 9,
   elementCount: 118,
   snakeRoute: Object.freeze([2, 3, 1, 5, 6, 4, 8, 9, 7])
 });
@@ -32,20 +32,20 @@ export function c3Result(a, b) {
   return 6 - values[0] - values[1];
 }
 
-export function triangleForWorld(worldId) {
-  assertWorld(worldId);
-  return Math.floor((worldId - 1) / 3) + 1;
+export function triangleForProjection(projectionId) {
+  assertProjection(projectionId);
+  return Math.floor((projectionId - 1) / 3) + 1;
 }
 
-export function localPosition(worldId) {
-  assertWorld(worldId);
-  return ((worldId - 1) % 3) + 1;
+export function localPosition(projectionId) {
+  assertProjection(projectionId);
+  return ((projectionId - 1) % 3) + 1;
 }
 
-export function snakeNext(worldId) {
-  assertWorld(worldId);
+export function snakeNext(projectionId) {
+  assertProjection(projectionId);
   const route = C3.snakeRoute;
-  const index = route.indexOf(worldId);
+  const index = route.indexOf(projectionId);
   return route[(index + 1) % route.length];
 }
 
@@ -68,40 +68,45 @@ export function negZLatticeIndex(sector) {
   return sector * (C3.commonLattice / C3.negZBase);
 }
 
-export function elementForTick(worldId, tick, elements) {
-  assertWorld(worldId);
+export function elementForTick(projectionId, tick, elements) {
+  assertProjection(projectionId);
   if (!Number.isInteger(tick) || tick < 0) throw new Error("Tick must be a non-negative integer");
   if (!Array.isArray(elements) || elements.length !== C3.elementCount) {
     throw new Error("Expected the canonical 118-element table");
   }
-  const index = (tick + worldId - 1) % elements.length;
+  const index = (tick + projectionId - 1) % elements.length;
   return elements[index];
 }
 
-export function echoAddress(worldId, atomicNumber, tick) {
-  assertWorld(worldId);
+export function echoAddress(worldAddress, projectionId, atomicNumber, tick) {
+  if (!worldAddress || typeof worldAddress !== "string") throw new Error("worldAddress is required");
+  assertProjection(projectionId);
   if (!Number.isInteger(atomicNumber) || atomicNumber < 1 || atomicNumber > C3.elementCount) {
     throw new Error("Atomic number must be 1..118");
   }
   if (!Number.isInteger(tick) || tick < 0) throw new Error("Tick must be a non-negative integer");
+
   return [
     "ECHO://C3RUTUS",
-    `W${String(worldId).padStart(2, "0")}`,
+    worldAddress,
+    `P${String(projectionId).padStart(2, "0")}`,
     `E${String(atomicNumber).padStart(3, "0")}`,
     `T${String(tick).padStart(8, "0")}`,
-    "Z7-NZ6-VERSO"
+    "Z7-NZ6-VERSO-LOCAL"
   ].join("/");
 }
 
-export function buildWorlds(elements) {
+export function buildLocalProjections(elements, worldAddress = "MATTER/CARBON") {
   if (!Array.isArray(elements) || elements.length !== C3.elementCount) {
     throw new Error("Expected the canonical 118-element table");
   }
-  return Object.freeze(Array.from({ length: C3.worldCount }, (_, index) => {
+
+  return Object.freeze(Array.from({ length: C3.projectionCount }, (_, index) => {
     const id = index + 1;
     return Object.freeze({
       id,
-      triangle: triangleForWorld(id),
+      worldAddress,
+      triangle: triangleForProjection(id),
       localPosition: localPosition(id),
       zBase: C3.zBase,
       negZBase: C3.negZBase,
@@ -111,8 +116,8 @@ export function buildWorlds(elements) {
   }));
 }
 
-function assertWorld(worldId) {
-  if (!Number.isInteger(worldId) || worldId < 1 || worldId > C3.worldCount) {
-    throw new Error("World id must be 1..9");
+function assertProjection(projectionId) {
+  if (!Number.isInteger(projectionId) || projectionId < 1 || projectionId > C3.projectionCount) {
+    throw new Error("Projection id must be 1..9");
   }
 }
