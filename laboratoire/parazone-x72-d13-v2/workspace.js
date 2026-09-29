@@ -91,7 +91,7 @@ function initScreenZoom(){
 function keyOf(e){return e.dataset.workspaceKey||e.id||""} function labelOf(e,k){const h=e.querySelector(":scope > .panelControlBar > h2");if(h){const c=h.cloneNode(true);c.querySelectorAll(".panelId").forEach(x=>x.remove());if(c.textContent.trim())return c.textContent.trim()}return e.querySelector(":scope > .panelControlBar > .panelControlLabel")?.textContent?.trim()||k}
 function legacyHome(e,k){if(e.closest(".layout"))return 1;if(e.closest(".monitorWall")||LEGACY_A.has(k))return 2;if(LEGACY_O.has(k)||/MICROPHONE|GENERATOR|PRESET|REFERENCE/.test(k))return 3;if(LEGACY_C.has(k)||/^CONNECT-T/.test(k))return 4;return 5}
 function home(){return 1}
-const WORKSPACE_MODEL="LAB_EXTENSIONS_V1";
+const WORKSPACE_MODEL="LAB_BUILD_MOTOR_V1";
 function migrateLegacyLive(live){
   if(!live?.modules)return live;
   for(const[k,e]of cards){
@@ -105,12 +105,30 @@ function migrateLegacyLive(live){
   return live;
 }
 function size(k,e){if(k==="CORE-ENGINE")return[720,560];if(e.classList.contains("monitorPanel"))return[390,235];if(k==="PRESET-BANK-01")return[650,370];if(k==="SIGNAL-GENERATOR-01")return[620,430];if(k==="CONTROL-DIAL-RACK-01")return[720,260];if(k==="MASTER-CONTROLS")return[520,145];if(e.classList.contains("t1Panel"))return[440,230];return[390,260]}
-function defaults(){const g={1:[],2:[],3:[],4:[],5:[]},m={};for(const [k,e] of cards)g[home(e,k)].push([k,e]);for(let s=1;s<=5;s++)g[s].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k,e],i)=>{const d=size(k,e);m[k]={screen:s,closed:true,closedScreen:s,x:16+(i%3)*416,y:48+Math.floor(i/3)*288,w:d[0],h:d[1],min:false,ix:16+(i%10)*96,iy:56+Math.floor(i/10)*72,z:10+i}});return{modules:m}}
+function centerMotor(m){
+  const d=size("CORE-ENGINE",cards.get("CORE-ENGINE"));
+  const W=Math.max(220,(surface?.clientWidth||innerWidth)-16),H=Math.max(180,(surface?.clientHeight||innerHeight)-48);
+  m.w=Math.min(d[0],W);m.h=Math.min(d[1],H);
+  m.x=snap(Math.max(0,(W-m.w)/2));m.y=snap(Math.max(48,40+(H-m.h)/2));
+  m.ix=16;m.iy=56;m.precise=false;m.z=100;
+}
+function seedFirstMotor(live){
+  if(!live?.modules)return live;
+  for(const m of Object.values(live.modules)){m.closed=true;m.closedScreen=Number(m.screen)||1;m.min=false}
+  let motor=live.modules["CORE-ENGINE"];
+  if(!motor){
+    const d=size("CORE-ENGINE",cards.get("CORE-ENGINE"));
+    motor=live.modules["CORE-ENGINE"]={screen:1,closed:false,x:16,y:48,w:d[0],h:d[1],min:false,ix:16,iy:56,z:100};
+  }
+  motor.screen=1;motor.closed=false;delete motor.closedScreen;motor.min=false;centerMotor(motor);
+  return live;
+}
+function defaults(){const g={1:[],2:[],3:[],4:[],5:[]},m={};for(const [k,e] of cards)g[home(e,k)].push([k,e]);for(let s=1;s<=5;s++)g[s].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k,e],i)=>{const d=size(k,e);m[k]={screen:s,closed:true,closedScreen:s,x:16+(i%3)*416,y:48+Math.floor(i/3)*288,w:d[0],h:d[1],min:false,ix:16+(i%10)*96,iy:56+Math.floor(i/10)*72,z:10+i}});seedFirstMotor({modules:m});return{modules:m}}
 function normalize(x){
   if(!x||typeof x!=="object")x={version:3,workspaceModel:WORKSPACE_MODEL,enabled:true,active:"",live:defaults(),profiles:{}};
   const needsMigration=Number(x.version)<3||x.workspaceModel!==WORKSPACE_MODEL;
   x.enabled=true;if(!x.live?.modules)x.live=defaults();if(!x.profiles)x.profiles={};
-  if(needsMigration)migrateLegacyLive(x.live);
+  if(needsMigration){migrateLegacyLive(x.live);seedFirstMotor(x.live)}
   for(const profile of Object.values(x.profiles)){
     if(!profile||typeof profile!=="object")continue;
     if(profile.workspaceModel!==WORKSPACE_MODEL)migrateLegacyLive(profile.live);
@@ -337,6 +355,6 @@ menuBtn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();wind
 windowMenu.addEventListener("pointerdown",e=>e.stopPropagation());
 document.addEventListener("pointerdown",e=>{if(windowMenu&&!windowMenu.contains(e.target))windowMenu.classList.remove("open")});
 const b=document.createElement("button");b.className="workspaceModeBtn active";b.type="button";b.textContent="RANGER TOUT";b.title="Fermer et ranger toutes les fenêtres";b.onclick=()=>closeAllWindows();tb?.insertBefore(b,tb.children[1]||null);surface=document.createElement("section");surface.className="workspaceSurface";surface.innerHTML='<div class="workspaceToolbar"><span>MODULE</span><input class="workspaceName" maxlength="48" placeholder="ex. TEST-RÉSONANCE"><button class="workspaceSave">ENREGISTRER</button><select class="workspaceProfiles"><option value="">MODULES SAUVÉS</option></select><button class="workspaceLoad">OUVRIR</button><span class="workspaceHint">6 AIMANTS · SNAP 16px · SHIFT = LIBRE · S1 = LABO · S2–S5 = EXTENSIONS</span></div>';icons=document.createElement("div");icons.className="workspaceIcons";surface.appendChild(icons);magnetGhost=document.createElement("div");magnetGhost.className="workspaceMagnetGhost";surface.appendChild(magnetGhost);document.querySelector(".shell")?.appendChild(surface);document.querySelector(".workspaceSave").onclick=()=>{const n=(document.querySelector(".workspaceName").value||"").trim().slice(0,48);if(!n)return;state.profiles[n]={name:n,version:3,workspaceModel:WORKSPACE_MODEL,live:clone(state.live)};state.active=n;save();profiles()};document.querySelector(".workspaceLoad").onclick=()=>{const n=document.querySelector(".workspaceProfiles").value;if(!state.profiles[n])return;state.live=clone(state.profiles[n].live);state.active=n;state.enabled=true;state=normalize(state);save();apply()}}
-function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){initGlobalFont();initScreenZoom();document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();initGlobalFont();initScreenZoom();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
+function init(){document.querySelectorAll(".foldablePanel").forEach(e=>{const k=keyOf(e);if(k&&!cards.has(k))cards.set(k,e)});if(!cards.size){initGlobalFont();initScreenZoom();document.documentElement.classList.remove("brutusWorkspaceBoot");return}for(const[k,e]of cards)e.dataset.desktopHome=String(home(e,k));style();ui();load();if(SCREEN===1){const core=cards.get("CORE-ENGINE");if(core){core.classList.remove("panelClosed","panelMinimized");core.dataset.closed="0";core.dataset.minimized="0";dispatchEvent(new CustomEvent("BRUTUS_PANEL_REOPENED",{detail:{key:"CORE-ENGINE",screen:1}}))}}reconcilePanelHiddenState();installCloseButtons();installIconTransfers();addEventListener("BRUTUS_PANEL_CLOSE_REQUEST",e=>{const k=String(e.detail?.key||"");if(cards.has(k))closeCard(k)});channel="BroadcastChannel"in window?new BroadcastChannel(CHAN):null;if(channel)channel.onmessage=e=>{if(e.data?.type==="STATE"){state=normalize(clone(e.data.state));reconcilePanelHiddenState();apply()}};addEventListener("storage",e=>{if(e.key===KEY&&e.newValue){try{state=normalize(JSON.parse(e.newValue));reconcilePanelHiddenState();apply()}catch(_){}}});profiles();apply();initGlobalFont();initScreenZoom();document.documentElement.classList.remove("brutusWorkspaceBoot");dispatchEvent(new CustomEvent("BRUTUS_WORKSPACE_READY",{detail:{screen:SCREEN,module_count:cards.size}}))}
 if(document.readyState==="loading")addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
