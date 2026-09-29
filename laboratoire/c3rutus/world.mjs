@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { PERIODIC_TABLE } from "./periodic-table.mjs";
+import { LIFE_CLOCK, lifeClockSample } from "./life-clock.mjs";
 import {
   C3,
   buildWorlds,
@@ -11,6 +12,9 @@ import {
 
 const viewport = document.querySelector("#viewport");
 const tickEl = document.querySelector("#tick");
+const lifeBeatEl = document.querySelector("#life-beat");
+const lifePhaseEl = document.querySelector("#life-phase");
+const lifeResiduesEl = document.querySelector("#life-residues");
 const phaseEl = document.querySelector("#phase");
 const activeWorldEl = document.querySelector("#active-world");
 const activeElementEl = document.querySelector("#active-element");
@@ -210,6 +214,7 @@ const ants = Array.from({ length: 9 }, (_, index) => {
 });
 
 let running = false;
+let elapsedMs = 0;
 let tick = 0;
 let progress = 0;
 let speed = 1;
@@ -259,7 +264,11 @@ function currentState() {
 
 function updateUI() {
   const state = currentState();
+  const life = lifeClockSample(elapsedMs);
   tickEl.textContent = String(tick);
+  lifeBeatEl.textContent = life.beat.toLocaleString("fr-CA");
+  lifePhaseEl.textContent = `${String(life.phase546).padStart(3, "0")}/545`;
+  lifeResiduesEl.textContent = `${life.r6} · ${life.r7} · ${life.r13}`;
   phaseEl.textContent = `${(tick % 3) + 1}/3`;
   activeWorldEl.textContent = `W${String(state.worldId).padStart(2, "0")}`;
   activeElementEl.textContent = `${state.element.symbol} · ${state.element.atomicNumber}`;
@@ -294,12 +303,15 @@ function setRunning(next) {
 toggleBtn.addEventListener("click", () => setRunning(!running));
 stepBtn.addEventListener("click", () => {
   setRunning(false);
-  tick += 1;
-  progress = 0;
+  elapsedMs += 1000;
+  const life = lifeClockSample(elapsedMs);
+  tick = life.actionTick;
+  progress = life.seconds - tick;
   updateUI();
 });
 resetBtn.addEventListener("click", () => {
   setRunning(false);
+  elapsedMs = 0;
   tick = 0;
   progress = 0;
   controls.reset();
@@ -339,16 +351,20 @@ function animate(now) {
   lastTime = now;
 
   if (running) {
-    progress += dt * speed / 1.15;
-    while (progress >= 1) {
-      progress -= 1;
-      tick += 1;
-      updateUI();
+    elapsedMs += dt * 1000 * speed;
+    const life = lifeClockSample(elapsedMs);
+    const nextTick = life.actionTick;
+    progress = life.seconds - nextTick;
+    if (nextTick !== tick) {
+      tick = nextTick;
     }
+    updateUI();
   }
 
   updateAnts();
+  const lifePhase = lifeClockSample(elapsedMs).fraction;
   envelope.rotation.y += dt * 0.025;
+  verso.rotation.z = lifePhase * Math.PI * 2;
   zShell.rotation.y -= dt * 0.035;
   negZShell.rotation.y += dt * 0.045;
   verso.rotation.x += dt * 0.22;
