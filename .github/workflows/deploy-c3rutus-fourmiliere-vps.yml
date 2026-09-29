@@ -1,0 +1,207 @@
+name: Deploy C3RUTUS and Fourmiliere to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-c3rutus-fourmiliere-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/c3rutus/**'
+      - 'laboratoire/fourmiliere/**'
+  pull_request:
+    paths:
+      - '.github/workflows/deploy-c3rutus-fourmiliere-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/c3rutus/**'
+      - 'laboratoire/fourmiliere/**'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-LAB-WORLDS to allow the manual VPS deployment'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: c3rutus-fourmiliere-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate C3RUTUS modules
+        run: |
+          set -euo pipefail
+          test -f laboratoire/c3rutus/index.html
+          test -f laboratoire/c3rutus/styles.css
+          test -f laboratoire/c3rutus/core.mjs
+          test -f laboratoire/c3rutus/life-clock.mjs
+          test -f laboratoire/c3rutus/world-router.mjs
+          test -f laboratoire/c3rutus/world.mjs
+          test -f laboratoire/c3rutus/periodic-table.mjs
+          test -f laboratoire/c3rutus/README.md
+          test -f laboratoire/c3rutus/ARCHITECTURE-WORLDS.md
+          node --check laboratoire/c3rutus/core.mjs
+          node --check laboratoire/c3rutus/life-clock.mjs
+          node --check laboratoire/c3rutus/world-router.mjs
+          node --check laboratoire/c3rutus/world.mjs
+          node --test laboratoire/c3rutus/tests/core.test.mjs
+          grep -Fq 'MATTER/CARBON' laboratoire/c3rutus/index.html
+          grep -Fq 'INFORMATION/CRYPTO' laboratoire/c3rutus/index.html
+          grep -Fq 'VERSO GLOBAL' laboratoire/c3rutus/world.mjs
+
+      - name: Validate Fourmiliere payload
+        run: |
+          set -euo pipefail
+          test -f laboratoire/fourmiliere/index.html
+          test -f laboratoire/fourmiliere/README.md
+          grep -Fq 'Fourmilière publique' laboratoire/fourmiliere/index.html
+          grep -Fq '../embryon-x72/api/journal/' laboratoire/fourmiliere/index.html
+          grep -Fq 'C͡3RUTUS · GENESIS WORLD V0.1' laboratoire/index.html
+          grep -Fq '🐜 FOURMILIÈRE · JOURNAL PUBLIC' laboratoire/index.html
+
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-LAB-WORLDS'))
+    needs: validate-static
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      LAB_ROOT: /var/www/antmux.com/public_html/laboratoire
+      C3_ROOT: /var/www/antmux.com/public_html/laboratoire/c3rutus
+      FOUR_ROOT: /var/www/antmux.com/public_html/laboratoire/fourmiliere
+      REMOTE_STAGE: /tmp/antmux-lab-worlds-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Assemble exact public payload
+        run: |
+          set -euo pipefail
+          rm -rf _lab_worlds_deploy
+          mkdir -p _lab_worlds_deploy/c3rutus _lab_worlds_deploy/fourmiliere
+
+          cp laboratoire/index.html _lab_worlds_deploy/laboratoire-index.html
+          cp laboratoire/c3rutus/index.html _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/styles.css _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/core.mjs _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/life-clock.mjs _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/world-router.mjs _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/world.mjs _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/periodic-table.mjs _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/README.md _lab_worlds_deploy/c3rutus/
+          cp laboratoire/c3rutus/ARCHITECTURE-WORLDS.md _lab_worlds_deploy/c3rutus/
+
+          cp laboratoire/fourmiliere/index.html _lab_worlds_deploy/fourmiliere/
+          cp laboratoire/fourmiliere/README.md _lab_worlds_deploy/fourmiliere/
+
+          (
+            cd _lab_worlds_deploy
+            sha256sum               laboratoire-index.html               c3rutus/index.html c3rutus/styles.css c3rutus/core.mjs               c3rutus/life-clock.mjs c3rutus/world-router.mjs c3rutus/world.mjs               c3rutus/periodic-table.mjs c3rutus/README.md c3rutus/ARCHITECTURE-WORLDS.md               fourmiliere/index.html fourmiliere/README.md               > SHA256SUMS
+          )
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preflight VPS access
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST"             "set -e; test -d '$LAB_ROOT'; test -w '$LAB_ROOT'; test \"\$(id -un)\" = '$VPS_USER'"
+
+      - name: Upload staged payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST"             "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -r _lab_worlds_deploy/.             "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Backup and deploy
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          LAB_ROOT='/var/www/antmux.com/public_html/laboratoire'
+          C3_ROOT="$LAB_ROOT/c3rutus"
+          FOUR_ROOT="$LAB_ROOT/fourmiliere"
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP_ROOT="$HOME/antmux-lab-worlds-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+
+          mkdir -p "$BACKUP_ROOT/c3rutus" "$BACKUP_ROOT/fourmiliere"
+          test -f "$LAB_ROOT/index.html" && cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html" || true
+          test -d "$C3_ROOT" && cp -a "$C3_ROOT/." "$BACKUP_ROOT/c3rutus/" || true
+          test -d "$FOUR_ROOT" && cp -a "$FOUR_ROOT/." "$BACKUP_ROOT/fourmiliere/" || true
+
+          install -d -m 0755 "$C3_ROOT" "$FOUR_ROOT"
+          install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
+          install -m 0644 "$REMOTE_STAGE"/c3rutus/* "$C3_ROOT/"
+          install -m 0644 "$REMOTE_STAGE"/fourmiliere/* "$FOUR_ROOT/"
+
+          rm -rf "$REMOTE_STAGE"
+          printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
+          REMOTE
+
+      - name: Verify public endpoints
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/c3rutus/ -o /tmp/c3-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/c3rutus/world.mjs -o /tmp/c3-world.mjs
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/fourmiliere/ -o /tmp/four-index.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/api/journal/config -o /tmp/journal-config.json
+          curl --fail --silent --show-error --location 'https://antmux.com/laboratoire/embryon-x72/api/journal/public?limit=1' -o /tmp/journal-public.json
+
+          grep -Fq 'C͡3RUTUS · GENESIS WORLD V0.1' /tmp/lab-index.html
+          grep -Fq '🐜 FOURMILIÈRE · JOURNAL PUBLIC' /tmp/lab-index.html
+          grep -Fq 'MATTER/CARBON' /tmp/c3-index.html
+          grep -Fq 'INFORMATION/CRYPTO' /tmp/c3-index.html
+          grep -Fq 'VERSO GLOBAL' /tmp/c3-world.mjs
+          grep -Fq 'Fourmilière publique' /tmp/four-index.html
+
+          python3 - <<'PY'
+          import json
+          config=json.load(open('/tmp/journal-config.json', encoding='utf-8'))
+          public=json.load(open('/tmp/journal-public.json', encoding='utf-8'))
+          assert isinstance(config, dict)
+          assert isinstance(public, dict)
+          print('ANTMUX_C3RUTUS_PUBLIC=PASS')
+          print('ANTMUX_FOURMILIERE_PUBLIC=PASS')
+          PY
