@@ -104,7 +104,7 @@ function migrateLegacyLive(live){
   }
   return live;
 }
-function size(k,e){if(k==="CORE-ENGINE")return[720,560];if(e.classList.contains("monitorPanel"))return[390,235];if(k==="PRESET-BANK-01")return[650,370];if(k==="SIGNAL-GENERATOR-01")return[620,430];if(k==="CONTROL-DIAL-RACK-01")return[720,260];if(k==="MASTER-CONTROLS")return[520,145];if(e.classList.contains("t1Panel"))return[440,230];return[390,260]}
+function size(k,e){if(k==="CORE-ENGINE")return[720,560];if(k==="MOTOR-CONTROL-01")return[420,220];if(e.classList.contains("monitorPanel"))return[390,235];if(k==="PRESET-BANK-01")return[650,370];if(k==="SIGNAL-GENERATOR-01")return[620,430];if(k==="CONTROL-DIAL-RACK-01")return[720,260];if(k==="MASTER-CONTROLS")return[520,145];if(e.classList.contains("t1Panel"))return[440,230];return[390,260]}
 function centerMotor(m){
   const d=size("CORE-ENGINE",cards.get("CORE-ENGINE"));
   const W=Math.max(220,(surface?.clientWidth||innerWidth)-16),H=Math.max(180,(surface?.clientHeight||innerHeight)-48);
@@ -135,7 +135,16 @@ function normalize(x){
     profile.version=3;profile.workspaceModel=WORKSPACE_MODEL;
   }
   x.version=3;x.workspaceModel=WORKSPACE_MODEL;
-  for(const[k,e]of cards)if(!x.live.modules[k]){const s=1,d=size(k,e),n=Object.values(x.live.modules).filter(v=>v.screen===s).length;x.live.modules[k]={screen:s,closed:true,closedScreen:s,x:16+(n%3)*416,y:48+Math.floor(n/3)*288,w:d[0],h:d[1],min:false,ix:16,iy:56,z:10+n}}
+  for(const[k,e]of cards)if(!x.live.modules[k]){
+    const s=1,d=size(k,e),n=Object.values(x.live.modules).filter(v=>v.screen===s).length;
+    if(k==="MOTOR-CONTROL-01"){
+      const motor=x.live.modules["CORE-ENGINE"];
+      const mx=Number(motor?.x)||16,my=Number(motor?.y)||48,mw=Number(motor?.w)||720;
+      x.live.modules[k]={screen:1,closed:false,x:mx+mw+32,y:my+64,w:d[0],h:d[1],min:false,ix:16,iy:56,z:101};
+    }else{
+      x.live.modules[k]={screen:s,closed:true,closedScreen:s,x:16+(n%3)*416,y:48+Math.floor(n/3)*288,w:d[0],h:d[1],min:false,ix:16,iy:56,z:10+n};
+    }
+  }
   return x
 }
 function load(){try{state=normalize(JSON.parse(localStorage.getItem(KEY)||"null"))}catch(_){state=normalize(null)}try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}} function save(b=true){localStorage.setItem(KEY,JSON.stringify(state));if(b&&channel)channel.postMessage({type:"STATE",state})}
