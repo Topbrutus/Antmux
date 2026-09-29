@@ -15,22 +15,31 @@ Prototype expérimental ANTMUX. Il ne prétend pas démontrer une nouvelle loi p
   - R(2,3)=1
   - R(3,1)=2
   - R(1,2)=3
-- 9 mondes = 3 triangles × 3 positions.
-- 118 éléments = une seule table canonique référencée par les 9 mondes.
+- 9 projections locales = 3 triangles × 3 positions dans un monde.
+- Bulle globale ANTMUX = conteneur des familles et mondes.
+- Verso local = interface Z ↔ −Z à l'intérieur d'un monde.
+- Verso global = interface de transit entre mondes.
+- World Router = aucun passage sans contrat explicite.
+- 118 éléments = une seule table canonique référencée par les 9 projections locales.
 
 ## Fresque
 
 Le rendu 3D reconstruit la scène depuis les règles :
-- une enveloppe;
-- deux couches Z / −Z;
-- un Verso central;
-- trois triangles;
-- un serpent entre les triangles;
-- 9 fourmis spatiales;
-- 9 projections de la même table périodique;
-- une adresse ECHO déterministe.
+- une grande bulle globale ANTMUX;
+- un monde actif MATTER/CARBON;
+- deux couches locales Z / −Z;
+- un Verso local qui reste au coeur du monde;
+- un Verso global distinct pour les passages inter-mondes;
+- un monde INFORMATION/CRYPTO distinct;
+- trois triangles et neuf projections locales C3;
+- un serpent entre les projections;
+- 9 fourmis locales;
+- une fourmi de transit pour le portail;
+- une adresse ECHO déterministe qui inclut le monde et la projection.
 
-Les points des 118 éléments sont visualisés neuf fois, mais les données ne sont pas copiées neuf fois en mémoire : chaque monde référence le même tableau canonique.
+Les points des 118 éléments sont visualisés neuf fois dans le monde actif, mais les données ne sont pas copiées neuf fois en mémoire : chaque projection référence le même tableau canonique.
+
+Le premier contrat de passage est MATTER/CARBON → VERSO-GLOBAL-01 → INFORMATION/CRYPTO. Il utilise UTF8-CARRIER-V1 comme démonstration réversible de transport. Ce mécanisme est un contrat logiciel; il ne constitue pas une affirmation de voyage physique entre dimensions.
 
 ## Horloge de la Vie
 
