@@ -73,6 +73,7 @@ function makeContext() {
     let zelLastFormulaWave=null;
     let zelLastFormulaCascade=null;
     let zelCanonicalBankReady=null;
+    let zelProfileBankReady=null;
     let zelEvolutionBanksReady=null;
     let zelLastEvolutionCascade=null;
     const zelEvolutionFormulaRegistry=new Map();
@@ -91,10 +92,30 @@ function makeContext() {
     "zelFormulaRunOne",
     "zelSwarmSummary",
     "zelSwarmRender",
+    "zelProfileGcd",
+    "zelProfileFrac",
+    "zelProfileAdd",
+    "zelProfileSub",
+    "zelProfileMul",
+    "zelProfileDiv",
+    "zelProfileAbs",
+    "zelProfileCmp",
+    "zelProfileFracText",
+    "zelProfileFracValue",
+    "zelProfilePositive",
+    "zelProfileNonNegative",
+    "zelProfileOffsetCore",
+    "zelProfilePellRank",
+    "zelProfileFormulaDefinitions",
+    "zelRegisterProfileFormulaBank",
     "zelEvolutionExactInt",
     "zelEvolutionLinearDefinition",
     "zelEvolutionSeedDefinitions",
     "zelRegisterEvolutionSeedBanks",
+    "zelProfileActiveInput",
+    "zelProfileActiveSemanticOk",
+    "zelProfileRunActiveSuite",
+    "zelProfileActiveSummary",
     "zelEvolutionInvariantF006",
     "zelEvolutionGuardSummary",
     "zelFormulaRunBranchLayer",
@@ -127,6 +148,12 @@ test("Entity 38 applies formulas at every branch: 1 -> 9 -> 108 -> 1296", async 
   assert.deepEqual(Array.from(cascade.actual_outputs), [9, 108, 1296]);
   assert.deepEqual(Array.from(cascade.fanout), [9, 12, 12]);
   assert.equal(cascade.total_formula_evaluations, 1413);
+  assert.equal(cascade.zenodo_formula_evaluations, 16956);
+  assert.equal(cascade.profile_calculations.branches_checked, 1413);
+  assert.equal(cascade.profile_calculations.formulas_per_branch, 12);
+  assert.equal(cascade.profile_calculations.failed, 0);
+  assert.equal(cascade.profile_calculations.ok, true);
+  assert.equal(cascade.total_calculation_events, 23670);
   assert.equal(cascade.summary.PASS, 1413);
   assert.equal(cascade.summary.FAIL, 0);
   assert.equal(cascade.summary.DOMAIN, 0);
@@ -135,6 +162,8 @@ test("Entity 38 applies formulas at every branch: 1 -> 9 -> 108 -> 1296", async 
   assert.equal(new Set(cascade.final_nodes.map(x => x.branch_id)).size, 1296);
   assert.ok(cascade.final_nodes.every(x => x.path.length === 3));
   assert.ok(cascade.final_nodes.every(x => x.history.length === 3));
+  assert.ok(cascade.final_nodes.every(x => x.profile_suite?.ok === true && x.profile_suite.checked === 12));
+  assert.ok(cascade.final_nodes.every(x => x.profile_suite.records.length === 12));
 });
 
 test("Entity 38 braid/inverse path reconstructs the original input for all 1296 outputs", async () => {
@@ -256,4 +285,25 @@ test("Entity 38 places F006 sentinels on every forward and inverse branch checkp
   assert.equal(cascade.invariant_guards.total.failed, 0);
   assert.equal(cascade.inverse_verification.invariant_guard.checked, 3888);
   assert.ok(cascade.final_nodes.every(x => x.invariant_guard?.formula_id === "F006" && x.invariant_guard.ok === true));
+});
+
+
+test("Entity 38 actively executes all 12 Zenodo formulas on every forward branch", async () => {
+  const ctx = makeContext();
+  await ctx.zelRegisterProfileFormulaBank();
+  for (const carrier of ["0", "7", "-273", "90071992547409931234567890123456789"]) {
+    const suite = await ctx.zelProfileRunActiveSuite(carrier, { checkpoint: "TEST", branch_id: "ROOT" });
+    assert.equal(suite.role, "ACTIVE_CALCULATION_GATE");
+    assert.equal(suite.checked, 12);
+    assert.equal(suite.passed, 12);
+    assert.equal(suite.failed, 0);
+    assert.equal(suite.ok, true);
+    assert.equal(suite.records.length, 12);
+    assert.deepEqual(Array.from(suite.records, x => x.formula_id), [
+      "GSP-ZENODO-001","GSP-ZENODO-002","GSP-ZENODO-003","GSP-ZENODO-004",
+      "GSP-ZENODO-005","GSP-ZENODO-006","GSP-ZENODO-007","GSP-ZENODO-008",
+      "GSP-ZENODO-009","GSP-ZENODO-010","GSP-ZENODO-011","GSP-ZENODO-012"
+    ]);
+    assert.ok(suite.records.every(x => x.semantic_ok === true));
+  }
 });
