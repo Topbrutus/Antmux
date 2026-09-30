@@ -218,6 +218,47 @@ const activationSoundsAt=[activationRelayAt,activationServoAt,activationCapacito
 function soundStartAt(base){const i=zelAiSecureRandomInt(activationSoundsAt.length);activationSoundsAt[i](base);return i;}
 function soundTempoAt(i,base){scheduleToneAt(180+(i*24),base,.055,.11);}
 function soundEndAt(base){scheduleToneAt(440,base,.11,.16);scheduleToneAt(330,base+.09,.13,.15);scheduleToneAt(220,base+.18,.19,.17);}
+const ZEL_VERDICT_STATUSES=Object.freeze(['PASS','FAIL','DOMAIN','ERROR']);
+function zelVerdictNormalize(value){
+  const v=String(value||'').trim().toUpperCase();
+  if(['PASS','RESIST','RESISTS','RÉSISTE','RESISTE','SUCCESS','OK'].includes(v))return 'PASS';
+  if(['FAIL','BROKEN','BREAK','CASSÉE','CASSEE'].includes(v))return 'FAIL';
+  if(v==='DOMAIN')return 'DOMAIN';
+  if(v==='ERROR')return 'ERROR';
+  return null;
+}
+function soundVerdictPassAt(base){
+  scheduleToneAt(523.25,base,.16,.24);
+  scheduleToneAt(659.25,base+.14,.18,.27);
+  scheduleToneAt(783.99,base+.30,.20,.30);
+  scheduleToneAt(1046.50,base+.48,.34,.34);
+}
+function soundVerdictFailAt(base){
+  scheduleToneAt(329.63,base,.17,.28);
+  scheduleToneAt(220.00,base+.15,.20,.31);
+  scheduleToneAt(146.83,base+.33,.24,.34);
+  scheduleToneAt(98.00,base+.55,.42,.38);
+}
+function soundVerdictInconclusiveAt(base,kind='DOMAIN'){
+  const error=kind==='ERROR';
+  scheduleToneAt(error?277.18:392.00,base,.14,.22);
+  scheduleToneAt(error?233.08:392.00,base+.20,.14,.22);
+  scheduleToneAt(error?277.18:329.63,base+.40,.22,.24);
+}
+function soundVerdictAt(status,base){
+  const verdict=zelVerdictNormalize(status);
+  if(!verdict)return null;
+  if(verdict==='PASS'){soundVerdictPassAt(base);return Object.freeze({status:'PASS',cue:'RESISTE'});}
+  if(verdict==='FAIL'){soundVerdictFailAt(base);return Object.freeze({status:'FAIL',cue:'CASSEE'});}
+  soundVerdictInconclusiveAt(base,verdict);
+  return Object.freeze({status:verdict,cue:'INCONCLUSIF'});
+}
+function zelVerdictDelaySec(stageDt=.65,complexity=null){
+  const dt=Math.max(.08,Number(stageDt)||.65);
+  const c=complexity===null?null:clamp01(Number(complexity)||0);
+  const sonicDt=c===null?dt:Math.max(dt,.65+(c*3.35));
+  return sonicDt+ZEL_AUDIO_CROSSFADE_SEC+.22;
+}
 function fractureHitAt(base){
   // laser sweep, then short low impact
   scheduleToneAt(980,base,.045,.20);
@@ -1418,6 +1459,8 @@ async function zelAiPlayCalculation(spec={}){
     startedAt
   });
   const rendered=[];
+  const verdict=zelVerdictNormalize(spec.verdict??spec.final_status??spec.stages?.[6]?.verdict??spec.stages?.[6]?.status);
+  let finalTiming=null,finalComplexity=null;
   aiPresentationActive=true;
   aiPresentationHoldUntil=Number.MAX_SAFE_INTEGER;
   try{
@@ -1465,7 +1508,7 @@ async function zelAiPlayCalculation(spec={}){
           kind:i===0?'CALC_INPUT':(i===6?'CALC_OUTPUT':'CALC_STAGE'),
           label:String(step.label||names[i]).slice(0,160),
           detail:String(step.detail||'').slice(0,320),
-          status:i===6?'PASS':'RUN'
+          status:i===6?(verdict||'PASS'):'RUN'
         }],
         event_seq:i+1,
         timestamp:Date.now()/1000,
@@ -1480,10 +1523,15 @@ async function zelAiPlayCalculation(spec={}){
       render(state,{audioFromWebSocket:true,stageDt:timing.visible_ms/1000,stageWorkRatio:complexityRatio,stageExecUs:state.stage_exec_us});
       zelCalcAppend(i,step,exact,{decimal,complexity_ratio:complexityRatio,sfx_id:state.sfx_id});
       rendered.push({stage_index:i,stage:names[i],channels:counts[i],exact,decimal,label:state.events[0].label,detail:state.events[0].detail,exec_ms:timing.exec_ms,visible_ms:timing.visible_ms,timing_mode:timing.mode,complexity_ratio:complexityRatio,sfx_id:state.sfx_id});
+      if(i===6){finalTiming=timing;finalComplexity=complexityRatio;}
       if(i<6)await new Promise(resolve=>setTimeout(resolve,timing.visible_ms));
     }
     aiPresentationActive=false;
     aiPresentationHoldUntil=Date.now()+holdMs;
+    const verdictDelaySec=verdict&&audioCtx&&audioCtx.state==='running'
+      ?zelVerdictDelaySec((finalTiming?.visible_ms||650)/1000,finalComplexity)
+      :null;
+    const verdictCue=verdictDelaySec===null?null:soundVerdictAt(verdict,audioCtx.currentTime+verdictDelaySec);
     zelCalcFinish(rendered.length?rendered[rendered.length-1].exact:null);
     return {
       schema:'ANTMUX-ZELSTEREOS-AI-RECTO-TRACE-v2',
@@ -1492,6 +1540,7 @@ async function zelAiPlayCalculation(spec={}){
       formula:zelAiSelectedFormula(),
       started_at:startedAt,
       completed_at:Date.now(),
+      verdict:verdictCue?Object.freeze({...verdictCue,delay_sec:verdictDelaySec}):null,
       stages:rendered
     };
   }catch(err){
@@ -1502,7 +1551,7 @@ async function zelAiPlayCalculation(spec={}){
 }
 Object.defineProperty(window,'ZELSTEREOS_AI',{
   value:Object.freeze({
-    version:'2.3',
+    version:'2.4',
     diagnostics:zelAiDiagnostics,
     selfTest:zelAiSelfTest,
     waitForLive:zelAiWaitForLive,
@@ -1516,6 +1565,11 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     calculationLog:()=>zelAiClone(zelCalcReadLog()),
     currentCalculation:()=>zelCurrentCalculation?zelAiClone(zelCurrentCalculation):null,
     copyCurrentCalculation:zelCalcCopyCurrent,
+    playVerdictSound:(status)=>{
+      if(!audioCtx||audioCtx.state!=='running')return null;
+      return soundVerdictAt(status,audioCtx.currentTime+.05);
+    },
+    verdictStatus:zelVerdictNormalize,
     formulaWaveCapacity:ZEL_FORMULA_WAVE_MAX,
     registerFormulaBank:zelFormulaRegisterBank,
     qualifyFormulaBank:zelFormulaQualifyDefinitions,
