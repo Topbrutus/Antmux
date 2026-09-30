@@ -1156,17 +1156,26 @@ function zelProfileFormulaDefinitions(){
         const means=Array.from({length:cols},(_,q)=>samples.reduce((s,r)=>s+r[q],0)/samples.length);
         if(!means.every(x=>Math.abs(x)<=1e-12))throw new RangeError('connected-spectrum samples must be centered');
         const S=samples.reduce((s,r)=>s+r.reduce((prod,z)=>prod*(1+u*z),1),0)/samples.length;
+        if(!Number.isFinite(S))throw new RangeError('S_Q(u) overflow/nonfinite; rescale samples or u');
         if(!(S>0))throw new RangeError('S_Q(u) must be positive');
         const pairs=[];
         let pairLog=0;
         for(let q=0;q<cols;q++)for(let r=q+1;r<cols;r++){
           const pq=samples.reduce((s,row)=>s+row[q]*row[r],0)/samples.length;
+          if(!Number.isFinite(pq))throw new RangeError('pair correlation overflow/nonfinite; rescale samples');
           const factor=1+pq*u*u;
+          if(!Number.isFinite(factor))throw new RangeError('pair logarithm argument overflow/nonfinite; rescale samples or u');
           if(!(factor>0))throw new RangeError('pair logarithm argument must be positive');
-          pairLog+=Math.log(factor);
+          const logFactor=Math.log(factor);
+          if(!Number.isFinite(logFactor))throw new RangeError('pair logarithm overflow/nonfinite');
+          pairLog+=logFactor;
+          if(!Number.isFinite(pairLog))throw new RangeError('pair log accumulation overflow/nonfinite');
           pairs.push({q,r,p_qr:pq});
         }
-        return {status:'PASS',value:{S_Q:S,K_Q:Math.log(S)-pairLog,means,pairs}};
+        const logS=Math.log(S);
+        const K=logS-pairLog;
+        if(!Number.isFinite(logS)||!Number.isFinite(K))throw new RangeError('connected-spectrum result overflow/nonfinite');
+        return {status:'PASS',value:{S_Q:S,K_Q:K,means,pairs}};
       }
     }),
     Object.freeze({
