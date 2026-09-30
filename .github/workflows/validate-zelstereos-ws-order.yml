@@ -10,6 +10,8 @@ on:
       - 'deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py'
       - 'laboratoire/zelstereos/index.html'
       - 'laboratoire/zelstereos/WEBSOCKET-AUDIO-CONTRACT.md'
+      - 'laboratoire/zelstereos/tests/**'
+      - 'laboratoire/zelstereos/tests/**'
   pull_request:
     branches:
       - main
@@ -58,6 +60,9 @@ jobs:
           print(f'INLINE_SCRIPTS={len(scripts)}')
           PY
           node --check /tmp/zelstereos-inline.js
+
+      - name: Verify ZELSTEREOS formula metadata transport
+        run: node --test laboratoire/zelstereos/tests/*.test.mjs
 
       - name: Verify ordered seven-stage WebSocket transport
         run: |
