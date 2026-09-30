@@ -31,13 +31,20 @@ main{max-width:1180px;margin:auto;padding:12px}
 .calc-journal-lines{min-height:178px;max-height:315px;overflow:auto;margin-top:8px;padding:4px 0}.calc-line{display:grid;grid-template-columns:34px 1fr;gap:8px;padding:7px 8px;border-bottom:1px solid #0d171f;font:12px/1.35 ui-monospace,Consolas,monospace}.calc-line:last-child{border-bottom:0}.calc-line .n{color:#53697c}.calc-line .body{color:#c8d4df;overflow-wrap:anywhere}.calc-line.active{background:#07131b;box-shadow:inset 2px 0 #5fc6ff}.calc-line.done .body{color:#9eeac9}.calc-line.result{background:#07130f;box-shadow:inset 2px 0 #32e7a4}.calc-line.result .body{color:#8bffd2;font-weight:800}
 .calc-journal-empty{padding:48px 12px;text-align:center;color:#536473;font:11px/1.5 ui-monospace,Consolas,monospace}
 .calc-journal-foot{display:flex;justify-content:space-between;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #14202a;color:#6f8190;font:10px/1.2 ui-monospace,Consolas,monospace}.calc-journal-foot strong{color:#a9bbc9;font-weight:700}
+.swarm{background:linear-gradient(180deg,#05090d,#010305);border:1px solid #182630;border-radius:9px;box-shadow:inset 0 0 24px #000;padding:10px}
+.swarm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.swarm-head strong{display:block;color:#e5f8ff;font:800 13px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.06em}.swarm-head small{display:block;margin-top:4px;color:#708798;font:10px/1.35 ui-monospace,Consolas,monospace}
+.swarm-capacity{color:#6ed6ff;font:800 12px/1 ui-monospace,Consolas,monospace;white-space:nowrap}
+.swarm-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:10px}.swarm-cell{padding:9px;border:1px solid #13202a;border-radius:7px;background:#03080c}.swarm-cell span{display:block;color:#6f8190;font:9px/1.1 ui-monospace,Consolas,monospace}.swarm-cell strong{display:block;margin-top:5px;color:#d9e8f2;font:800 17px/1 ui-monospace,Consolas,monospace}.swarm-cell.pass strong{color:#56efb0}.swarm-cell.fail strong,.swarm-cell.error strong{color:#ff6969}.swarm-cell.domain strong{color:#ffd36b}
+.swarm-bar{height:7px;margin-top:10px;border-radius:999px;background:#081119;overflow:hidden;border:1px solid #14232e}.swarm-bar>div{height:100%;width:0;background:linear-gradient(90deg,#339dff,#47e8ae);transition:width .12s linear}
+.swarm-route{margin-top:9px;padding:8px 9px;border-left:3px solid #8d7cff;background:#03070b;color:#adbbca;font:11px/1.35 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+.swarm-anomalies{margin-top:8px;max-height:180px;overflow:auto;border:1px solid #101b23;border-radius:7px;background:#020609}.swarm-anomaly{padding:6px 8px;border-bottom:1px solid #0c151c;color:#ff9999;font:10px/1.35 ui-monospace,Consolas,monospace}.swarm-anomaly:last-child{border-bottom:0}.swarm-empty{padding:13px;text-align:center;color:#526573;font:10px/1.3 ui-monospace,Consolas,monospace}
 .events{max-height:330px;overflow:auto;background:#02070a;border:1px solid #101820;border-radius:8px;padding:7px;box-shadow:inset 0 0 14px #000}.event{padding:6px 9px;border-left:3px solid #ffb113;border-bottom:1px solid #10171c;font:12px/1.35 ui-monospace,Consolas,monospace}.event small{display:block;color:#d6a42c}.event code{color:#67c4ff;white-space:pre-wrap}.event.pass{border-left-color:#31e69f}.event.fail{border-left-color:#ff4a4a}.event.pass small{color:#6de2b2}.event.fail small{color:#ff7b7b}
 .note{color:#b7c1cb;font-size:12px}.offline{color:#ff7777}
 
 .audio-consent{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,4,8,.82);backdrop-filter:blur(7px)}
 .audio-consent.show{display:flex}.audio-consent-card{width:min(520px,100%);padding:24px;border:1px solid #4e5c69;border-radius:14px;background:linear-gradient(180deg,#0d151d,#05090d);box-shadow:0 24px 70px #000,inset 0 0 0 1px #26323d;text-align:center}.audio-consent-card h2{margin:0 0 8px;font-size:24px}.audio-consent-card p{margin:0 0 18px;color:#b7c5d3}.audio-consent-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.audio-consent-actions button{min-width:150px;padding:11px 16px;border-radius:9px;border:1px solid #566675;background:#08131d;color:#e9f6ff;font-weight:800;cursor:pointer}.audio-consent-actions .primary{border-color:#55cfff;background:#0b2432;color:#bfeeff}
-@media(max-width:850px){.stages{grid-template-columns:repeat(4,1fr)}.metrics{grid-template-columns:1fr 1fr}.formulas{grid-template-columns:1fr}}
-@media(max-width:520px){.stages,.metrics{grid-template-columns:1fr 1fr}.top{align-items:flex-start;flex-direction:column}.top h1{font-size:17px}.top-actions{width:100%;flex-wrap:wrap}.sound-test{order:5;width:100%;height:46px;font-size:16px}.volume{flex:1;min-width:120px}.live{order:6}.calc-journal-head{align-items:flex-start;flex-direction:column}.calc-journal-actions{width:100%;justify-content:space-between}.calc-line{grid-template-columns:28px 1fr}}
+@media(max-width:850px){.stages{grid-template-columns:repeat(4,1fr)}.metrics{grid-template-columns:1fr 1fr}.formulas{grid-template-columns:1fr}.swarm-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.stages,.metrics{grid-template-columns:1fr 1fr}.top{align-items:flex-start;flex-direction:column}.top h1{font-size:17px}.top-actions{width:100%;flex-wrap:wrap}.sound-test{order:5;width:100%;height:46px;font-size:16px}.volume{flex:1;min-width:120px}.live{order:6}.calc-journal-head{align-items:flex-start;flex-direction:column}.calc-journal-actions{width:100%;justify-content:space-between}.calc-line{grid-template-columns:28px 1fr}.swarm-grid{grid-template-columns:repeat(2,1fr)}.swarm-head{flex-direction:column}}
 </style>
 </head>
 <body>
@@ -78,7 +85,26 @@ main{max-width:1180px;margin:auto;padding:12px}
   <div class="calc-journal-foot"><span>LOG LOCAL PERSISTANT · 100 TRACES MAX</span><strong id="calcJournalStatus">PRÊT</strong></div>
 </div></section>
 
-<div class="label">07 · ACTIVITÉ PUBLIQUE</div>
+<div class="label">07 · FORMULA SWARM / OUVERTURES DE MONDE</div>
+<section class="rack"><div class="swarm">
+  <div class="swarm-head">
+    <div><strong>FRONT DE CALCUL</strong><small id="swarmWave">Aucune vague active · déterministe · aucune formule choisie au hasard</small></div>
+    <div id="swarmCapacity" class="swarm-capacity">0 / 2000</div>
+  </div>
+  <div class="swarm-grid">
+    <div class="swarm-cell"><span>MONDE</span><strong id="swarmWorld">—</strong></div>
+    <div class="swarm-cell pass"><span>PASS</span><strong id="swarmPass">0</strong></div>
+    <div class="swarm-cell fail"><span>FAIL</span><strong id="swarmFail">0</strong></div>
+    <div class="swarm-cell domain"><span>DOMAIN</span><strong id="swarmDomain">0</strong></div>
+    <div class="swarm-cell error"><span>ERROR</span><strong id="swarmError">0</strong></div>
+    <div class="swarm-cell"><span>PROFONDEUR</span><strong id="swarmDepth">0</strong></div>
+  </div>
+  <div class="swarm-bar"><div id="swarmProgress"></div></div>
+  <div id="swarmRoute" class="swarm-route">ROUTE · aucune ouverture de monde</div>
+  <div id="swarmAnomalies" class="swarm-anomalies"><div class="swarm-empty">AUCUNE ANOMALIE À AFFICHER</div></div>
+</div></section>
+
+<div class="label">08 · ACTIVITÉ PUBLIQUE</div>
 <section class="rack"><div class="note" style="margin-bottom:8px">Résumé filtré des validations. Aucun chemin local, commande brute, token ou secret n’est publié.</div><div id="events" class="events"></div></section>
 </main>
 <script>
@@ -689,6 +715,222 @@ async function zelCalcCopyCurrent(){
 }
 $('calcCopy').addEventListener('click',()=>{zelCalcCopyCurrent();});
 zelCalcUpdateCount();
+
+const ZEL_FORMULA_WAVE_MAX=2000;
+const ZEL_FORMULA_BATCH_DEFAULT=64;
+const ZEL_FORMULA_STATUSES=Object.freeze(['PASS','FAIL','DOMAIN','ERROR']);
+const zelFormulaBanks=new Map();
+let zelLastFormulaWave=null;
+let zelLastFormulaCascade=null;
+
+function zelFormulaSafeValue(value){
+  if(typeof value==='bigint')return value.toString();
+  if(value===undefined)return null;
+  try{return JSON.parse(JSON.stringify(value,(_,v)=>typeof v==='bigint'?v.toString():v));}
+  catch(e){return String(value);}
+}
+function zelFormulaSummary(def,index=0){
+  if(!def||typeof def!=='object')throw new TypeError('formula definition object required');
+  const formulaId=String(def.formula_id||def.id||'').slice(0,80);
+  if(!formulaId)throw new TypeError('formula_id required at index '+index);
+  if(typeof def.evaluate!=='function')throw new TypeError('formula evaluator required for '+formulaId);
+  return Object.freeze({
+    formula_id:formulaId,
+    name:String(def.name||formulaId).slice(0,180),
+    normalized_formula:String(def.normalized_formula||def.formula||'').slice(0,1000),
+    evaluate:def.evaluate
+  });
+}
+function zelFormulaRegisterBank(worldId,definitions){
+  const world=String(worldId||'').trim().slice(0,120);
+  if(!world)throw new TypeError('world_id required');
+  if(!Array.isArray(definitions))throw new TypeError('formula bank must be an array');
+  if(definitions.length>ZEL_FORMULA_WAVE_MAX)throw new RangeError('formula bank exceeds 2000');
+  const normalized=definitions.map((def,i)=>zelFormulaSummary(def,i));
+  const ids=new Set(normalized.map(x=>x.formula_id));
+  if(ids.size!==normalized.length)throw new TypeError('formula_id values must be unique inside a bank');
+  zelFormulaBanks.set(world,Object.freeze([...normalized]));
+  return Object.freeze({world_id:world,count:normalized.length,capacity:ZEL_FORMULA_WAVE_MAX});
+}
+function zelFormulaBankInfo(){
+  return [...zelFormulaBanks.entries()].map(([world,items])=>Object.freeze({world_id:world,count:items.length,capacity:ZEL_FORMULA_WAVE_MAX}));
+}
+function zelFormulaNormalizeResult(raw){
+  if(raw&&typeof raw==='object'&&ZEL_FORMULA_STATUSES.includes(String(raw.status||'').toUpperCase())){
+    const status=String(raw.status).toUpperCase();
+    return {status,value:zelFormulaSafeValue(raw.value),expected:zelFormulaSafeValue(raw.expected),trace:Array.isArray(raw.trace)?zelFormulaSafeValue(raw.trace):[]};
+  }
+  if(raw&&typeof raw==='object'&&typeof raw.ok==='boolean'){
+    return {status:raw.ok?'PASS':'FAIL',value:zelFormulaSafeValue(raw.value),expected:zelFormulaSafeValue(raw.expected),trace:Array.isArray(raw.trace)?zelFormulaSafeValue(raw.trace):[]};
+  }
+  return {status:'PASS',value:zelFormulaSafeValue(raw),expected:null,trace:[]};
+}
+async function zelFormulaRunOne(def,input,context,index){
+  const started=performance.now();
+  try{
+    const raw=await Promise.resolve().then(()=>def.evaluate(input,Object.freeze({...context,index})));
+    const normalized=zelFormulaNormalizeResult(raw);
+    return Object.freeze({
+      index,
+      formula_id:def.formula_id,
+      name:def.name,
+      normalized_formula:def.normalized_formula,
+      status:normalized.status,
+      value:normalized.value,
+      expected:normalized.expected,
+      trace:normalized.trace,
+      elapsed_ms:Math.max(0,performance.now()-started)
+    });
+  }catch(err){
+    const domain=err instanceof RangeError||String(err?.name||'').toUpperCase()==='ZEL_DOMAIN';
+    return Object.freeze({
+      index,
+      formula_id:def.formula_id,
+      name:def.name,
+      normalized_formula:def.normalized_formula,
+      status:domain?'DOMAIN':'ERROR',
+      value:null,
+      expected:null,
+      trace:[],
+      error:String(err?.message||err||'UNKNOWN_ERROR').slice(0,500),
+      elapsed_ms:Math.max(0,performance.now()-started)
+    });
+  }
+}
+function zelSwarmSummary(results){
+  const counts={PASS:0,FAIL:0,DOMAIN:0,ERROR:0};
+  for(const item of results)counts[item.status]=(counts[item.status]||0)+1;
+  return Object.freeze({...counts,total:results.length});
+}
+function zelSwarmRender(state={}){
+  const total=Math.max(0,Number(state.total)||0),done=Math.max(0,Number(state.done)||0);
+  $('swarmWave').textContent=state.wave_id?('WAVE '+state.wave_id+' · '+done+'/'+total+' terminé(s)'):'Aucune vague active · déterministe · aucune formule choisie au hasard';
+  $('swarmCapacity').textContent=total+' / '+ZEL_FORMULA_WAVE_MAX;
+  $('swarmWorld').textContent=state.world_id||'—';
+  $('swarmPass').textContent=String(state.PASS||0);
+  $('swarmFail').textContent=String(state.FAIL||0);
+  $('swarmDomain').textContent=String(state.DOMAIN||0);
+  $('swarmError').textContent=String(state.ERROR||0);
+  $('swarmDepth').textContent=String(state.depth||0);
+  $('swarmProgress').style.width=(total?Math.min(100,(done/total)*100):0)+'%';
+  $('swarmRoute').textContent='ROUTE · '+(Array.isArray(state.route)&&state.route.length?state.route.join(' → '):'aucune ouverture de monde');
+  const host=$('swarmAnomalies');
+  host.innerHTML='';
+  const anomalies=Array.isArray(state.anomalies)?state.anomalies.slice(0,50):[];
+  if(!anomalies.length){host.innerHTML='<div class="swarm-empty">AUCUNE ANOMALIE À AFFICHER</div>';return;}
+  for(const item of anomalies){
+    const d=document.createElement('div');d.className='swarm-anomaly';
+    d.textContent=item.status+' · '+item.formula_id+' · '+(item.error||item.normalized_formula||item.name||'');
+    host.appendChild(d);
+  }
+}
+async function zelFormulaRunWave(spec={}){
+  const worldId=String(spec.world_id||'').trim().slice(0,120);
+  if(!worldId)throw new TypeError('world_id required');
+  let formulas=spec.formulas;
+  if(formulas===undefined||formulas===null)formulas=zelFormulaBanks.get(worldId)||[];
+  if(!Array.isArray(formulas))throw new TypeError('formulas must be an array');
+  if(formulas.length<1)throw new RangeError('formula wave requires at least one formula');
+  if(formulas.length>ZEL_FORMULA_WAVE_MAX)throw new RangeError('formula wave exceeds 2000');
+  const normalized=formulas.map((def,i)=>def&&typeof def.evaluate==='function'&&def.formula_id?zelFormulaSummary(def,i):zelFormulaSummary(def,i));
+  const waveId=String(spec.wave_id||('WAVE-'+Date.now())).slice(0,100);
+  const batchSize=Math.max(1,Math.min(128,Math.trunc(Number(spec.batch_size)||ZEL_FORMULA_BATCH_DEFAULT)));
+  const input=zelFormulaSafeValue(spec.input);
+  const startedAt=Date.now();
+  const results=[];
+  const context={wave_id:waveId,world_id:worldId,depth:Number(spec.depth)||1,total:normalized.length};
+  zelSwarmRender({wave_id:waveId,world_id:worldId,total:normalized.length,done:0,depth:context.depth,route:spec.route||[worldId]});
+  for(let offset=0;offset<normalized.length;offset+=batchSize){
+    const batch=normalized.slice(offset,offset+batchSize);
+    const settled=await Promise.all(batch.map((def,j)=>zelFormulaRunOne(def,input,context,offset+j)));
+    results.push(...settled);
+    const summary=zelSwarmSummary(results);
+    const anomalies=results.filter(x=>x.status!=='PASS');
+    zelSwarmRender({wave_id:waveId,world_id:worldId,total:normalized.length,done:results.length,depth:context.depth,route:spec.route||[worldId],anomalies,...summary});
+    if(offset+batchSize<normalized.length)await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  const summary=zelSwarmSummary(results);
+  const wave=Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-FORMULA-WAVE-v1',
+    deterministic:true,
+    wave_id:waveId,
+    world_id:worldId,
+    depth:context.depth,
+    input,
+    started_at:startedAt,
+    completed_at:Date.now(),
+    summary,
+    results:Object.freeze(results)
+  });
+  zelLastFormulaWave=wave;
+  return wave;
+}
+function zelFormulaValidatePortal(contract,from,to){
+  if(!contract||typeof contract!=='object')return Object.freeze({open:false,reason:'NO_PORTAL_CONTRACT'});
+  const id=String(contract.id||'').trim(),source=String(contract.from||'').trim(),dest=String(contract.to||'').trim();
+  const transform=String(contract.transform||'').trim(),proof=String(contract.proof||contract.proofMode||'').trim();
+  if(!id||source!==from||dest!==to||!transform||!proof)return Object.freeze({open:false,reason:'INVALID_PORTAL_CONTRACT'});
+  return Object.freeze({open:true,reason:'PORTAL_CONTRACT_FOUND',id,from:source,to:dest,transform,proof});
+}
+async function zelFormulaRunCascade(spec={}){
+  const layers=Array.isArray(spec.layers)?spec.layers:[];
+  if(!layers.length)throw new RangeError('cascade requires at least one world layer');
+  const cascadeId=String(spec.cascade_id||('CASCADE-'+Date.now())).slice(0,100);
+  let input=zelFormulaSafeValue(spec.input);
+  const waves=[],openings=[],route=[];
+  for(let depth=0;depth<layers.length;depth++){
+    const layer=layers[depth]||{},worldId=String(layer.world_id||'').trim();
+    if(!worldId)throw new TypeError('world_id required at layer '+depth);
+    route.push(worldId);
+    const wave=await zelFormulaRunWave({
+      world_id:worldId,
+      formulas:layer.formulas,
+      input,
+      depth:depth+1,
+      wave_id:cascadeId+'-D'+String(depth+1).padStart(2,'0'),
+      batch_size:layer.batch_size||spec.batch_size,
+      route:[...route]
+    });
+    waves.push(wave);
+    if(depth===layers.length-1)break;
+    const nextWorld=String(layers[depth+1]?.world_id||'').trim();
+    const contract=zelFormulaValidatePortal(layer.portal_contract,nextWorld?worldId:'',nextWorld);
+    openings.push(contract);
+    if(!contract.open){
+      const blocked=Object.freeze({
+        schema:'ANTMUX-ZELSTEREOS-FORMULA-CASCADE-v1',
+        deterministic:true,
+        cascade_id:cascadeId,
+        status:'BLOCKED',
+        reason:contract.reason,
+        route:Object.freeze([...route,nextWorld].filter(Boolean)),
+        openings:Object.freeze(openings),
+        waves:Object.freeze(waves)
+      });
+      zelLastFormulaCascade=blocked;
+      zelSwarmRender({wave_id:wave.wave_id,world_id:worldId,total:wave.summary.total,done:wave.summary.total,depth:depth+1,route:blocked.route,anomalies:wave.results.filter(x=>x.status!=='PASS'),...wave.summary});
+      return blocked;
+    }
+    const passValues=wave.results.filter(x=>x.status==='PASS').map(x=>x.value);
+    input=typeof layer.transform_input==='function'
+      ?zelFormulaSafeValue(await layer.transform_input(passValues,contract,wave))
+      :zelFormulaSafeValue(passValues);
+  }
+  const completed=Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-FORMULA-CASCADE-v1',
+    deterministic:true,
+    cascade_id:cascadeId,
+    status:'PASS',
+    route:Object.freeze(route),
+    openings:Object.freeze(openings),
+    waves:Object.freeze(waves)
+  });
+  zelLastFormulaCascade=completed;
+  return completed;
+}
+function zelFormulaLastWave(){return zelLastFormulaWave?zelAiClone(zelLastFormulaWave):null;}
+function zelFormulaLastCascade(){return zelLastFormulaCascade?zelAiClone(zelLastFormulaCascade):null;}
+
 function buildStages(){const host=$('stages');host.innerHTML='';names.forEach((n,i)=>{const d=document.createElement('div');d.className='stage';d.dataset.i=i;d.innerHTML='<b>'+n+'</b><strong>'+counts[i]+'</strong>';host.appendChild(d);});}
 function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stageExecUs=null}={}){
   lastRenderedPublicState=JSON.parse(JSON.stringify(s));
@@ -1034,7 +1276,7 @@ async function zelAiPlayCalculation(spec={}){
 }
 Object.defineProperty(window,'ZELSTEREOS_AI',{
   value:Object.freeze({
-    version:'2.2',
+    version:'2.3',
     diagnostics:zelAiDiagnostics,
     selfTest:zelAiSelfTest,
     waitForLive:zelAiWaitForLive,
@@ -1048,6 +1290,13 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     calculationLog:()=>zelAiClone(zelCalcReadLog()),
     currentCalculation:()=>zelCurrentCalculation?zelAiClone(zelCurrentCalculation):null,
     copyCurrentCalculation:zelCalcCopyCurrent,
+    formulaWaveCapacity:ZEL_FORMULA_WAVE_MAX,
+    registerFormulaBank:zelFormulaRegisterBank,
+    formulaBanks:()=>zelAiClone(zelFormulaBankInfo()),
+    runFormulaWave:zelFormulaRunWave,
+    runFormulaCascade:zelFormulaRunCascade,
+    lastFormulaWave:zelFormulaLastWave,
+    lastFormulaCascade:zelFormulaLastCascade,
     preloadSfx:zelSfxWarmAll,
     playCalculation:zelAiPlayCalculation
   }),
