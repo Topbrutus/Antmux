@@ -104,6 +104,7 @@ function makeContext() {
     "zelProfileFracValue",
     "zelProfilePositive",
     "zelProfileNonNegative",
+    "zelProfileExactDecimalInput",
     "zelProfileOffsetCore",
     "zelProfilePellRank",
     "zelProfileFormulaDefinitions",

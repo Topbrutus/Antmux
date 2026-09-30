@@ -1035,6 +1035,12 @@ function zelProfileFracValue(a){
   a=zelProfileFrac(a);
   return Object.freeze({exact:zelProfileFracText(a),decimal:Number(a.n)/Number(a.d)});
 }
+function zelProfileExactDecimalInput(value,label='value'){
+  if(typeof value==='number'&&!Number.isSafeInteger(value)){
+    throw new RangeError(label+' unsafe Number; use an exact decimal string or safe integer');
+  }
+  return zelProfileFrac(value);
+}
 function zelProfilePositive(a,label){
   a=zelProfileFrac(a);
   if(a.n<=0n)throw new RangeError((label||'value')+' must be > 0');
@@ -1226,15 +1232,26 @@ function zelProfileFormulaDefinitions(){
       normalized_formula:'E=|y_c-y_r|; SURVIVES_TEST iff E<=tau; REJECTED iff E>tau',
       domain:'candidate, reference exact decimals; tolerance>=0',
       provenance_ref:p('10.5281/zenodo.22963802','Topbrutus/brutus-candidate-relation','f9c90f4bacadfac5d87fe75cab23b349e96aace9'),
-      accepts:input=>input&&typeof input==='object'&&input.candidate!==undefined&&input.reference!==undefined&&input.tolerance!==undefined,
+      accepts:input=>{
+        try{
+          if(!input||typeof input!=='object'||input.candidate===undefined||input.reference===undefined||input.tolerance===undefined)return false;
+          zelProfileExactDecimalInput(input.candidate,'candidate');
+          zelProfileExactDecimalInput(input.reference,'reference');
+          const tau=zelProfileExactDecimalInput(input.tolerance,'tolerance');
+          return zelProfileCmp(tau,0)>=0;
+        }catch(e){return false;}
+      },
       verify:()=>{
         const E=zelProfileAbs(zelProfileSub('3','3.0001'));
         const t=zelProfileFrac('.001');
         return {ok:zelProfileCmp(E,t)<=0,checks:[zelProfileFracText(E)]};
       },
       evaluate:input=>{
-        const E=zelProfileAbs(zelProfileSub(input.candidate,input.reference));
-        const tau=zelProfileNonNegative(input.tolerance,'tolerance');
+        const candidate=zelProfileExactDecimalInput(input.candidate,'candidate');
+        const reference=zelProfileExactDecimalInput(input.reference,'reference');
+        const E=zelProfileAbs(zelProfileSub(candidate,reference));
+        const tau=zelProfileExactDecimalInput(input.tolerance,'tolerance');
+        if(zelProfileCmp(tau,0)<0)throw new RangeError('tolerance must be >= 0');
         const survives=zelProfileCmp(E,tau)<=0;
         return {status:'PASS',value:{
           error:zelProfileFracValue(E),
