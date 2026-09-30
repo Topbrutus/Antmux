@@ -722,6 +722,130 @@ const ZEL_FORMULA_STATUSES=Object.freeze(['PASS','FAIL','DOMAIN','ERROR']);
 const zelFormulaBanks=new Map();
 let zelLastFormulaWave=null;
 let zelLastFormulaCascade=null;
+let zelCanonicalBankReady=null;
+
+function zelCanonicalMathDefinitions(){
+  const provenance='antmux_formula.py#verifier';
+  const exact=(id,name,formula,value,verifyFn)=>Object.freeze({
+    formula_id:id,
+    name,
+    normalized_formula:formula,
+    domain:'canonical exact arithmetic',
+    provenance_ref:provenance,
+    verify:()=>({ok:verifyFn(),checks:[formula]}),
+    evaluate:()=>({status:verifyFn()?'PASS':'FAIL',value})
+  });
+  const gcd=(a,b)=>{a=Math.abs(Math.trunc(a));b=Math.abs(Math.trunc(b));while(b){const t=a%b;a=b;b=t;}return a;};
+  const lcm=(a,b)=>Math.abs(a*b)/gcd(a,b);
+  const defs=[
+    exact('AM-001','Structures visibles','6+1=7',7,()=>6+1===7),
+    exact('AM-002','Pointes','7*7=49',49,()=>7*7===49),
+    exact('AM-003','Paires de pôles','7*6/2=21',21,()=>7*6/2===21),
+    exact('AM-004','Liens correspondants','21*7=147',147,()=>21*7===147),
+    exact('AM-005','Liens non orientés','21*7*7=1029',1029,()=>21*7*7===1029),
+    exact('AM-006','Liens orientés','2*1029=2058',2058,()=>2*1029===2058),
+    exact('AM-007','Vides matrice','7^3=343',343,()=>7**3===343),
+    exact('AM-008','Matrice logique','7^4=2401',2401,()=>7**4===2401),
+    exact('AM-009','Partition matrice','2058+343=2401',2401,()=>2058+343===2401),
+    exact('AM-010','Cycle pôle-orientation','lcm(7,13)=91',91,()=>lcm(7,13)===91),
+    exact('AM-011','Cycle triforce-pôle-orientation','lcm(3,7,13)=273',273,()=>lcm(lcm(3,7),13)===273),
+    exact('AM-012','Maille orientation-pôle-branche','13*7*7=637',637,()=>13*7*7===637),
+    exact('AM-013','Nombre fondateur','3*(6+1)*7*7*9*10*13=1203930',1203930,()=>3*(6+1)*7*7*9*10*13===1203930),
+    exact('AM-014','Mémoire','9/10=0.9',0.9,()=>9/10===0.9),
+    exact('AM-015','Cohérence','47/50=0.94',0.94,()=>47/50===0.94),
+    exact('AM-016','Respiration','3/50=0.06',0.06,()=>3/50===0.06),
+    exact('AM-017','Équilibre cohérence-respiration','47/50+3/50=1',1,()=>47/50+3/50===1),
+    exact('AM-018','Rho','(10^6-1)/7=142857',142857,()=>((10**6)-1)/7===142857),
+    Object.freeze({
+      formula_id:'AM-019',
+      name:'Cycle du sept',
+      normalized_formula:'CYCLE_7=(k*142857) for k=1..7',
+      domain:'k in {1,...,7}; canonical exact arithmetic',
+      provenance_ref:provenance,
+      verify:()=>{
+        const got=Array.from({length:7},(_,i)=>(i+1)*142857);
+        const expected=[142857,285714,428571,571428,714285,857142,999999];
+        return {ok:got.every((v,i)=>v===expected[i]),checks:got};
+      },
+      evaluate:()=>({status:'PASS',value:[142857,285714,428571,571428,714285,857142,999999]})
+    }),
+    exact('AM-020','NEO numérateur','4*142857+1=571429',571429,()=>4*142857+1===571429),
+    Object.freeze({
+      formula_id:'AM-021',
+      name:'Identité NEO rationnelle',
+      normalized_formula:'571429/999999 = 4/7 + 1/999999',
+      domain:'exact rational identity',
+      provenance_ref:provenance,
+      verify:()=>({ok:571429*7===4*999999+7,checks:['571429*7 = 4*999999+7']}),
+      evaluate:()=>({status:571429*7===4*999999+7?'PASS':'FAIL',value:{numerator:571429,denominator:999999}})
+    }),
+    Object.freeze({
+      formula_id:'AM-022',
+      name:'Indice de phase',
+      normalized_formula:'R(t,b,o)=(91t+39b+21o) mod 273',
+      domain:'t,b,o are integers',
+      provenance_ref:provenance,
+      accepts:input=>Number.isInteger(input?.t)&&Number.isInteger(input?.b)&&Number.isInteger(input?.o),
+      verify:()=>{
+        const R=(t,b,o)=>((91*t+39*b+21*o)%273+273)%273;
+        const cases=[[0,0,0],[1,2,3],[-7,11,19],[123,-456,789]];
+        const periodic=cases.every(([t,b,o])=>R(t,b,o)===R(t+3,b+7,o+13));
+        return {ok:periodic&&R(0,0,0)===0,checks:cases.map(x=>R(...x))};
+      },
+      evaluate:input=>{
+        const r=((91*input.t+39*input.b+21*input.o)%273+273)%273;
+        return {status:'PASS',value:r};
+      }
+    }),
+    Object.freeze({
+      formula_id:'AM-023',
+      name:'Adressage Z7^4',
+      normalized_formula:'adresse(a,b,c,d)=a+7b+49c+343d',
+      domain:'a,b,c,d are integers in {0,...,6}',
+      provenance_ref:provenance,
+      accepts:input=>['a','b','c','d'].every(k=>Number.isInteger(input?.[k])&&input[k]>=0&&input[k]<7),
+      verify:()=>{
+        const seen=new Set();
+        for(let a=0;a<7;a++)for(let b=0;b<7;b++)for(let c=0;c<7;c++)for(let d=0;d<7;d++)seen.add(a+7*b+49*c+343*d);
+        return {ok:seen.size===2401&&Math.min(...seen)===0&&Math.max(...seen)===2400,checks:[seen.size,Math.min(...seen),Math.max(...seen)]};
+      },
+      evaluate:input=>({status:'PASS',value:input.a+7*input.b+49*input.c+343*input.d})
+    }),
+    Object.freeze({
+      formula_id:'AM-024',
+      name:'Lemniscate évolution',
+      normalized_formula:'r=n mod 273; q=floor(n/273); x=sin(2πr/273); y=0.5sin(4πr/273); z=alpha*q',
+      domain:'n integer; alpha finite number',
+      provenance_ref:provenance,
+      accepts:input=>Number.isInteger(input?.n)&&Number.isFinite(Number(input?.alpha)),
+      verify:()=>{
+        const calc=(n,alpha)=>{const r=((n%273)+273)%273,q=Math.floor(n/273);return [Math.sin(2*Math.PI*r/273),.5*Math.sin(4*Math.PI*r/273),alpha*q];};
+        const samples=[-547,-1,0,1,272,273,1024];
+        const alpha=.75,tol=1e-12;
+        const ok=samples.every(n=>{const a=calc(n,alpha),b=calc(n+273,alpha);return Math.abs(a[0]-b[0])<tol&&Math.abs(a[1]-b[1])<tol&&Math.abs((b[2]-a[2])-alpha)<tol;});
+        return {ok,checks:samples};
+      },
+      evaluate:input=>{
+        const n=input.n,alpha=Number(input.alpha),r=((n%273)+273)%273,q=Math.floor(n/273);
+        return {status:'PASS',value:{x:Math.sin(2*Math.PI*r/273),y:.5*Math.sin(4*Math.PI*r/273),z:alpha*q,r,q}};
+      }
+    }),
+    Object.freeze({
+      formula_id:'AM-025',
+      name:'Horloge septénaire',
+      normalized_formula:'700ms/7=100ms; 7u/7=1u for seconde,minute,heure,jour,semaine,annee',
+      domain:'canonical exact arithmetic by unit',
+      provenance_ref:provenance,
+      verify:()=>({ok:700/7===100&&[7,7,7,7,7,7].every(v=>v/7===1),checks:[100,1,1,1,1,1,1]}),
+      evaluate:()=>({status:'PASS',value:{milliseconde:100,seconde:1,minute:1,heure:1,jour:1,semaine:1,annee:1}})
+    })
+  ];
+  return Object.freeze(defs);
+}
+function zelRegisterCanonicalMathBank(){
+  if(!zelCanonicalBankReady)zelCanonicalBankReady=zelFormulaRegisterBank('MATH/GEOMETRY',zelCanonicalMathDefinitions(),{batch_size:64});
+  return zelCanonicalBankReady;
+}
 
 function zelFormulaSafeValue(value){
   if(typeof value==='bigint')return value.toString();
@@ -1395,6 +1519,14 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     formulaWaveCapacity:ZEL_FORMULA_WAVE_MAX,
     registerFormulaBank:zelFormulaRegisterBank,
     qualifyFormulaBank:zelFormulaQualifyDefinitions,
+    canonicalMathDefinitions:()=>zelCanonicalMathDefinitions().map(def=>({
+      formula_id:def.formula_id,
+      name:def.name,
+      normalized_formula:def.normalized_formula,
+      domain:def.domain,
+      provenance_ref:def.provenance_ref
+    })),
+    canonicalBankReady:zelRegisterCanonicalMathBank,
     formulaBanks:()=>zelAiClone(zelFormulaBankInfo()),
     runFormulaWave:zelFormulaRunWave,
     runFormulaCascade:zelFormulaRunCascade,
@@ -1423,6 +1555,7 @@ async function poll(){
   }
 }
 buildStages();
+zelRegisterCanonicalMathBank().catch(err=>console.error('ZEL_CANONICAL_BANK_REJECTED',err));
 connectZelWebSocket();
 poll();
 setInterval(poll,2000);
