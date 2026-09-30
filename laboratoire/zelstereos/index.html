@@ -966,13 +966,20 @@ function zelProfileFrac(value){
   if(typeof value==='bigint')return Object.freeze({n:value,d:1n});
   if(typeof value!=='string'&&typeof value!=='number')throw new TypeError('exact decimal value required');
   const s=String(value).trim();
-  const m=s.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  const ratio=s.match(/^([+-]?\d+)\/([+-]?\d+)$/);
+  if(ratio){
+    const d=BigInt(ratio[2]);
+    if(d===0n)throw new RangeError('zero denominator');
+    return zelProfileFrac({n:BigInt(ratio[1]),d});
+  }
+  const m=s.match(/^([+-]?)(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:[eE]([+-]?\d+))?$/);
   if(!m)throw new TypeError('invalid exact decimal: '+s);
   const sign=m[1]==='-'?-1n:1n;
-  const frac=m[3]||'';
-  const exp=Number(m[4]||0);
+  const integer=m[2]||'0';
+  const frac=m[3]??m[4]??'';
+  const exp=Number(m[5]||0);
   if(!Number.isSafeInteger(exp)||Math.abs(exp)>1000)throw new RangeError('decimal exponent out of range');
-  let n=BigInt((m[2]+frac)||'0')*sign;
+  let n=BigInt((integer+frac)||'0')*sign;
   const scale=frac.length-exp;
   let d=1n;
   if(scale>=0)d=10n**BigInt(scale);
