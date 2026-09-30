@@ -1298,25 +1298,45 @@ function zelProfileFormulaDefinitions(){
         return G.length===D.length&&G.length>0&&G.length<=2401&&G.every(Number.isFinite)&&D.every(Number.isFinite);
       },
       verify:()=>{
-        const G=[1,2,-3];
-        const D=[5,-2,7];
-        const B=G.map((x,i)=>(x+D[i])/2);
-        const A=G.map((x,i)=>(x-D[i])/2);
-        return {ok:G.every((x,i)=>B[i]+A[i]===x)&&D.every((x,i)=>B[i]-A[i]===x),checks:[B,A]};
+        const pairs=[[1,5],[2,-2],[-3,7],[1e308,-1e308]];
+        const checks=pairs.map(([g,d])=>{
+          const gf=zelProfileFrac(g),df=zelProfileFrac(d),half=zelProfileFrac('1/2');
+          const b=zelProfileMul(zelProfileAdd(gf,df),half);
+          const a=zelProfileMul(zelProfileSub(gf,df),half);
+          const gr=zelProfileAdd(b,a);
+          const dr=zelProfileSub(b,a);
+          return {
+            g,d,
+            B:zelProfileFracText(b),
+            A:zelProfileFracText(a),
+            exact:zelProfileCmp(gr,gf)===0&&zelProfileCmp(dr,df)===0,
+            finite:Number.isFinite(zelProfileFracValue(b).decimal)&&Number.isFinite(zelProfileFracValue(a).decimal)
+          };
+        });
+        return {ok:checks.every(x=>x.exact&&x.finite),checks};
       },
       evaluate:input=>{
         const scalar=!Array.isArray(input.G)&&!Array.isArray(input.D);
-        const G=scalar?[Number(input.G)]:input.G.map(Number);
-        const D=scalar?[Number(input.D)]:input.D.map(Number);
-        const B=G.map((x,i)=>(x+D[i])/2);
-        const A=G.map((x,i)=>(x-D[i])/2);
-        const Gr=B.map((x,i)=>x+A[i]);
-        const Dr=B.map((x,i)=>x-A[i]);
+        const G=scalar?[input.G]:input.G;
+        const D=scalar?[input.D]:input.D;
+        const half=zelProfileFrac('1/2');
+        const Bf=G.map((x,i)=>zelProfileMul(zelProfileAdd(zelProfileFrac(x),zelProfileFrac(D[i])),half));
+        const Af=G.map((x,i)=>zelProfileMul(zelProfileSub(zelProfileFrac(x),zelProfileFrac(D[i])),half));
+        const Grf=Bf.map((x,i)=>zelProfileAdd(x,Af[i]));
+        const Drf=Bf.map((x,i)=>zelProfileSub(x,Af[i]));
+        const Bv=Bf.map(zelProfileFracValue);
+        const Av=Af.map(zelProfileFracValue);
+        const Grv=Grf.map(zelProfileFracValue);
+        const Drv=Drf.map(zelProfileFracValue);
         return {status:'PASS',value:{
-          B:scalar?B[0]:B,
-          A:scalar?A[0]:A,
-          G_reconstructed:scalar?Gr[0]:Gr,
-          D_reconstructed:scalar?Dr[0]:Dr
+          B:scalar?Bv[0].decimal:Bv.map(x=>x.decimal),
+          A:scalar?Av[0].decimal:Av.map(x=>x.decimal),
+          G_reconstructed:scalar?Grv[0].decimal:Grv.map(x=>x.decimal),
+          D_reconstructed:scalar?Drv[0].decimal:Drv.map(x=>x.decimal),
+          B_exact:scalar?Bv[0].exact:Bv.map(x=>x.exact),
+          A_exact:scalar?Av[0].exact:Av.map(x=>x.exact),
+          G_reconstructed_exact:scalar?Grv[0].exact:Grv.map(x=>x.exact),
+          D_reconstructed_exact:scalar?Drv[0].exact:Drv.map(x=>x.exact)
         }};
       }
     }),

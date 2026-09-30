@@ -213,3 +213,21 @@ test("candidate relation rejects unsafe IEEE-754 Number inputs and preserves exa
   assert.equal(gate.accepts(unsafeInput),false);
   assert.throws(()=>gate.evaluate(unsafeInput),/unsafe Number/);
 });
+
+
+test("Da'at center/differential avoids finite-input overflow at 1e308",()=>{
+  const ctx=makeContext();
+  const daat=ctx.zelProfileFormulaDefinitions().find(x=>x.formula_id==="GSP-ZENODO-008");
+  const input={G:1e308,D:-1e308};
+  assert.equal(daat.accepts(input),true);
+  const value=daat.evaluate(input).value;
+  assert.equal(value.B,0);
+  assert.equal(value.A,1e308);
+  assert.equal(value.G_reconstructed,1e308);
+  assert.equal(value.D_reconstructed,-1e308);
+  assert.equal(value.B_exact,"0");
+  assert.equal(value.A_exact,"1"+"0".repeat(308));
+  assert.equal(value.G_reconstructed_exact,"1"+"0".repeat(308));
+  assert.equal(value.D_reconstructed_exact,"-"+"1"+"0".repeat(308));
+  assert.ok([value.B,value.A,value.G_reconstructed,value.D_reconstructed].every(Number.isFinite));
+});
