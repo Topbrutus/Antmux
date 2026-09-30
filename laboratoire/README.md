@@ -56,6 +56,40 @@ Les mesures historiques devront conserver :
 
 Aucune valeur conflictuelle ne doit être silencieusement remplacée.
 
+## Modules publics actuels
+
+### C͡3RUTUS — Genesis World v0.1
+
+Statut : **IMPLEMENTED / EXPERIMENTAL**.
+
+C͡3RUTUS matérialise l’architecture de mondes actuellement codée :
+
+- bulle globale ANTMUX ;
+- monde de référence `MATTER/CARBON` ;
+- monde `INFORMATION/CRYPTO` ;
+- Verso local dans chaque monde ;
+- Verso global pour le transit inter-mondes ;
+- World Router avec contrats explicites ;
+- neuf projections locales C3 ;
+- une table périodique canonique de 118 éléments partagée par référence.
+
+Le prototype ne constitue pas une preuve de nouvelle loi physique.
+
+### Fourmilière publique
+
+Statut : **IMPLEMENTED / EXPERIMENTAL**.
+
+La Fourmilière fournit :
+
+- un journal public ;
+- des messages visiteurs ;
+- des propositions de jobs ;
+- une file de modération ;
+- une naissance de fourmi dérivée d’une entrée officielle du journal ;
+- des garde-fous anti-spam et un audit séparé.
+
+La page statique et son backend sont déployés séparément. L’interface peut donc être publique alors que l’API du Shared Queen Server attend encore son propre déploiement.
+
 ## Genesis
 
 Genesis est traité comme un programme expérimental.
