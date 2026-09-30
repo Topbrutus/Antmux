@@ -1161,16 +1161,40 @@ function zelProfileFormulaDefinitions(){
         const pairs=[];
         let pairLog=0;
         for(let q=0;q<cols;q++)for(let r=q+1;r<cols;r++){
-          const pq=samples.reduce((s,row)=>s+row[q]*row[r],0)/samples.length;
-          if(!Number.isFinite(pq))throw new RangeError('pair correlation overflow/nonfinite; rescale samples');
-          const factor=1+pq*u*u;
+          let pqSum=0;
+          let pqFinite=true;
+          let scaledPair=0;
+          for(const row of samples){
+            const rawTerm=row[q]*row[r];
+            if(Number.isFinite(rawTerm)&&pqFinite){
+              pqSum+=rawTerm/samples.length;
+              if(!Number.isFinite(pqSum))pqFinite=false;
+            }else{
+              pqFinite=false;
+            }
+            const uq=u*row[q];
+            const ur=u*row[r];
+            const scaledTerm=uq*ur;
+            if(!Number.isFinite(uq)||!Number.isFinite(ur)||!Number.isFinite(scaledTerm)){
+              throw new RangeError('scaled pair correlation overflow/nonfinite; rescale samples or u');
+            }
+            scaledPair+=scaledTerm/samples.length;
+            if(!Number.isFinite(scaledPair))throw new RangeError('scaled pair accumulation overflow/nonfinite');
+          }
+          const factor=1+scaledPair;
           if(!Number.isFinite(factor))throw new RangeError('pair logarithm argument overflow/nonfinite; rescale samples or u');
           if(!(factor>0))throw new RangeError('pair logarithm argument must be positive');
           const logFactor=Math.log(factor);
           if(!Number.isFinite(logFactor))throw new RangeError('pair logarithm overflow/nonfinite');
           pairLog+=logFactor;
           if(!Number.isFinite(pairLog))throw new RangeError('pair log accumulation overflow/nonfinite');
-          pairs.push({q,r,p_qr:pq});
+          pairs.push({
+            q,
+            r,
+            p_qr:pqFinite?pqSum:null,
+            p_qr_u2:scaledPair,
+            p_qr_overflow:!pqFinite
+          });
         }
         const logS=Math.log(S);
         const K=logS-pairLog;
