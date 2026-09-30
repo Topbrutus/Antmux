@@ -231,3 +231,12 @@ test("Da'at center/differential avoids finite-input overflow at 1e308",()=>{
   assert.equal(value.D_reconstructed_exact,"-"+"1"+"0".repeat(308));
   assert.ok([value.B,value.A,value.G_reconstructed,value.D_reconstructed].every(Number.isFinite));
 });
+
+
+test("connected spectrum rejects finite centered inputs that overflow internal Number arithmetic",()=>{
+  const ctx=makeContext();
+  const connected=ctx.zelProfileFormulaDefinitions().find(x=>x.formula_id==="GSP-ZENODO-003");
+  const input={samples:[[1e308,1e308],[-1e308,-1e308]],u:2};
+  assert.equal(connected.accepts(input),true);
+  assert.throws(()=>connected.evaluate(input),/overflow\/nonfinite/);
+});
