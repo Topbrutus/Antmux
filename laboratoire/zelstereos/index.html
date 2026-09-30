@@ -1347,6 +1347,64 @@ function zelEvolutionState(){
     }):null
   });
 }
+function zelEvolutionAudioStages(cascade){
+  if(!cascade||cascade.schema!=='ANTMUX-ZELSTEREOS-ENTITY38-EVOLUTION-CASCADE-v1')throw new TypeError('ENTITY38 cascade result required');
+  const root=Number(cascade.root);
+  if(!Number.isFinite(root))throw new RangeError('ENTITY38 audio test requires a finite numeric root');
+  const counts=Array.from(cascade.actual_outputs||[]);
+  if(counts.length!==3||counts[0]!==9||counts[1]!==108||counts[2]!==1296)throw new Error('ENTITY38 audio stages require a complete 9/108/1296 cascade');
+  const ok=cascade.status==='PASS'&&cascade.inverse_verification?.ok===true;
+  return Object.freeze([
+    Object.freeze({label:'ENTRÉE · 1 nombre',value:root,exact:String(cascade.root),complexity_ratio:.05,step_ms:420}),
+    Object.freeze({label:'Z STÉRÉO 1 · 9 sorties',value:9,exact:'9',complexity_ratio:.18,step_ms:520}),
+    Object.freeze({label:'Z STÉRÉO 2 · 108 sorties',value:108,exact:'108',complexity_ratio:.55,step_ms:720}),
+    Object.freeze({label:'Z STÉRÉO 3 · 1 296 sorties',value:1296,exact:'1296',complexity_ratio:1,step_ms:1050}),
+    Object.freeze({label:'RETOUR Z3 → Z2 · 108',value:108,exact:'108',complexity_ratio:.55,step_ms:720}),
+    Object.freeze({label:'RETOUR Z2 → Z1 · 9',value:9,exact:'9',complexity_ratio:.18,step_ms:520}),
+    Object.freeze({label:'RETOUR Z1 → ENTRÉE',value:root,exact:String(cascade.root),complexity_ratio:.05,step_ms:420,status:ok?'PASS':'FAIL'})
+  ]);
+}
+async function zelEvolutionRunAudioTest(spec={}){
+  const cascade=await zelFormulaRunEvolutionCascade({
+    cascade_id:String(spec.cascade_id||('ENTITY38-AUDIO-'+Date.now())).slice(0,120),
+    input:spec.input??7,
+    batch_size:spec.batch_size
+  });
+  const stages=zelEvolutionAudioStages(cascade);
+  await ensureAudio();
+  if(soundVolume<=0)soundVolume=.65;
+  soundMuted=false;
+  syncSoundUI();
+  const priorRobotAt=lastRobotSpokenAt;
+  lastRobotSpokenAt=Date.now()+120000;
+  try{
+    const audio=await zelAiPlayCalculation({
+      formula:{
+        formula_id:'ENTITY38-CASCADE',
+        name:'Z Stéréo · cascade évolutive',
+        status:cascade.status==='PASS'?'VERIFIED':'FAIL',
+        category:'ENTITY38',
+        normalized_formula:'1 → 9 → 108 → 1296 → 108 → 9 → 1'
+      },
+      trace_id:cascade.cascade_id+'-SONIC',
+      stages,
+      step_ms:650,
+      min_stage_ms:300,
+      max_stage_ms:2500,
+      timing_scale:1,
+      verdict:cascade.status==='PASS'&&cascade.inverse_verification?.ok?'PASS':'FAIL',
+      hold_ms:2500
+    });
+    return Object.freeze({
+      schema:'ANTMUX-ZELSTEREOS-ENTITY38-AUDIO-TEST-v1',
+      ok:cascade.status==='PASS'&&cascade.inverse_verification?.ok===true&&audio.ok===true,
+      cascade,
+      audio
+    });
+  }finally{
+    lastRobotSpokenAt=priorRobotAt;
+  }
+}
 
 function zelFormulaSafeValue(value){
   if(typeof value==='bigint')return value.toString();
@@ -2050,6 +2108,8 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     evolutionBanksReady:zelRegisterEvolutionSeedBanks,
     runEvolutionCascade:zelFormulaRunEvolutionCascade,
     evolutionState:zelEvolutionState,
+    evolutionAudioStages:zelEvolutionAudioStages,
+    runEvolutionAudioTest:zelEvolutionRunAudioTest,
     promoteEvolutionFormula:zelEvolutionPromoteFormula,
     lastEvolutionCascade:()=>zelLastEvolutionCascade?zelAiClone(zelLastEvolutionCascade):null,
     preloadSfx:zelSfxWarmAll,

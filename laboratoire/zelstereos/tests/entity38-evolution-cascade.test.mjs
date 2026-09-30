@@ -102,6 +102,7 @@ function makeContext() {
     "zelEvolutionValidatePromotionEvidence",
     "zelEvolutionPromoteFormula",
     "zelEvolutionState",
+    "zelEvolutionAudioStages",
   ].map(extractFunction).join("\n");
   vm.runInContext(prelude + functions, context);
   return context;
@@ -204,4 +205,16 @@ test("Entity 38 refuses unproven promotion and preserves fanout after a MAX_VERI
   assert.equal(cascade.status, "PASS");
   assert.deepEqual(Array.from(cascade.actual_outputs), [9, 108, 1296]);
   assert.equal(cascade.inverse_verification.verified, 1296);
+});
+
+
+test("Entity 38 sonic trace mirrors the full outward and inverse path", async () => {
+  const ctx = makeContext();
+  const cascade = await ctx.zelFormulaRunEvolutionCascade({ cascade_id: "ENTITY38-SONIC", input: 7 });
+  const stages = ctx.zelEvolutionAudioStages(cascade);
+  assert.equal(stages.length, 7);
+  assert.deepEqual(Array.from(stages, x => x.value), [7, 9, 108, 1296, 108, 9, 7]);
+  assert.deepEqual(Array.from(stages, x => x.complexity_ratio), [.05, .18, .55, 1, .55, .18, .05]);
+  assert.match(stages[3].label, /1 296/);
+  assert.equal(stages[6].status, "PASS");
 });
