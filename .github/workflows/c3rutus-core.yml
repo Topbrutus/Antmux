@@ -21,4 +21,4 @@ jobs:
         with:
           node-version: "22"
       - name: Run C3RUTUS invariant tests
-        run: node --test laboratoire/c3rutus/tests/core.test.mjs
+        run: node --test laboratoire/c3rutus/tests/*.test.mjs
