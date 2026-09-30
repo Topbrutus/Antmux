@@ -734,26 +734,108 @@ function zelFormulaSummary(def,index=0){
   const formulaId=String(def.formula_id||def.id||'').slice(0,80);
   if(!formulaId)throw new TypeError('formula_id required at index '+index);
   if(typeof def.evaluate!=='function')throw new TypeError('formula evaluator required for '+formulaId);
+  if(typeof def.verify!=='function')throw new TypeError('formula verifier required for '+formulaId);
+  const domain=String(def.domain||'').trim().slice(0,500);
+  const provenance=String(def.provenance_ref||def.provenance||'').trim().slice(0,500);
+  const normalizedFormula=String(def.normalized_formula||def.formula||'').trim().slice(0,1000);
+  if(!domain)throw new TypeError('formula domain required for '+formulaId);
+  if(!provenance)throw new TypeError('formula provenance_ref required for '+formulaId);
+  if(!normalizedFormula)throw new TypeError('normalized_formula required for '+formulaId);
   return Object.freeze({
     formula_id:formulaId,
     name:String(def.name||formulaId).slice(0,180),
-    normalized_formula:String(def.normalized_formula||def.formula||'').slice(0,1000),
-    evaluate:def.evaluate
+    normalized_formula:normalizedFormula,
+    domain,
+    provenance_ref:provenance,
+    accepts:typeof def.accepts==='function'?def.accepts:null,
+    evaluate:def.evaluate,
+    verify:def.verify
   });
 }
-function zelFormulaRegisterBank(worldId,definitions){
-  const world=String(worldId||'').trim().slice(0,120);
-  if(!world)throw new TypeError('world_id required');
+function zelFormulaNormalizeVerification(raw){
+  if(raw===true)return Object.freeze({ok:true,status:'VERIFIED',checks:[]});
+  if(raw===false)return Object.freeze({ok:false,status:'REJECTED',checks:[]});
+  if(!raw||typeof raw!=='object')return Object.freeze({ok:false,status:'REJECTED',checks:[],reason:'INVALID_VERIFIER_RESULT'});
+  const ok=raw.ok===true;
+  return Object.freeze({
+    ok,
+    status:ok?'VERIFIED':'REJECTED',
+    checks:Array.isArray(raw.checks)?zelFormulaSafeValue(raw.checks):[],
+    reason:String(raw.reason||'').slice(0,500)
+  });
+}
+async function zelFormulaQualifyOne(def,index=0){
+  const started=performance.now();
+  try{
+    const raw=await Promise.resolve().then(()=>def.verify(Object.freeze({
+      formula_id:def.formula_id,
+      normalized_formula:def.normalized_formula,
+      domain:def.domain,
+      provenance_ref:def.provenance_ref,
+      index
+    })));
+    const result=zelFormulaNormalizeVerification(raw);
+    return Object.freeze({
+      formula_id:def.formula_id,
+      status:result.status,
+      ok:result.ok,
+      checks:result.checks,
+      reason:result.reason||'',
+      elapsed_ms:Math.max(0,performance.now()-started)
+    });
+  }catch(err){
+    return Object.freeze({
+      formula_id:def.formula_id,
+      status:'REJECTED',
+      ok:false,
+      checks:[],
+      reason:String(err?.message||err||'VERIFIER_ERROR').slice(0,500),
+      elapsed_ms:Math.max(0,performance.now()-started)
+    });
+  }
+}
+async function zelFormulaQualifyDefinitions(definitions,{batch_size=64}={}){
   if(!Array.isArray(definitions))throw new TypeError('formula bank must be an array');
   if(definitions.length>ZEL_FORMULA_WAVE_MAX)throw new RangeError('formula bank exceeds 2000');
   const normalized=definitions.map((def,i)=>zelFormulaSummary(def,i));
   const ids=new Set(normalized.map(x=>x.formula_id));
   if(ids.size!==normalized.length)throw new TypeError('formula_id values must be unique inside a bank');
-  zelFormulaBanks.set(world,Object.freeze([...normalized]));
-  return Object.freeze({world_id:world,count:normalized.length,capacity:ZEL_FORMULA_WAVE_MAX});
+  const size=Math.max(1,Math.min(128,Math.trunc(Number(batch_size)||64)));
+  const qualification=[];
+  for(let offset=0;offset<normalized.length;offset+=size){
+    const batch=normalized.slice(offset,offset+size);
+    qualification.push(...await Promise.all(batch.map((def,j)=>zelFormulaQualifyOne(def,offset+j))));
+    if(offset+size<normalized.length)await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  return Object.freeze({definitions:Object.freeze(normalized),qualification:Object.freeze(qualification)});
+}
+async function zelFormulaRegisterBank(worldId,definitions,options={}){
+  const world=String(worldId||'').trim().slice(0,120);
+  if(!world)throw new TypeError('world_id required');
+  const qualified=await zelFormulaQualifyDefinitions(definitions,options);
+  const rejected=qualified.qualification.filter(x=>!x.ok);
+  if(rejected.length){
+    const ids=rejected.slice(0,12).map(x=>x.formula_id).join(',');
+    throw new Error('FORMULA_BANK_QUALIFICATION_FAILED '+rejected.length+'/'+qualified.qualification.length+' ['+ids+']');
+  }
+  const verified=qualified.definitions.map((def,i)=>Object.freeze({...def,qualification:qualified.qualification[i]}));
+  zelFormulaBanks.set(world,Object.freeze(verified));
+  return Object.freeze({
+    world_id:world,
+    status:'VERIFIED',
+    count:verified.length,
+    rejected:0,
+    capacity:ZEL_FORMULA_WAVE_MAX,
+    qualification:Object.freeze(qualified.qualification)
+  });
 }
 function zelFormulaBankInfo(){
-  return [...zelFormulaBanks.entries()].map(([world,items])=>Object.freeze({world_id:world,count:items.length,capacity:ZEL_FORMULA_WAVE_MAX}));
+  return [...zelFormulaBanks.entries()].map(([world,items])=>Object.freeze({
+    world_id:world,
+    status:'VERIFIED',
+    count:items.length,
+    capacity:ZEL_FORMULA_WAVE_MAX
+  }));
 }
 function zelFormulaNormalizeResult(raw){
   if(raw&&typeof raw==='object'&&ZEL_FORMULA_STATUSES.includes(String(raw.status||'').toUpperCase())){
@@ -768,6 +850,25 @@ function zelFormulaNormalizeResult(raw){
 async function zelFormulaRunOne(def,input,context,index){
   const started=performance.now();
   try{
+    if(def.qualification?.status!=='VERIFIED')throw new Error('FORMULA_NOT_VERIFIED');
+    if(typeof def.accepts==='function'){
+      const accepted=await Promise.resolve().then(()=>def.accepts(input,Object.freeze({...context,index})));
+      if(accepted!==true){
+        return Object.freeze({
+          index,
+          formula_id:def.formula_id,
+          name:def.name,
+          normalized_formula:def.normalized_formula,
+          provenance_ref:def.provenance_ref,
+          domain:def.domain,
+          status:'DOMAIN',
+          value:null,
+          expected:null,
+          trace:[],
+          elapsed_ms:Math.max(0,performance.now()-started)
+        });
+      }
+    }
     const raw=await Promise.resolve().then(()=>def.evaluate(input,Object.freeze({...context,index})));
     const normalized=zelFormulaNormalizeResult(raw);
     return Object.freeze({
@@ -775,6 +876,8 @@ async function zelFormulaRunOne(def,input,context,index){
       formula_id:def.formula_id,
       name:def.name,
       normalized_formula:def.normalized_formula,
+      provenance_ref:def.provenance_ref,
+      domain:def.domain,
       status:normalized.status,
       value:normalized.value,
       expected:normalized.expected,
@@ -788,6 +891,8 @@ async function zelFormulaRunOne(def,input,context,index){
       formula_id:def.formula_id,
       name:def.name,
       normalized_formula:def.normalized_formula,
+      provenance_ref:def.provenance_ref,
+      domain:def.domain,
       status:domain?'DOMAIN':'ERROR',
       value:null,
       expected:null,
@@ -827,12 +932,10 @@ function zelSwarmRender(state={}){
 async function zelFormulaRunWave(spec={}){
   const worldId=String(spec.world_id||'').trim().slice(0,120);
   if(!worldId)throw new TypeError('world_id required');
-  let formulas=spec.formulas;
-  if(formulas===undefined||formulas===null)formulas=zelFormulaBanks.get(worldId)||[];
-  if(!Array.isArray(formulas))throw new TypeError('formulas must be an array');
-  if(formulas.length<1)throw new RangeError('formula wave requires at least one formula');
-  if(formulas.length>ZEL_FORMULA_WAVE_MAX)throw new RangeError('formula wave exceeds 2000');
-  const normalized=formulas.map((def,i)=>def&&typeof def.evaluate==='function'&&def.formula_id?zelFormulaSummary(def,i):zelFormulaSummary(def,i));
+  if(spec.formulas!==undefined&&spec.formulas!==null)throw new Error('DIRECT_FORMULA_EXECUTION_DISABLED_REGISTER_VERIFIED_BANK_FIRST');
+  const normalized=zelFormulaBanks.get(worldId)||[];
+  if(!Array.isArray(normalized)||normalized.length<1)throw new RangeError('verified formula bank required for '+worldId);
+  if(normalized.length>ZEL_FORMULA_WAVE_MAX)throw new RangeError('formula wave exceeds 2000');
   const waveId=String(spec.wave_id||('WAVE-'+Date.now())).slice(0,100);
   const batchSize=Math.max(1,Math.min(128,Math.trunc(Number(spec.batch_size)||ZEL_FORMULA_BATCH_DEFAULT)));
   const input=zelFormulaSafeValue(spec.input);
@@ -884,7 +987,6 @@ async function zelFormulaRunCascade(spec={}){
     route.push(worldId);
     const wave=await zelFormulaRunWave({
       world_id:worldId,
-      formulas:layer.formulas,
       input,
       depth:depth+1,
       wave_id:cascadeId+'-D'+String(depth+1).padStart(2,'0'),
@@ -1292,6 +1394,7 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     copyCurrentCalculation:zelCalcCopyCurrent,
     formulaWaveCapacity:ZEL_FORMULA_WAVE_MAX,
     registerFormulaBank:zelFormulaRegisterBank,
+    qualifyFormulaBank:zelFormulaQualifyDefinitions,
     formulaBanks:()=>zelAiClone(zelFormulaBankInfo()),
     runFormulaWave:zelFormulaRunWave,
     runFormulaCascade:zelFormulaRunCascade,
