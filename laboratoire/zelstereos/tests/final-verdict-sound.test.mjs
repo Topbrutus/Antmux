@@ -68,8 +68,10 @@ test("PASS and FAIL use distinct terminal sound signatures",()=>{
   const passCue=pass.context.soundVerdictAt("PASS",10);
   const fail=loadVerdictCore();
   const failCue=fail.context.soundVerdictAt("FAIL",10);
-  assert.deepEqual(passCue,{status:"PASS",cue:"RESISTE"});
-  assert.deepEqual(failCue,{status:"FAIL",cue:"CASSEE"});
+  assert.equal(passCue.status,"PASS");
+  assert.equal(passCue.cue,"RESISTE");
+  assert.equal(failCue.status,"FAIL");
+  assert.equal(failCue.cue,"CASSEE");
   assert.deepEqual(pass.calls.map(x=>x.freq),[523.25,659.25,783.99,1046.5]);
   assert.deepEqual(fail.calls.map(x=>x.freq),[329.63,220,146.83,98]);
 });
