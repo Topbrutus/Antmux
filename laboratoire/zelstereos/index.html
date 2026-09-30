@@ -890,12 +890,12 @@ function zelCanonicalMathDefinitions(){
       formula_id:'AM-024',
       name:'Lemniscate évolution',
       normalized_formula:'r=n mod 273; q=floor(n/273); x=sin(2πr/273); y=0.5sin(4πr/273); z=alpha*q',
-      domain:'n integer; alpha finite number',
+      domain:'n safe JS integer; alpha finite number',
       provenance_ref:provenance,
-      accepts:input=>Number.isInteger(input?.n)&&Number.isFinite(Number(input?.alpha)),
+      accepts:input=>Number.isSafeInteger(input?.n)&&Number.isFinite(Number(input?.alpha)),
       verify:()=>{
         const calc=(n,alpha)=>{const r=((n%273)+273)%273,q=Math.floor(n/273);return [Math.sin(2*Math.PI*r/273),.5*Math.sin(4*Math.PI*r/273),alpha*q];};
-        const samples=[-547,-1,0,1,272,273,1024];
+        const samples=[Number.MIN_SAFE_INTEGER,Number.MAX_SAFE_INTEGER-273,-547,-1,0,1,272,273,1024];
         const alpha=.75,tol=1e-12;
         const ok=samples.every(n=>{const a=calc(n,alpha),b=calc(n+273,alpha);return Math.abs(a[0]-b[0])<tol&&Math.abs(a[1]-b[1])<tol&&Math.abs((b[2]-a[2])-alpha)<tol;});
         return {ok,checks:samples};
