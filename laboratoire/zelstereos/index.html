@@ -829,14 +829,14 @@ function zelCanonicalMathDefinitions(){
       accepts:input=>{
         const exactInt=v=>typeof v==='bigint'
           ||(typeof v==='number'&&Number.isSafeInteger(v))
-          ||(typeof v==='string'&&/^[+-]?\\d+$/.test(v.trim()));
+          ||(typeof v==='string'&&/^[+-]?\d+$/.test(v.trim()));
         return exactInt(input?.t)&&exactInt(input?.b)&&exactInt(input?.o);
       },
       verify:()=>{
         const I=v=>{
           if(typeof v==='bigint')return v;
           if(typeof v==='number'&&Number.isSafeInteger(v))return BigInt(v);
-          if(typeof v==='string'&&/^[+-]?\\d+$/.test(v.trim()))return BigInt(v.trim());
+          if(typeof v==='string'&&/^[+-]?\d+$/.test(v.trim()))return BigInt(v.trim());
           throw new RangeError('AM-022 requires exact integer input');
         };
         const R=(t,b,o)=>{
@@ -863,7 +863,7 @@ function zelCanonicalMathDefinitions(){
         const I=v=>{
           if(typeof v==='bigint')return v;
           if(typeof v==='number'&&Number.isSafeInteger(v))return BigInt(v);
-          if(typeof v==='string'&&/^[+-]?\\d+$/.test(v.trim()))return BigInt(v.trim());
+          if(typeof v==='string'&&/^[+-]?\d+$/.test(v.trim()))return BigInt(v.trim());
           throw new RangeError('AM-022 requires exact integer input');
         };
         const raw=91n*I(input.t)+39n*I(input.b)+21n*I(input.o);
