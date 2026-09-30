@@ -1847,13 +1847,17 @@ function zelEvolutionBraidOrder(nodes){
     pairs:Object.freeze(pairs)
   });
 }
-async function zelEvolutionVerifyInverse(rootValue,finalNodes){
+async function zelEvolutionVerifyInverse(rootValue,finalNodes,options={}){
   const root=zelEvolutionExactInt(rootValue).toString();
   const braid=zelEvolutionBraidOrder(finalNodes);
   let verified=0;
   let invariantGuardChecked=0;
   let invariantGuardPassed=0;
   const failures=[];
+  const total=braid.nodes.length;
+  const yieldEvery=Math.max(1,Math.min(256,Math.trunc(Number(options.yield_every)||32)));
+  const onProgress=typeof options.on_progress==='function'?options.on_progress:null;
+  let processed=0;
   for(const node of braid.nodes){
     let current=zelEvolutionExactInt(node.value).toString();
     let ok=true;
@@ -1885,8 +1889,14 @@ async function zelEvolutionVerifyInverse(rootValue,finalNodes){
     if(ok&&current!==root){ok=false;reason='ROOT_MISMATCH';}
     if(ok)verified++;
     else if(failures.length<50)failures.push(Object.freeze({branch_id:node.branch_id,reason,recovered:current,expected_root:root}));
+    processed++;
+    const shouldYield=processed<total&&processed%yieldEvery===0;
+    if(onProgress&&(shouldYield||processed===total)){
+      try{onProgress(Object.freeze({done:processed,total,verified,failed:processed-verified}));}
+      catch(err){}
+    }
+    if(shouldYield)await new Promise(resolve=>setTimeout(resolve,0));
   }
-  const total=braid.nodes.length;
   return Object.freeze({
     schema:'ANTMUX-ZELSTEREOS-ENTITY38-INVERSE-VERIFICATION-v1',
     mode:'BRAID_LAST_TO_FIRST_THEN_Z3_Z2_Z1',
@@ -1933,7 +1943,22 @@ async function zelFormulaRunEvolutionCascade(spec={}){
   const expected=[9,108,1296];
   const countCheck=counts.length===3&&expected.every((v,i)=>counts[i]===v);
   const finalNodes=layers.length===3?layers[2].nodes.filter(x=>x.status==='PASS'&&x.profile_suite?.ok===true&&x.invariant_guard?.ok===true):[];
-  const inverse=await zelEvolutionVerifyInverse(root,finalNodes);
+  const inverse=await zelEvolutionVerifyInverse(root,finalNodes,{
+    yield_every:spec.inverse_yield_every,
+    on_progress:progress=>zelSwarmRender({
+      wave_id:cascadeId+'-INVERSE',
+      world_id:'BRAID/INVERSE',
+      total:progress.total,
+      done:progress.done,
+      depth:4,
+      route:[...routeSoFar,'BRAID/INVERSE'],
+      PASS:progress.verified,
+      FAIL:progress.failed,
+      DOMAIN:0,
+      ERROR:0,
+      anomalies:[]
+    })
+  });
   const aggregate={PASS:0,FAIL:0,DOMAIN:0,ERROR:0,total:0};
   for(const layer of layers){
     for(const key of ['PASS','FAIL','DOMAIN','ERROR'])aggregate[key]+=layer.summary[key]||0;
@@ -2231,6 +2256,16 @@ function zelRadixBraidAudioPasses(braid){
 }
 async function zelRadixPlayAudioPasses(braid,spec={}){
   const bundle=zelRadixBraidAudioPasses(braid);
+  const deferVerdict=spec.defer_verdict===true;
+  const secondStages=deferVerdict
+    ?Object.freeze(bundle.passes[1].map((stage,index)=>{
+      if(index!==6)return stage;
+      const next={...stage};
+      delete next.status;
+      delete next.verdict;
+      return Object.freeze(next);
+    }))
+    :bundle.passes[1];
   await ensureAudio();
   if(soundVolume<=0)soundVolume=.65;
   soundMuted=false;
@@ -2250,7 +2285,7 @@ async function zelRadixPlayAudioPasses(braid,spec={}){
     min_stage_ms:170,
     max_stage_ms:1200,
     timing_scale:1,
-    hold_ms:250
+    hold_ms:150
   });
   const second=await zelAiPlayCalculation({
     formula:{
@@ -2261,19 +2296,20 @@ async function zelRadixPlayAudioPasses(braid,spec={}){
       normalized_formula:'bases 8,9,10,11,12,13 -> 144 croisements -> retour canonique'
     },
     trace_id:(traceBase+'-B').slice(0,120),
-    stages:bundle.passes[1],
+    stages:secondStages,
     step_ms:300,
     min_stage_ms:170,
     max_stage_ms:1500,
     timing_scale:1,
-    verdict:braid.ok?'PASS':'FAIL',
-    hold_ms:350
+    verdict:deferVerdict?undefined:(braid.ok?'PASS':'FAIL'),
+    hold_ms:deferVerdict?150:350
   });
   return Object.freeze({
-    schema:'ANTMUX-ZELSTEREOS-RADIX-ZX-AUDIO-MULTIPASS-v1',
+    schema:'ANTMUX-ZELSTEREOS-RADIX-ZX-AUDIO-MULTIPASS-v2',
     ok:first.ok===true&&second.ok===true&&braid.ok,
     passes:Object.freeze([first,second]),
-    verdict:second.verdict,
+    verdict:deferVerdict?null:second.verdict,
+    deferred_verdict:deferVerdict,
     stages:Object.freeze([...first.stages,...second.stages])
   });
 }
@@ -2315,23 +2351,28 @@ function zelEvolutionAudioStages(cascade){
 async function zelEvolutionRunAudioTest(spec={}){
   const input=spec.input??7;
   const braid=zelRadixBraid(input);
-  const cascade=await zelFormulaRunEvolutionCascade({
-    cascade_id:String(spec.cascade_id||('ENTITY38-AUDIO-'+Date.now())).slice(0,120),
-    input,
-    batch_size:spec.batch_size
-  });
-  const evolutionStages=zelEvolutionAudioStages(cascade);
+  const cascadeId=String(spec.cascade_id||('ENTITY38-AUDIO-'+Date.now())).slice(0,120);
   await ensureAudio();
   if(soundVolume<=0)soundVolume=.65;
   soundMuted=false;
   syncSoundUI();
   const priorRobotAt=lastRobotSpokenAt;
   lastRobotSpokenAt=Date.now()+120000;
-  const ok=braid.ok&&cascade.status==='PASS'&&cascade.inverse_verification?.ok===true;
   try{
     const radixAudio=await zelRadixPlayAudioPasses(braid,{
-      trace_id:cascade.cascade_id+'-RADIX'
+      trace_id:cascadeId+'-RADIX',
+      defer_verdict:true
     });
+    const cascadeStarted=performance.now();
+    const cascade=await zelFormulaRunEvolutionCascade({
+      cascade_id:cascadeId,
+      input,
+      batch_size:spec.batch_size,
+      inverse_yield_every:spec.inverse_yield_every
+    });
+    const cascadeElapsedMs=Math.max(0,performance.now()-cascadeStarted);
+    const evolutionStages=zelEvolutionAudioStages(cascade);
+    const ok=braid.ok&&cascade.status==='PASS'&&cascade.inverse_verification?.ok===true;
     const evolutionAudio=await zelAiPlayCalculation({
       formula:{
         formula_id:'ENTITY38-RADIX-ZX-CASCADE',
@@ -2350,14 +2391,14 @@ async function zelEvolutionRunAudioTest(spec={}){
       hold_ms:2500
     });
     const audio=Object.freeze({
-      schema:'ANTMUX-ZELSTEREOS-ENTITY38-RADIX-AUDIO-MULTIPASS-v1',
+      schema:'ANTMUX-ZELSTEREOS-ENTITY38-RADIX-AUDIO-MULTIPASS-v2',
       ok:radixAudio.ok===true&&evolutionAudio.ok===true,
       passes:Object.freeze([...radixAudio.passes,evolutionAudio]),
       verdict:evolutionAudio.verdict,
       stages:Object.freeze([...radixAudio.stages,...evolutionAudio.stages])
     });
     return Object.freeze({
-      schema:'ANTMUX-ZELSTEREOS-ENTITY38-RADIX-AUDIO-TEST-v2',
+      schema:'ANTMUX-ZELSTEREOS-ENTITY38-RADIX-AUDIO-TEST-v3',
       ok:ok&&audio.ok===true,
       braid,
       cascade,
@@ -2365,6 +2406,7 @@ async function zelEvolutionRunAudioTest(spec={}){
       radix_path_checks:braid.path_count,
       radix_total_checks:braid.source_checks+braid.path_count,
       total_machine_events:cascade.total_calculation_events+braid.source_checks+braid.path_count,
+      cascade_elapsed_ms:cascadeElapsedMs,
       audio
     });
   }finally{
@@ -2439,9 +2481,12 @@ async function zelTripleSequentialPump(){
           zenodo_formula_evaluations:cascade?.zenodo_formula_evaluations??null,
           f006_checked:cascade?.invariant_guards?.total?.checked??null,
           total_calculation_events:cascade?.total_calculation_events??null,
+          radix_source_checks:run.radix_source_checks??run.braid?.source_checks??null,
           radix_paths:run.braid?.path_count??null,
           radix_passed:run.braid?.passed_paths??null,
           radix_failed:run.braid?.failed_paths??null,
+          radix_total_checks:run.radix_total_checks??null,
+          cascade_elapsed_ms:run.cascade_elapsed_ms??null,
           total_machine_events:run.total_machine_events??cascade?.total_calculation_events??null,
           inverse_ok:cascade?.inverse_verification?.ok===true,
           inverse_verified:cascade?.inverse_verification?.verified??null,

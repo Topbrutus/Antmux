@@ -32,10 +32,14 @@ function extractFunction(name){
 }
 
 function makeContext(){
-  const ctx={console,Object,Array,String,Number,Math,JSON,BigInt,TypeError,RangeError,Error,Promise,Date};
+  const ctx={console,Object,Array,String,Number,Math,JSON,BigInt,TypeError,RangeError,Error,Promise,Date,captured:[]};
   vm.createContext(ctx);
   const prelude=[
     "const ZEL_RADIX_BASES=Object.freeze(Array.from({length:12},(_,i)=>i+2));",
+    "let soundVolume=.65,soundMuted=false;",
+    "async function ensureAudio(){}",
+    "function syncSoundUI(){}",
+    "async function zelAiPlayCalculation(spec){captured.push(spec);return {ok:true,verdict:spec.verdict?{status:spec.verdict,cue:\'RESISTE\'}:null,stages:spec.stages.map((x,i)=>({...x,stage_index:i,sfx_id:\'TEST\'}))};}",
     "function zelEvolutionExactInt(value){",
     "  if(typeof value===\'bigint\')return value;",
     "  if(typeof value===\'number\'&&Number.isSafeInteger(value))return BigInt(value);",
@@ -43,7 +47,7 @@ function makeContext(){
     "  throw new RangeError(\'exact integer required\');",
     "}"
   ].join("\n");
-  const names=["zelRadixAssertBase","zelRadixDigitValue","zelRadixEncodeExact","zelRadixDecodeExact","zelRadixBraid","zelRadixBraidAudioStages","zelRadixBraidAudioPasses"];
+  const names=["zelRadixAssertBase","zelRadixDigitValue","zelRadixEncodeExact","zelRadixDecodeExact","zelRadixBraid","zelRadixBraidAudioStages","zelRadixBraidAudioPasses","zelRadixPlayAudioPasses"];
   vm.runInContext(prelude+"\n"+names.map(extractFunction).join("\n"),ctx);
   return ctx;
 }
@@ -111,4 +115,24 @@ test("radix audio is partitioned into two legal seven-stage waves",()=>{
   assert.match(bundle.passes[1][5].label,/BASE 13/);
   assert.match(bundle.passes[1][6].label,/144\/144/);
   assert.equal(bundle.passes[1][6].status,"PASS");
+});
+
+
+test("integrated radix audio can defer the intermediate verdict",async()=>{
+  const ctx=makeContext();
+  const braid=ctx.zelRadixBraid(47);
+  const audio=await ctx.zelRadixPlayAudioPasses(braid,{trace_id:"TEST",defer_verdict:true});
+  assert.equal(ctx.captured.length,2);
+  assert.deepEqual(Array.from(ctx.captured,x=>x.stages.length),[7,7]);
+  assert.equal(ctx.captured[1].stages[6].status,undefined);
+  assert.equal(ctx.captured[1].verdict,undefined);
+  assert.equal(audio.verdict,null);
+  assert.equal(audio.deferred_verdict,true);
+});
+
+test("integrated evolution audio starts the radix sound before the heavy cascade",()=>{
+  const fn=extractFunction("zelEvolutionRunAudioTest");
+  assert.ok(fn.indexOf("zelRadixPlayAudioPasses")<fn.indexOf("zelFormulaRunEvolutionCascade"));
+  assert.match(fn,/defer_verdict:true/);
+  assert.match(fn,/cascade_elapsed_ms/);
 });

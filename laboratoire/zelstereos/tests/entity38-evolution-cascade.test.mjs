@@ -307,3 +307,27 @@ test("Entity 38 actively executes all 12 Zenodo formulas on every forward branch
     assert.ok(suite.records.every(x => x.semantic_ok === true));
   }
 });
+
+
+test("Entity 38 inverse verification yields cooperatively and reports progress", async () => {
+  const ctx = makeContext();
+  const cascade = await ctx.zelFormulaRunEvolutionCascade({
+    cascade_id: "ENTITY38-INVERSE-YIELD-SEED",
+    input: 47,
+    inverse_yield_every: 64
+  });
+  let yieldCalls = 0;
+  ctx.setTimeout = fn => { yieldCalls += 1; fn(); return 0; };
+  const progress = [];
+  const inverse = await ctx.zelEvolutionVerifyInverse(cascade.root, cascade.final_nodes, {
+    yield_every: 64,
+    on_progress: p => progress.push({...p})
+  });
+  assert.equal(inverse.ok, true);
+  assert.equal(inverse.verified, 1296);
+  assert.ok(yieldCalls >= 19);
+  assert.ok(progress.length >= 20);
+  assert.equal(progress.at(-1).done, 1296);
+  assert.equal(progress.at(-1).verified, 1296);
+  assert.equal(progress.at(-1).failed, 0);
+});
