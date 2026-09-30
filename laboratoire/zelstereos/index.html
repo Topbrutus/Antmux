@@ -1037,6 +1037,53 @@ function zelRegisterEvolutionSeedBanks(){
   }
   return zelEvolutionBanksReady;
 }
+function zelEvolutionInvariantF006(value,context={}){
+  const exact=zelEvolutionExactInt(value);
+  const magnitude=exact<0n?-exact:exact;
+  let x=1+Number(magnitude%997n)/997;
+  let y=1+Number((magnitude/997n)%991n)/991;
+  const x0=x,y0=y;
+  const invariant=(a,b)=>a-Math.log(a)+b-Math.log(b);
+  const deriv=(a,b)=>[a*(1-b),b*(a-1)];
+  const h0=invariant(x,y);
+  const dt=.001,steps=32;
+  for(let i=0;i<steps;i++){
+    const k1=deriv(x,y);
+    const k2=deriv(x+dt*k1[0]/2,y+dt*k1[1]/2);
+    const k3=deriv(x+dt*k2[0]/2,y+dt*k2[1]/2);
+    const k4=deriv(x+dt*k3[0],y+dt*k3[1]);
+    x+=dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;
+    y+=dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;
+  }
+  const h1=invariant(x,y);
+  const drift=Math.abs(h1-h0);
+  const tolerance=1e-10;
+  const ok=Number.isFinite(h0)&&Number.isFinite(h1)&&x0>0&&y0>0&&x>0&&y>0&&drift<=tolerance;
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-INVARIANT-GUARD-v1',
+    formula_id:'F006',
+    name:'Invariant Lotka-Volterra',
+    normalized_formula:'H(x,y)=x-ln(x)+y-ln(y)',
+    role:'INDEPENDENT_NUMERICAL_SENTINEL',
+    checkpoint:String(context.checkpoint||'').slice(0,80),
+    branch_id:String(context.branch_id||'').slice(0,160),
+    seed_exact:exact.toString(),
+    seed:Object.freeze({x:x0,y:y0}),
+    final:Object.freeze({x,y}),
+    h0,
+    h1,
+    drift,
+    tolerance,
+    steps,
+    dt,
+    ok
+  });
+}
+function zelEvolutionGuardSummary(nodes){
+  const guards=(Array.isArray(nodes)?nodes:[]).map(x=>x?.invariant_guard).filter(Boolean);
+  const passed=guards.filter(x=>x.ok===true).length;
+  return Object.freeze({formula_id:'F006',checked:guards.length,passed,failed:guards.length-passed});
+}
 async function zelFormulaRunBranchLayer(spec={}){
   const worldId=String(spec.world_id||'').trim();
   if(!worldId)throw new TypeError('ENTITY38 world_id required');
@@ -1071,6 +1118,9 @@ async function zelFormulaRunBranchLayer(spec={}){
       };
       const result=await zelFormulaRunOne(job.def,job.parent.value,context,job.index);
       const branchId=String(job.parent.branch_id||'ROOT')+'/'+String(job.formula_slot).padStart(2,'0');
+      const invariantGuard=result.status==='PASS'
+        ?zelEvolutionInvariantF006(result.value,{checkpoint:'FORWARD_Z'+depth,branch_id:branchId})
+        :null;
       const step=Object.freeze({
         depth,
         world_id:worldId,
@@ -1097,6 +1147,7 @@ async function zelFormulaRunBranchLayer(spec={}){
         expected:result.expected,
         error:result.error||null,
         elapsed_ms:result.elapsed_ms,
+        invariant_guard:invariantGuard,
         path:Object.freeze([...(job.parent.path||[]),result.formula_id]),
         history:Object.freeze([...(job.parent.history||[]),step])
       });
@@ -1116,6 +1167,8 @@ async function zelFormulaRunBranchLayer(spec={}){
     if(offset+batchSize<jobs.length)await new Promise(resolve=>setTimeout(resolve,0));
   }
   const summary=zelSwarmSummary(nodes);
+  const invariantGuard=zelEvolutionGuardSummary(nodes);
+  const outputNodes=nodes.filter(x=>x.status==='PASS'&&x.invariant_guard?.ok===true).length;
   return Object.freeze({
     schema:'ANTMUX-ZELSTEREOS-ENTITY38-BRANCH-LAYER-v1',
     deterministic:true,
@@ -1125,8 +1178,9 @@ async function zelFormulaRunBranchLayer(spec={}){
     input_nodes:parents.length,
     formulas:bank.length,
     total_jobs:totalJobs,
-    output_nodes:summary.PASS,
+    output_nodes:outputNodes,
     summary,
+    invariant_guard:invariantGuard,
     nodes:Object.freeze(nodes)
   });
 }
@@ -1155,6 +1209,8 @@ async function zelEvolutionVerifyInverse(rootValue,finalNodes){
   const root=zelEvolutionExactInt(rootValue).toString();
   const braid=zelEvolutionBraidOrder(finalNodes);
   let verified=0;
+  let invariantGuardChecked=0;
+  let invariantGuardPassed=0;
   const failures=[];
   for(const node of braid.nodes){
     let current=zelEvolutionExactInt(node.value).toString();
@@ -1172,6 +1228,13 @@ async function zelEvolutionVerifyInverse(rootValue,finalNodes){
         if(previous!==expected){
           ok=false;reason='INVERSE_MISMATCH:'+step.formula_id;break;
         }
+        const invariantGuard=zelEvolutionInvariantF006(previous,{
+          checkpoint:'RETURN_Z'+String(step.depth||''),
+          branch_id:node.branch_id
+        });
+        invariantGuardChecked++;
+        if(invariantGuard.ok)invariantGuardPassed++;
+        else {ok=false;reason='F006_INVARIANT_GUARD:'+step.formula_id;break;}
         current=previous;
       }catch(err){
         ok=false;reason=String(err?.message||err||'INVERSE_ERROR');break;
@@ -1192,6 +1255,12 @@ async function zelEvolutionVerifyInverse(rootValue,finalNodes){
     ok:total>0&&verified===total,
     pair_count:braid.pairs.length,
     braid_pairs:braid.pairs,
+    invariant_guard:Object.freeze({
+      formula_id:'F006',
+      checked:invariantGuardChecked,
+      passed:invariantGuardPassed,
+      failed:invariantGuardChecked-invariantGuardPassed
+    }),
     failures:Object.freeze(failures)
   });
 }
@@ -1215,7 +1284,7 @@ async function zelFormulaRunEvolutionCascade(spec={}){
       batch_size:spec.batch_size
     });
     layers.push(layer);
-    parents=layer.nodes.filter(x=>x.status==='PASS');
+    parents=layer.nodes.filter(x=>x.status==='PASS'&&x.invariant_guard?.ok===true);
     if(!parents.length)break;
   }
   const counts=layers.map(x=>x.output_nodes);
@@ -1228,11 +1297,26 @@ async function zelFormulaRunEvolutionCascade(spec={}){
     for(const key of ['PASS','FAIL','DOMAIN','ERROR'])aggregate[key]+=layer.summary[key]||0;
     aggregate.total+=layer.summary.total||0;
   }
+  const forwardInvariantChecked=layers.reduce((n,x)=>n+(x.invariant_guard?.checked||0),0);
+  const forwardInvariantPassed=layers.reduce((n,x)=>n+(x.invariant_guard?.passed||0),0);
+  const returnInvariantChecked=inverse.invariant_guard?.checked||0;
+  const returnInvariantPassed=inverse.invariant_guard?.passed||0;
+  const invariantGuards=Object.freeze({
+    formula_id:'F006',
+    role:'INDEPENDENT_NUMERICAL_SENTINEL',
+    forward:Object.freeze({checked:forwardInvariantChecked,passed:forwardInvariantPassed,failed:forwardInvariantChecked-forwardInvariantPassed}),
+    return:Object.freeze({checked:returnInvariantChecked,passed:returnInvariantPassed,failed:returnInvariantChecked-returnInvariantPassed}),
+    total:Object.freeze({
+      checked:forwardInvariantChecked+returnInvariantChecked,
+      passed:forwardInvariantPassed+returnInvariantPassed,
+      failed:(forwardInvariantChecked-forwardInvariantPassed)+(returnInvariantChecked-returnInvariantPassed)
+    })
+  });
   const completed=Object.freeze({
     schema:'ANTMUX-ZELSTEREOS-ENTITY38-EVOLUTION-CASCADE-v1',
     deterministic:true,
     cascade_id:cascadeId,
-    status:countCheck&&inverse.ok?'PASS':'FAIL',
+    status:countCheck&&inverse.ok&&invariantGuards.total.failed===0?'PASS':'FAIL',
     root,
     route:Object.freeze(route.map(x=>x.world_id)),
     fanout:Object.freeze(route.map(x=>x.fanout)),
@@ -1240,6 +1324,7 @@ async function zelFormulaRunEvolutionCascade(spec={}){
     actual_outputs:Object.freeze(counts),
     total_formula_evaluations:aggregate.total,
     summary:Object.freeze(aggregate),
+    invariant_guards:invariantGuards,
     inverse_verification:inverse,
     layers:Object.freeze(layers),
     final_nodes:Object.freeze(finalNodes)
@@ -1343,6 +1428,7 @@ function zelEvolutionState(){
       root:zelLastEvolutionCascade.root,
       actual_outputs:zelLastEvolutionCascade.actual_outputs,
       total_formula_evaluations:zelLastEvolutionCascade.total_formula_evaluations,
+      invariant_guard:zelLastEvolutionCascade.invariant_guards,
       inverse_ok:zelLastEvolutionCascade.inverse_verification.ok
     }):null
   });
@@ -2108,6 +2194,7 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     evolutionBanksReady:zelRegisterEvolutionSeedBanks,
     runEvolutionCascade:zelFormulaRunEvolutionCascade,
     evolutionState:zelEvolutionState,
+    invariantGuardF006:zelEvolutionInvariantF006,
     evolutionAudioStages:zelEvolutionAudioStages,
     runEvolutionAudioTest:zelEvolutionRunAudioTest,
     promoteEvolutionFormula:zelEvolutionPromoteFormula,

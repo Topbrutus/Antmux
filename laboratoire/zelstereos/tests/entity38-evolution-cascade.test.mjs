@@ -95,6 +95,8 @@ function makeContext() {
     "zelEvolutionLinearDefinition",
     "zelEvolutionSeedDefinitions",
     "zelRegisterEvolutionSeedBanks",
+    "zelEvolutionInvariantF006",
+    "zelEvolutionGuardSummary",
     "zelFormulaRunBranchLayer",
     "zelEvolutionBraidOrder",
     "zelEvolutionVerifyInverse",
@@ -217,4 +219,41 @@ test("Entity 38 sonic trace mirrors the full outward and inverse path", async ()
   assert.deepEqual(Array.from(stages, x => x.complexity_ratio), [.05, .18, .55, 1, .55, .18, .05]);
   assert.match(stages[3].label, /1 296/);
   assert.equal(stages[6].status, "PASS");
+});
+
+
+test("Entity 38 F006 sentinel preserves its Lotka-Volterra invariant for huge exact seeds", () => {
+  const ctx = makeContext();
+  for (const seed of [
+    "0",
+    "7",
+    "-273",
+    "90071992547409931234567890123456789",
+    "-99999999999999999999999999999999999999",
+  ]) {
+    const guard = ctx.zelEvolutionInvariantF006(seed, { checkpoint: "TEST", branch_id: "ROOT" });
+    assert.equal(guard.formula_id, "F006");
+    assert.equal(guard.role, "INDEPENDENT_NUMERICAL_SENTINEL");
+    assert.equal(guard.ok, true);
+    assert.ok(guard.seed.x > 0 && guard.seed.y > 0);
+    assert.ok(guard.final.x > 0 && guard.final.y > 0);
+    assert.ok(guard.drift <= guard.tolerance);
+  }
+});
+
+test("Entity 38 places F006 sentinels on every forward and inverse branch checkpoint", async () => {
+  const ctx = makeContext();
+  const cascade = await ctx.zelFormulaRunEvolutionCascade({ cascade_id: "ENTITY38-F006-GUARDS", input: 7 });
+  assert.equal(cascade.status, "PASS");
+  assert.deepEqual(Array.from(cascade.actual_outputs), [9, 108, 1296]);
+  assert.equal(cascade.invariant_guards.formula_id, "F006");
+  assert.equal(cascade.invariant_guards.forward.checked, 1413);
+  assert.equal(cascade.invariant_guards.forward.failed, 0);
+  assert.equal(cascade.invariant_guards.return.checked, 3888);
+  assert.equal(cascade.invariant_guards.return.failed, 0);
+  assert.equal(cascade.invariant_guards.total.checked, 5301);
+  assert.equal(cascade.invariant_guards.total.passed, 5301);
+  assert.equal(cascade.invariant_guards.total.failed, 0);
+  assert.equal(cascade.inverse_verification.invariant_guard.checked, 3888);
+  assert.ok(cascade.final_nodes.every(x => x.invariant_guard?.formula_id === "F006" && x.invariant_guard.ok === true));
 });
