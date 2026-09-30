@@ -2301,46 +2301,6 @@ async function zelEvolutionRunAudioTest(spec={}){
   }finally{
     lastRobotSpokenAt=priorRobotAt;
   }
-}){
-  const cascade=await zelFormulaRunEvolutionCascade({
-    cascade_id:String(spec.cascade_id||('ENTITY38-AUDIO-'+Date.now())).slice(0,120),
-    input:spec.input??7,
-    batch_size:spec.batch_size
-  });
-  const stages=zelEvolutionAudioStages(cascade);
-  await ensureAudio();
-  if(soundVolume<=0)soundVolume=.65;
-  soundMuted=false;
-  syncSoundUI();
-  const priorRobotAt=lastRobotSpokenAt;
-  lastRobotSpokenAt=Date.now()+120000;
-  try{
-    const audio=await zelAiPlayCalculation({
-      formula:{
-        formula_id:'ENTITY38-CASCADE',
-        name:'Z Stéréo · cascade évolutive',
-        status:cascade.status==='PASS'?'VERIFIED':'FAIL',
-        category:'ENTITY38',
-        normalized_formula:'1 → 9 → 108 → 1296 → 108 → 9 → 1'
-      },
-      trace_id:cascade.cascade_id+'-SONIC',
-      stages,
-      step_ms:650,
-      min_stage_ms:300,
-      max_stage_ms:2500,
-      timing_scale:1,
-      verdict:cascade.status==='PASS'&&cascade.inverse_verification?.ok?'PASS':'FAIL',
-      hold_ms:2500
-    });
-    return Object.freeze({
-      schema:'ANTMUX-ZELSTEREOS-ENTITY38-AUDIO-TEST-v1',
-      ok:cascade.status==='PASS'&&cascade.inverse_verification?.ok===true&&audio.ok===true,
-      cascade,
-      audio
-    });
-  }finally{
-    lastRobotSpokenAt=priorRobotAt;
-  }
 }
 
 
