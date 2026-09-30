@@ -77,6 +77,7 @@ function makeContext(){
     "zelProfileFracValue",
     "zelProfilePositive",
     "zelProfileNonNegative",
+    "zelProfileExactDecimalInput",
     "zelProfileOffsetCore",
     "zelProfilePellRank",
     "zelProfileFormulaDefinitions",
@@ -186,4 +187,29 @@ test("failure mode, candidate gate, connected spectrum and X72 relations execute
 
   const paths=defs.find(x=>x.formula_id==="GSP-ZENODO-009").evaluate().value;
   assert.equal(paths.ordered_paths,"479001600");
+});
+
+
+test("candidate relation rejects unsafe IEEE-754 Number inputs and preserves exact-string distinction",()=>{
+  const ctx=makeContext();
+  const gate=ctx.zelProfileFormulaDefinitions().find(x=>x.formula_id==="GSP-ZENODO-006");
+
+  const exactInput={
+    candidate:"9007199254740993",
+    reference:"9007199254740992",
+    tolerance:"0"
+  };
+  assert.equal(gate.accepts(exactInput),true);
+  const exact=gate.evaluate(exactInput).value;
+  assert.equal(exact.error.exact,"1");
+  assert.equal(exact.decision,"REJECTED");
+
+  const unsafeInput={
+    candidate:9007199254740993,
+    reference:9007199254740992,
+    tolerance:0
+  };
+  assert.equal(unsafeInput.candidate,unsafeInput.reference);
+  assert.equal(gate.accepts(unsafeInput),false);
+  assert.throws(()=>gate.evaluate(unsafeInput),/unsafe Number/);
 });
