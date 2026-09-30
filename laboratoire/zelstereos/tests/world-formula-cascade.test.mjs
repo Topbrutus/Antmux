@@ -11,8 +11,30 @@ function extractFunction(name) {
   const asyncStart = html.indexOf(asyncMarker);
   const start = asyncStart !== -1 ? asyncStart : html.indexOf(syncMarker);
   assert.notEqual(start, -1, `${name} not found`);
-  const brace = html.indexOf("{", start);
-  let depth = 0, quote = null, escaped = false;
+
+  const openParen = html.indexOf("(", start);
+  let parenDepth = 0, quote = null, escaped = false, closeParen = -1;
+  for (let i = openParen; i < html.length; i += 1) {
+    const ch = html[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
+    if (ch === "(") parenDepth += 1;
+    if (ch === ")") {
+      parenDepth -= 1;
+      if (parenDepth === 0) { closeParen = i; break; }
+    }
+  }
+  assert.notEqual(closeParen, -1, `${name} parameter list not closed`);
+
+  const brace = html.indexOf("{", closeParen);
+  let depth = 0;
+  quote = null;
+  escaped = false;
   for (let i = brace; i < html.length; i += 1) {
     const ch = html[i];
     if (quote) {
