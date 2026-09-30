@@ -93,6 +93,7 @@ let aiLocalEventVersion=1000000;
 let lastWsMessageAt=0;
 let lastLiveStagePerf=0;
 let liveMachineOffset=0;
+const ZEL_AUDIO_CROSSFADE_SEC=.28;
 const ZEL_SFX_MANIFEST_URL='./assets/sfx/manifest.json';
 async function zelSfxLoadManifest(){
   if(zelSfxManifest)return zelSfxManifest;
@@ -123,9 +124,15 @@ function zelAiSecureRandomInt(max){
 function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
   const b=zelSfxBuffers.get(String(id||'').toUpperCase());if(!b){zelSfxWarm([id]);return false;}
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return false;
-  const dur=Math.min(b.duration,Math.max(.30,Math.min(2.0,Number(stageDt)||.65))),src=audioCtx.createBufferSource(),g=audioCtx.createGain();
-  src.buffer=b;g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(gain*soundVolume,start+.015);g.gain.setValueAtTime(gain*soundVolume,start+Math.max(.02,dur-.09));g.gain.exponentialRampToValueAtTime(.0001,start+dur);
-  src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.025);return true;
+  const target=Math.max(.45,Math.min(4.0,(Number(stageDt)||.65)+ZEL_AUDIO_CROSSFADE_SEC));
+  const dur=Math.min(b.duration,target),src=audioCtx.createBufferSource(),g=audioCtx.createGain();
+  const fadeIn=Math.min(.10,dur*.24),fadeOut=Math.min(.24,dur*.34);
+  src.buffer=b;
+  g.gain.setValueAtTime(.0001,start);
+  g.gain.linearRampToValueAtTime(gain*soundVolume,start+fadeIn);
+  g.gain.setValueAtTime(gain*soundVolume,start+Math.max(fadeIn,dur-fadeOut));
+  g.gain.exponentialRampToValueAtTime(.0001,start+dur);
+  src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.03);return true;
 }
 async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);}syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
@@ -353,7 +360,8 @@ function scheduleExhaustPulseAt(freq,start,gain=.05){
 function liveMotorStageAt(count,baseFreq,base,stageIndex,stageDt,stageWorkRatio=null,stageExecUs=null){
   const descending=stageIndex>=4;
   const metrics=liveWorkMetrics(count,stageDt,stageWorkRatio,stageExecUs);
-  const dur={1:.82,3:.86,9:.92,36:1.04}[count]||.82;
+  const baseDur={1:.82,3:.86,9:.92,36:1.04}[count]||.82;
+  const dur=Math.max(baseDur,Math.min(5.0,(Number(stageDt)||.65)+ZEL_AUDIO_CROSSFADE_SEC));
   const spread={1:0,3:10,9:24,36:46}[count]||12;
   const gain={1:.17,3:.088,9:.042,36:.014}[count]||.06;
   liveMachineOffset=zelAiSecureRandomInt(liveMachineProfiles.length);
@@ -458,6 +466,26 @@ function speakRobot(stageIndex){
     speechSynthesis.speak(u);
   }catch(e){}
 }
+function scheduleContinuityBridgeAt(freq,start,dur,stageIndex,complexity=null){
+  if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
+  const d=Math.max(.5,Math.min(6,Number(dur)||.5));
+  const c=complexity===null?.35:clamp01(Number(complexity)||0);
+  const o=audioCtx.createOscillator(),sub=audioCtx.createOscillator(),g=audioCtx.createGain(),filter=audioCtx.createBiquadFilter();
+  o.type=stageIndex===3?'sawtooth':'triangle';
+  sub.type='sine';
+  o.frequency.setValueAtTime(Math.max(36,freq*(.84-c*.08)),start);
+  o.frequency.linearRampToValueAtTime(Math.max(38,freq*(.93+c*.04)),start+d);
+  sub.frequency.setValueAtTime(Math.max(24,freq*.36),start);
+  filter.type='lowpass';
+  filter.frequency.setValueAtTime(420+(c*420),start);
+  const level=(.018+(c*.018))*soundVolume;
+  g.gain.setValueAtTime(.0001,start);
+  g.gain.linearRampToValueAtTime(level,start+.10);
+  g.gain.setValueAtTime(level,start+Math.max(.12,d-ZEL_AUDIO_CROSSFADE_SEC));
+  g.gain.exponentialRampToValueAtTime(.0001,start+d);
+  o.connect(filter);sub.connect(filter);filter.connect(g).connect(audioCtx.destination);
+  o.start(start);sub.start(start);o.stop(start+d+.03);sub.stop(start+d+.03);
+}
 function scheduleLongWorkBedAt(freq,start,dur,stageIndex){
   if(soundMuted||soundVolume<=0||!audioCtx||audioCtx.state!=='running')return;
   const d=Math.max(.4,Math.min(60,Number(dur)||.4));
@@ -498,6 +526,8 @@ function soundLiveStage(stageIndex,stageDt=.65,stageWorkRatio=null,stageExecUs=n
   const complexity=stageWorkRatio===null?null:clamp01(Number(stageWorkRatio)||0);
   const sonicDt=complexity===null?stageDt:Math.max(stageDt,.65+(complexity*3.35));
   const sfxGain=complexity===null?.82:(.68+(complexity*.28));
+  const bridgeDt=Math.max(stageDt,sonicDt)+ZEL_AUDIO_CROSSFADE_SEC;
+  scheduleContinuityBridgeAt(liveStageFreq[stageIndex]||82,base,bridgeDt,stageIndex,complexity);
   if(stageIndex===0){
     soundStartAt(base);
     if(!zelSfxPlayAt(mappedSfx,base+.30,sonicDt,Math.min(.96,sfxGain+.04)))fallbackSfxCueAt(mappedSfx,base+.30);
