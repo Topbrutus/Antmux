@@ -11,7 +11,6 @@ on:
       - 'laboratoire/zelstereos/index.html'
       - 'laboratoire/zelstereos/WEBSOCKET-AUDIO-CONTRACT.md'
       - 'laboratoire/zelstereos/tests/**'
-      - 'laboratoire/zelstereos/tests/**'
   pull_request:
     branches:
       - main
@@ -21,6 +20,7 @@ on:
       - 'deploy/x72-shared-queen/tests/check_zelstereos_ws_order.py'
       - 'laboratoire/zelstereos/index.html'
       - 'laboratoire/zelstereos/WEBSOCKET-AUDIO-CONTRACT.md'
+      - 'laboratoire/zelstereos/tests/**'
 
 permissions:
   contents: read
