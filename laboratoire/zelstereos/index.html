@@ -824,18 +824,52 @@ function zelCanonicalMathDefinitions(){
       formula_id:'AM-022',
       name:'Indice de phase',
       normalized_formula:'R(t,b,o)=(91t+39b+21o) mod 273',
-      domain:'t,b,o are integers',
+      domain:'t,b,o exact integers supplied as safe JS integers or decimal integer strings; internal arithmetic uses BigInt',
       provenance_ref:provenance,
-      accepts:input=>Number.isInteger(input?.t)&&Number.isInteger(input?.b)&&Number.isInteger(input?.o),
+      accepts:input=>{
+        const exactInt=v=>typeof v==='bigint'
+          ||(typeof v==='number'&&Number.isSafeInteger(v))
+          ||(typeof v==='string'&&/^[+-]?\\d+$/.test(v.trim()));
+        return exactInt(input?.t)&&exactInt(input?.b)&&exactInt(input?.o);
+      },
       verify:()=>{
-        const R=(t,b,o)=>((91*t+39*b+21*o)%273+273)%273;
-        const cases=[[0,0,0],[1,2,3],[-7,11,19],[123,-456,789]];
-        const periodic=cases.every(([t,b,o])=>R(t,b,o)===R(t+3,b+7,o+13));
-        return {ok:periodic&&R(0,0,0)===0,checks:cases.map(x=>R(...x))};
+        const I=v=>{
+          if(typeof v==='bigint')return v;
+          if(typeof v==='number'&&Number.isSafeInteger(v))return BigInt(v);
+          if(typeof v==='string'&&/^[+-]?\\d+$/.test(v.trim()))return BigInt(v.trim());
+          throw new RangeError('AM-022 requires exact integer input');
+        };
+        const R=(t,b,o)=>{
+          const raw=91n*I(t)+39n*I(b)+21n*I(o);
+          const r=raw%273n;
+          return Number(r<0n?r+273n:r);
+        };
+        const cases=[
+          [0,0,0],
+          [1,2,3],
+          [-7,11,19],
+          [123,-456,789],
+          [9007199254739001,9007199254738123,-9007199254737557],
+          ['9007199254740993123456789','-9007199254740992123456789','1234567890123456789012345']
+        ];
+        const shift=v=>typeof v==='string'?(BigInt(v)+3n).toString():v+3;
+        const shift7=v=>typeof v==='string'?(BigInt(v)+7n).toString():v+7;
+        const shift13=v=>typeof v==='string'?(BigInt(v)+13n).toString():v+13;
+        const periodic=cases.every(([t,b,o])=>R(t,b,o)===R(shift(t),shift7(b),shift13(o)));
+        const regression=R(9007199254739001,9007199254738123,-9007199254737557)===132;
+        return {ok:periodic&&regression&&R(0,0,0)===0,checks:cases.map(x=>R(...x))};
       },
       evaluate:input=>{
-        const r=((91*input.t+39*input.b+21*input.o)%273+273)%273;
-        return {status:'PASS',value:r};
+        const I=v=>{
+          if(typeof v==='bigint')return v;
+          if(typeof v==='number'&&Number.isSafeInteger(v))return BigInt(v);
+          if(typeof v==='string'&&/^[+-]?\\d+$/.test(v.trim()))return BigInt(v.trim());
+          throw new RangeError('AM-022 requires exact integer input');
+        };
+        const raw=91n*I(input.t)+39n*I(input.b)+21n*I(input.o);
+        const mod=raw%273n;
+        const r=mod<0n?mod+273n:mod;
+        return {status:'PASS',value:Number(r),trace:[{exact_raw:raw.toString(),exact_mod:r.toString()}]};
       }
     }),
     Object.freeze({
