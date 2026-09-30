@@ -186,3 +186,16 @@ renderWorld();
 
 if (generation === 0) generation = 1;
 render(buildAnt(generation));
+
+
+(function installAstraDoor() {
+  if (document.querySelector('[data-astra-door]')) return;
+  const link = document.createElement('a');
+  link.href = 'astra/';
+  link.className = 'astra-door-heart';
+  link.dataset.astraDoor = 'true';
+  link.setAttribute('aria-label', 'Ouvrir la porte Astra');
+  link.title = 'Astra';
+  link.textContent = '♥';
+  document.body.appendChild(link);
+})();
