@@ -240,3 +240,18 @@ test("connected spectrum rejects finite centered inputs that overflow internal N
   assert.equal(connected.accepts(input),true);
   assert.throws(()=>connected.evaluate(input),/overflow\/nonfinite/);
 });
+
+
+test("connected spectrum preserves valid scale-separated pair products",()=>{
+  const ctx=makeContext();
+  const connected=ctx.zelProfileFormulaDefinitions().find(x=>x.formula_id==="GSP-ZENODO-003");
+  const input={samples:[[1e308,1e308],[-1e308,-1e308]],u:1e-308};
+  assert.equal(connected.accepts(input),true);
+  const value=connected.evaluate(input).value;
+  assert.equal(value.S_Q,2);
+  assert.ok(Math.abs(value.K_Q)<=1e-12);
+  assert.equal(value.pairs.length,1);
+  assert.equal(value.pairs[0].p_qr,null);
+  assert.equal(value.pairs[0].p_qr_overflow,true);
+  assert.ok(Math.abs(value.pairs[0].p_qr_u2-1)<=1e-15);
+});
