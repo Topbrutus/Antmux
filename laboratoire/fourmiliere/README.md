@@ -121,6 +121,30 @@ ANTMUX_PUBLIC_CONTACT_EMAIL
 
 S'il n'est pas configuré, la zone « courriel direct » reste simplement cachée.
 
+## Déploiement
+
+La Fourmilière possède deux couches indépendantes :
+
+```text
+UI statique
+/laboratoire/fourmiliere/
+        │
+        ▼
+API Shared Queen
+/laboratoire/embryon-x72/api/journal/
+```
+
+La page statique peut être publiée sans redéployer le Shared Queen Server.
+
+Le backend du journal, lui, dépend du déploiement du **Shared Queen Server**. Si la page s’affiche mais que `/api/journal/config` ou `/api/journal/public` retourne `404`, cela signifie que l’interface est publiée mais que la version du backend contenant le journal n’est pas encore active sur le serveur.
+
+La recette de production doit donc distinguer :
+
+- **UI Fourmilière publique** ;
+- **API Fourmilière active**.
+
+Aucune requête d’écriture n’est nécessaire pour vérifier l’état public : les contrôles `GET /config` et `GET /public` suffisent.
+
 ## Test
 
 ```bash

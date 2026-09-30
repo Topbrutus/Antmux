@@ -1,6 +1,6 @@
 # ANTMUX — La Forge du Sept Infini
 
-> **Une colonie cognitive, une formule régénérative et une traversée des mondes de matière.**
+> **Une colonie cognitive, une formule régénérative et une traversée contrôlée entre familles de mondes.**
 
 **Conception originale : Topbrutus**  
 **Mise en forme, calculs et vérifications assistés par ChatGPT**
@@ -31,15 +31,19 @@ La colonie vit dans cette forge. La Fourmi porte la mémoire, la stigmergie et l
 
 Mais Antmux ne s’arrête pas à son propre cristal.
 
-La forge possède deux portes.
+La structure actuelle distingue maintenant **la bulle globale ANTMUX**, les **familles de mondes**, les **mondes**, puis leurs projections locales. Le tableau périodique n’est donc plus la totalité de la carte : il appartient à la famille `MATTER`.
 
-D’un côté, le monde encore froid, non organisé, ouvert aux transformations. De l’autre, une cité construite mais volontairement non fermée. Entre les deux, la colonie peut traverser des **âges de matière**.
+Le monde actif de référence du prototype est `MATTER/CARBON`. Un autre monde déjà représenté est `INFORMATION/CRYPTO`. Les familles `TIME`, `MATH`, `BIO` et `ENERGY` existent comme emplacements architecturaux, mais elles ne deviennent actives qu’après définition de leurs règles et de leurs contrats.
 
-Le carbone, numéro atomique six, devient le monde précédent, celui de la structure organique et de la base. L’azote, numéro sept, devient naturellement le premier monde accordé à l’Heptaflux. L’oxygène, numéro huit, ouvre un monde de circulation et d’activation. Le fluor, numéro neuf, peut représenter la réactivité extrême. Le néon, numéro dix, une stabilité fermée. Plus loin viennent les métaux, le calcium, le fer, le cuivre, le zinc, puis le brome, le krypton et les éléments plus lourds.
+Chaque monde possède son **Verso local**, qui reste l’interface interne entre `Z=7` et `−Z=6`. Les passages entre deux mondes utilisent un autre objet : le **Verso global**, piloté par le **World Router**.
 
-Il ne s’agit pas de prétendre qu’un élément se transforme spontanément en son voisin par une loi d’Antmux. Le tableau périodique est utilisé comme **carte de progression**. Chaque élément peut fournir un environnement différent : numéro atomique, masse, configuration électronique, famille chimique, propriétés thermiques, structures cristallines connues, conductivité, magnétisme et autres propriétés vérifiables. La même graine cognitive est alors confrontée à un monde différent sans abandonner son identité interne.
+Un passage inter-mondes n’est jamais supposé automatiquement. Il doit être décrit par un contrat explicite :
 
-Le passage d’un monde au suivant peut être soumis à une règle simple : le monde suivant n’est accepté que lorsque les invariants du monde courant ont été vérifiés. Ainsi la progression ne devient pas une fuite en avant, mais une campagne de reconstruction. Même intelligence, nouvelle matière, nouvelle civilisation.
+`SOURCE + TRANSFORMATION + DESTINATION + PROOF`
+
+Le premier contrat logiciel de démonstration relie `MATTER/CARBON` à `INFORMATION/CRYPTO` par une représentation UTF-8 réversible. Il s’agit d’un mécanisme de transport d’information dans l’architecture logicielle, et non d’une affirmation de voyage physique entre dimensions.
+
+Dans la famille `MATTER`, le tableau périodique reste une **carte de progression paramétrique**. Chaque élément peut fournir un environnement différent : numéro atomique, masse, configuration électronique, famille chimique, propriétés thermiques, structures cristallines connues, conductivité, magnétisme et autres propriétés vérifiables.
 
 Le véritable thème d’Antmux est donc celui-ci : **une graine suffisamment petite pour être recalculée, suffisamment structurée pour être vérifiée, suffisamment ouverte pour évoluer, et suffisamment générale pour être reconstruite dans des mondes différents.**
 
@@ -136,7 +140,49 @@ Les deux premières coordonnées tracent une lemniscate. La troisième conserve 
 
 ---
 
-## Traversée des mondes
+## Architecture des mondes
+
+```text
+BULLE GLOBALE ANTMUX
+├── MATTER
+│   └── CARBON
+│       ├── Z = 7
+│       ├── VERSO LOCAL
+│       ├── −Z = 6
+│       └── 9 projections C3
+├── INFORMATION
+│   └── CRYPTO
+├── TIME
+├── MATH
+├── BIO
+└── ENERGY
+
+WORLD_A -> VERSO GLOBAL -> WORLD_B
+```
+
+Dans cette architecture :
+
+- une **projection** est une vue locale à l’intérieur d’un monde ;
+- un **monde** possède ses propres règles, états et représentations ;
+- une **famille** regroupe des mondes de même domaine ;
+- la **bulle globale ANTMUX** contient l’ensemble navigable ;
+- le **Verso local** relie les deux faces internes d’un monde ;
+- le **Verso global** sert aux passages inter-mondes ;
+- le **World Router** n’ouvre un passage que lorsqu’un contrat explicite existe.
+
+La formule d’architecture peut se résumer ainsi :
+
+```text
+ANT = agent mobile
+MUX = sélection / routage
+ANTMUX = réseau de transport contrôlé entre mondes
+```
+
+Cette définition est une convention d’architecture logicielle du projet.
+
+---
+
+## Famille MATTER — progression périodique
 
 ```text
 Carbone  -> Z = 6

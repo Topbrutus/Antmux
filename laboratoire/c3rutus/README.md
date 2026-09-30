@@ -61,12 +61,14 @@ Le battement exact reste séparé de l'animation : le monde échantillonne une a
 
 Le module est local au laboratoire C3RUTUS et ne modifie pas le runtime X72 existant.
 
+La page publique est publiée comme contenu statique du laboratoire. Les changements du backend Shared Queen restent un cycle de déploiement séparé.
+
 ## Limites
 
 - Les propriétés physiques détaillées des 118 éléments ne sont pas encore injectées : v0.1 contient numéro atomique + symbole.
 - Aucun résultat scientifique nouveau n'est déclaré par ce prototype.
 - Aucun code Parazone n'est lu ou modifié.
-- Aucun merge vers main n'est effectué.
+- C͡3RUTUS v0.1 est intégré à `main`; les extensions futures continuent de passer par branches, PR et validation CI.
 
 ## Test
 
