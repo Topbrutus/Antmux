@@ -79,7 +79,10 @@ let wsHasLiveState=false;
 let lastRenderedPublicState=null;
 let lastExternalPublicState=null;
 let aiSelectedFormula=null;
+const ZEL_SFX_IDS=Array.from({length:36},(_,i)=>'SFX'+String(i+1).padStart(2,'0'));
 let aiSfxStageMap=['SFX06','SFX03','SFX08','SFX24','SFX12','SFX30','SFX35'];
+let aiSfxRandomMode=true;
+let zelLastRandomSfxMap=[...aiSfxStageMap];
 let zelSfxManifest=null;
 let zelSfxManifestPromise=null;
 const zelSfxBuffers=new Map();
@@ -89,7 +92,7 @@ let aiPresentationHoldUntil=0;
 let aiLocalEventVersion=1000000;
 let lastWsMessageAt=0;
 let lastLiveStagePerf=0;
-let liveMachineOffset=Math.floor(Math.random()*20);
+let liveMachineOffset=0;
 const ZEL_SFX_MANIFEST_URL='./assets/sfx/manifest.json';
 async function zelSfxLoadManifest(){
   if(zelSfxManifest)return zelSfxManifest;
@@ -106,6 +109,17 @@ async function zelSfxLoadBuffer(id){
 }
 function zelSfxWarm(ids=aiSfxStageMap){if(!audioCtx)return Promise.resolve([]);return Promise.allSettled([...new Set(ids)].map(id=>zelSfxLoadBuffer(id)));}
 function zelSfxWarmAll(){return zelSfxLoadManifest().then(m=>zelSfxWarm(m.clips.map(c=>c.id))).catch(()=>[]);}
+function zelAiRandomUnit(){
+  if(globalThis.crypto&&typeof globalThis.crypto.getRandomValues==='function'){
+    const a=new Uint32Array(1);globalThis.crypto.getRandomValues(a);return a[0]/4294967296;
+  }
+  return Math.random();
+}
+function zelAiSecureRandomInt(max){
+  const n=Number(max);
+  if(!Number.isInteger(n)||n<1)throw new RangeError('random max must be a positive integer');
+  return Math.floor(zelAiRandomUnit()*n);
+}
 function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
   const b=zelSfxBuffers.get(String(id||'').toUpperCase());if(!b){zelSfxWarm([id]);return false;}
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return false;
@@ -113,7 +127,7 @@ function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
   src.buffer=b;g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(gain*soundVolume,start+.015);g.gain.setValueAtTime(gain*soundVolume,start+Math.max(.02,dur-.09));g.gain.exponentialRampToValueAtTime(.0001,start+dur);
   src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.025);return true;
 }
-async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running')zelSfxWarm(aiSfxStageMap);syncAudioState();return audioCtx;}
+async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);}syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
 document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
 document.addEventListener('touchstart',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
@@ -148,7 +162,7 @@ function activationArrayAt(base){scheduleToneAt(140,base,.05,.34);scheduleToneAt
 function activationSweepAt(base){scheduleToneAt(100,base,.06,.36);scheduleToneAt(200,base+.08,.08,.34);scheduleToneAt(360,base+.19,.10,.31);scheduleToneAt(620,base+.32,.12,.29);}
 function activationCoreAt(base){scheduleToneAt(70,base,.12,.40);scheduleToneAt(140,base+.13,.12,.36);scheduleToneAt(280,base+.27,.12,.33);scheduleToneAt(560,base+.42,.14,.30);}
 const activationSoundsAt=[activationRelayAt,activationServoAt,activationCapacitorAt,activationScannerAt,activationTurbineAt,activationLockAt,activationPulseAt,activationArrayAt,activationSweepAt,activationCoreAt];
-function soundStartAt(base){const i=Math.floor(Math.random()*activationSoundsAt.length);activationSoundsAt[i](base);return i;}
+function soundStartAt(base){const i=zelAiSecureRandomInt(activationSoundsAt.length);activationSoundsAt[i](base);return i;}
 function soundTempoAt(i,base){scheduleToneAt(180+(i*24),base,.055,.11);}
 function soundEndAt(base){scheduleToneAt(440,base,.11,.16);scheduleToneAt(330,base+.09,.13,.15);scheduleToneAt(220,base+.18,.19,.17);}
 function fractureHitAt(base){
@@ -342,7 +356,7 @@ function liveMotorStageAt(count,baseFreq,base,stageIndex,stageDt,stageWorkRatio=
   const dur={1:.82,3:.86,9:.92,36:1.04}[count]||.82;
   const spread={1:0,3:10,9:24,36:46}[count]||12;
   const gain={1:.17,3:.088,9:.042,36:.014}[count]||.06;
-  liveMachineOffset=(liveMachineOffset+3+stageIndex)%liveMachineProfiles.length;
+  liveMachineOffset=zelAiSecureRandomInt(liveMachineProfiles.length);
   for(let i=0;i<count;i++){
     const pos=count===1?0:(i/(count-1)-.5);
     const detune=((i*13)%11-5)*.38;
@@ -401,7 +415,7 @@ const liveFxBank=[
 ];
 let lastLiveFxIndex=-1;
 function randomLiveFxAt(base){
-  let i=Math.floor(Math.random()*liveFxBank.length);
+  let i=zelAiSecureRandomInt(liveFxBank.length);
   if(liveFxBank.length>1 && i===lastLiveFxIndex)i=(i+1)%liveFxBank.length;
   lastLiveFxIndex=i;
   liveFxBank[i](base);
@@ -427,20 +441,20 @@ function speakRobot(stageIndex){
   if(soundMuted||soundVolume<=0||!('speechSynthesis' in window))return;
   if(Date.now()-lastRobotSpokenAt<1200)return;
   const probability=stageIndex===0?.70:(stageIndex===3?.62:(stageIndex===6?.58:.38));
-  if(Math.random()>probability)return;
-  let i=Math.floor(Math.random()*robotPhrases.length);
+  if(zelAiRandomUnit()>probability)return;
+  let i=zelAiSecureRandomInt(robotPhrases.length);
   if(robotPhrases.length>1 && i===lastRobotPhrase)i=(i+1)%robotPhrases.length;
   lastRobotPhrase=i;
   lastRobotSpokenAt=Date.now();
   try{
     const u=new SpeechSynthesisUtterance(robotPhrases[i]);
     u.lang='fr-CA';
-    u.rate=.92+Math.random()*.16;
-    u.pitch=.48+Math.random()*.18;
+    u.rate=.92+zelAiRandomUnit()*.16;
+    u.pitch=.48+zelAiRandomUnit()*.18;
     u.volume=Math.min(1,.70*soundVolume);
     const voices=speechSynthesis.getVoices();
     const fr=voices.filter(v=>/^fr(-|_)/i.test(v.lang));
-    if(fr.length)u.voice=fr[Math.floor(Math.random()*fr.length)];
+    if(fr.length)u.voice=fr[zelAiSecureRandomInt(fr.length)];
     speechSynthesis.speak(u);
   }catch(e){}
 }
@@ -477,20 +491,24 @@ function fallbackSfxCueAt(id,base){
 }
 function soundLiveStage(stageIndex,stageDt=.65,stageWorkRatio=null,stageExecUs=null){
   if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return;
+  if(stageIndex===0&&aiSfxRandomMode&&!aiPresentationActive)zelAiRandomSfxMap();
   const base=audioCtx.currentTime+.025;
   const count=counts[stageIndex]||1;
   const mappedSfx=aiSfxStageMap[stageIndex]||null;
+  const complexity=stageWorkRatio===null?null:clamp01(Number(stageWorkRatio)||0);
+  const sonicDt=complexity===null?stageDt:Math.max(stageDt,.65+(complexity*3.35));
+  const sfxGain=complexity===null?.82:(.68+(complexity*.28));
   if(stageIndex===0){
     soundStartAt(base);
-    if(!zelSfxPlayAt(mappedSfx,base+.30,stageDt,.86))fallbackSfxCueAt(mappedSfx,base+.30);
-    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,stageDt,stageWorkRatio,stageExecUs);
-    if(stageDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex],base+1.05,stageDt-1.0,stageIndex);
+    if(!zelSfxPlayAt(mappedSfx,base+.30,sonicDt,Math.min(.96,sfxGain+.04)))fallbackSfxCueAt(mappedSfx,base+.30);
+    liveMotorStageAt(count,liveStageFreq[stageIndex],base+.52,stageIndex,sonicDt,stageWorkRatio,stageExecUs);
+    if(sonicDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex],base+1.05,sonicDt-1.0,stageIndex);
     setTimeout(()=>speakRobot(stageIndex),220);
     return;
   }
-  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,stageDt,stageWorkRatio,stageExecUs);
-  if(!zelSfxPlayAt(mappedSfx,base+.10,stageDt,.82))fallbackSfxCueAt(mappedSfx,base+.10);
-  if(stageDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex]||82,base+.72,stageDt-.62,stageIndex);
+  liveMotorStageAt(count,liveStageFreq[stageIndex]||82,base,stageIndex,sonicDt,stageWorkRatio,stageExecUs);
+  if(!zelSfxPlayAt(mappedSfx,base+.10,sonicDt,sfxGain))fallbackSfxCueAt(mappedSfx,base+.10);
+  if(sonicDt>1.4)scheduleLongWorkBedAt(liveStageFreq[stageIndex]||82,base+.72,sonicDt-.62,stageIndex);
   setTimeout(()=>speakRobot(stageIndex),120);
   if(stageIndex===6)soundEndAt(base+.72);
 }
@@ -591,15 +609,39 @@ function zelAiSelectFormula(meta){
 }
 function zelAiSelectedFormula(){return aiSelectedFormula?zelAiClone(aiSelectedFormula):null;}
 function zelAiValidSfxId(id){return /^SFX(?:0[1-9]|[12][0-9]|3[0-6])$/.test(String(id||''));}
+function zelAiRandomSfxMap(){
+  const pool=[...ZEL_SFX_IDS];
+  for(let i=pool.length-1;i>0;i--){
+    const j=zelAiSecureRandomInt(i+1);
+    [pool[i],pool[j]]=[pool[j],pool[i]];
+  }
+  const next=pool.slice(0,7);
+  for(let i=0;i<next.length;i++){
+    if(next[i]===zelLastRandomSfxMap[i]){
+      const swapIndex=pool.findIndex((id,j)=>j>=7&&id!==zelLastRandomSfxMap[i]);
+      if(swapIndex>=7)[next[i],pool[swapIndex]]=[pool[swapIndex],next[i]];
+    }
+  }
+  aiSfxStageMap=[...next];
+  zelLastRandomSfxMap=[...next];
+  if(audioCtx)zelSfxWarm(aiSfxStageMap);
+  return [...aiSfxStageMap];
+}
+function zelAiUseRandomSfx(){
+  aiSfxRandomMode=true;
+  return zelAiRandomSfxMap();
+}
 function zelAiSetSfxMap(ids){
   if(!Array.isArray(ids)||ids.length!==7)throw new TypeError('exactly seven SFX ids are required');
   const normalized=ids.map(id=>String(id||'').toUpperCase());
   if(!normalized.every(zelAiValidSfxId))throw new TypeError('SFX ids must be SFX01..SFX36');
+  aiSfxRandomMode=false;
   aiSfxStageMap=[...normalized];
   if(audioCtx)zelSfxWarm(aiSfxStageMap);
   return [...aiSfxStageMap];
 }
 function zelAiSfxMap(){return [...aiSfxStageMap];}
+function zelAiSfxMode(){return aiSfxRandomMode?'RANDOM_A_Z':'FIXED';}
 function zelAiStageExecMs(step){
   for(const key of ['exec_ms','elapsed_ms','compute_ms']){
     const n=Number(step?.[key]);
@@ -625,12 +667,24 @@ function zelAiVisibleStageMs(step,spec){
   else visible=Math.max(minMs,scaled);
   return {exec_ms:execMs,visible_ms:Math.round(Math.min(maxMs,visible)),mode:'measured'};
 }
+function zelAiComplexityRatio(step,spec,timing){
+  for(const raw of [step?.complexity_ratio,step?.work_ratio,spec?.complexity_ratio,spec?.work_ratio]){
+    const n=Number(raw);
+    if(Number.isFinite(n))return clamp01(n);
+  }
+  if(timing&&timing.exec_ms!==null){
+    const ms=Math.max(0,Number(timing.exec_ms)||0);
+    return clamp01(Math.log1p(ms)/Math.log1p(10000));
+  }
+  return null;
+}
 function zelAiDiagnostics(){
   return {
     schema:'ANTMUX-ZELSTEREOS-AI-DIAGNOSTIC-v2',
     source:'PAGE_RUNTIME',
     page:location.pathname,
     selected_formula:zelAiSelectedFormula(),
+    sfx_mode:zelAiSfxMode(),
     sfx_stage_map:zelAiSfxMap(),
     sfx_runtime:{manifest_loaded:Boolean(zelSfxManifest),manifest_count:zelSfxManifest?zelSfxManifest.count:null,loaded_buffers:zelSfxBuffers.size,loading_buffers:zelSfxLoading.size,real_assets:true},
     timing_policy:{min_stage_ms_default:350,max_stage_ms_default:60000,long_stage_real_time:true},
@@ -720,6 +774,7 @@ async function zelAiPlayCalculation(spec={}){
   if(!formula)throw new Error('ZELSTEREOS_AI_FORMULA_NOT_SELECTED');
   if(!Array.isArray(spec.stages)||spec.stages.length!==7)throw new TypeError('exactly seven calculation stages are required');
   if(spec.sfx_map)zelAiSetSfxMap(spec.sfx_map);
+  else {aiSfxRandomMode=true;zelAiRandomSfxMap();}
   const holdMs=Math.max(0,Math.min(60000,Number(spec.hold_ms)||5000));
   const traceId=String(spec.trace_id||('AI-'+Date.now())).slice(0,80);
   const startedAt=Date.now();
@@ -733,6 +788,8 @@ async function zelAiPlayCalculation(spec={}){
       if(decimal===null)throw new TypeError('stage '+i+' requires a finite numeric value');
       const exact=zelAiExactValue(step);
       const eventVersion=++aiLocalEventVersion;
+      const timing=zelAiVisibleStageMs(step,spec);
+      const complexityRatio=zelAiComplexityRatio(step,spec,timing);
       const state={
         mode:'PUBLIC_SAFE',
         read_only:true,
@@ -742,8 +799,8 @@ async function zelAiPlayCalculation(spec={}){
         channels:counts[i],
         trace_points:i+1,
         trace_total:7,
-        stage_exec_us:0,
-        stage_work_ratio:i/6,
+        stage_exec_us:timing.exec_ms===null?0:Math.round(timing.exec_ms*1000),
+        stage_work_ratio:complexityRatio,
         public_values:[{exact,decimal}],
         public_values_total:1,
         global_error:{
@@ -778,12 +835,11 @@ async function zelAiPlayCalculation(spec={}){
         transport_replay:false,
         trace_id:traceId
       };
-      const timing=zelAiVisibleStageMs(step,spec);
-      state.stage_exec_us=timing.exec_ms===null?0:Math.round(timing.exec_ms*1000);
       state.stage_visible_ms=timing.visible_ms;
+      state.complexity_ratio=complexityRatio;
       state.sfx_id=aiSfxStageMap[i]||null;
-      render(state,{audioFromWebSocket:true,stageDt:timing.visible_ms/1000,stageWorkRatio:i/6,stageExecUs:state.stage_exec_us});
-      rendered.push({stage_index:i,stage:names[i],channels:counts[i],exact,decimal,label:state.events[0].label,detail:state.events[0].detail,exec_ms:timing.exec_ms,visible_ms:timing.visible_ms,timing_mode:timing.mode,sfx_id:state.sfx_id});
+      render(state,{audioFromWebSocket:true,stageDt:timing.visible_ms/1000,stageWorkRatio:complexityRatio,stageExecUs:state.stage_exec_us});
+      rendered.push({stage_index:i,stage:names[i],channels:counts[i],exact,decimal,label:state.events[0].label,detail:state.events[0].detail,exec_ms:timing.exec_ms,visible_ms:timing.visible_ms,timing_mode:timing.mode,complexity_ratio:complexityRatio,sfx_id:state.sfx_id});
       if(i<6)await new Promise(resolve=>setTimeout(resolve,timing.visible_ms));
     }
     aiPresentationActive=false;
@@ -812,6 +868,9 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     selectFormula:zelAiSelectFormula,
     selectedFormula:zelAiSelectedFormula,
     setSfxMap:zelAiSetSfxMap,
+    useRandomSfx:zelAiUseRandomSfx,
+    randomSfxMap:zelAiRandomSfxMap,
+    sfxMode:zelAiSfxMode,
     sfxMap:zelAiSfxMap,
     preloadSfx:zelSfxWarmAll,
     playCalculation:zelAiPlayCalculation
