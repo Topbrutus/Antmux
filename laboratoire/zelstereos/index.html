@@ -764,6 +764,7 @@ const zelFormulaBanks=new Map();
 let zelLastFormulaWave=null;
 let zelLastFormulaCascade=null;
 let zelCanonicalBankReady=null;
+let zelProfileBankReady=null;
 let zelEvolutionBanksReady=null;
 let zelLastEvolutionCascade=null;
 const zelEvolutionFormulaRegistry=new Map();
@@ -925,6 +926,498 @@ function zelCanonicalMathDefinitions(){
 function zelRegisterCanonicalMathBank(){
   if(!zelCanonicalBankReady)zelCanonicalBankReady=zelFormulaRegisterBank('MATH/GEOMETRY',zelCanonicalMathDefinitions(),{batch_size:64});
   return zelCanonicalBankReady;
+}
+
+function zelProfileZenodoAudit(){
+  return Object.freeze([
+    Object.freeze({record:22962484,doi:'10.5281/zenodo.22962484',repo:'Topbrutus/brutus-offset-test',commit:'c3f2c958fe28503f09b7dd3086ca64470ef23eb0',status:'FORMULA'}),
+    Object.freeze({record:22961910,doi:'10.5281/zenodo.22961910',repo:'Topbrutus/brutus-coefficient-2401',commit:'3f6f0e1bbf6c70dd88eb4e9a04f9e422c486c0f0',status:'FORMULA'}),
+    Object.freeze({record:22970274,doi:'10.5281/zenodo.22970274',repo:'Topbrutus/brutus-pell-connected-spectrum',commit:'711d5b6a0f4789149bd3edf4ecfc485da0f9f512',status:'FORMULA'}),
+    Object.freeze({record:22970584,doi:'10.5281/zenodo.22970584',repo:null,commit:null,status:'EXCLUDED_USER_REQUEST',reason:'BOSON_DE_BRUTUS'}),
+    Object.freeze({record:22970270,doi:'10.5281/zenodo.22970270',repo:'Topbrutus/brutus-pell-square-rank-relation',commit:'aa08bd336662dea0b6c836c273cf7f7d59f4a672',status:'FORMULA'}),
+    Object.freeze({record:22963075,doi:'10.5281/zenodo.22963075',repo:'Topbrutus/brutus-failure-mode',commit:'783a812a0b305e668697db355118f8fc25ea66f3',status:'FORMULA'}),
+    Object.freeze({record:22970272,doi:'10.5281/zenodo.22970272',repo:'Topbrutus/brutus-control-plane',commit:null,status:'NON_FORMULA_ARCHITECTURE'}),
+    Object.freeze({record:22963802,doi:'10.5281/zenodo.22963802',repo:'Topbrutus/brutus-candidate-relation',commit:'f9c90f4bacadfac5d87fe75cab23b349e96aace9',status:'FORMULA'}),
+    Object.freeze({record:22965557,doi:'10.5281/zenodo.22965557',repo:'Topbrutus/brutus-pell-atlas',commit:'3fcfba5b4b6f5f2dd26d1722baa8ebefaf39072b',status:'FORMULA'}),
+    Object.freeze({record:22865069,doi:'10.5281/zenodo.22865069',repo:'Topbrutus/Antmux',commit:'d9b1ebd4f0184caa9f537ed64b2bf5ff0e4eba5e',status:'FORMULA'}),
+    Object.freeze({record:22963493,doi:'10.5281/zenodo.22963493',repo:'Topbrutus/brutus-correction',commit:'df849f10746f376d092bd7894f57d6a5cbef220f',status:'FORMULA'}),
+    Object.freeze({record:22969353,doi:'10.5281/zenodo.22969353',repo:'Topbrutus/brutus-2401-femtosecond-offset',commit:'e8620aa6877ce5ca39104a3b2596812b479092da',status:'FORMULA'}),
+    Object.freeze({record:22962746,doi:'10.5281/zenodo.22962746',repo:'Topbrutus/brutus-drift',commit:'ba675db409f1c919c0a08671e70b278865e5a843',status:'FORMULA'})
+  ]);
+}
+function zelProfileGcd(a,b){
+  a=a<0n?-a:a;
+  b=b<0n?-b:b;
+  while(b!==0n){
+    const r=a%b;
+    a=b;
+    b=r;
+  }
+  return a||1n;
+}
+function zelProfileFrac(value){
+  if(value&&typeof value==='object'&&typeof value.n==='bigint'&&typeof value.d==='bigint'){
+    if(value.d===0n)throw new RangeError('zero denominator');
+    let n=value.n,d=value.d;
+    if(d<0n){n=-n;d=-d;}
+    const g=zelProfileGcd(n,d);
+    return Object.freeze({n:n/g,d:d/g});
+  }
+  if(typeof value==='bigint')return Object.freeze({n:value,d:1n});
+  if(typeof value!=='string'&&typeof value!=='number')throw new TypeError('exact decimal value required');
+  const s=String(value).trim();
+  const m=s.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  if(!m)throw new TypeError('invalid exact decimal: '+s);
+  const sign=m[1]==='-'?-1n:1n;
+  const frac=m[3]||'';
+  const exp=Number(m[4]||0);
+  if(!Number.isSafeInteger(exp)||Math.abs(exp)>1000)throw new RangeError('decimal exponent out of range');
+  let n=BigInt((m[2]+frac)||'0')*sign;
+  const scale=frac.length-exp;
+  let d=1n;
+  if(scale>=0)d=10n**BigInt(scale);
+  else n*=10n**BigInt(-scale);
+  return zelProfileFrac({n,d});
+}
+function zelProfileAdd(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  return zelProfileFrac({n:a.n*b.d+b.n*a.d,d:a.d*b.d});
+}
+function zelProfileSub(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  return zelProfileFrac({n:a.n*b.d-b.n*a.d,d:a.d*b.d});
+}
+function zelProfileMul(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  return zelProfileFrac({n:a.n*b.n,d:a.d*b.d});
+}
+function zelProfileDiv(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  if(b.n===0n)throw new RangeError('division by zero');
+  return zelProfileFrac({n:a.n*b.d,d:a.d*b.n});
+}
+function zelProfileAbs(a){
+  a=zelProfileFrac(a);
+  return Object.freeze({n:a.n<0n?-a.n:a.n,d:a.d});
+}
+function zelProfileCmp(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  const d=a.n*b.d-b.n*a.d;
+  return d<0n?-1:d>0n?1:0;
+}
+function zelProfileFracText(a){
+  a=zelProfileFrac(a);
+  return a.d===1n?a.n.toString():(a.n.toString()+'/'+a.d.toString());
+}
+function zelProfileFracValue(a){
+  a=zelProfileFrac(a);
+  return Object.freeze({exact:zelProfileFracText(a),decimal:Number(a.n)/Number(a.d)});
+}
+function zelProfilePositive(a,label){
+  a=zelProfileFrac(a);
+  if(a.n<=0n)throw new RangeError((label||'value')+' must be > 0');
+  return a;
+}
+function zelProfileNonNegative(a,label){
+  a=zelProfileFrac(a);
+  if(a.n<0n)throw new RangeError((label||'value')+' must be >= 0');
+  return a;
+}
+function zelProfileOffsetCore(input){
+  if(!input||typeof input!=='object')throw new TypeError('offset input object required');
+  const f0=zelProfilePositive(input.f0,'f0');
+  const fobs=zelProfilePositive(input.f_obs,'f_obs');
+  const target=zelProfileFrac(input.target_dt??0);
+  const tol=zelProfileNonNegative(input.tolerance??0,'tolerance');
+  const one=zelProfileFrac(1);
+  const dtObs=zelProfileSub(zelProfileDiv(one,f0),zelProfileDiv(one,fobs));
+  const residual=zelProfileSub(dtObs,target);
+  const expectedDen=zelProfileSub(zelProfileDiv(one,f0),target);
+  if(expectedDen.n===0n)throw new RangeError('expected frequency denominator is zero');
+  const fStar=zelProfileDiv(one,expectedDen);
+  const rf=zelProfileSub(fobs,fStar);
+  return Object.freeze({
+    delta_t_obs:zelProfileFracValue(dtObs),
+    residual_t:zelProfileFracValue(residual),
+    expected_frequency:zelProfileFracValue(fStar),
+    residual_f:zelProfileFracValue(rf),
+    tolerance:zelProfileFracValue(tol),
+    pass:zelProfileCmp(zelProfileAbs(residual),tol)<=0
+  });
+}
+function zelProfilePellRank(m,maxSteps=100000){
+  const M=BigInt(m);
+  if(M<1n)throw new RangeError('m must be >= 1');
+  const max=Math.trunc(Number(maxSteps));
+  if(!Number.isInteger(max)||max<1||max>1000000)throw new RangeError('max_steps must be 1..1000000');
+  let p0=0n,p1=1n%M;
+  for(let k=1;k<=max;k++){
+    if(p1===0n)return k;
+    const next=(2n*p1+p0)%M;
+    p0=p1;
+    p1=next;
+  }
+  return null;
+}
+function zelProfileFormulaDefinitions(){
+  const p=(doi,repo,commit)=>'ZENODO:'+doi+';GITHUB:'+repo+'@'+commit;
+  const defs=[
+    Object.freeze({
+      formula_id:'GSP-ZENODO-001',
+      name:'Brutus Offset Test',
+      normalized_formula:'deltaT_obs=1/f0-1/f_obs; r_T=deltaT_obs-deltaT_*; PASS iff |r_T|<=tau_T',
+      domain:'f0>0, f_obs>0 exact decimals; target_dt exact decimal; tolerance>=0',
+      provenance_ref:p('10.5281/zenodo.22962484','Topbrutus/brutus-offset-test','c3f2c958fe28503f09b7dd3086ca64470ef23eb0'),
+      accepts:input=>{try{zelProfileOffsetCore(input);return true;}catch(e){return false;}},
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const dt=zelProfileFrac('1e-15');
+        const f=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt)));
+        const r=zelProfileOffsetCore({f0:'240.1',f_obs:zelProfileFracText(f),target_dt:'1e-15',tolerance:'0'});
+        return {ok:r.pass,checks:[r.residual_t.exact]};
+      },
+      evaluate:input=>({status:'PASS',value:zelProfileOffsetCore(input)})
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-002',
+      name:'Brutus Coefficient at 240.1 Hz',
+      normalized_formula:'B_240.1=f0^2=57648.01; Delta f=(B*deltaT)/(1-f0*deltaT)',
+      domain:'fixed f0=240.1 Hz; optional delta_t exact decimal',
+      provenance_ref:p('10.5281/zenodo.22961910','Topbrutus/brutus-coefficient-2401','3f6f0e1bbf6c70dd88eb4e9a04f9e422c486c0f0'),
+      accepts:input=>input===undefined||input===null||typeof input==='object',
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const B=zelProfileMul(f0,f0);
+        return {ok:zelProfileFracText(B)==='5764801/100',checks:[zelProfileFracText(B)]};
+      },
+      evaluate:input=>{
+        const f0=zelProfileFrac('240.1');
+        const B=zelProfileMul(f0,f0);
+        const dt=zelProfileFrac(input?.delta_t??'1e-15');
+        const denom=zelProfileSub(1,zelProfileMul(f0,dt));
+        const df=zelProfileDiv(zelProfileMul(B,dt),denom);
+        return {status:'PASS',value:{
+          f0:zelProfileFracValue(f0),
+          coefficient:zelProfileFracValue(B),
+          delta_t:zelProfileFracValue(dt),
+          delta_f:zelProfileFracValue(df)
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-003',
+      name:'Brutus-Pell Connected Spectrum',
+      normalized_formula:'S_Q(u)=E[prod_q(1+uZ_q)]; K_Q(u)=log S_Q(u)-sum_{q<r}log(1+p_qr u^2)',
+      domain:'finite centered sample rows of equal width; |E[Z_q]|<=1e-12; positive logarithm arguments',
+      provenance_ref:p('10.5281/zenodo.22970274','Topbrutus/brutus-pell-connected-spectrum','711d5b6a0f4789149bd3edf4ecfc485da0f9f512'),
+      accepts:input=>Array.isArray(input?.samples)&&input.samples.length>0&&input.samples.length<=10000&&Number.isFinite(Number(input?.u)),
+      verify:()=>{
+        const samples=[[1,1],[1,-1],[-1,1],[-1,-1]];
+        const u=.1;
+        const means=[0,1].map(q=>samples.reduce((s,r)=>s+r[q],0)/samples.length);
+        const S=samples.reduce((s,r)=>s+r.reduce((prod,z)=>prod*(1+u*z),1),0)/samples.length;
+        const p12=samples.reduce((s,r)=>s+r[0]*r[1],0)/samples.length;
+        const K=Math.log(S)-Math.log(1+p12*u*u);
+        return {ok:means.every(x=>Math.abs(x)<1e-12)&&Math.abs(K)<1e-12,checks:[S,p12,K]};
+      },
+      evaluate:input=>{
+        const samples=input.samples;
+        const u=Number(input.u);
+        const cols=samples[0]?.length||0;
+        if(cols<1||cols>32||!samples.every(r=>Array.isArray(r)&&r.length===cols&&r.every(Number.isFinite)))throw new RangeError('invalid connected-spectrum sample matrix');
+        const means=Array.from({length:cols},(_,q)=>samples.reduce((s,r)=>s+r[q],0)/samples.length);
+        if(!means.every(x=>Math.abs(x)<=1e-12))throw new RangeError('connected-spectrum samples must be centered');
+        const S=samples.reduce((s,r)=>s+r.reduce((prod,z)=>prod*(1+u*z),1),0)/samples.length;
+        if(!(S>0))throw new RangeError('S_Q(u) must be positive');
+        const pairs=[];
+        let pairLog=0;
+        for(let q=0;q<cols;q++)for(let r=q+1;r<cols;r++){
+          const pq=samples.reduce((s,row)=>s+row[q]*row[r],0)/samples.length;
+          const factor=1+pq*u*u;
+          if(!(factor>0))throw new RangeError('pair logarithm argument must be positive');
+          pairLog+=Math.log(factor);
+          pairs.push({q,r,p_qr:pq});
+        }
+        return {status:'PASS',value:{S_Q:S,K_Q:Math.log(S)-pairLog,means,pairs}};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-004',
+      name:'Brutus-Pell Square-Rank Relation',
+      normalized_formula:'z_P(21^k)=4*21^(k-1); for k=2r+1, z_P(21^(2r+1))=(2*21^r)^2',
+      domain:'integer k in [2,50]',
+      provenance_ref:p('10.5281/zenodo.22970270','Topbrutus/brutus-pell-square-rank-relation','aa08bd336662dea0b6c836c273cf7f7d59f4a672'),
+      accepts:input=>Number.isInteger(input?.k)&&input.k>=2&&input.k<=50,
+      verify:()=>{
+        const rank=4n*(21n**2n);
+        const side=2n*21n;
+        return {ok:rank===1764n&&side*side===rank,checks:[rank.toString()]};
+      },
+      evaluate:input=>{
+        const k=input.k;
+        const rank=4n*(21n**BigInt(k-1));
+        const odd=k>=3&&k%2===1;
+        const r=odd?(k-1)/2:null;
+        const side=odd?2n*(21n**BigInt(r)):null;
+        return {status:'PASS',value:{
+          k,
+          rank:rank.toString(),
+          square_rank:odd,
+          root:side?.toString()??null,
+          square_check:odd?side*side===rank:null
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-005',
+      name:'Brutus Failure Mode',
+      normalized_formula:'K=sum_i 1(|r_i|>tau); reproduced iff K>=K_min',
+      domain:'finite exact residual list; tolerance>=0; integer K_min in [0,N]',
+      provenance_ref:p('10.5281/zenodo.22963075','Topbrutus/brutus-failure-mode','783a812a0b305e668697db355118f8fc25ea66f3'),
+      accepts:input=>Array.isArray(input?.residuals)&&input.residuals.length<=10000&&Number.isInteger(input?.k_min),
+      verify:()=>{
+        const rs=['0','2e-18','3e-18','2.5e-18','0.5e-18'];
+        const tau=zelProfileFrac('1e-18');
+        const failed=rs.map(zelProfileFrac).filter(x=>zelProfileCmp(zelProfileAbs(x),tau)>0);
+        return {ok:failed.length===3,checks:[failed.length]};
+      },
+      evaluate:input=>{
+        const residuals=input.residuals.map(zelProfileFrac);
+        const tau=zelProfileNonNegative(input.tolerance,'tolerance');
+        const kmin=input.k_min;
+        if(kmin<0||kmin>residuals.length)throw new RangeError('k_min out of range');
+        const failed=residuals.filter(x=>zelProfileCmp(zelProfileAbs(x),tau)>0);
+        const signs=new Set(failed.map(x=>x.n>0n?'POSITIVE':x.n<0n?'NEGATIVE':'ZERO'));
+        const signature=failed.length===0?'NONE':signs.size===1?(signs.has('POSITIVE')?'POSITIVE':signs.has('NEGATIVE')?'NEGATIVE':'NONE'):'MIXED';
+        return {status:'PASS',value:{
+          N:residuals.length,
+          K:failed.length,
+          failure_rate:residuals.length?failed.length/residuals.length:0,
+          signature,
+          reproduced:failed.length>=kmin
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-006',
+      name:'Brutus Candidate Relation Error Gate',
+      normalized_formula:'E=|y_c-y_r|; SURVIVES_TEST iff E<=tau; REJECTED iff E>tau',
+      domain:'candidate, reference exact decimals; tolerance>=0',
+      provenance_ref:p('10.5281/zenodo.22963802','Topbrutus/brutus-candidate-relation','f9c90f4bacadfac5d87fe75cab23b349e96aace9'),
+      accepts:input=>input&&typeof input==='object'&&input.candidate!==undefined&&input.reference!==undefined&&input.tolerance!==undefined,
+      verify:()=>{
+        const E=zelProfileAbs(zelProfileSub('3','3.0001'));
+        const t=zelProfileFrac('.001');
+        return {ok:zelProfileCmp(E,t)<=0,checks:[zelProfileFracText(E)]};
+      },
+      evaluate:input=>{
+        const E=zelProfileAbs(zelProfileSub(input.candidate,input.reference));
+        const tau=zelProfileNonNegative(input.tolerance,'tolerance');
+        const survives=zelProfileCmp(E,tau)<=0;
+        return {status:'PASS',value:{
+          error:zelProfileFracValue(E),
+          tolerance:zelProfileFracValue(tau),
+          decision:survives?'SURVIVES_TEST':'REJECTED'
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-007',
+      name:'Brutus-Pell Atlas Rank/Fiber',
+      normalized_formula:'P_0=0; P_1=1; P_(n+2)=2P_(n+1)+P_n; z_P(m)=min{k>=1:m|P_k}; F_C={m:z_P(m)=C^2}',
+      domain:'positive exact integer m; max_steps integer 1..1000000',
+      provenance_ref:p('10.5281/zenodo.22965557','Topbrutus/brutus-pell-atlas','3fcfba5b4b6f5f2dd26d1722baa8ebefaf39072b'),
+      accepts:input=>{
+        try{
+          const m=BigInt(input?.m);
+          return m>=1n&&Number.isInteger(input?.max_steps??100000);
+        }catch(e){return false;}
+      },
+      verify:()=>{
+        const a=zelProfilePellRank(13n,100);
+        const b=zelProfilePellRank(73n,100);
+        return {ok:a===7&&b===36,checks:[a,b]};
+      },
+      evaluate:input=>{
+        const m=BigInt(input.m);
+        const rank=zelProfilePellRank(m,input.max_steps??100000);
+        if(rank===null)return {status:'DOMAIN',value:null,trace:[{reason:'RANK_NOT_FOUND_WITHIN_BOUND'}]};
+        const root=Math.trunc(Math.sqrt(rank));
+        const square=root*root===rank;
+        return {status:'PASS',value:{m:m.toString(),rank,square_rank:square,fiber_root:square?root:null}};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-008',
+      name:"ANTMUX-X72 Da'at Center/Differential",
+      normalized_formula:'B_i=(G_i+D_i)/2; A_i=(G_i-D_i)/2; G_i=B_i+A_i; D_i=B_i-A_i',
+      domain:'finite scalar pair or equal-length finite arrays G,D',
+      provenance_ref:p('10.5281/zenodo.22865069','Topbrutus/Antmux','d9b1ebd4f0184caa9f537ed64b2bf5ff0e4eba5e'),
+      accepts:input=>{
+        const G=Array.isArray(input?.G)?input.G:[input?.G];
+        const D=Array.isArray(input?.D)?input.D:[input?.D];
+        return G.length===D.length&&G.length>0&&G.length<=2401&&G.every(Number.isFinite)&&D.every(Number.isFinite);
+      },
+      verify:()=>{
+        const G=[1,2,-3];
+        const D=[5,-2,7];
+        const B=G.map((x,i)=>(x+D[i])/2);
+        const A=G.map((x,i)=>(x-D[i])/2);
+        return {ok:G.every((x,i)=>B[i]+A[i]===x)&&D.every((x,i)=>B[i]-A[i]===x),checks:[B,A]};
+      },
+      evaluate:input=>{
+        const scalar=!Array.isArray(input.G)&&!Array.isArray(input.D);
+        const G=scalar?[Number(input.G)]:input.G.map(Number);
+        const D=scalar?[Number(input.D)]:input.D.map(Number);
+        const B=G.map((x,i)=>(x+D[i])/2);
+        const A=G.map((x,i)=>(x-D[i])/2);
+        const Gr=B.map((x,i)=>x+A[i]);
+        const Dr=B.map((x,i)=>x-A[i]);
+        return {status:'PASS',value:{
+          B:scalar?B[0]:B,
+          A:scalar?A[0]:A,
+          G_reconstructed:scalar?Gr[0]:Gr,
+          D_reconstructed:scalar?Dr[0]:Dr
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-009',
+      name:'ANTMUX-X72 Ordered Path Capacity',
+      normalized_formula:'12! = 479001600',
+      domain:'canonical 12-channel architecture',
+      provenance_ref:p('10.5281/zenodo.22865069','Topbrutus/Antmux','d9b1ebd4f0184caa9f537ed64b2bf5ff0e4eba5e'),
+      accepts:input=>input===undefined||input===null||input===12||input?.channels===12,
+      verify:()=>{
+        let f=1n;
+        for(let i=2n;i<=12n;i++)f*=i;
+        return {ok:f===479001600n,checks:[f.toString()]};
+      },
+      evaluate:()=>({status:'PASS',value:{channels:12,ordered_paths:'479001600'}})
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-010',
+      name:'Brutus Correction',
+      normalized_formula:"C_T=g*r_T; T_c=1/f_obs+C_T; f_c=1/T_c; r_T'=(1-g)r_T",
+      domain:'f0>0, f_obs>0 exact decimals; target_dt exact; gain g in [0,1]',
+      provenance_ref:p('10.5281/zenodo.22963493','Topbrutus/brutus-correction','df849f10746f376d092bd7894f57d6a5cbef220f'),
+      accepts:input=>{
+        try{
+          const g=zelProfileFrac(input?.gain);
+          return zelProfileCmp(g,0)>=0&&zelProfileCmp(g,1)<=0&&!!zelProfileOffsetCore({...input,tolerance:0});
+        }catch(e){return false;}
+      },
+      verify:()=>{
+        const r=zelProfileFrac('2e-15');
+        const g=zelProfileFrac('.5');
+        return {ok:zelProfileFracText(zelProfileMul(zelProfileSub(1,g),r))==='1/1000000000000000',checks:['half residual']};
+      },
+      evaluate:input=>{
+        const f0=zelProfilePositive(input.f0,'f0');
+        const fobs=zelProfilePositive(input.f_obs,'f_obs');
+        const target=zelProfileFrac(input.target_dt);
+        const g=zelProfileFrac(input.gain);
+        if(zelProfileCmp(g,0)<0||zelProfileCmp(g,1)>0)throw new RangeError('gain must be in [0,1]');
+        const dtObs=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,fobs));
+        const r=zelProfileSub(dtObs,target);
+        const ct=zelProfileMul(g,r);
+        const tc=zelProfileAdd(zelProfileDiv(1,fobs),ct);
+        const fc=zelProfileDiv(1,tc);
+        const rp=zelProfileMul(zelProfileSub(1,g),r);
+        const cf=zelProfileSub(fc,fobs);
+        return {status:'PASS',value:{
+          residual_initial:zelProfileFracValue(r),
+          period_correction:zelProfileFracValue(ct),
+          corrected_frequency:zelProfileFracValue(fc),
+          residual_final:zelProfileFracValue(rp),
+          frequency_correction:zelProfileFracValue(cf)
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-011',
+      name:'240.1 Hz / 1 fs Period-Offset Construction',
+      normalized_formula:'1/240.1-1/f=1e-15; f=240.1/(1-240.1e-15); N=2401',
+      domain:'canonical published construction; no physical-identification claim',
+      provenance_ref:p('10.5281/zenodo.22969353','Topbrutus/brutus-2401-femtosecond-offset','e8620aa6877ce5ca39104a3b2596812b479092da'),
+      accepts:()=>true,
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const dt=zelProfileFrac('1e-15');
+        const f=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt)));
+        const df=zelProfileSub(f,f0);
+        const reconstructed=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,f));
+        return {ok:zelProfileCmp(reconstructed,dt)===0&&df.n>0n,checks:[zelProfileFracText(reconstructed)]};
+      },
+      evaluate:()=>{
+        const f0=zelProfileFrac('240.1');
+        const dt=zelProfileFrac('1e-15');
+        const N=zelProfileFrac(2401);
+        const f=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt)));
+        const df=zelProfileSub(f,f0);
+        return {status:'PASS',value:{
+          f0:zelProfileFracValue(f0),
+          delta_t:zelProfileFracValue(dt),
+          f:zelProfileFracValue(f),
+          delta_f:zelProfileFracValue(df),
+          scaled_reference:zelProfileFracValue(zelProfileMul(N,f0)),
+          scaled_candidate:zelProfileFracValue(zelProfileMul(N,f)),
+          scaled_residual:zelProfileFracValue(zelProfileMul(N,df))
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-012',
+      name:'Brutus Drift',
+      normalized_formula:'D_T=(1/f1-1/f2)/(t2-t1); D_f=(f2-f1)/(t2-t1)',
+      domain:'f0,f1,f2>0 exact decimals; exact times with t2>t1',
+      provenance_ref:p('10.5281/zenodo.22962746','Topbrutus/brutus-drift','ba675db409f1c919c0a08671e70b278865e5a843'),
+      accepts:input=>{
+        try{
+          return zelProfileCmp(input?.t2,input?.t1)>0&&zelProfileFrac(input?.f1).n>0n&&zelProfileFrac(input?.f2).n>0n;
+        }catch(e){return false;}
+      },
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const onefs=zelProfileFrac('1e-15');
+        const twofs=zelProfileFrac('2e-15');
+        const f1=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,onefs)));
+        const f2=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,twofs)));
+        const dt=zelProfileFrac(10);
+        const D=zelProfileDiv(zelProfileSub(zelProfileDiv(1,f1),zelProfileDiv(1,f2)),dt);
+        return {ok:zelProfileFracText(D)==='1/10000000000000000',checks:[zelProfileFracText(D)]};
+      },
+      evaluate:input=>{
+        const f0=zelProfilePositive(input.f0,'f0');
+        const f1=zelProfilePositive(input.f1,'f1');
+        const f2=zelProfilePositive(input.f2,'f2');
+        const t1=zelProfileFrac(input.t1);
+        const t2=zelProfileFrac(input.t2);
+        const dt=zelProfileSub(t2,t1);
+        if(dt.n<=0n)throw new RangeError('t2 must be greater than t1');
+        const d1=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,f1));
+        const d2=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,f2));
+        const dd=zelProfileSub(d2,d1);
+        const DT=zelProfileDiv(dd,dt);
+        const DTs=zelProfileDiv(zelProfileSub(zelProfileDiv(1,f1),zelProfileDiv(1,f2)),dt);
+        const Df=zelProfileDiv(zelProfileSub(f2,f1),dt);
+        return {status:'PASS',value:{
+          delta_t1:zelProfileFracValue(d1),
+          delta_t2:zelProfileFracValue(d2),
+          delta_delta_t:zelProfileFracValue(dd),
+          period_drift:zelProfileFracValue(DT),
+          period_drift_simplified:zelProfileFracValue(DTs),
+          frequency_drift:zelProfileFracValue(Df),
+          simplification_exact:zelProfileCmp(DT,DTs)===0
+        }};
+      }
+    })
+  ];
+  return Object.freeze(defs);
+}
+function zelRegisterProfileFormulaBank(){
+  if(!zelProfileBankReady)zelProfileBankReady=zelFormulaRegisterBank('PROFILE/GABRIEL-ST-PIERRE/ZENODO',zelProfileFormulaDefinitions(),{batch_size:32});
+  return zelProfileBankReady;
 }
 
 function zelEvolutionExactInt(value){
@@ -2186,6 +2679,9 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
       provenance_ref:def.provenance_ref
     })),
     canonicalBankReady:zelRegisterCanonicalMathBank,
+    profileZenodoAudit:()=>zelAiClone(zelProfileZenodoAudit()),
+    profileFormulaDefinitions:()=>zelProfileFormulaDefinitions().map(def=>({formula_id:def.formula_id,name:def.name,normalized_formula:def.normalized_formula,domain:def.domain,provenance_ref:def.provenance_ref})),
+    profileFormulaBankReady:zelRegisterProfileFormulaBank,
     formulaBanks:()=>zelAiClone(zelFormulaBankInfo()),
     runFormulaWave:zelFormulaRunWave,
     runFormulaCascade:zelFormulaRunCascade,
@@ -2223,6 +2719,7 @@ async function poll(){
 }
 buildStages();
 zelRegisterCanonicalMathBank().catch(err=>console.error('ZEL_CANONICAL_BANK_REJECTED',err));
+zelRegisterProfileFormulaBank().catch(err=>console.error('ZEL_PROFILE_BANK_REJECTED',err));
 zelRegisterEvolutionSeedBanks().catch(err=>console.error('ZEL_ENTITY38_BANK_REJECTED',err));
 connectZelWebSocket();
 poll();
