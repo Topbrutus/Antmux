@@ -770,6 +770,21 @@ let zelLastEvolutionCascade=null;
 const zelEvolutionFormulaRegistry=new Map();
 const zelEvolutionBankState=new Map();
 const zelEvolutionPromotionHistory=[];
+const ZEL_TRIPLE_SLOT_IDS=Object.freeze(['A','B','C']);
+let zelTripleRunCounter=0;
+let zelTripleWorker=null;
+let zelTripleSlots=ZEL_TRIPLE_SLOT_IDS.map((id,index)=>({
+  slot:index+1,
+  instance_id:'Z-'+id,
+  status:'EMPTY',
+  input:null,
+  queued_at:null,
+  started_at:null,
+  completed_at:null,
+  cascade_id:null,
+  result:null,
+  error:null
+}));
 
 function zelCanonicalMathDefinitions(){
   const provenance='antmux_formula.py#verifier';
@@ -2138,6 +2153,124 @@ async function zelEvolutionRunAudioTest(spec={}){
   }
 }
 
+
+function zelTripleSequentialSnapshot(){
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-TRIPLE-SEQUENTIAL-v1',
+    mode:'THREE_INSTANCES_ONE_AFTER_ANOTHER',
+    sound_mode:'UNCHANGED_SERIAL_AUDIO',
+    capacity:3,
+    busy:zelTripleSlots.some(x=>x.status==='QUEUED'||x.status==='RUNNING'),
+    filled:zelTripleSlots.filter(x=>x.status!=='EMPTY').length,
+    completed:zelTripleSlots.filter(x=>['PASS','FAIL','ERROR'].includes(x.status)).length,
+    slots:Object.freeze(zelTripleSlots.map(x=>Object.freeze({
+      slot:x.slot,
+      instance_id:x.instance_id,
+      status:x.status,
+      input:x.input,
+      queued_at:x.queued_at,
+      started_at:x.started_at,
+      completed_at:x.completed_at,
+      cascade_id:x.cascade_id,
+      result:x.result?Object.freeze({...x.result}):null,
+      error:x.error
+    })))
+  });
+}
+function zelTripleSequentialReset(){
+  if(zelTripleSlots.some(x=>x.status==='QUEUED'||x.status==='RUNNING'))throw new Error('TRIPLE_Z_BUSY');
+  zelTripleRunCounter++;
+  zelTripleSlots=ZEL_TRIPLE_SLOT_IDS.map((id,index)=>({
+    slot:index+1,
+    instance_id:'Z-'+id,
+    status:'EMPTY',
+    input:null,
+    queued_at:null,
+    started_at:null,
+    completed_at:null,
+    cascade_id:null,
+    result:null,
+    error:null
+  }));
+  return zelTripleSequentialSnapshot();
+}
+async function zelTripleSequentialWaitForAudioClear(){
+  const waitMs=Math.max(0,Number(aiPresentationHoldUntil||0)-Date.now())+100;
+  if(waitMs>0)await new Promise(resolve=>setTimeout(resolve,waitMs));
+}
+async function zelTripleSequentialPump(){
+  if(zelTripleWorker)return zelTripleWorker;
+  zelTripleWorker=(async()=>{
+    while(true){
+      const slot=zelTripleSlots.find(x=>x.status==='QUEUED');
+      if(!slot)break;
+      slot.status='RUNNING';
+      slot.started_at=Date.now();
+      slot.cascade_id='TRIPLE-'+String(zelTripleRunCounter).padStart(4,'0')+'-'+slot.instance_id+'-'+slot.started_at;
+      try{
+        const run=await zelEvolutionRunAudioTest({
+          input:slot.input,
+          cascade_id:slot.cascade_id
+        });
+        const cascade=run.cascade;
+        slot.result={
+          ok:run.ok===true,
+          status:cascade?.status||'ERROR',
+          outputs:Array.from(cascade?.actual_outputs||[]),
+          z_transformations:cascade?.total_formula_evaluations??null,
+          zenodo_formula_evaluations:cascade?.zenodo_formula_evaluations??null,
+          f006_checked:cascade?.invariant_guards?.total?.checked??null,
+          total_calculation_events:cascade?.total_calculation_events??null,
+          inverse_ok:cascade?.inverse_verification?.ok===true,
+          inverse_verified:cascade?.inverse_verification?.verified??null,
+          final_nodes:cascade?.final_nodes?.length??null,
+          verdict:run.audio?.verdict?.cue||null
+        };
+        slot.status=run.ok===true?'PASS':'FAIL';
+      }catch(err){
+        slot.status='ERROR';
+        slot.error=String(err?.message||err);
+      }finally{
+        slot.completed_at=Date.now();
+      }
+      await zelTripleSequentialWaitForAudioClear();
+    }
+    return zelTripleSequentialSnapshot();
+  })().finally(()=>{
+    zelTripleWorker=null;
+    if(zelTripleSlots.some(x=>x.status==='QUEUED')){
+      zelTripleSequentialPump().catch(err=>console.error('ZEL_TRIPLE_SEQUENTIAL_REJECTED',err));
+    }
+  });
+  return zelTripleWorker;
+}
+function zelTripleSequentialSubmit(input){
+  const exact=zelEvolutionExactInt(input).toString();
+  const slot=zelTripleSlots.find(x=>x.status==='EMPTY');
+  if(!slot)throw new RangeError('TRIPLE_Z_QUEUE_FULL');
+  slot.input=exact;
+  slot.status='QUEUED';
+  slot.queued_at=Date.now();
+  slot.error=null;
+  zelTripleSequentialPump().catch(err=>console.error('ZEL_TRIPLE_SEQUENTIAL_REJECTED',err));
+  return zelTripleSequentialSnapshot();
+}
+async function zelTripleSequentialWait(){
+  while(true){
+    const worker=zelTripleWorker;
+    if(worker)await worker;
+    const busy=zelTripleSlots.some(x=>x.status==='QUEUED'||x.status==='RUNNING');
+    if(!busy)return zelTripleSequentialSnapshot();
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
+}
+async function zelTripleSequentialRun(inputs){
+  if(!Array.isArray(inputs)||inputs.length!==3)throw new TypeError('TRIPLE_Z_REQUIRES_EXACTLY_THREE_INPUTS');
+  zelTripleSequentialReset();
+  for(const input of inputs)zelTripleSequentialSubmit(input);
+  return zelTripleSequentialWait();
+}
+
 function zelFormulaSafeValue(value){
   if(typeof value==='bigint')return value.toString();
   if(value===undefined)return null;
@@ -2847,6 +2980,11 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     invariantGuardF006:zelEvolutionInvariantF006,
     evolutionAudioStages:zelEvolutionAudioStages,
     runEvolutionAudioTest:zelEvolutionRunAudioTest,
+    submitTripleInput:zelTripleSequentialSubmit,
+    tripleState:zelTripleSequentialSnapshot,
+    waitTriple:zelTripleSequentialWait,
+    resetTriple:zelTripleSequentialReset,
+    runTripleSequential:zelTripleSequentialRun,
     promoteEvolutionFormula:zelEvolutionPromoteFormula,
     lastEvolutionCascade:()=>zelLastEvolutionCascade?zelAiClone(zelLastEvolutionCascade):null,
     preloadSfx:zelSfxWarmAll,
