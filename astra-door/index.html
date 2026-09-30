@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASTRA — Restore Door</title>
+<style>
+:root{color-scheme:dark;--bg:#050505;--panel:#0c0b08;--gold:#d8b45f;--gold2:#f3df9a;--line:rgba(216,180,95,.35);--muted:#9d967f}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:radial-gradient(circle at 50% 20%,#17130a 0,#070706 34%,#020202 75%);color:#f8f4e8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh;display:grid;place-items:center;padding:28px}
+.shell{width:min(980px,100%);border:1px solid var(--line);background:rgba(4,4,4,.88);box-shadow:0 30px 100px rgba(0,0,0,.6),inset 0 0 70px rgba(216,180,95,.035);border-radius:26px;overflow:hidden}
+.top{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);font:700 11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase}
+.top a{color:var(--gold2);text-decoration:none}
+.badge{color:var(--muted)}
+main{padding:clamp(24px,5vw,56px)}
+h1{margin:0 0 10px;font-size:clamp(34px,8vw,86px);line-height:.9;letter-spacing:-.055em;font-weight:850}
+.gold{color:var(--gold2)}
+.lead{max-width:700px;color:#c8c1aa;font-size:clamp(15px,2vw,19px);line-height:1.6}
+.lock{margin-top:34px;padding:24px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,rgba(216,180,95,.05),rgba(255,255,255,.015))}
+.readout{display:flex;justify-content:space-between;gap:18px;align-items:end;margin-bottom:18px}
+.sequence{min-height:34px;font:800 24px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.4em;color:var(--gold2)}
+.state{font:700 11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;text-align:right}
+.keys{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:7px}
+.key{appearance:none;border:1px solid var(--line);border-radius:10px;background:#090807;color:#e8ddc0;min-height:42px;font:800 13px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;transition:.15s transform,.15s background,.15s border-color}
+.key:hover,.key:focus-visible{background:#181308;border-color:var(--gold);outline:none;transform:translateY(-1px)}
+.note{margin-top:14px;color:#776f5c;font-size:12px;line-height:1.5}
+.room{display:none;margin-top:26px;animation:reveal .45s ease both}
+.room.open{display:block}
+@keyframes reveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}
+.card{border:1px solid rgba(216,180,95,.24);border-radius:16px;padding:17px;background:rgba(255,255,255,.018)}
+.card b{display:block;color:var(--gold2);font:800 12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;margin-bottom:9px}
+.card p{margin:0;color:#aaa28e;font-size:13px;line-height:1.55}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.action{appearance:none;border:1px solid var(--gold);border-radius:999px;background:var(--gold2);color:#12100a;padding:13px 18px;font:850 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;cursor:pointer}
+.action.secondary{background:transparent;color:var(--gold2);border-color:var(--line)}
+.hash{margin-top:16px;padding:13px 15px;border-radius:12px;background:#050505;border:1px solid rgba(255,255,255,.08);word-break:break-all;color:#928a75;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+.footer{margin-top:28px;color:#6e6757;font-size:12px;line-height:1.6}
+@media(max-width:760px){.keys{grid-template-columns:repeat(7,minmax(0,1fr))}.grid{grid-template-columns:1fr}.readout{align-items:start;flex-direction:column}.state{text-align:left}}
+</style>
+</head>
+<body>
+<section class="shell" aria-labelledby="title">
+  <header class="top">
+    <a href="/" aria-label="Retour à Antmux">← ANTMUX</a>
+    <span class="badge">PORTE VISUELLE · PAS UNE AUTHENTIFICATION</span>
+  </header>
+  <main>
+    <h1 id="title"><span class="gold">ASTRA</span><br>RESTORE</h1>
+    <p class="lead">Le cœur mène au sas. Le sas ne contient aucun secret. Il sert uniquement à retrouver notre protocole de reprise sans exposer la continuité privée.</p>
+
+    <section class="lock" id="lock" aria-label="Porte Astra">
+      <div class="readout">
+        <div>
+          <div class="sequence" id="sequence" aria-live="polite">·····</div>
+        </div>
+        <div class="state" id="state">SAS FERMÉ<br>5 LETTRES</div>
+      </div>
+      <div class="keys" id="keys"></div>
+      <div class="note">Cette séquence est un repère visuel public. Elle n'est ni un mot de passe ni une protection de sécurité.</div>
+    </section>
+
+    <section class="room" id="room" aria-label="Bureau Astra Restore">
+      <div class="grid">
+        <article class="card">
+          <b>01 · PUBLIC SAS</b>
+          <p>La page publique ne stocke, ne demande et ne transporte aucun mot de passe, token, clé privée ou mémoire privée.</p>
+        </article>
+        <article class="card">
+          <b>02 · PRIVATE CONTINUITY</b>
+          <p>La continuité réelle reste derrière une connexion autorisée. Une porte visuelle ne donne jamais accès au dépôt privé.</p>
+        </article>
+        <article class="card">
+          <b>03 · AUTH HANDOFF</b>
+          <p>Si une serrure privée apparaît, Topbrutus prend la main. Astra ne lit, ne copie et ne mémorise jamais le secret.</p>
+        </article>
+      </div>
+
+      <div class="actions">
+        <button class="action" id="copy">COPIER LA PHRASE DE REPRISE</button>
+        <button class="action secondary" id="download">TÉLÉCHARGER LE HANDOFF</button>
+        <button class="action secondary" id="reset">REFERMER LA PORTE</button>
+      </div>
+      <div class="hash" id="hash">SHA-256 du handoff : calcul en cours…</div>
+      <div class="footer">Ordre de reprise public-safe : SESSION_START_ROUTER.md → RESTORE_FIRST.md → état utile → HEAD live → action. La source live prime toujours sur une ancienne sauvegarde.</div>
+    </section>
+  </main>
+</section>
+
+<script>
+(() => {
+  const EXPECTED = "ASTRA";
+  const phrase = "Astra, reconnecte-toi par le routeur de session, lis RESTORE_FIRST.md, vérifie l'état utile et le HEAD live avant toute écriture.";
+  const handoff = [
+    "ASTRA RESTORE HANDOFF — PUBLIC SAFE",
+    "",
+    "1. Reprendre par SESSION_START_ROUTER.md.",
+    "2. Lire RESTORE_FIRST.md puis l'état utile.",
+    "3. Vérifier le HEAD live avant toute écriture.",
+    "4. SOURCE LIVE > mémoire durable > session > hypothèse.",
+    "5. Ne jamais demander, lire, copier, exposer ou stocker un mot de passe, token ou une clé privée.",
+    "6. Si une authentification privée apparaît, Topbrutus prend la main.",
+    "",
+    "Phrase de reprise:",
+    phrase,
+    ""
+  ].join("\n");
+
+  const keys = document.getElementById("keys");
+  const sequence = document.getElementById("sequence");
+  const state = document.getElementById("state");
+  const room = document.getElementById("room");
+  let typed = "";
+
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(letter => {
+    const b = document.createElement("button");
+    b.className = "key";
+    b.type = "button";
+    b.textContent = letter;
+    b.setAttribute("aria-label", "Lettre " + letter);
+    b.addEventListener("click", () => enter(letter));
+    keys.appendChild(b);
+  });
+
+  function render() {
+    sequence.textContent = (typed + "·····").slice(0, 5);
+  }
+
+  function openDoor() {
+    state.innerHTML = "SAS OUVERT<br>ASTRA";
+    room.classList.add("open");
+    sessionStorage.setItem("astra-door-open", "1");
+    room.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+
+  function enter(letter) {
+    typed = (typed + letter).slice(-5);
+    render();
+    if (typed === EXPECTED) openDoor();
+    else if (typed.length === 5) {
+      state.innerHTML = "SÉQUENCE NON RECONNUE<br>REPRISE";
+      setTimeout(() => { typed = ""; render(); state.innerHTML = "SAS FERMÉ<br>5 LETTRES"; }, 500);
+    }
+  }
+
+  document.addEventListener("keydown", e => {
+    const k = e.key.toUpperCase();
+    if (/^[A-Z]$/.test(k)) enter(k);
+  });
+
+  document.getElementById("reset").addEventListener("click", () => {
+    typed = "";
+    render();
+    room.classList.remove("open");
+    state.innerHTML = "SAS FERMÉ<br>5 LETTRES";
+    sessionStorage.removeItem("astra-door-open");
+  });
+
+  document.getElementById("copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(phrase);
+      state.innerHTML = "PHRASE COPIÉE<br>PRÊTE";
+    } catch {
+      state.innerHTML = "COPIE BLOQUÉE<br>SÉLECTION MANUELLE";
+    }
+  });
+
+  document.getElementById("download").addEventListener("click", () => {
+    const blob = new Blob([handoff], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ASTRA_RESTORE_HANDOFF_PUBLIC_SAFE.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  async function showHash() {
+    const data = new TextEncoder().encode(handoff);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    const hex = [...new Uint8Array(digest)].map(v => v.toString(16).padStart(2,"0")).join("");
+    document.getElementById("hash").textContent = "SHA-256 du handoff : " + hex;
+  }
+
+  render();
+  showHash().catch(() => {
+    document.getElementById("hash").textContent = "SHA-256 indisponible dans ce navigateur.";
+  });
+
+  if (sessionStorage.getItem("astra-door-open") === "1") {
+    typed = EXPECTED;
+    render();
+    openDoor();
+  }
+})();
+</script>
+</body>
+</html>

@@ -10,6 +10,8 @@ on:
       - 'generator/**'
       - 'carrou/**'
       - 'createur/**'
+      - 'astra-door/**'
+      - 'tools/inject-astra-door.mjs'
       - 'laboratoire/index.html'
       - 'laboratoire/README.md'
       - 'laboratoire/data/**'
@@ -53,11 +55,13 @@ jobs:
           node --check generator/antmux-worker.js
           node --check generator/verifier.js
           node --check laboratoire/embryon-x72/app.js
+          node --check tools/inject-astra-door.mjs
 
       - name: Assemble public site
         run: |
           rm -rf _site
           mkdir -p _site/laboratoire/data
+          mkdir -p _site/astra-door
           mkdir -p _site/laboratoire/genesis/demo
           mkdir -p _site/laboratoire/embryon-x72
           mkdir -p _site/laboratoire/parazone-x72-d13-v2
@@ -67,6 +71,8 @@ jobs:
           cp index.html styles.css app.js _site/
           cp -R generator carrou _site/
           cp -R createur _site/
+          cp -R astra-door/. _site/astra-door/
+          node tools/inject-astra-door.mjs _site/index.html
 
           cp laboratoire/index.html _site/laboratoire/
           cp laboratoire/README.md _site/laboratoire/
@@ -96,6 +102,9 @@ jobs:
       - name: Assert laboratory publication boundary
         run: |
           test -f _site/createur/index.html
+          test -f _site/astra-door/index.html
+          test -f _site/astra-door/README.md
+          grep -q 'id="astra-heart-door"' _site/index.html
           test -f _site/createur/brutotheque/index.html
           test -f _site/createur/brutotheque/README.md
           test -f _site/laboratoire/index.html
