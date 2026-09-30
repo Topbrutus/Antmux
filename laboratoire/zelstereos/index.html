@@ -764,6 +764,11 @@ const zelFormulaBanks=new Map();
 let zelLastFormulaWave=null;
 let zelLastFormulaCascade=null;
 let zelCanonicalBankReady=null;
+let zelEvolutionBanksReady=null;
+let zelLastEvolutionCascade=null;
+const zelEvolutionFormulaRegistry=new Map();
+const zelEvolutionBankState=new Map();
+const zelEvolutionPromotionHistory=[];
 
 function zelCanonicalMathDefinitions(){
   const provenance='antmux_formula.py#verifier';
@@ -922,6 +927,427 @@ function zelRegisterCanonicalMathBank(){
   return zelCanonicalBankReady;
 }
 
+function zelEvolutionExactInt(value){
+  if(typeof value==='bigint')return value;
+  if(typeof value==='number'&&Number.isSafeInteger(value))return BigInt(value);
+  if(typeof value==='string'&&/^[+-]?\d+$/.test(value.trim()))return BigInt(value.trim());
+  throw new RangeError('ENTITY38 requires an exact integer supplied as a safe JS integer or decimal integer string');
+}
+function zelEvolutionLinearDefinition(stage,slot,a,b){
+  const A=BigInt(a),B=BigInt(b);
+  if(A===0n)throw new RangeError('ENTITY38 affine coefficient a cannot be zero');
+  const id='Z'+String(stage)+'-'+String(slot).padStart(2,'0');
+  const sign=B<0n?'':'+';
+  const formula='y='+A.toString()+'*x'+sign+B.toString();
+  const inverse=value=>{
+    const y=zelEvolutionExactInt(value),num=y-B;
+    if(num%A!==0n)throw new RangeError('ENTITY38 inverse is not exact for '+id);
+    return (num/A).toString();
+  };
+  return Object.freeze({
+    formula_id:id,
+    name:'Z Stéréo '+stage+' · slot '+String(slot).padStart(2,'0'),
+    normalized_formula:formula,
+    domain:'x exact integer; safe JS integer or decimal integer string; BigInt internal arithmetic',
+    provenance_ref:'ENTITY38/SEED-AFFINE-v1',
+    accepts:input=>{
+      try{zelEvolutionExactInt(input);return true;}catch(e){return false;}
+    },
+    verify:()=>{
+      const samples=['-9007199254740993123456789','-273','-7','-1','0','1','7','273','9007199254740993123456789'];
+      const checks=[];
+      let ok=true;
+      for(const raw of samples){
+        const x=zelEvolutionExactInt(raw),y=A*x+B,recovered=zelEvolutionExactInt(inverse(y.toString()));
+        const pass=recovered===x;
+        ok=ok&&pass;
+        checks.push({input:x.toString(),output:y.toString(),recovered:recovered.toString(),ok:pass});
+      }
+      return {ok,checks};
+    },
+    evaluate:input=>{
+      const x=zelEvolutionExactInt(input),y=A*x+B;
+      return {
+        status:'PASS',
+        value:y.toString(),
+        trace:[{
+          kind:'ENTITY38_AFFINE_EXACT_V1',
+          a:A.toString(),
+          b:B.toString(),
+          exact_input:x.toString(),
+          exact_output:y.toString()
+        }]
+      };
+    },
+    inverse
+  });
+}
+function zelEvolutionSeedDefinitions(){
+  const make=(stage,pairs)=>pairs.map(([a,b],i)=>zelEvolutionLinearDefinition(stage,i+1,a,b));
+  return Object.freeze({
+    route:Object.freeze([
+      Object.freeze({world_id:'ZSTEREO/Z1',stage:1,fanout:9}),
+      Object.freeze({world_id:'ZSTEREO/Z2',stage:2,fanout:12}),
+      Object.freeze({world_id:'ZSTEREO/Z3',stage:3,fanout:12})
+    ]),
+    Z1:Object.freeze(make(1,[[1,1],[1,-1],[2,0],[2,1],[2,-1],[3,0],[3,1],[3,-1],[-1,0]])),
+    Z2:Object.freeze(make(2,[[1,2],[1,-2],[1,3],[1,-3],[2,2],[2,-2],[3,2],[3,-2],[4,0],[4,1],[4,-1],[-1,1]])),
+    Z3:Object.freeze(make(3,[[1,4],[1,-4],[2,3],[2,-3],[3,3],[3,-3],[4,2],[4,-2],[5,0],[5,1],[5,-1],[-1,-1]]))
+  });
+}
+function zelRegisterEvolutionSeedBanks(){
+  if(!zelEvolutionBanksReady){
+    zelEvolutionBanksReady=(async()=>{
+      const seed=zelEvolutionSeedDefinitions();
+      const defsByWorld=new Map([
+        ['ZSTEREO/Z1',seed.Z1],
+        ['ZSTEREO/Z2',seed.Z2],
+        ['ZSTEREO/Z3',seed.Z3]
+      ]);
+      const registered=[];
+      for(const route of seed.route){
+        const defs=defsByWorld.get(route.world_id);
+        const result=await zelFormulaRegisterBank(route.world_id,defs,{batch_size:64});
+        const verified=zelFormulaBanks.get(route.world_id)||[];
+        verified.forEach(def=>zelEvolutionFormulaRegistry.set(def.formula_id,def));
+        if(!zelEvolutionBankState.has(route.world_id)){
+          zelEvolutionBankState.set(route.world_id,{
+            world_id:route.world_id,
+            stage:route.stage,
+            fanout:route.fanout,
+            generation:0,
+            slots:verified.map((def,i)=>({
+              slot:i+1,
+              formula_id:def.formula_id,
+              generation:0,
+              source:'SEED',
+              proof_ref:def.provenance_ref
+            }))
+          });
+        }
+        registered.push(result);
+      }
+      return Object.freeze({
+        schema:'ANTMUX-ZELSTEREOS-ENTITY38-SEED-BANKS-v1',
+        status:'VERIFIED',
+        route:seed.route,
+        banks:Object.freeze(registered)
+      });
+    })().catch(err=>{zelEvolutionBanksReady=null;throw err;});
+  }
+  return zelEvolutionBanksReady;
+}
+async function zelFormulaRunBranchLayer(spec={}){
+  const worldId=String(spec.world_id||'').trim();
+  if(!worldId)throw new TypeError('ENTITY38 world_id required');
+  const bank=zelFormulaBanks.get(worldId)||[];
+  if(!bank.length)throw new RangeError('ENTITY38 verified formula bank required for '+worldId);
+  const parents=Array.isArray(spec.parents)?spec.parents:[];
+  if(!parents.length)throw new RangeError('ENTITY38 branch layer requires at least one parent node');
+  const totalJobs=parents.length*bank.length;
+  if(totalJobs>ZEL_FORMULA_WAVE_MAX)throw new RangeError('ENTITY38 branch layer exceeds 2000 jobs');
+  const depth=Math.max(1,Math.trunc(Number(spec.depth)||1));
+  const batchSize=Math.max(1,Math.min(128,Math.trunc(Number(spec.batch_size)||ZEL_FORMULA_BATCH_DEFAULT)));
+  const layerId=String(spec.layer_id||('ENTITY38-D'+depth+'-'+Date.now())).slice(0,120);
+  const jobs=[];
+  let index=0;
+  for(let p=0;p<parents.length;p++){
+    const parent=parents[p];
+    for(let f=0;f<bank.length;f++)jobs.push({index:index++,parent,parent_index:p,def:bank[f],formula_slot:f+1});
+  }
+  const nodes=[];
+  zelSwarmRender({wave_id:layerId,world_id:worldId,total:totalJobs,done:0,depth,route:spec.route||[worldId]});
+  for(let offset=0;offset<jobs.length;offset+=batchSize){
+    const batch=jobs.slice(offset,offset+batchSize);
+    const settled=await Promise.all(batch.map(async job=>{
+      const context={
+        cascade_id:String(spec.cascade_id||''),
+        layer_id:layerId,
+        world_id:worldId,
+        depth,
+        parent_id:String(job.parent.branch_id||'ROOT'),
+        parent_index:job.parent_index,
+        total:totalJobs
+      };
+      const result=await zelFormulaRunOne(job.def,job.parent.value,context,job.index);
+      const branchId=String(job.parent.branch_id||'ROOT')+'/'+String(job.formula_slot).padStart(2,'0');
+      const step=Object.freeze({
+        depth,
+        world_id:worldId,
+        formula_slot:job.formula_slot,
+        formula_id:result.formula_id,
+        normalized_formula:result.normalized_formula,
+        status:result.status,
+        input:zelFormulaSafeValue(job.parent.value),
+        output:zelFormulaSafeValue(result.value),
+        trace:zelFormulaSafeValue(result.trace)
+      });
+      return Object.freeze({
+        branch_id:branchId,
+        parent_id:String(job.parent.branch_id||'ROOT'),
+        depth,
+        world_id:worldId,
+        formula_slot:job.formula_slot,
+        formula_id:result.formula_id,
+        name:result.name,
+        normalized_formula:result.normalized_formula,
+        provenance_ref:result.provenance_ref,
+        status:result.status,
+        value:result.value,
+        expected:result.expected,
+        error:result.error||null,
+        elapsed_ms:result.elapsed_ms,
+        path:Object.freeze([...(job.parent.path||[]),result.formula_id]),
+        history:Object.freeze([...(job.parent.history||[]),step])
+      });
+    }));
+    nodes.push(...settled);
+    const summary=zelSwarmSummary(nodes);
+    zelSwarmRender({
+      wave_id:layerId,
+      world_id:worldId,
+      total:totalJobs,
+      done:nodes.length,
+      depth,
+      route:spec.route||[worldId],
+      anomalies:nodes.filter(x=>x.status!=='PASS'),
+      ...summary
+    });
+    if(offset+batchSize<jobs.length)await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  const summary=zelSwarmSummary(nodes);
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-BRANCH-LAYER-v1',
+    deterministic:true,
+    layer_id:layerId,
+    world_id:worldId,
+    depth,
+    input_nodes:parents.length,
+    formulas:bank.length,
+    total_jobs:totalJobs,
+    output_nodes:summary.PASS,
+    summary,
+    nodes:Object.freeze(nodes)
+  });
+}
+function zelEvolutionBraidOrder(nodes){
+  const source=Array.isArray(nodes)?nodes:[];
+  const braided=[...source].reverse();
+  const pairs=[];
+  for(let i=0;i<Math.ceil(source.length/2);i++){
+    const left=source[i],right=source[source.length-1-i];
+    if(!left||!right)continue;
+    pairs.push(Object.freeze({
+      first_index:i,
+      last_index:source.length-1-i,
+      first_branch:left.branch_id,
+      last_branch:right.branch_id
+    }));
+  }
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-BRAID-v1',
+    mode:'LAST_TO_FIRST',
+    nodes:Object.freeze(braided),
+    pairs:Object.freeze(pairs)
+  });
+}
+async function zelEvolutionVerifyInverse(rootValue,finalNodes){
+  const root=zelEvolutionExactInt(rootValue).toString();
+  const braid=zelEvolutionBraidOrder(finalNodes);
+  let verified=0;
+  const failures=[];
+  for(const node of braid.nodes){
+    let current=zelEvolutionExactInt(node.value).toString();
+    let ok=true;
+    let reason='';
+    const history=[...(node.history||[])].reverse();
+    for(const step of history){
+      const def=zelEvolutionFormulaRegistry.get(step.formula_id);
+      if(!def||typeof def.inverse!=='function'){
+        ok=false;reason='INVERSE_NOT_REGISTERED:'+step.formula_id;break;
+      }
+      try{
+        const previous=zelEvolutionExactInt(await Promise.resolve(def.inverse(current,Object.freeze({step,node})))).toString();
+        const expected=zelEvolutionExactInt(step.input).toString();
+        if(previous!==expected){
+          ok=false;reason='INVERSE_MISMATCH:'+step.formula_id;break;
+        }
+        current=previous;
+      }catch(err){
+        ok=false;reason=String(err?.message||err||'INVERSE_ERROR');break;
+      }
+    }
+    if(ok&&current!==root){ok=false;reason='ROOT_MISMATCH';}
+    if(ok)verified++;
+    else if(failures.length<50)failures.push(Object.freeze({branch_id:node.branch_id,reason,recovered:current,expected_root:root}));
+  }
+  const total=braid.nodes.length;
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-INVERSE-VERIFICATION-v1',
+    mode:'BRAID_LAST_TO_FIRST_THEN_Z3_Z2_Z1',
+    root,
+    total,
+    verified,
+    failed:total-verified,
+    ok:total>0&&verified===total,
+    pair_count:braid.pairs.length,
+    braid_pairs:braid.pairs,
+    failures:Object.freeze(failures)
+  });
+}
+async function zelFormulaRunEvolutionCascade(spec={}){
+  await zelRegisterEvolutionSeedBanks();
+  const root=zelEvolutionExactInt(spec.input).toString();
+  const cascadeId=String(spec.cascade_id||('ENTITY38-'+Date.now())).slice(0,120);
+  const route=zelEvolutionSeedDefinitions().route;
+  let parents=[Object.freeze({branch_id:'ROOT',value:root,path:Object.freeze([]),history:Object.freeze([])})];
+  const layers=[];
+  const routeSoFar=[];
+  for(const stage of route){
+    routeSoFar.push(stage.world_id);
+    const layer=await zelFormulaRunBranchLayer({
+      cascade_id:cascadeId,
+      layer_id:cascadeId+'-Z'+stage.stage,
+      world_id:stage.world_id,
+      depth:stage.stage,
+      parents,
+      route:[...routeSoFar],
+      batch_size:spec.batch_size
+    });
+    layers.push(layer);
+    parents=layer.nodes.filter(x=>x.status==='PASS');
+    if(!parents.length)break;
+  }
+  const counts=layers.map(x=>x.output_nodes);
+  const expected=[9,108,1296];
+  const countCheck=counts.length===3&&expected.every((v,i)=>counts[i]===v);
+  const finalNodes=layers.length===3?layers[2].nodes.filter(x=>x.status==='PASS'):[];
+  const inverse=await zelEvolutionVerifyInverse(root,finalNodes);
+  const aggregate={PASS:0,FAIL:0,DOMAIN:0,ERROR:0,total:0};
+  for(const layer of layers){
+    for(const key of ['PASS','FAIL','DOMAIN','ERROR'])aggregate[key]+=layer.summary[key]||0;
+    aggregate.total+=layer.summary.total||0;
+  }
+  const completed=Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-EVOLUTION-CASCADE-v1',
+    deterministic:true,
+    cascade_id:cascadeId,
+    status:countCheck&&inverse.ok?'PASS':'FAIL',
+    root,
+    route:Object.freeze(route.map(x=>x.world_id)),
+    fanout:Object.freeze(route.map(x=>x.fanout)),
+    expected_outputs:Object.freeze(expected),
+    actual_outputs:Object.freeze(counts),
+    total_formula_evaluations:aggregate.total,
+    summary:Object.freeze(aggregate),
+    inverse_verification:inverse,
+    layers:Object.freeze(layers),
+    final_nodes:Object.freeze(finalNodes)
+  });
+  zelLastEvolutionCascade=completed;
+  zelSwarmRender({
+    wave_id:cascadeId,
+    world_id:'ENTITY38',
+    total:aggregate.total,
+    done:aggregate.total,
+    depth:3,
+    route:[...completed.route,'BRAID/INVERSE'],
+    anomalies:layers.flatMap(x=>x.nodes.filter(n=>n.status!=='PASS')).slice(0,50),
+    ...aggregate
+  });
+  return completed;
+}
+function zelEvolutionValidatePromotionEvidence(evidence){
+  if(!evidence||typeof evidence!=='object')throw new TypeError('ENTITY38 promotion evidence required');
+  const status=String(evidence.status||'').toUpperCase();
+  const attacksRun=Math.trunc(Number(evidence.attacks_run));
+  const attacksPassed=Math.trunc(Number(evidence.attacks_passed));
+  const counterexamples=Math.trunc(Number(evidence.counterexamples));
+  const proofRef=String(evidence.proof_ref||'').trim();
+  if(status!=='MAX_VERIFIED')throw new Error('ENTITY38 candidate must be MAX_VERIFIED');
+  if(!Number.isInteger(attacksRun)||attacksRun<1)throw new Error('ENTITY38 attacks_run must be >= 1');
+  if(attacksPassed!==attacksRun)throw new Error('ENTITY38 all adversarial attacks must pass');
+  if(counterexamples!==0)throw new Error('ENTITY38 counterexamples must be zero');
+  if(!proofRef)throw new Error('ENTITY38 proof_ref required');
+  return Object.freeze({status,attacks_run:attacksRun,attacks_passed:attacksPassed,counterexamples,proof_ref:proofRef});
+}
+async function zelEvolutionPromoteFormula(spec={}){
+  await zelRegisterEvolutionSeedBanks();
+  const worldId=String(spec.world_id||'').trim();
+  const state=zelEvolutionBankState.get(worldId);
+  const bank=zelFormulaBanks.get(worldId)||[];
+  if(!state||!bank.length)throw new RangeError('ENTITY38 promotion world is not an active Z Stéréo stage');
+  const evidence=zelEvolutionValidatePromotionEvidence(spec.evidence);
+  const candidate=spec.candidate;
+  if(!candidate||typeof candidate!=='object')throw new TypeError('ENTITY38 candidate formula required');
+  if(typeof candidate.inverse!=='function')throw new TypeError('ENTITY38 promoted formula requires an inverse verifier');
+  const qualified=await zelFormulaQualifyDefinitions([candidate],{batch_size:1});
+  const q=qualified.qualification[0];
+  if(!q||!q.ok)throw new Error('ENTITY38 candidate formula failed qualification');
+  const normalized=qualified.definitions[0];
+  let slotIndex;
+  if(spec.slot!==undefined&&spec.slot!==null){
+    slotIndex=Math.trunc(Number(spec.slot))-1;
+    if(slotIndex<0||slotIndex>=bank.length)throw new RangeError('ENTITY38 promotion slot out of range');
+  }else{
+    let best=0;
+    for(let i=1;i<state.slots.length;i++){
+      if(state.slots[i].generation<state.slots[best].generation)best=i;
+    }
+    slotIndex=best;
+  }
+  const duplicate=bank.findIndex((def,i)=>i!==slotIndex&&def.formula_id===normalized.formula_id);
+  if(duplicate!==-1)throw new Error('ENTITY38 candidate formula_id already exists in active bank');
+  const replaced=bank[slotIndex];
+  const verified=Object.freeze({...normalized,qualification:q});
+  const next=[...bank];
+  next[slotIndex]=verified;
+  zelFormulaBanks.set(worldId,Object.freeze(next));
+  zelEvolutionFormulaRegistry.set(verified.formula_id,verified);
+  state.generation+=1;
+  state.slots[slotIndex]={
+    slot:slotIndex+1,
+    formula_id:verified.formula_id,
+    generation:state.generation,
+    source:'PROMOTED',
+    proof_ref:evidence.proof_ref
+  };
+  const record=Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-PROMOTION-v1',
+    world_id:worldId,
+    slot:slotIndex+1,
+    generation:state.generation,
+    policy:spec.slot?'EXPLICIT_SLOT':'OLDEST_GENERATION_FIRST',
+    replaced_formula_id:replaced.formula_id,
+    promoted_formula_id:verified.formula_id,
+    evidence,
+    timestamp:Date.now()
+  });
+  zelEvolutionPromotionHistory.push(record);
+  return record;
+}
+function zelEvolutionState(){
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-STATE-v1',
+    banks:Object.freeze([...zelEvolutionBankState.values()].map(state=>Object.freeze({
+      world_id:state.world_id,
+      stage:state.stage,
+      fanout:state.fanout,
+      generation:state.generation,
+      slots:Object.freeze(state.slots.map(slot=>Object.freeze({...slot})))
+    }))),
+    promotions:Object.freeze([...zelEvolutionPromotionHistory]),
+    last_cascade:zelLastEvolutionCascade?Object.freeze({
+      cascade_id:zelLastEvolutionCascade.cascade_id,
+      status:zelLastEvolutionCascade.status,
+      root:zelLastEvolutionCascade.root,
+      actual_outputs:zelLastEvolutionCascade.actual_outputs,
+      total_formula_evaluations:zelLastEvolutionCascade.total_formula_evaluations,
+      inverse_ok:zelLastEvolutionCascade.inverse_verification.ok
+    }):null
+  });
+}
+
 function zelFormulaSafeValue(value){
   if(typeof value==='bigint')return value.toString();
   if(value===undefined)return null;
@@ -948,7 +1374,8 @@ function zelFormulaSummary(def,index=0){
     provenance_ref:provenance,
     accepts:typeof def.accepts==='function'?def.accepts:null,
     evaluate:def.evaluate,
-    verify:def.verify
+    verify:def.verify,
+    inverse:typeof def.inverse==='function'?def.inverse:null
   });
 }
 function zelFormulaNormalizeVerification(raw){
@@ -1620,6 +2047,11 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     runFormulaCascade:zelFormulaRunCascade,
     lastFormulaWave:zelFormulaLastWave,
     lastFormulaCascade:zelFormulaLastCascade,
+    evolutionBanksReady:zelRegisterEvolutionSeedBanks,
+    runEvolutionCascade:zelFormulaRunEvolutionCascade,
+    evolutionState:zelEvolutionState,
+    promoteEvolutionFormula:zelEvolutionPromoteFormula,
+    lastEvolutionCascade:()=>zelLastEvolutionCascade?zelAiClone(zelLastEvolutionCascade):null,
     preloadSfx:zelSfxWarmAll,
     playCalculation:zelAiPlayCalculation
   }),
@@ -1644,6 +2076,7 @@ async function poll(){
 }
 buildStages();
 zelRegisterCanonicalMathBank().catch(err=>console.error('ZEL_CANONICAL_BANK_REJECTED',err));
+zelRegisterEvolutionSeedBanks().catch(err=>console.error('ZEL_ENTITY38_BANK_REJECTED',err));
 connectZelWebSocket();
 poll();
 setInterval(poll,2000);
