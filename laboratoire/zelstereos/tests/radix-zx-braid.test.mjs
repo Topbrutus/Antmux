@@ -43,7 +43,7 @@ function makeContext(){
     "  throw new RangeError(\'exact integer required\');",
     "}"
   ].join("\n");
-  const names=["zelRadixAssertBase","zelRadixDigitValue","zelRadixEncodeExact","zelRadixDecodeExact","zelRadixBraid","zelRadixBraidAudioStages"];
+  const names=["zelRadixAssertBase","zelRadixDigitValue","zelRadixEncodeExact","zelRadixDecodeExact","zelRadixBraid","zelRadixBraidAudioStages","zelRadixBraidAudioPasses"];
   vm.runInContext(prelude+"\n"+names.map(extractFunction).join("\n"),ctx);
   return ctx;
 }
@@ -88,11 +88,27 @@ test("radix sonic trace exposes 12 audible base lanes, 144 braid paths, invarian
   const r=ctx.zelRadixBraid(47);
   const stages=ctx.zelRadixBraidAudioStages(r);
   assert.equal(stages.length,16);
-  assert.match(stages[0].label,/ENTRÉE ZX/);
+  assert.match(stages[0].label,/ENTREE ZX/);
   for(let i=0;i<12;i++)assert.match(stages[i+1].label,new RegExp("BASE "+(i+2)));
   assert.match(stages[13].label,/144 chemins/);
   assert.equal(stages[14].exact,"144/144");
   assert.equal(stages[14].status,"PASS");
   assert.equal(stages[15].exact,"47");
   assert.equal(stages[15].status,"PASS");
+});
+
+
+test("radix audio is partitioned into two legal seven-stage waves",()=>{
+  const ctx=makeContext();
+  const r=ctx.zelRadixBraid(47);
+  const bundle=ctx.zelRadixBraidAudioPasses(r);
+  assert.equal(bundle.passes.length,2);
+  assert.deepEqual(Array.from(bundle.passes,p=>p.length),[7,7]);
+  assert.match(bundle.passes[0][0].label,/ENTREE ZX/);
+  assert.match(bundle.passes[0][1].label,/BASE 2/);
+  assert.match(bundle.passes[0][6].label,/BASE 7/);
+  assert.match(bundle.passes[1][0].label,/BASE 8/);
+  assert.match(bundle.passes[1][5].label,/BASE 13/);
+  assert.match(bundle.passes[1][6].label,/144\/144/);
+  assert.equal(bundle.passes[1][6].status,"PASS");
 });
