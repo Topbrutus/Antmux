@@ -128,3 +128,22 @@ ANTMUX = réseau de transport contrôlé entre mondes
 ```
 
 C'est une définition d'architecture logicielle du projet, pas une affirmation de physique interdimensionnelle.
+
+## Expérience minimale de bout en bout
+
+`WORLD-ROUNDTRIP-0001` sert de test de référence du système complet : une fourmi part de `MATTER/CARBON`, traverse le Verso global vers `INFORMATION/CRYPTO`, puis revient vers `MATTER/CARBON`.
+
+Le test ne cherche pas à prouver une propriété physique. Il vérifie le contrat logiciel : routage autorisé, transformation réversible, conservation des invariants de l'agent, reconstruction des données et trace complète.
+
+```text
+ANT-0001
+  + WORLD_A
+  + PORTAL_CONTRACT
+  + TRANSFORM
+  + WORLD_B
+  + RETURN
+  + PROOF
+  = PASS | FAIL
+```
+
+Cette expérience est la base à généraliser avant d'ajouter de nouveaux mondes actifs.
