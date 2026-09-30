@@ -86,14 +86,49 @@ test("all 25 canonical verifiers pass independently", async () => {
   assert.deepEqual(failures, []);
 });
 
-test("phase index enforces integer domain and periodic invariant", async () => {
+test("phase index enforces exact integer domain and periodic invariant", async () => {
   const def = loadDefinitions().find(x => x.formula_id === "AM-022");
   assert.equal(def.accepts({ t: 2, b: 5, o: 11 }), true);
   assert.equal(def.accepts({ t: 2.5, b: 5, o: 11 }), false);
+  assert.equal(def.accepts({ t: "9007199254740993123456789", b: "1", o: "-2" }), true);
   const a = await def.evaluate({ t: 2, b: 5, o: 11 });
   const b = await def.evaluate({ t: 5, b: 12, o: 24 });
   assert.equal(a.value, b.value);
   assert.ok(a.value >= 0 && a.value < 273);
+});
+
+test("AM-022 regression: exact BigInt arithmetic survives the previously broken large-integer case", async () => {
+  const def = loadDefinitions().find(x => x.formula_id === "AM-022");
+  const input = {
+    t: 9007199254739001,
+    b: 9007199254738123,
+    o: -9007199254737557,
+  };
+  const shifted = { t: input.t + 3, b: input.b + 7, o: input.o + 13 };
+  const first = await def.evaluate(input);
+  const second = await def.evaluate(shifted);
+  assert.equal(first.value, 132);
+  assert.equal(second.value, 132);
+  assert.equal(first.value, second.value);
+  assert.equal(first.trace[0].exact_mod, "132");
+});
+
+test("AM-022 accepts arbitrary exact decimal integer strings without Number precision loss", async () => {
+  const def = loadDefinitions().find(x => x.formula_id === "AM-022");
+  const input = {
+    t: "9007199254740993123456789",
+    b: "-9007199254740992123456789",
+    o: "1234567890123456789012345",
+  };
+  const shifted = {
+    t: (BigInt(input.t) + 3n).toString(),
+    b: (BigInt(input.b) + 7n).toString(),
+    o: (BigInt(input.o) + 13n).toString(),
+  };
+  const first = await def.evaluate(input);
+  const second = await def.evaluate(shifted);
+  assert.equal(first.value, second.value);
+  assert.ok(first.value >= 0 && first.value < 273);
 });
 
 test("Z7^4 address exhaustively verifies 2401 unique addresses and rejects bad coordinates", async () => {
