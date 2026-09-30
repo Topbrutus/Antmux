@@ -56,7 +56,7 @@ test("nine local projections share one canonical periodic table", () => {
   assert.equal(triangleForProjection(9), 3);
 });
 
-test("snake route visits all worlds exactly once before closing", () => {
+test("snake route visits all local projections exactly once before closing", () => {
   const seen = [];
   let world = C3.snakeRoute[0];
   for (let i = 0; i < 9; i += 1) {
