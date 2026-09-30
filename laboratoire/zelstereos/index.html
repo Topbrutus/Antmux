@@ -1537,6 +1537,127 @@ function zelRegisterEvolutionSeedBanks(){
   }
   return zelEvolutionBanksReady;
 }
+
+function zelProfileActiveInput(formulaId,carrier,context={}){
+  const exact=zelEvolutionExactInt(carrier);
+  const magnitude=exact<0n?-exact:exact;
+  const unit=zelProfileFrac({n:(magnitude%97n)+1n,d:1000000000000000000n});
+  const unitText=zelProfileFracText(unit);
+  const f0=zelProfileFrac('240.1');
+  const frequencyAt=multiplier=>{
+    const dt=zelProfileMul(unit,multiplier);
+    return zelProfileFracText(zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt))));
+  };
+  const bounded=Number(exact%1000003n);
+  const bounded2=Number((exact/7n)%1000003n);
+  const anchors=['13','73','149','293'];
+  switch(formulaId){
+    case 'GSP-ZENODO-001':
+      return Object.freeze({f0:'240.1',f_obs:frequencyAt(1),target_dt:unitText,tolerance:'0'});
+    case 'GSP-ZENODO-002':
+      return Object.freeze({delta_t:unitText});
+    case 'GSP-ZENODO-003':{
+      const s=magnitude%2n===0n?1:-1;
+      return Object.freeze({samples:Object.freeze([[s,1],[s,-1],[-s,1],[-s,-1]].map(row=>Object.freeze(row))),u:.05+Number(magnitude%5n)/100});
+    }
+    case 'GSP-ZENODO-004':
+      return Object.freeze({k:3+2*Number(magnitude%3n)});
+    case 'GSP-ZENODO-005':{
+      const twice=zelProfileFracText(zelProfileMul(unit,2));
+      const minusTwice=zelProfileFracText(zelProfileMul(unit,-2));
+      const minusUnit=zelProfileFracText(zelProfileMul(unit,-1));
+      return Object.freeze({residuals:Object.freeze(['0',twice,minusTwice,unitText,minusUnit]),tolerance:unitText,k_min:2});
+    }
+    case 'GSP-ZENODO-006':
+      return Object.freeze({candidate:exact.toString(),reference:exact.toString(),tolerance:'0'});
+    case 'GSP-ZENODO-007':
+      return Object.freeze({m:anchors[Number(magnitude%4n)],max_steps:100});
+    case 'GSP-ZENODO-008':
+      return Object.freeze({G:bounded,D:bounded2});
+    case 'GSP-ZENODO-009':
+      return Object.freeze({channels:12});
+    case 'GSP-ZENODO-010':
+      return Object.freeze({f0:'240.1',f_obs:frequencyAt(3),target_dt:unitText,gain:'.5'});
+    case 'GSP-ZENODO-011':
+      return Object.freeze({});
+    case 'GSP-ZENODO-012':
+      return Object.freeze({f0:'240.1',f1:frequencyAt(1),f2:frequencyAt(2),t1:'0',t2:'10'});
+    default:
+      throw new RangeError('Unknown active Zenodo formula: '+formulaId);
+  }
+}
+function zelProfileActiveSemanticOk(formulaId,result,input){
+  if(!result||result.status!=='PASS')return false;
+  const value=result.value;
+  switch(formulaId){
+    case 'GSP-ZENODO-001': return value?.pass===true;
+    case 'GSP-ZENODO-002': return value?.coefficient?.exact==='5764801/100';
+    case 'GSP-ZENODO-003': return Number.isFinite(value?.S_Q)&&Number.isFinite(value?.K_Q);
+    case 'GSP-ZENODO-004': return value?.square_rank===true&&value?.square_check===true;
+    case 'GSP-ZENODO-005': return value?.reproduced===true&&value?.K===2;
+    case 'GSP-ZENODO-006': return value?.decision==='SURVIVES_TEST';
+    case 'GSP-ZENODO-007': return Number.isInteger(value?.rank)&&value.rank>0;
+    case 'GSP-ZENODO-008': return value?.G_reconstructed===input.G&&value?.D_reconstructed===input.D;
+    case 'GSP-ZENODO-009': return value?.ordered_paths==='479001600';
+    case 'GSP-ZENODO-010': return Math.abs(value?.residual_final?.decimal??Infinity)<=Math.abs(value?.residual_initial?.decimal??-Infinity);
+    case 'GSP-ZENODO-011': return value?.delta_t?.exact==='1/1000000000000000';
+    case 'GSP-ZENODO-012': return value?.simplification_exact===true;
+    default: return false;
+  }
+}
+async function zelProfileRunActiveSuite(carrier,context={}){
+  await zelRegisterProfileFormulaBank();
+  const bank=zelFormulaBanks.get('PROFILE/GABRIEL-ST-PIERRE/ZENODO')||[];
+  if(bank.length!==12)throw new Error('ACTIVE_ZENODO_BANK_REQUIRES_EXACTLY_12_FORMULAS');
+  const records=[];
+  for(let i=0;i<bank.length;i++){
+    const def=bank[i];
+    const input=zelProfileActiveInput(def.formula_id,carrier,context);
+    const result=await zelFormulaRunOne(def,input,Object.freeze({
+      ...context,
+      role:'ACTIVE_ZENODO_CALCULATION',
+      carrier_exact:zelEvolutionExactInt(carrier).toString()
+    }),i);
+    const semanticOk=zelProfileActiveSemanticOk(def.formula_id,result,input);
+    records.push(Object.freeze({
+      formula_id:def.formula_id,
+      name:def.name,
+      status:result.status,
+      semantic_ok:semanticOk,
+      provenance_ref:def.provenance_ref,
+      input:zelFormulaSafeValue(input),
+      value:zelFormulaSafeValue(result.value),
+      error:result.error||null
+    }));
+  }
+  const passed=records.filter(x=>x.status==='PASS'&&x.semantic_ok===true).length;
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ACTIVE-ZENODO-SUITE-v1',
+    role:'ACTIVE_CALCULATION_GATE',
+    branch_id:String(context.branch_id||'').slice(0,160),
+    checkpoint:String(context.checkpoint||'').slice(0,80),
+    carrier_exact:zelEvolutionExactInt(carrier).toString(),
+    checked:records.length,
+    passed,
+    failed:records.length-passed,
+    ok:passed===records.length,
+    records:Object.freeze(records)
+  });
+}
+function zelProfileActiveSummary(nodes){
+  const suites=(Array.isArray(nodes)?nodes:[]).map(x=>x?.profile_suite).filter(Boolean);
+  const checked=suites.reduce((n,x)=>n+(x.checked||0),0);
+  const passed=suites.reduce((n,x)=>n+(x.passed||0),0);
+  return Object.freeze({
+    bank:'PROFILE/GABRIEL-ST-PIERRE/ZENODO',
+    formulas_per_branch:12,
+    branches_checked:suites.length,
+    formula_evaluations:checked,
+    passed,
+    failed:checked-passed,
+    ok:suites.length>0&&checked===suites.length*12&&passed===checked
+  });
+}
 function zelEvolutionInvariantF006(value,context={}){
   const exact=zelEvolutionExactInt(value);
   const magnitude=exact<0n?-exact:exact;
@@ -1618,7 +1739,10 @@ async function zelFormulaRunBranchLayer(spec={}){
       };
       const result=await zelFormulaRunOne(job.def,job.parent.value,context,job.index);
       const branchId=String(job.parent.branch_id||'ROOT')+'/'+String(job.formula_slot).padStart(2,'0');
-      const invariantGuard=result.status==='PASS'
+      const profileSuite=result.status==='PASS'
+        ?await zelProfileRunActiveSuite(result.value,{checkpoint:'FORWARD_Z'+depth,branch_id:branchId,world_id:worldId,depth})
+        :null;
+      const invariantGuard=result.status==='PASS'&&profileSuite?.ok===true
         ?zelEvolutionInvariantF006(result.value,{checkpoint:'FORWARD_Z'+depth,branch_id:branchId})
         :null;
       const step=Object.freeze({
@@ -1647,6 +1771,7 @@ async function zelFormulaRunBranchLayer(spec={}){
         expected:result.expected,
         error:result.error||null,
         elapsed_ms:result.elapsed_ms,
+        profile_suite:profileSuite,
         invariant_guard:invariantGuard,
         path:Object.freeze([...(job.parent.path||[]),result.formula_id]),
         history:Object.freeze([...(job.parent.history||[]),step])
@@ -1661,14 +1786,15 @@ async function zelFormulaRunBranchLayer(spec={}){
       done:nodes.length,
       depth,
       route:spec.route||[worldId],
-      anomalies:nodes.filter(x=>x.status!=='PASS'),
+      anomalies:nodes.filter(x=>x.status!=='PASS'||x.profile_suite?.ok!==true||x.invariant_guard?.ok!==true),
       ...summary
     });
     if(offset+batchSize<jobs.length)await new Promise(resolve=>setTimeout(resolve,0));
   }
   const summary=zelSwarmSummary(nodes);
+  const profileCalculations=zelProfileActiveSummary(nodes);
   const invariantGuard=zelEvolutionGuardSummary(nodes);
-  const outputNodes=nodes.filter(x=>x.status==='PASS'&&x.invariant_guard?.ok===true).length;
+  const outputNodes=nodes.filter(x=>x.status==='PASS'&&x.profile_suite?.ok===true&&x.invariant_guard?.ok===true).length;
   return Object.freeze({
     schema:'ANTMUX-ZELSTEREOS-ENTITY38-BRANCH-LAYER-v1',
     deterministic:true,
@@ -1680,6 +1806,7 @@ async function zelFormulaRunBranchLayer(spec={}){
     total_jobs:totalJobs,
     output_nodes:outputNodes,
     summary,
+    profile_calculations:profileCalculations,
     invariant_guard:invariantGuard,
     nodes:Object.freeze(nodes)
   });
@@ -1784,13 +1911,13 @@ async function zelFormulaRunEvolutionCascade(spec={}){
       batch_size:spec.batch_size
     });
     layers.push(layer);
-    parents=layer.nodes.filter(x=>x.status==='PASS'&&x.invariant_guard?.ok===true);
+    parents=layer.nodes.filter(x=>x.status==='PASS'&&x.profile_suite?.ok===true&&x.invariant_guard?.ok===true);
     if(!parents.length)break;
   }
   const counts=layers.map(x=>x.output_nodes);
   const expected=[9,108,1296];
   const countCheck=counts.length===3&&expected.every((v,i)=>counts[i]===v);
-  const finalNodes=layers.length===3?layers[2].nodes.filter(x=>x.status==='PASS'):[];
+  const finalNodes=layers.length===3?layers[2].nodes.filter(x=>x.status==='PASS'&&x.profile_suite?.ok===true&&x.invariant_guard?.ok===true):[];
   const inverse=await zelEvolutionVerifyInverse(root,finalNodes);
   const aggregate={PASS:0,FAIL:0,DOMAIN:0,ERROR:0,total:0};
   for(const layer of layers){
@@ -1801,6 +1928,19 @@ async function zelFormulaRunEvolutionCascade(spec={}){
   const forwardInvariantPassed=layers.reduce((n,x)=>n+(x.invariant_guard?.passed||0),0);
   const returnInvariantChecked=inverse.invariant_guard?.checked||0;
   const returnInvariantPassed=inverse.invariant_guard?.passed||0;
+  const forwardProfileBranches=layers.reduce((n,x)=>n+(x.profile_calculations?.branches_checked||0),0);
+  const forwardProfileEvaluations=layers.reduce((n,x)=>n+(x.profile_calculations?.formula_evaluations||0),0);
+  const forwardProfilePassed=layers.reduce((n,x)=>n+(x.profile_calculations?.passed||0),0);
+  const profileCalculations=Object.freeze({
+    bank:'PROFILE/GABRIEL-ST-PIERRE/ZENODO',
+    role:'ACTIVE_CALCULATION_GATE',
+    formulas_per_branch:12,
+    branches_checked:forwardProfileBranches,
+    formula_evaluations:forwardProfileEvaluations,
+    passed:forwardProfilePassed,
+    failed:forwardProfileEvaluations-forwardProfilePassed,
+    ok:forwardProfileBranches===aggregate.total&&forwardProfileEvaluations===aggregate.total*12&&forwardProfilePassed===forwardProfileEvaluations
+  });
   const invariantGuards=Object.freeze({
     formula_id:'F006',
     role:'INDEPENDENT_NUMERICAL_SENTINEL',
@@ -1816,14 +1956,17 @@ async function zelFormulaRunEvolutionCascade(spec={}){
     schema:'ANTMUX-ZELSTEREOS-ENTITY38-EVOLUTION-CASCADE-v1',
     deterministic:true,
     cascade_id:cascadeId,
-    status:countCheck&&inverse.ok&&invariantGuards.total.failed===0?'PASS':'FAIL',
+    status:countCheck&&inverse.ok&&profileCalculations.ok&&invariantGuards.total.failed===0?'PASS':'FAIL',
     root,
     route:Object.freeze(route.map(x=>x.world_id)),
     fanout:Object.freeze(route.map(x=>x.fanout)),
     expected_outputs:Object.freeze(expected),
     actual_outputs:Object.freeze(counts),
     total_formula_evaluations:aggregate.total,
+    zenodo_formula_evaluations:profileCalculations.formula_evaluations,
+    total_calculation_events:aggregate.total+profileCalculations.formula_evaluations+invariantGuards.total.checked,
     summary:Object.freeze(aggregate),
+    profile_calculations:profileCalculations,
     invariant_guards:invariantGuards,
     inverse_verification:inverse,
     layers:Object.freeze(layers),
@@ -1928,6 +2071,9 @@ function zelEvolutionState(){
       root:zelLastEvolutionCascade.root,
       actual_outputs:zelLastEvolutionCascade.actual_outputs,
       total_formula_evaluations:zelLastEvolutionCascade.total_formula_evaluations,
+      zenodo_formula_evaluations:zelLastEvolutionCascade.zenodo_formula_evaluations,
+      total_calculation_events:zelLastEvolutionCascade.total_calculation_events,
+      profile_calculations:zelLastEvolutionCascade.profile_calculations,
       invariant_guard:zelLastEvolutionCascade.invariant_guards,
       inverse_ok:zelLastEvolutionCascade.inverse_verification.ok
     }):null
@@ -2697,6 +2843,7 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
     evolutionBanksReady:zelRegisterEvolutionSeedBanks,
     runEvolutionCascade:zelFormulaRunEvolutionCascade,
     evolutionState:zelEvolutionState,
+    runActiveZenodoCalculations:zelProfileRunActiveSuite,
     invariantGuardF006:zelEvolutionInvariantF006,
     evolutionAudioStages:zelEvolutionAudioStages,
     runEvolutionAudioTest:zelEvolutionRunAudioTest,
