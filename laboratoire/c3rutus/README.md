@@ -41,6 +41,47 @@ Les points des 118 éléments sont visualisés neuf fois dans le monde actif, ma
 
 Le premier contrat de passage est MATTER/CARBON → VERSO-GLOBAL-01 → INFORMATION/CRYPTO. Il utilise UTF8-CARRIER-V1 comme démonstration réversible de transport. Ce mécanisme est un contrat logiciel; il ne constitue pas une affirmation de voyage physique entre dimensions.
 
+## Première expérience complète — WORLD-ROUNDTRIP-0001
+
+Le premier noyau fonctionnel complet du système multi-mondes à agents est un aller-retour vérifiable :
+
+```text
+MATTER/CARBON
+    ↓
+VERSO-GLOBAL-01
+    ↓
+INFORMATION/CRYPTO
+    ↓
+VERSO-GLOBAL-01
+    ↓
+MATTER/CARBON
+```
+
+L'expérience utilise une seule fourmi logique, `ANT-0001`, et le contrat `PORTAL-CARBON-CRYPTO-01`.
+
+Valeur de démonstration :
+
+```text
+C
+→ UTF8-CARRIER-V1
+→ hex 43
+→ bits 01000011
+→ C
+```
+
+Le verdict est `PASS` seulement si :
+
+- le trajet aller est ouvert ;
+- le trajet retour est ouvert ;
+- `ANT_ID`, `TICK`, `STATE`, `PROOF_REF` et `ECHO` restent identiques ;
+- le même contrat réversible est utilisé dans les deux directions ;
+- la transformation annoncée correspond au carrier utilisé ;
+- le mode de preuve est `ROUNDTRIP` ;
+- la donnée reconstruite est identique à la donnée de départ ;
+- les neuf événements obligatoires de la trace sont présents dans l'ordre.
+
+La trace produite est immuable en mémoire pour cette exécution. Elle constitue une preuve structurelle de l'expérience, mais pas encore un journal persistant ou une preuve cryptographique.
+
 ## Horloge de la Vie
 
 Cette v0.1 reprend la référence temporelle actuellement utilisée par l'Horloge de la Vie :
