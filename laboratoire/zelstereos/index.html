@@ -764,6 +764,12 @@ const zelFormulaBanks=new Map();
 let zelLastFormulaWave=null;
 let zelLastFormulaCascade=null;
 let zelCanonicalBankReady=null;
+let zelProfileBankReady=null;
+let zelEvolutionBanksReady=null;
+let zelLastEvolutionCascade=null;
+const zelEvolutionFormulaRegistry=new Map();
+const zelEvolutionBankState=new Map();
+const zelEvolutionPromotionHistory=[];
 
 function zelCanonicalMathDefinitions(){
   const provenance='antmux_formula.py#verifier';
@@ -922,6 +928,1070 @@ function zelRegisterCanonicalMathBank(){
   return zelCanonicalBankReady;
 }
 
+function zelProfileZenodoAudit(){
+  return Object.freeze([
+    Object.freeze({record:22962484,doi:'10.5281/zenodo.22962484',repo:'Topbrutus/brutus-offset-test',commit:'c3f2c958fe28503f09b7dd3086ca64470ef23eb0',status:'FORMULA'}),
+    Object.freeze({record:22961910,doi:'10.5281/zenodo.22961910',repo:'Topbrutus/brutus-coefficient-2401',commit:'3f6f0e1bbf6c70dd88eb4e9a04f9e422c486c0f0',status:'FORMULA'}),
+    Object.freeze({record:22970274,doi:'10.5281/zenodo.22970274',repo:'Topbrutus/brutus-pell-connected-spectrum',commit:'711d5b6a0f4789149bd3edf4ecfc485da0f9f512',status:'FORMULA'}),
+    Object.freeze({record:22970584,doi:'10.5281/zenodo.22970584',repo:null,commit:null,status:'EXCLUDED_USER_REQUEST',reason:'BOSON_DE_BRUTUS'}),
+    Object.freeze({record:22970270,doi:'10.5281/zenodo.22970270',repo:'Topbrutus/brutus-pell-square-rank-relation',commit:'aa08bd336662dea0b6c836c273cf7f7d59f4a672',status:'FORMULA'}),
+    Object.freeze({record:22963075,doi:'10.5281/zenodo.22963075',repo:'Topbrutus/brutus-failure-mode',commit:'783a812a0b305e668697db355118f8fc25ea66f3',status:'FORMULA'}),
+    Object.freeze({record:22970272,doi:'10.5281/zenodo.22970272',repo:'Topbrutus/brutus-control-plane',commit:null,status:'NON_FORMULA_ARCHITECTURE'}),
+    Object.freeze({record:22963802,doi:'10.5281/zenodo.22963802',repo:'Topbrutus/brutus-candidate-relation',commit:'f9c90f4bacadfac5d87fe75cab23b349e96aace9',status:'FORMULA'}),
+    Object.freeze({record:22965557,doi:'10.5281/zenodo.22965557',repo:'Topbrutus/brutus-pell-atlas',commit:'3fcfba5b4b6f5f2dd26d1722baa8ebefaf39072b',status:'FORMULA'}),
+    Object.freeze({record:22865069,doi:'10.5281/zenodo.22865069',repo:'Topbrutus/Antmux',commit:'d9b1ebd4f0184caa9f537ed64b2bf5ff0e4eba5e',status:'FORMULA'}),
+    Object.freeze({record:22963493,doi:'10.5281/zenodo.22963493',repo:'Topbrutus/brutus-correction',commit:'df849f10746f376d092bd7894f57d6a5cbef220f',status:'FORMULA'}),
+    Object.freeze({record:22969353,doi:'10.5281/zenodo.22969353',repo:'Topbrutus/brutus-2401-femtosecond-offset',commit:'e8620aa6877ce5ca39104a3b2596812b479092da',status:'FORMULA'}),
+    Object.freeze({record:22962746,doi:'10.5281/zenodo.22962746',repo:'Topbrutus/brutus-drift',commit:'ba675db409f1c919c0a08671e70b278865e5a843',status:'FORMULA'})
+  ]);
+}
+function zelProfileGcd(a,b){
+  a=a<0n?-a:a;
+  b=b<0n?-b:b;
+  while(b!==0n){
+    const r=a%b;
+    a=b;
+    b=r;
+  }
+  return a||1n;
+}
+function zelProfileFrac(value){
+  if(value&&typeof value==='object'&&typeof value.n==='bigint'&&typeof value.d==='bigint'){
+    if(value.d===0n)throw new RangeError('zero denominator');
+    let n=value.n,d=value.d;
+    if(d<0n){n=-n;d=-d;}
+    const g=zelProfileGcd(n,d);
+    return Object.freeze({n:n/g,d:d/g});
+  }
+  if(typeof value==='bigint')return Object.freeze({n:value,d:1n});
+  if(typeof value!=='string'&&typeof value!=='number')throw new TypeError('exact decimal value required');
+  const s=String(value).trim();
+  const ratio=s.match(/^([+-]?\d+)\/([+-]?\d+)$/);
+  if(ratio){
+    const d=BigInt(ratio[2]);
+    if(d===0n)throw new RangeError('zero denominator');
+    return zelProfileFrac({n:BigInt(ratio[1]),d});
+  }
+  const m=s.match(/^([+-]?)(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:[eE]([+-]?\d+))?$/);
+  if(!m)throw new TypeError('invalid exact decimal: '+s);
+  const sign=m[1]==='-'?-1n:1n;
+  const integer=m[2]||'0';
+  const frac=m[3]??m[4]??'';
+  const exp=Number(m[5]||0);
+  if(!Number.isSafeInteger(exp)||Math.abs(exp)>1000)throw new RangeError('decimal exponent out of range');
+  let n=BigInt((integer+frac)||'0')*sign;
+  const scale=frac.length-exp;
+  let d=1n;
+  if(scale>=0)d=10n**BigInt(scale);
+  else n*=10n**BigInt(-scale);
+  return zelProfileFrac({n,d});
+}
+function zelProfileAdd(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  return zelProfileFrac({n:a.n*b.d+b.n*a.d,d:a.d*b.d});
+}
+function zelProfileSub(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  return zelProfileFrac({n:a.n*b.d-b.n*a.d,d:a.d*b.d});
+}
+function zelProfileMul(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  return zelProfileFrac({n:a.n*b.n,d:a.d*b.d});
+}
+function zelProfileDiv(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  if(b.n===0n)throw new RangeError('division by zero');
+  return zelProfileFrac({n:a.n*b.d,d:a.d*b.n});
+}
+function zelProfileAbs(a){
+  a=zelProfileFrac(a);
+  return Object.freeze({n:a.n<0n?-a.n:a.n,d:a.d});
+}
+function zelProfileCmp(a,b){
+  a=zelProfileFrac(a);b=zelProfileFrac(b);
+  const d=a.n*b.d-b.n*a.d;
+  return d<0n?-1:d>0n?1:0;
+}
+function zelProfileFracText(a){
+  a=zelProfileFrac(a);
+  return a.d===1n?a.n.toString():(a.n.toString()+'/'+a.d.toString());
+}
+function zelProfileFracValue(a){
+  a=zelProfileFrac(a);
+  return Object.freeze({exact:zelProfileFracText(a),decimal:Number(a.n)/Number(a.d)});
+}
+function zelProfilePositive(a,label){
+  a=zelProfileFrac(a);
+  if(a.n<=0n)throw new RangeError((label||'value')+' must be > 0');
+  return a;
+}
+function zelProfileNonNegative(a,label){
+  a=zelProfileFrac(a);
+  if(a.n<0n)throw new RangeError((label||'value')+' must be >= 0');
+  return a;
+}
+function zelProfileOffsetCore(input){
+  if(!input||typeof input!=='object')throw new TypeError('offset input object required');
+  const f0=zelProfilePositive(input.f0,'f0');
+  const fobs=zelProfilePositive(input.f_obs,'f_obs');
+  const target=zelProfileFrac(input.target_dt??0);
+  const tol=zelProfileNonNegative(input.tolerance??0,'tolerance');
+  const one=zelProfileFrac(1);
+  const dtObs=zelProfileSub(zelProfileDiv(one,f0),zelProfileDiv(one,fobs));
+  const residual=zelProfileSub(dtObs,target);
+  const expectedDen=zelProfileSub(zelProfileDiv(one,f0),target);
+  if(expectedDen.n===0n)throw new RangeError('expected frequency denominator is zero');
+  const fStar=zelProfileDiv(one,expectedDen);
+  const rf=zelProfileSub(fobs,fStar);
+  return Object.freeze({
+    delta_t_obs:zelProfileFracValue(dtObs),
+    residual_t:zelProfileFracValue(residual),
+    expected_frequency:zelProfileFracValue(fStar),
+    residual_f:zelProfileFracValue(rf),
+    tolerance:zelProfileFracValue(tol),
+    pass:zelProfileCmp(zelProfileAbs(residual),tol)<=0
+  });
+}
+function zelProfilePellRank(m,maxSteps=100000){
+  const M=BigInt(m);
+  if(M<1n)throw new RangeError('m must be >= 1');
+  const max=Math.trunc(Number(maxSteps));
+  if(!Number.isInteger(max)||max<1||max>1000000)throw new RangeError('max_steps must be 1..1000000');
+  let p0=0n,p1=1n%M;
+  for(let k=1;k<=max;k++){
+    if(p1===0n)return k;
+    const next=(2n*p1+p0)%M;
+    p0=p1;
+    p1=next;
+  }
+  return null;
+}
+function zelProfileFormulaDefinitions(){
+  const p=(doi,repo,commit)=>'ZENODO:'+doi+';GITHUB:'+repo+'@'+commit;
+  const defs=[
+    Object.freeze({
+      formula_id:'GSP-ZENODO-001',
+      name:'Brutus Offset Test',
+      normalized_formula:'deltaT_obs=1/f0-1/f_obs; r_T=deltaT_obs-deltaT_*; PASS iff |r_T|<=tau_T',
+      domain:'f0>0, f_obs>0 exact decimals; target_dt exact decimal; tolerance>=0',
+      provenance_ref:p('10.5281/zenodo.22962484','Topbrutus/brutus-offset-test','c3f2c958fe28503f09b7dd3086ca64470ef23eb0'),
+      accepts:input=>{try{zelProfileOffsetCore(input);return true;}catch(e){return false;}},
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const dt=zelProfileFrac('1e-15');
+        const f=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt)));
+        const r=zelProfileOffsetCore({f0:'240.1',f_obs:zelProfileFracText(f),target_dt:'1e-15',tolerance:'0'});
+        return {ok:r.pass,checks:[r.residual_t.exact]};
+      },
+      evaluate:input=>({status:'PASS',value:zelProfileOffsetCore(input)})
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-002',
+      name:'Brutus Coefficient at 240.1 Hz',
+      normalized_formula:'B_240.1=f0^2=57648.01; Delta f=(B*deltaT)/(1-f0*deltaT)',
+      domain:'fixed f0=240.1 Hz; optional delta_t exact decimal',
+      provenance_ref:p('10.5281/zenodo.22961910','Topbrutus/brutus-coefficient-2401','3f6f0e1bbf6c70dd88eb4e9a04f9e422c486c0f0'),
+      accepts:input=>input===undefined||input===null||typeof input==='object',
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const B=zelProfileMul(f0,f0);
+        return {ok:zelProfileFracText(B)==='5764801/100',checks:[zelProfileFracText(B)]};
+      },
+      evaluate:input=>{
+        const f0=zelProfileFrac('240.1');
+        const B=zelProfileMul(f0,f0);
+        const dt=zelProfileFrac(input?.delta_t??'1e-15');
+        const denom=zelProfileSub(1,zelProfileMul(f0,dt));
+        const df=zelProfileDiv(zelProfileMul(B,dt),denom);
+        return {status:'PASS',value:{
+          f0:zelProfileFracValue(f0),
+          coefficient:zelProfileFracValue(B),
+          delta_t:zelProfileFracValue(dt),
+          delta_f:zelProfileFracValue(df)
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-003',
+      name:'Brutus-Pell Connected Spectrum',
+      normalized_formula:'S_Q(u)=E[prod_q(1+uZ_q)]; K_Q(u)=log S_Q(u)-sum_{q<r}log(1+p_qr u^2)',
+      domain:'finite centered sample rows of equal width; |E[Z_q]|<=1e-12; positive logarithm arguments',
+      provenance_ref:p('10.5281/zenodo.22970274','Topbrutus/brutus-pell-connected-spectrum','711d5b6a0f4789149bd3edf4ecfc485da0f9f512'),
+      accepts:input=>Array.isArray(input?.samples)&&input.samples.length>0&&input.samples.length<=10000&&Number.isFinite(Number(input?.u)),
+      verify:()=>{
+        const samples=[[1,1],[1,-1],[-1,1],[-1,-1]];
+        const u=.1;
+        const means=[0,1].map(q=>samples.reduce((s,r)=>s+r[q],0)/samples.length);
+        const S=samples.reduce((s,r)=>s+r.reduce((prod,z)=>prod*(1+u*z),1),0)/samples.length;
+        const p12=samples.reduce((s,r)=>s+r[0]*r[1],0)/samples.length;
+        const K=Math.log(S)-Math.log(1+p12*u*u);
+        return {ok:means.every(x=>Math.abs(x)<1e-12)&&Math.abs(K)<1e-12,checks:[S,p12,K]};
+      },
+      evaluate:input=>{
+        const samples=input.samples;
+        const u=Number(input.u);
+        const cols=samples[0]?.length||0;
+        if(cols<1||cols>32||!samples.every(r=>Array.isArray(r)&&r.length===cols&&r.every(Number.isFinite)))throw new RangeError('invalid connected-spectrum sample matrix');
+        const means=Array.from({length:cols},(_,q)=>samples.reduce((s,r)=>s+r[q],0)/samples.length);
+        if(!means.every(x=>Math.abs(x)<=1e-12))throw new RangeError('connected-spectrum samples must be centered');
+        const S=samples.reduce((s,r)=>s+r.reduce((prod,z)=>prod*(1+u*z),1),0)/samples.length;
+        if(!(S>0))throw new RangeError('S_Q(u) must be positive');
+        const pairs=[];
+        let pairLog=0;
+        for(let q=0;q<cols;q++)for(let r=q+1;r<cols;r++){
+          const pq=samples.reduce((s,row)=>s+row[q]*row[r],0)/samples.length;
+          const factor=1+pq*u*u;
+          if(!(factor>0))throw new RangeError('pair logarithm argument must be positive');
+          pairLog+=Math.log(factor);
+          pairs.push({q,r,p_qr:pq});
+        }
+        return {status:'PASS',value:{S_Q:S,K_Q:Math.log(S)-pairLog,means,pairs}};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-004',
+      name:'Brutus-Pell Square-Rank Relation',
+      normalized_formula:'z_P(21^k)=4*21^(k-1); for k=2r+1, z_P(21^(2r+1))=(2*21^r)^2',
+      domain:'integer k in [2,50]',
+      provenance_ref:p('10.5281/zenodo.22970270','Topbrutus/brutus-pell-square-rank-relation','aa08bd336662dea0b6c836c273cf7f7d59f4a672'),
+      accepts:input=>Number.isInteger(input?.k)&&input.k>=2&&input.k<=50,
+      verify:()=>{
+        const rank=4n*(21n**2n);
+        const side=2n*21n;
+        return {ok:rank===1764n&&side*side===rank,checks:[rank.toString()]};
+      },
+      evaluate:input=>{
+        const k=input.k;
+        const rank=4n*(21n**BigInt(k-1));
+        const odd=k>=3&&k%2===1;
+        const r=odd?(k-1)/2:null;
+        const side=odd?2n*(21n**BigInt(r)):null;
+        return {status:'PASS',value:{
+          k,
+          rank:rank.toString(),
+          square_rank:odd,
+          root:side?.toString()??null,
+          square_check:odd?side*side===rank:null
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-005',
+      name:'Brutus Failure Mode',
+      normalized_formula:'K=sum_i 1(|r_i|>tau); reproduced iff K>=K_min',
+      domain:'finite exact residual list; tolerance>=0; integer K_min in [0,N]',
+      provenance_ref:p('10.5281/zenodo.22963075','Topbrutus/brutus-failure-mode','783a812a0b305e668697db355118f8fc25ea66f3'),
+      accepts:input=>Array.isArray(input?.residuals)&&input.residuals.length<=10000&&Number.isInteger(input?.k_min),
+      verify:()=>{
+        const rs=['0','2e-18','3e-18','2.5e-18','0.5e-18'];
+        const tau=zelProfileFrac('1e-18');
+        const failed=rs.map(zelProfileFrac).filter(x=>zelProfileCmp(zelProfileAbs(x),tau)>0);
+        return {ok:failed.length===3,checks:[failed.length]};
+      },
+      evaluate:input=>{
+        const residuals=input.residuals.map(zelProfileFrac);
+        const tau=zelProfileNonNegative(input.tolerance,'tolerance');
+        const kmin=input.k_min;
+        if(kmin<0||kmin>residuals.length)throw new RangeError('k_min out of range');
+        const failed=residuals.filter(x=>zelProfileCmp(zelProfileAbs(x),tau)>0);
+        const signs=new Set(failed.map(x=>x.n>0n?'POSITIVE':x.n<0n?'NEGATIVE':'ZERO'));
+        const signature=failed.length===0?'NONE':signs.size===1?(signs.has('POSITIVE')?'POSITIVE':signs.has('NEGATIVE')?'NEGATIVE':'NONE'):'MIXED';
+        return {status:'PASS',value:{
+          N:residuals.length,
+          K:failed.length,
+          failure_rate:residuals.length?failed.length/residuals.length:0,
+          signature,
+          reproduced:failed.length>=kmin
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-006',
+      name:'Brutus Candidate Relation Error Gate',
+      normalized_formula:'E=|y_c-y_r|; SURVIVES_TEST iff E<=tau; REJECTED iff E>tau',
+      domain:'candidate, reference exact decimals; tolerance>=0',
+      provenance_ref:p('10.5281/zenodo.22963802','Topbrutus/brutus-candidate-relation','f9c90f4bacadfac5d87fe75cab23b349e96aace9'),
+      accepts:input=>input&&typeof input==='object'&&input.candidate!==undefined&&input.reference!==undefined&&input.tolerance!==undefined,
+      verify:()=>{
+        const E=zelProfileAbs(zelProfileSub('3','3.0001'));
+        const t=zelProfileFrac('.001');
+        return {ok:zelProfileCmp(E,t)<=0,checks:[zelProfileFracText(E)]};
+      },
+      evaluate:input=>{
+        const E=zelProfileAbs(zelProfileSub(input.candidate,input.reference));
+        const tau=zelProfileNonNegative(input.tolerance,'tolerance');
+        const survives=zelProfileCmp(E,tau)<=0;
+        return {status:'PASS',value:{
+          error:zelProfileFracValue(E),
+          tolerance:zelProfileFracValue(tau),
+          decision:survives?'SURVIVES_TEST':'REJECTED'
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-007',
+      name:'Brutus-Pell Atlas Rank/Fiber',
+      normalized_formula:'P_0=0; P_1=1; P_(n+2)=2P_(n+1)+P_n; z_P(m)=min{k>=1:m|P_k}; F_C={m:z_P(m)=C^2}',
+      domain:'positive exact integer m; max_steps integer 1..1000000',
+      provenance_ref:p('10.5281/zenodo.22965557','Topbrutus/brutus-pell-atlas','3fcfba5b4b6f5f2dd26d1722baa8ebefaf39072b'),
+      accepts:input=>{
+        try{
+          const m=BigInt(input?.m);
+          return m>=1n&&Number.isInteger(input?.max_steps??100000);
+        }catch(e){return false;}
+      },
+      verify:()=>{
+        const a=zelProfilePellRank(13n,100);
+        const b=zelProfilePellRank(73n,100);
+        return {ok:a===7&&b===36,checks:[a,b]};
+      },
+      evaluate:input=>{
+        const m=BigInt(input.m);
+        const rank=zelProfilePellRank(m,input.max_steps??100000);
+        if(rank===null)return {status:'DOMAIN',value:null,trace:[{reason:'RANK_NOT_FOUND_WITHIN_BOUND'}]};
+        const root=Math.trunc(Math.sqrt(rank));
+        const square=root*root===rank;
+        return {status:'PASS',value:{m:m.toString(),rank,square_rank:square,fiber_root:square?root:null}};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-008',
+      name:"ANTMUX-X72 Da'at Center/Differential",
+      normalized_formula:'B_i=(G_i+D_i)/2; A_i=(G_i-D_i)/2; G_i=B_i+A_i; D_i=B_i-A_i',
+      domain:'finite scalar pair or equal-length finite arrays G,D',
+      provenance_ref:p('10.5281/zenodo.22865069','Topbrutus/Antmux','d9b1ebd4f0184caa9f537ed64b2bf5ff0e4eba5e'),
+      accepts:input=>{
+        const G=Array.isArray(input?.G)?input.G:[input?.G];
+        const D=Array.isArray(input?.D)?input.D:[input?.D];
+        return G.length===D.length&&G.length>0&&G.length<=2401&&G.every(Number.isFinite)&&D.every(Number.isFinite);
+      },
+      verify:()=>{
+        const G=[1,2,-3];
+        const D=[5,-2,7];
+        const B=G.map((x,i)=>(x+D[i])/2);
+        const A=G.map((x,i)=>(x-D[i])/2);
+        return {ok:G.every((x,i)=>B[i]+A[i]===x)&&D.every((x,i)=>B[i]-A[i]===x),checks:[B,A]};
+      },
+      evaluate:input=>{
+        const scalar=!Array.isArray(input.G)&&!Array.isArray(input.D);
+        const G=scalar?[Number(input.G)]:input.G.map(Number);
+        const D=scalar?[Number(input.D)]:input.D.map(Number);
+        const B=G.map((x,i)=>(x+D[i])/2);
+        const A=G.map((x,i)=>(x-D[i])/2);
+        const Gr=B.map((x,i)=>x+A[i]);
+        const Dr=B.map((x,i)=>x-A[i]);
+        return {status:'PASS',value:{
+          B:scalar?B[0]:B,
+          A:scalar?A[0]:A,
+          G_reconstructed:scalar?Gr[0]:Gr,
+          D_reconstructed:scalar?Dr[0]:Dr
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-009',
+      name:'ANTMUX-X72 Ordered Path Capacity',
+      normalized_formula:'12! = 479001600',
+      domain:'canonical 12-channel architecture',
+      provenance_ref:p('10.5281/zenodo.22865069','Topbrutus/Antmux','d9b1ebd4f0184caa9f537ed64b2bf5ff0e4eba5e'),
+      accepts:input=>input===undefined||input===null||input===12||input?.channels===12,
+      verify:()=>{
+        let f=1n;
+        for(let i=2n;i<=12n;i++)f*=i;
+        return {ok:f===479001600n,checks:[f.toString()]};
+      },
+      evaluate:()=>({status:'PASS',value:{channels:12,ordered_paths:'479001600'}})
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-010',
+      name:'Brutus Correction',
+      normalized_formula:"C_T=g*r_T; T_c=1/f_obs+C_T; f_c=1/T_c; r_T'=(1-g)r_T",
+      domain:'f0>0, f_obs>0 exact decimals; target_dt exact; gain g in [0,1]',
+      provenance_ref:p('10.5281/zenodo.22963493','Topbrutus/brutus-correction','df849f10746f376d092bd7894f57d6a5cbef220f'),
+      accepts:input=>{
+        try{
+          const g=zelProfileFrac(input?.gain);
+          return zelProfileCmp(g,0)>=0&&zelProfileCmp(g,1)<=0&&!!zelProfileOffsetCore({...input,tolerance:0});
+        }catch(e){return false;}
+      },
+      verify:()=>{
+        const r=zelProfileFrac('2e-15');
+        const g=zelProfileFrac('.5');
+        return {ok:zelProfileFracText(zelProfileMul(zelProfileSub(1,g),r))==='1/1000000000000000',checks:['half residual']};
+      },
+      evaluate:input=>{
+        const f0=zelProfilePositive(input.f0,'f0');
+        const fobs=zelProfilePositive(input.f_obs,'f_obs');
+        const target=zelProfileFrac(input.target_dt);
+        const g=zelProfileFrac(input.gain);
+        if(zelProfileCmp(g,0)<0||zelProfileCmp(g,1)>0)throw new RangeError('gain must be in [0,1]');
+        const dtObs=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,fobs));
+        const r=zelProfileSub(dtObs,target);
+        const ct=zelProfileMul(g,r);
+        const tc=zelProfileAdd(zelProfileDiv(1,fobs),ct);
+        const fc=zelProfileDiv(1,tc);
+        const rp=zelProfileMul(zelProfileSub(1,g),r);
+        const cf=zelProfileSub(fc,fobs);
+        return {status:'PASS',value:{
+          residual_initial:zelProfileFracValue(r),
+          period_correction:zelProfileFracValue(ct),
+          corrected_frequency:zelProfileFracValue(fc),
+          residual_final:zelProfileFracValue(rp),
+          frequency_correction:zelProfileFracValue(cf)
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-011',
+      name:'240.1 Hz / 1 fs Period-Offset Construction',
+      normalized_formula:'1/240.1-1/f=1e-15; f=240.1/(1-240.1e-15); N=2401',
+      domain:'canonical published construction; no physical-identification claim',
+      provenance_ref:p('10.5281/zenodo.22969353','Topbrutus/brutus-2401-femtosecond-offset','e8620aa6877ce5ca39104a3b2596812b479092da'),
+      accepts:()=>true,
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const dt=zelProfileFrac('1e-15');
+        const f=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt)));
+        const df=zelProfileSub(f,f0);
+        const reconstructed=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,f));
+        return {ok:zelProfileCmp(reconstructed,dt)===0&&df.n>0n,checks:[zelProfileFracText(reconstructed)]};
+      },
+      evaluate:()=>{
+        const f0=zelProfileFrac('240.1');
+        const dt=zelProfileFrac('1e-15');
+        const N=zelProfileFrac(2401);
+        const f=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,dt)));
+        const df=zelProfileSub(f,f0);
+        return {status:'PASS',value:{
+          f0:zelProfileFracValue(f0),
+          delta_t:zelProfileFracValue(dt),
+          f:zelProfileFracValue(f),
+          delta_f:zelProfileFracValue(df),
+          scaled_reference:zelProfileFracValue(zelProfileMul(N,f0)),
+          scaled_candidate:zelProfileFracValue(zelProfileMul(N,f)),
+          scaled_residual:zelProfileFracValue(zelProfileMul(N,df))
+        }};
+      }
+    }),
+    Object.freeze({
+      formula_id:'GSP-ZENODO-012',
+      name:'Brutus Drift',
+      normalized_formula:'D_T=(1/f1-1/f2)/(t2-t1); D_f=(f2-f1)/(t2-t1)',
+      domain:'f0,f1,f2>0 exact decimals; exact times with t2>t1',
+      provenance_ref:p('10.5281/zenodo.22962746','Topbrutus/brutus-drift','ba675db409f1c919c0a08671e70b278865e5a843'),
+      accepts:input=>{
+        try{
+          return zelProfileCmp(input?.t2,input?.t1)>0&&zelProfileFrac(input?.f1).n>0n&&zelProfileFrac(input?.f2).n>0n;
+        }catch(e){return false;}
+      },
+      verify:()=>{
+        const f0=zelProfileFrac('240.1');
+        const onefs=zelProfileFrac('1e-15');
+        const twofs=zelProfileFrac('2e-15');
+        const f1=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,onefs)));
+        const f2=zelProfileDiv(f0,zelProfileSub(1,zelProfileMul(f0,twofs)));
+        const dt=zelProfileFrac(10);
+        const D=zelProfileDiv(zelProfileSub(zelProfileDiv(1,f1),zelProfileDiv(1,f2)),dt);
+        return {ok:zelProfileFracText(D)==='1/10000000000000000',checks:[zelProfileFracText(D)]};
+      },
+      evaluate:input=>{
+        const f0=zelProfilePositive(input.f0,'f0');
+        const f1=zelProfilePositive(input.f1,'f1');
+        const f2=zelProfilePositive(input.f2,'f2');
+        const t1=zelProfileFrac(input.t1);
+        const t2=zelProfileFrac(input.t2);
+        const dt=zelProfileSub(t2,t1);
+        if(dt.n<=0n)throw new RangeError('t2 must be greater than t1');
+        const d1=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,f1));
+        const d2=zelProfileSub(zelProfileDiv(1,f0),zelProfileDiv(1,f2));
+        const dd=zelProfileSub(d2,d1);
+        const DT=zelProfileDiv(dd,dt);
+        const DTs=zelProfileDiv(zelProfileSub(zelProfileDiv(1,f1),zelProfileDiv(1,f2)),dt);
+        const Df=zelProfileDiv(zelProfileSub(f2,f1),dt);
+        return {status:'PASS',value:{
+          delta_t1:zelProfileFracValue(d1),
+          delta_t2:zelProfileFracValue(d2),
+          delta_delta_t:zelProfileFracValue(dd),
+          period_drift:zelProfileFracValue(DT),
+          period_drift_simplified:zelProfileFracValue(DTs),
+          frequency_drift:zelProfileFracValue(Df),
+          simplification_exact:zelProfileCmp(DT,DTs)===0
+        }};
+      }
+    })
+  ];
+  return Object.freeze(defs);
+}
+function zelRegisterProfileFormulaBank(){
+  if(!zelProfileBankReady)zelProfileBankReady=zelFormulaRegisterBank('PROFILE/GABRIEL-ST-PIERRE/ZENODO',zelProfileFormulaDefinitions(),{batch_size:32});
+  return zelProfileBankReady;
+}
+
+function zelEvolutionExactInt(value){
+  if(typeof value==='bigint')return value;
+  if(typeof value==='number'&&Number.isSafeInteger(value))return BigInt(value);
+  if(typeof value==='string'&&/^[+-]?\d+$/.test(value.trim()))return BigInt(value.trim());
+  throw new RangeError('ENTITY38 requires an exact integer supplied as a safe JS integer or decimal integer string');
+}
+function zelEvolutionLinearDefinition(stage,slot,a,b){
+  const A=BigInt(a),B=BigInt(b);
+  if(A===0n)throw new RangeError('ENTITY38 affine coefficient a cannot be zero');
+  const id='Z'+String(stage)+'-'+String(slot).padStart(2,'0');
+  const sign=B<0n?'':'+';
+  const formula='y='+A.toString()+'*x'+sign+B.toString();
+  const inverse=value=>{
+    const y=zelEvolutionExactInt(value),num=y-B;
+    if(num%A!==0n)throw new RangeError('ENTITY38 inverse is not exact for '+id);
+    return (num/A).toString();
+  };
+  return Object.freeze({
+    formula_id:id,
+    name:'Z Stéréo '+stage+' · slot '+String(slot).padStart(2,'0'),
+    normalized_formula:formula,
+    domain:'x exact integer; safe JS integer or decimal integer string; BigInt internal arithmetic',
+    provenance_ref:'ENTITY38/SEED-AFFINE-v1',
+    accepts:input=>{
+      try{zelEvolutionExactInt(input);return true;}catch(e){return false;}
+    },
+    verify:()=>{
+      const samples=['-9007199254740993123456789','-273','-7','-1','0','1','7','273','9007199254740993123456789'];
+      const checks=[];
+      let ok=true;
+      for(const raw of samples){
+        const x=zelEvolutionExactInt(raw),y=A*x+B,recovered=zelEvolutionExactInt(inverse(y.toString()));
+        const pass=recovered===x;
+        ok=ok&&pass;
+        checks.push({input:x.toString(),output:y.toString(),recovered:recovered.toString(),ok:pass});
+      }
+      return {ok,checks};
+    },
+    evaluate:input=>{
+      const x=zelEvolutionExactInt(input),y=A*x+B;
+      return {
+        status:'PASS',
+        value:y.toString(),
+        trace:[{
+          kind:'ENTITY38_AFFINE_EXACT_V1',
+          a:A.toString(),
+          b:B.toString(),
+          exact_input:x.toString(),
+          exact_output:y.toString()
+        }]
+      };
+    },
+    inverse
+  });
+}
+function zelEvolutionSeedDefinitions(){
+  const make=(stage,pairs)=>pairs.map(([a,b],i)=>zelEvolutionLinearDefinition(stage,i+1,a,b));
+  return Object.freeze({
+    route:Object.freeze([
+      Object.freeze({world_id:'ZSTEREO/Z1',stage:1,fanout:9}),
+      Object.freeze({world_id:'ZSTEREO/Z2',stage:2,fanout:12}),
+      Object.freeze({world_id:'ZSTEREO/Z3',stage:3,fanout:12})
+    ]),
+    Z1:Object.freeze(make(1,[[1,1],[1,-1],[2,0],[2,1],[2,-1],[3,0],[3,1],[3,-1],[-1,0]])),
+    Z2:Object.freeze(make(2,[[1,2],[1,-2],[1,3],[1,-3],[2,2],[2,-2],[3,2],[3,-2],[4,0],[4,1],[4,-1],[-1,1]])),
+    Z3:Object.freeze(make(3,[[1,4],[1,-4],[2,3],[2,-3],[3,3],[3,-3],[4,2],[4,-2],[5,0],[5,1],[5,-1],[-1,-1]]))
+  });
+}
+function zelRegisterEvolutionSeedBanks(){
+  if(!zelEvolutionBanksReady){
+    zelEvolutionBanksReady=(async()=>{
+      const seed=zelEvolutionSeedDefinitions();
+      const defsByWorld=new Map([
+        ['ZSTEREO/Z1',seed.Z1],
+        ['ZSTEREO/Z2',seed.Z2],
+        ['ZSTEREO/Z3',seed.Z3]
+      ]);
+      const registered=[];
+      for(const route of seed.route){
+        const defs=defsByWorld.get(route.world_id);
+        const result=await zelFormulaRegisterBank(route.world_id,defs,{batch_size:64});
+        const verified=zelFormulaBanks.get(route.world_id)||[];
+        verified.forEach(def=>zelEvolutionFormulaRegistry.set(def.formula_id,def));
+        if(!zelEvolutionBankState.has(route.world_id)){
+          zelEvolutionBankState.set(route.world_id,{
+            world_id:route.world_id,
+            stage:route.stage,
+            fanout:route.fanout,
+            generation:0,
+            slots:verified.map((def,i)=>({
+              slot:i+1,
+              formula_id:def.formula_id,
+              generation:0,
+              source:'SEED',
+              proof_ref:def.provenance_ref
+            }))
+          });
+        }
+        registered.push(result);
+      }
+      return Object.freeze({
+        schema:'ANTMUX-ZELSTEREOS-ENTITY38-SEED-BANKS-v1',
+        status:'VERIFIED',
+        route:seed.route,
+        banks:Object.freeze(registered)
+      });
+    })().catch(err=>{zelEvolutionBanksReady=null;throw err;});
+  }
+  return zelEvolutionBanksReady;
+}
+function zelEvolutionInvariantF006(value,context={}){
+  const exact=zelEvolutionExactInt(value);
+  const magnitude=exact<0n?-exact:exact;
+  let x=1+Number(magnitude%997n)/997;
+  let y=1+Number((magnitude/997n)%991n)/991;
+  const x0=x,y0=y;
+  const invariant=(a,b)=>a-Math.log(a)+b-Math.log(b);
+  const deriv=(a,b)=>[a*(1-b),b*(a-1)];
+  const h0=invariant(x,y);
+  const dt=.001,steps=32;
+  for(let i=0;i<steps;i++){
+    const k1=deriv(x,y);
+    const k2=deriv(x+dt*k1[0]/2,y+dt*k1[1]/2);
+    const k3=deriv(x+dt*k2[0]/2,y+dt*k2[1]/2);
+    const k4=deriv(x+dt*k3[0],y+dt*k3[1]);
+    x+=dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;
+    y+=dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;
+  }
+  const h1=invariant(x,y);
+  const drift=Math.abs(h1-h0);
+  const tolerance=1e-10;
+  const ok=Number.isFinite(h0)&&Number.isFinite(h1)&&x0>0&&y0>0&&x>0&&y>0&&drift<=tolerance;
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-INVARIANT-GUARD-v1',
+    formula_id:'F006',
+    name:'Invariant Lotka-Volterra',
+    normalized_formula:'H(x,y)=x-ln(x)+y-ln(y)',
+    role:'INDEPENDENT_NUMERICAL_SENTINEL',
+    checkpoint:String(context.checkpoint||'').slice(0,80),
+    branch_id:String(context.branch_id||'').slice(0,160),
+    seed_exact:exact.toString(),
+    seed:Object.freeze({x:x0,y:y0}),
+    final:Object.freeze({x,y}),
+    h0,
+    h1,
+    drift,
+    tolerance,
+    steps,
+    dt,
+    ok
+  });
+}
+function zelEvolutionGuardSummary(nodes){
+  const guards=(Array.isArray(nodes)?nodes:[]).map(x=>x?.invariant_guard).filter(Boolean);
+  const passed=guards.filter(x=>x.ok===true).length;
+  return Object.freeze({formula_id:'F006',checked:guards.length,passed,failed:guards.length-passed});
+}
+async function zelFormulaRunBranchLayer(spec={}){
+  const worldId=String(spec.world_id||'').trim();
+  if(!worldId)throw new TypeError('ENTITY38 world_id required');
+  const bank=zelFormulaBanks.get(worldId)||[];
+  if(!bank.length)throw new RangeError('ENTITY38 verified formula bank required for '+worldId);
+  const parents=Array.isArray(spec.parents)?spec.parents:[];
+  if(!parents.length)throw new RangeError('ENTITY38 branch layer requires at least one parent node');
+  const totalJobs=parents.length*bank.length;
+  if(totalJobs>ZEL_FORMULA_WAVE_MAX)throw new RangeError('ENTITY38 branch layer exceeds 2000 jobs');
+  const depth=Math.max(1,Math.trunc(Number(spec.depth)||1));
+  const batchSize=Math.max(1,Math.min(128,Math.trunc(Number(spec.batch_size)||ZEL_FORMULA_BATCH_DEFAULT)));
+  const layerId=String(spec.layer_id||('ENTITY38-D'+depth+'-'+Date.now())).slice(0,120);
+  const jobs=[];
+  let index=0;
+  for(let p=0;p<parents.length;p++){
+    const parent=parents[p];
+    for(let f=0;f<bank.length;f++)jobs.push({index:index++,parent,parent_index:p,def:bank[f],formula_slot:f+1});
+  }
+  const nodes=[];
+  zelSwarmRender({wave_id:layerId,world_id:worldId,total:totalJobs,done:0,depth,route:spec.route||[worldId]});
+  for(let offset=0;offset<jobs.length;offset+=batchSize){
+    const batch=jobs.slice(offset,offset+batchSize);
+    const settled=await Promise.all(batch.map(async job=>{
+      const context={
+        cascade_id:String(spec.cascade_id||''),
+        layer_id:layerId,
+        world_id:worldId,
+        depth,
+        parent_id:String(job.parent.branch_id||'ROOT'),
+        parent_index:job.parent_index,
+        total:totalJobs
+      };
+      const result=await zelFormulaRunOne(job.def,job.parent.value,context,job.index);
+      const branchId=String(job.parent.branch_id||'ROOT')+'/'+String(job.formula_slot).padStart(2,'0');
+      const invariantGuard=result.status==='PASS'
+        ?zelEvolutionInvariantF006(result.value,{checkpoint:'FORWARD_Z'+depth,branch_id:branchId})
+        :null;
+      const step=Object.freeze({
+        depth,
+        world_id:worldId,
+        formula_slot:job.formula_slot,
+        formula_id:result.formula_id,
+        normalized_formula:result.normalized_formula,
+        status:result.status,
+        input:zelFormulaSafeValue(job.parent.value),
+        output:zelFormulaSafeValue(result.value),
+        trace:zelFormulaSafeValue(result.trace)
+      });
+      return Object.freeze({
+        branch_id:branchId,
+        parent_id:String(job.parent.branch_id||'ROOT'),
+        depth,
+        world_id:worldId,
+        formula_slot:job.formula_slot,
+        formula_id:result.formula_id,
+        name:result.name,
+        normalized_formula:result.normalized_formula,
+        provenance_ref:result.provenance_ref,
+        status:result.status,
+        value:result.value,
+        expected:result.expected,
+        error:result.error||null,
+        elapsed_ms:result.elapsed_ms,
+        invariant_guard:invariantGuard,
+        path:Object.freeze([...(job.parent.path||[]),result.formula_id]),
+        history:Object.freeze([...(job.parent.history||[]),step])
+      });
+    }));
+    nodes.push(...settled);
+    const summary=zelSwarmSummary(nodes);
+    zelSwarmRender({
+      wave_id:layerId,
+      world_id:worldId,
+      total:totalJobs,
+      done:nodes.length,
+      depth,
+      route:spec.route||[worldId],
+      anomalies:nodes.filter(x=>x.status!=='PASS'),
+      ...summary
+    });
+    if(offset+batchSize<jobs.length)await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  const summary=zelSwarmSummary(nodes);
+  const invariantGuard=zelEvolutionGuardSummary(nodes);
+  const outputNodes=nodes.filter(x=>x.status==='PASS'&&x.invariant_guard?.ok===true).length;
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-BRANCH-LAYER-v1',
+    deterministic:true,
+    layer_id:layerId,
+    world_id:worldId,
+    depth,
+    input_nodes:parents.length,
+    formulas:bank.length,
+    total_jobs:totalJobs,
+    output_nodes:outputNodes,
+    summary,
+    invariant_guard:invariantGuard,
+    nodes:Object.freeze(nodes)
+  });
+}
+function zelEvolutionBraidOrder(nodes){
+  const source=Array.isArray(nodes)?nodes:[];
+  const braided=[...source].reverse();
+  const pairs=[];
+  for(let i=0;i<Math.ceil(source.length/2);i++){
+    const left=source[i],right=source[source.length-1-i];
+    if(!left||!right)continue;
+    pairs.push(Object.freeze({
+      first_index:i,
+      last_index:source.length-1-i,
+      first_branch:left.branch_id,
+      last_branch:right.branch_id
+    }));
+  }
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-BRAID-v1',
+    mode:'LAST_TO_FIRST',
+    nodes:Object.freeze(braided),
+    pairs:Object.freeze(pairs)
+  });
+}
+async function zelEvolutionVerifyInverse(rootValue,finalNodes){
+  const root=zelEvolutionExactInt(rootValue).toString();
+  const braid=zelEvolutionBraidOrder(finalNodes);
+  let verified=0;
+  let invariantGuardChecked=0;
+  let invariantGuardPassed=0;
+  const failures=[];
+  for(const node of braid.nodes){
+    let current=zelEvolutionExactInt(node.value).toString();
+    let ok=true;
+    let reason='';
+    const history=[...(node.history||[])].reverse();
+    for(const step of history){
+      const def=zelEvolutionFormulaRegistry.get(step.formula_id);
+      if(!def||typeof def.inverse!=='function'){
+        ok=false;reason='INVERSE_NOT_REGISTERED:'+step.formula_id;break;
+      }
+      try{
+        const previous=zelEvolutionExactInt(await Promise.resolve(def.inverse(current,Object.freeze({step,node})))).toString();
+        const expected=zelEvolutionExactInt(step.input).toString();
+        if(previous!==expected){
+          ok=false;reason='INVERSE_MISMATCH:'+step.formula_id;break;
+        }
+        const invariantGuard=zelEvolutionInvariantF006(previous,{
+          checkpoint:'RETURN_Z'+String(step.depth||''),
+          branch_id:node.branch_id
+        });
+        invariantGuardChecked++;
+        if(invariantGuard.ok)invariantGuardPassed++;
+        else {ok=false;reason='F006_INVARIANT_GUARD:'+step.formula_id;break;}
+        current=previous;
+      }catch(err){
+        ok=false;reason=String(err?.message||err||'INVERSE_ERROR');break;
+      }
+    }
+    if(ok&&current!==root){ok=false;reason='ROOT_MISMATCH';}
+    if(ok)verified++;
+    else if(failures.length<50)failures.push(Object.freeze({branch_id:node.branch_id,reason,recovered:current,expected_root:root}));
+  }
+  const total=braid.nodes.length;
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-INVERSE-VERIFICATION-v1',
+    mode:'BRAID_LAST_TO_FIRST_THEN_Z3_Z2_Z1',
+    root,
+    total,
+    verified,
+    failed:total-verified,
+    ok:total>0&&verified===total,
+    pair_count:braid.pairs.length,
+    braid_pairs:braid.pairs,
+    invariant_guard:Object.freeze({
+      formula_id:'F006',
+      checked:invariantGuardChecked,
+      passed:invariantGuardPassed,
+      failed:invariantGuardChecked-invariantGuardPassed
+    }),
+    failures:Object.freeze(failures)
+  });
+}
+async function zelFormulaRunEvolutionCascade(spec={}){
+  await zelRegisterEvolutionSeedBanks();
+  const root=zelEvolutionExactInt(spec.input).toString();
+  const cascadeId=String(spec.cascade_id||('ENTITY38-'+Date.now())).slice(0,120);
+  const route=zelEvolutionSeedDefinitions().route;
+  let parents=[Object.freeze({branch_id:'ROOT',value:root,path:Object.freeze([]),history:Object.freeze([])})];
+  const layers=[];
+  const routeSoFar=[];
+  for(const stage of route){
+    routeSoFar.push(stage.world_id);
+    const layer=await zelFormulaRunBranchLayer({
+      cascade_id:cascadeId,
+      layer_id:cascadeId+'-Z'+stage.stage,
+      world_id:stage.world_id,
+      depth:stage.stage,
+      parents,
+      route:[...routeSoFar],
+      batch_size:spec.batch_size
+    });
+    layers.push(layer);
+    parents=layer.nodes.filter(x=>x.status==='PASS'&&x.invariant_guard?.ok===true);
+    if(!parents.length)break;
+  }
+  const counts=layers.map(x=>x.output_nodes);
+  const expected=[9,108,1296];
+  const countCheck=counts.length===3&&expected.every((v,i)=>counts[i]===v);
+  const finalNodes=layers.length===3?layers[2].nodes.filter(x=>x.status==='PASS'):[];
+  const inverse=await zelEvolutionVerifyInverse(root,finalNodes);
+  const aggregate={PASS:0,FAIL:0,DOMAIN:0,ERROR:0,total:0};
+  for(const layer of layers){
+    for(const key of ['PASS','FAIL','DOMAIN','ERROR'])aggregate[key]+=layer.summary[key]||0;
+    aggregate.total+=layer.summary.total||0;
+  }
+  const forwardInvariantChecked=layers.reduce((n,x)=>n+(x.invariant_guard?.checked||0),0);
+  const forwardInvariantPassed=layers.reduce((n,x)=>n+(x.invariant_guard?.passed||0),0);
+  const returnInvariantChecked=inverse.invariant_guard?.checked||0;
+  const returnInvariantPassed=inverse.invariant_guard?.passed||0;
+  const invariantGuards=Object.freeze({
+    formula_id:'F006',
+    role:'INDEPENDENT_NUMERICAL_SENTINEL',
+    forward:Object.freeze({checked:forwardInvariantChecked,passed:forwardInvariantPassed,failed:forwardInvariantChecked-forwardInvariantPassed}),
+    return:Object.freeze({checked:returnInvariantChecked,passed:returnInvariantPassed,failed:returnInvariantChecked-returnInvariantPassed}),
+    total:Object.freeze({
+      checked:forwardInvariantChecked+returnInvariantChecked,
+      passed:forwardInvariantPassed+returnInvariantPassed,
+      failed:(forwardInvariantChecked-forwardInvariantPassed)+(returnInvariantChecked-returnInvariantPassed)
+    })
+  });
+  const completed=Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-EVOLUTION-CASCADE-v1',
+    deterministic:true,
+    cascade_id:cascadeId,
+    status:countCheck&&inverse.ok&&invariantGuards.total.failed===0?'PASS':'FAIL',
+    root,
+    route:Object.freeze(route.map(x=>x.world_id)),
+    fanout:Object.freeze(route.map(x=>x.fanout)),
+    expected_outputs:Object.freeze(expected),
+    actual_outputs:Object.freeze(counts),
+    total_formula_evaluations:aggregate.total,
+    summary:Object.freeze(aggregate),
+    invariant_guards:invariantGuards,
+    inverse_verification:inverse,
+    layers:Object.freeze(layers),
+    final_nodes:Object.freeze(finalNodes)
+  });
+  zelLastEvolutionCascade=completed;
+  zelSwarmRender({
+    wave_id:cascadeId,
+    world_id:'ENTITY38',
+    total:aggregate.total,
+    done:aggregate.total,
+    depth:3,
+    route:[...completed.route,'BRAID/INVERSE'],
+    anomalies:layers.flatMap(x=>x.nodes.filter(n=>n.status!=='PASS')).slice(0,50),
+    ...aggregate
+  });
+  return completed;
+}
+function zelEvolutionValidatePromotionEvidence(evidence){
+  if(!evidence||typeof evidence!=='object')throw new TypeError('ENTITY38 promotion evidence required');
+  const status=String(evidence.status||'').toUpperCase();
+  const attacksRun=Math.trunc(Number(evidence.attacks_run));
+  const attacksPassed=Math.trunc(Number(evidence.attacks_passed));
+  const counterexamples=Math.trunc(Number(evidence.counterexamples));
+  const proofRef=String(evidence.proof_ref||'').trim();
+  if(status!=='MAX_VERIFIED')throw new Error('ENTITY38 candidate must be MAX_VERIFIED');
+  if(!Number.isInteger(attacksRun)||attacksRun<1)throw new Error('ENTITY38 attacks_run must be >= 1');
+  if(attacksPassed!==attacksRun)throw new Error('ENTITY38 all adversarial attacks must pass');
+  if(counterexamples!==0)throw new Error('ENTITY38 counterexamples must be zero');
+  if(!proofRef)throw new Error('ENTITY38 proof_ref required');
+  return Object.freeze({status,attacks_run:attacksRun,attacks_passed:attacksPassed,counterexamples,proof_ref:proofRef});
+}
+async function zelEvolutionPromoteFormula(spec={}){
+  await zelRegisterEvolutionSeedBanks();
+  const worldId=String(spec.world_id||'').trim();
+  const state=zelEvolutionBankState.get(worldId);
+  const bank=zelFormulaBanks.get(worldId)||[];
+  if(!state||!bank.length)throw new RangeError('ENTITY38 promotion world is not an active Z Stéréo stage');
+  const evidence=zelEvolutionValidatePromotionEvidence(spec.evidence);
+  const candidate=spec.candidate;
+  if(!candidate||typeof candidate!=='object')throw new TypeError('ENTITY38 candidate formula required');
+  if(typeof candidate.inverse!=='function')throw new TypeError('ENTITY38 promoted formula requires an inverse verifier');
+  const qualified=await zelFormulaQualifyDefinitions([candidate],{batch_size:1});
+  const q=qualified.qualification[0];
+  if(!q||!q.ok)throw new Error('ENTITY38 candidate formula failed qualification');
+  const normalized=qualified.definitions[0];
+  let slotIndex;
+  if(spec.slot!==undefined&&spec.slot!==null){
+    slotIndex=Math.trunc(Number(spec.slot))-1;
+    if(slotIndex<0||slotIndex>=bank.length)throw new RangeError('ENTITY38 promotion slot out of range');
+  }else{
+    let best=0;
+    for(let i=1;i<state.slots.length;i++){
+      if(state.slots[i].generation<state.slots[best].generation)best=i;
+    }
+    slotIndex=best;
+  }
+  const duplicate=bank.findIndex((def,i)=>i!==slotIndex&&def.formula_id===normalized.formula_id);
+  if(duplicate!==-1)throw new Error('ENTITY38 candidate formula_id already exists in active bank');
+  const replaced=bank[slotIndex];
+  const verified=Object.freeze({...normalized,qualification:q});
+  const next=[...bank];
+  next[slotIndex]=verified;
+  zelFormulaBanks.set(worldId,Object.freeze(next));
+  zelEvolutionFormulaRegistry.set(verified.formula_id,verified);
+  state.generation+=1;
+  state.slots[slotIndex]={
+    slot:slotIndex+1,
+    formula_id:verified.formula_id,
+    generation:state.generation,
+    source:'PROMOTED',
+    proof_ref:evidence.proof_ref
+  };
+  const record=Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-PROMOTION-v1',
+    world_id:worldId,
+    slot:slotIndex+1,
+    generation:state.generation,
+    policy:spec.slot?'EXPLICIT_SLOT':'OLDEST_GENERATION_FIRST',
+    replaced_formula_id:replaced.formula_id,
+    promoted_formula_id:verified.formula_id,
+    evidence,
+    timestamp:Date.now()
+  });
+  zelEvolutionPromotionHistory.push(record);
+  return record;
+}
+function zelEvolutionState(){
+  return Object.freeze({
+    schema:'ANTMUX-ZELSTEREOS-ENTITY38-STATE-v1',
+    banks:Object.freeze([...zelEvolutionBankState.values()].map(state=>Object.freeze({
+      world_id:state.world_id,
+      stage:state.stage,
+      fanout:state.fanout,
+      generation:state.generation,
+      slots:Object.freeze(state.slots.map(slot=>Object.freeze({...slot})))
+    }))),
+    promotions:Object.freeze([...zelEvolutionPromotionHistory]),
+    last_cascade:zelLastEvolutionCascade?Object.freeze({
+      cascade_id:zelLastEvolutionCascade.cascade_id,
+      status:zelLastEvolutionCascade.status,
+      root:zelLastEvolutionCascade.root,
+      actual_outputs:zelLastEvolutionCascade.actual_outputs,
+      total_formula_evaluations:zelLastEvolutionCascade.total_formula_evaluations,
+      invariant_guard:zelLastEvolutionCascade.invariant_guards,
+      inverse_ok:zelLastEvolutionCascade.inverse_verification.ok
+    }):null
+  });
+}
+function zelEvolutionAudioStages(cascade){
+  if(!cascade||cascade.schema!=='ANTMUX-ZELSTEREOS-ENTITY38-EVOLUTION-CASCADE-v1')throw new TypeError('ENTITY38 cascade result required');
+  const root=Number(cascade.root);
+  if(!Number.isFinite(root))throw new RangeError('ENTITY38 audio test requires a finite numeric root');
+  const counts=Array.from(cascade.actual_outputs||[]);
+  if(counts.length!==3||counts[0]!==9||counts[1]!==108||counts[2]!==1296)throw new Error('ENTITY38 audio stages require a complete 9/108/1296 cascade');
+  const ok=cascade.status==='PASS'&&cascade.inverse_verification?.ok===true;
+  return Object.freeze([
+    Object.freeze({label:'ENTRÉE · 1 nombre',value:root,exact:String(cascade.root),complexity_ratio:.05,step_ms:420}),
+    Object.freeze({label:'Z STÉRÉO 1 · 9 sorties',value:9,exact:'9',complexity_ratio:.18,step_ms:520}),
+    Object.freeze({label:'Z STÉRÉO 2 · 108 sorties',value:108,exact:'108',complexity_ratio:.55,step_ms:720}),
+    Object.freeze({label:'Z STÉRÉO 3 · 1 296 sorties',value:1296,exact:'1296',complexity_ratio:1,step_ms:1050}),
+    Object.freeze({label:'RETOUR Z3 → Z2 · 108',value:108,exact:'108',complexity_ratio:.55,step_ms:720}),
+    Object.freeze({label:'RETOUR Z2 → Z1 · 9',value:9,exact:'9',complexity_ratio:.18,step_ms:520}),
+    Object.freeze({label:'RETOUR Z1 → ENTRÉE',value:root,exact:String(cascade.root),complexity_ratio:.05,step_ms:420,status:ok?'PASS':'FAIL'})
+  ]);
+}
+async function zelEvolutionRunAudioTest(spec={}){
+  const cascade=await zelFormulaRunEvolutionCascade({
+    cascade_id:String(spec.cascade_id||('ENTITY38-AUDIO-'+Date.now())).slice(0,120),
+    input:spec.input??7,
+    batch_size:spec.batch_size
+  });
+  const stages=zelEvolutionAudioStages(cascade);
+  await ensureAudio();
+  if(soundVolume<=0)soundVolume=.65;
+  soundMuted=false;
+  syncSoundUI();
+  const priorRobotAt=lastRobotSpokenAt;
+  lastRobotSpokenAt=Date.now()+120000;
+  try{
+    const audio=await zelAiPlayCalculation({
+      formula:{
+        formula_id:'ENTITY38-CASCADE',
+        name:'Z Stéréo · cascade évolutive',
+        status:cascade.status==='PASS'?'VERIFIED':'FAIL',
+        category:'ENTITY38',
+        normalized_formula:'1 → 9 → 108 → 1296 → 108 → 9 → 1'
+      },
+      trace_id:cascade.cascade_id+'-SONIC',
+      stages,
+      step_ms:650,
+      min_stage_ms:300,
+      max_stage_ms:2500,
+      timing_scale:1,
+      verdict:cascade.status==='PASS'&&cascade.inverse_verification?.ok?'PASS':'FAIL',
+      hold_ms:2500
+    });
+    return Object.freeze({
+      schema:'ANTMUX-ZELSTEREOS-ENTITY38-AUDIO-TEST-v1',
+      ok:cascade.status==='PASS'&&cascade.inverse_verification?.ok===true&&audio.ok===true,
+      cascade,
+      audio
+    });
+  }finally{
+    lastRobotSpokenAt=priorRobotAt;
+  }
+}
+
 function zelFormulaSafeValue(value){
   if(typeof value==='bigint')return value.toString();
   if(value===undefined)return null;
@@ -948,7 +2018,8 @@ function zelFormulaSummary(def,index=0){
     provenance_ref:provenance,
     accepts:typeof def.accepts==='function'?def.accepts:null,
     evaluate:def.evaluate,
-    verify:def.verify
+    verify:def.verify,
+    inverse:typeof def.inverse==='function'?def.inverse:null
   });
 }
 function zelFormulaNormalizeVerification(raw){
@@ -1615,11 +2686,22 @@ Object.defineProperty(window,'ZELSTEREOS_AI',{
       provenance_ref:def.provenance_ref
     })),
     canonicalBankReady:zelRegisterCanonicalMathBank,
+    profileZenodoAudit:()=>zelAiClone(zelProfileZenodoAudit()),
+    profileFormulaDefinitions:()=>zelProfileFormulaDefinitions().map(def=>({formula_id:def.formula_id,name:def.name,normalized_formula:def.normalized_formula,domain:def.domain,provenance_ref:def.provenance_ref})),
+    profileFormulaBankReady:zelRegisterProfileFormulaBank,
     formulaBanks:()=>zelAiClone(zelFormulaBankInfo()),
     runFormulaWave:zelFormulaRunWave,
     runFormulaCascade:zelFormulaRunCascade,
     lastFormulaWave:zelFormulaLastWave,
     lastFormulaCascade:zelFormulaLastCascade,
+    evolutionBanksReady:zelRegisterEvolutionSeedBanks,
+    runEvolutionCascade:zelFormulaRunEvolutionCascade,
+    evolutionState:zelEvolutionState,
+    invariantGuardF006:zelEvolutionInvariantF006,
+    evolutionAudioStages:zelEvolutionAudioStages,
+    runEvolutionAudioTest:zelEvolutionRunAudioTest,
+    promoteEvolutionFormula:zelEvolutionPromoteFormula,
+    lastEvolutionCascade:()=>zelLastEvolutionCascade?zelAiClone(zelLastEvolutionCascade):null,
     preloadSfx:zelSfxWarmAll,
     playCalculation:zelAiPlayCalculation
   }),
@@ -1644,6 +2726,8 @@ async function poll(){
 }
 buildStages();
 zelRegisterCanonicalMathBank().catch(err=>console.error('ZEL_CANONICAL_BANK_REJECTED',err));
+zelRegisterProfileFormulaBank().catch(err=>console.error('ZEL_PROFILE_BANK_REJECTED',err));
+zelRegisterEvolutionSeedBanks().catch(err=>console.error('ZEL_ENTITY38_BANK_REJECTED',err));
 connectZelWebSocket();
 poll();
 setInterval(poll,2000);
