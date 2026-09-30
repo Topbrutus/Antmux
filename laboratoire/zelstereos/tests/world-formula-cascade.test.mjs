@@ -6,8 +6,10 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
 function extractFunction(name) {
-  const marker = `function ${name}(`;
-  const start = html.indexOf(marker);
+  const asyncMarker = `async function ${name}(`;
+  const syncMarker = `function ${name}(`;
+  const asyncStart = html.indexOf(asyncMarker);
+  const start = asyncStart !== -1 ? asyncStart : html.indexOf(syncMarker);
   assert.notEqual(start, -1, `${name} not found`);
   const brace = html.indexOf("{", start);
   let depth = 0, quote = null, escaped = false;
