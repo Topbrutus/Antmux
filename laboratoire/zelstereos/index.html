@@ -567,7 +567,7 @@ function connectZelWebSocket(){
 function zelAiClone(value){return JSON.parse(JSON.stringify(value));}
 function zelAiFormulaSummary(meta){
   if(!meta)return null;
-  return {
+  const safe={
     selector:String(meta.selector||'').slice(0,16),
     formula_id:String(meta.formula_id||'').slice(0,32),
     name:String(meta.name||'').slice(0,160),
@@ -575,6 +575,12 @@ function zelAiFormulaSummary(meta){
     category:String(meta.category||'').slice(0,80),
     normalized_formula:String(meta.normalized_formula||meta.formula||'').slice(0,512)
   };
+  if(meta.k!==undefined&&meta.k!==null&&meta.k!==''){
+    const k=Number(meta.k);
+    if(!Number.isInteger(k)||k<0)throw new TypeError('formula k must be a non-negative integer');
+    safe.k=k;
+  }
+  return safe;
 }
 function zelAiSelectFormula(meta){
   if(!meta||typeof meta!=='object')throw new TypeError('formula metadata object required');
@@ -657,12 +663,13 @@ function zelAiSelfTest(){
     if(Object.prototype.hasOwnProperty.call(s,'mode'))add('public_safe',s.mode==='PUBLIC_SAFE'&&s.read_only===true,{mode:s.mode,read_only:s.read_only});
     const fm=s.formula_meta||s.f1||{};
     if(fm.formula_id==='F1'){
-      const k=Number(fm.k);
+      const hasK=fm.k!==undefined&&fm.k!==null&&fm.k!=='';
+      const k=hasK?Number(fm.k):NaN;
       const actual=Number(fm.value);
       const expected=Number.isInteger(k)&&k>=1?4*(21**(k-1)):NaN;
       add('f1_rank_formula',Number.isFinite(expected)&&Number.isFinite(actual)&&actual===expected,{
         formula_id:fm.formula_id||null,
-        k:Number.isFinite(k)?k:null,
+        k:Number.isInteger(k)?k:null,
         expected:Number.isFinite(expected)?expected:null,
         actual:Number.isFinite(actual)?actual:null
       });
@@ -749,6 +756,7 @@ async function zelAiPlayCalculation(spec={}){
           name:formula.name,
           status:formula.status,
           category:formula.category,
+          k:formula.k??null,
           normalized_formula:formula.normalized_formula,
           formula:formula.normalized_formula,
           value:i===6?exact:(spec.output_exact??'…'),
