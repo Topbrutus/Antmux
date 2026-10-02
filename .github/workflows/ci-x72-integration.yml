@@ -426,9 +426,9 @@ jobs:
               Path(os.environ["RUNNER_TEMP"], "ANTMUX_X72_SHARED_QUEEN_REPORT.json").read_text(encoding="utf-8")
           )
           assert report["verdict"] == "PASS"
-          assert report["tests_total"] == 40
+          assert report["tests_total"] == 45
           assert report["tests_failed"] == 0
-          print("SHARED_QUEEN_BASELINE_40_OF_40=PASS")
+          print("SHARED_QUEEN_BASELINE_45_OF_45=PASS")
           PY
 
       - name: Smoke test — telemetry endpoint
