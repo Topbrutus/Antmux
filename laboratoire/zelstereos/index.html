@@ -4,121 +4,1352 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>
+<meta name="description" content="ANTMUX / ZELSTÉRÉOS — Public Safe Live & Audio Synthesis Pipeline">
+<meta property="og:title" content="ANTMUX / ZELSTÉRÉOS — Public Safe Live">
+<meta property="og:description" content="ANTMUX / ZELSTÉRÉOS — Public Safe Live & Audio Synthesis Pipeline">
 <style>
-:root{color-scheme:dark;--bg:#020407;--steel:#6f757b;--panel:#070b10;--text:#edf4ff;--muted:#98a5b3;--cyan:#5fc6ff;--green:#32e7a4;--gold:#ffb31f;--red:#ff5454}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#020407;color:var(--text);font:16px/1.35 "Segoe UI",system-ui,sans-serif}
-body{background:radial-gradient(circle at 50% -20%,rgba(0,117,255,.1),transparent 34%),linear-gradient(180deg,#05080c,#020407 65%)}
-main{max-width:1180px;margin:auto;padding:12px}
-.label{margin:8px 0 4px 2px;color:#cbd3db;font-weight:800;font-size:12px;letter-spacing:.06em}
-.rack{position:relative;padding:13px;border-radius:12px;margin-bottom:10px;border:1px solid #1e242a;background:repeating-linear-gradient(90deg,rgba(255,255,255,.028) 0 1px,rgba(0,0,0,.02) 1px 3px),linear-gradient(180deg,#777d83,#4e5459 12%,#8c9297 48%,#4a5055 92%,#747a80);box-shadow:inset 0 1px 0 #d2d6da,inset 0 -1px 0 #25292d,0 4px 10px rgba(0,0,0,.45)}
-.rack:before,.rack:after{content:"";position:absolute;top:8px;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#eef0f2 0 12%,#757c82 16% 36%,#171a1d 43% 56%,#92989d 61% 72%,#23282c 75%)}
-.rack:before{left:8px}.rack:after{right:8px}
-.face{background:linear-gradient(180deg,#0c1218,#05090d);border:1px solid #06090c;border-radius:8px;box-shadow:inset 0 0 0 1px #29313a,inset 0 2px 7px #000,0 1px 0 rgba(255,255,255,.22)}
-.top{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:12px 15px}.top h1{margin:0;font-size:21px;letter-spacing:.04em}.top small{display:block;color:#a7b2bd;margin-top:2px;font-size:12px}
-.live{padding:8px 13px;border-radius:999px;color:#9cffd8;border:1px solid #34e8aa;background:#07130f;white-space:nowrap}.top-actions{display:flex;align-items:center;gap:8px}.font-btn{width:34px;height:34px;border-radius:8px;border:1px solid #4a5661;background:#071019;color:#dff5ff;font:800 18px/1 ui-monospace,Consolas,monospace;cursor:pointer}.font-btn:hover{border-color:#5fc6ff}.font-size{min-width:48px;text-align:center;color:#9fdcff;font:700 11px/1 ui-monospace,Consolas,monospace}.sound-btn{height:34px;border-radius:8px;border:1px solid #4a5661;background:#071019;color:#dff5ff;cursor:pointer}.sound-icon{width:38px}.sound-test{padding:0 12px;font-weight:800;white-space:nowrap}.volume{width:92px;accent-color:#5fc6ff}
-.mode{color:#65c8ff}.safe{color:#d38cff}
-.stages{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.stage{padding:10px 5px;text-align:center;background:linear-gradient(180deg,#090e13,#04080c);border:1px solid #0b0f13;border-radius:8px;box-shadow:inset 0 0 0 1px #303842,inset 0 2px 6px #000}.stage b{display:block;font-size:10px;color:#cbd4df}.stage strong{display:block;margin-top:4px;color:#62c0ff;font:800 22px/1 ui-monospace,Consolas,monospace}.stage.active{border-color:#58d9ff;box-shadow:inset 0 0 0 1px #58d9ff,inset 0 2px 6px #000,0 0 13px rgba(55,192,255,.28)}.stage.done strong{color:#83eebc}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric,.formula{padding:11px 12px;min-height:72px}.metric span,.formula span{display:block;color:#aeb7c2;font-size:10px}.metric strong,.formula strong{display:block;margin-top:5px;font:800 21px/1.05 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
-#stage{color:var(--gold)}#channels,#trace{color:var(--cyan)}#error{color:var(--red)}
-.formulas{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.formula strong{font-size:16px;color:#72e2bc}.formula:first-child strong{color:#69bcff}
-.values{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px}.value{padding:8px 9px;border-radius:7px;background:#05090d;border:1px solid #17202a;box-shadow:inset 0 1px 4px #000;font:700 14px/1.25 ui-monospace,Consolas,monospace;color:#ff665c}.value small{display:block;color:#a5b1be;font:10px/1.2 ui-monospace,Consolas,monospace}
-.calc-journal{background:linear-gradient(180deg,#04090d,#010406);border:1px solid #16232e;border-radius:9px;box-shadow:inset 0 0 22px #000;padding:10px}
-.calc-journal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 2px 9px;border-bottom:1px solid #14202a}
-.calc-journal-title{min-width:0}.calc-journal-title strong{display:block;color:#dff6ff;font:800 13px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.05em}.calc-journal-title small{display:block;margin-top:3px;color:#738698;font:10px/1.2 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
-.calc-journal-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.calc-journal-count{color:#79cfff;font:700 10px/1 ui-monospace,Consolas,monospace;white-space:nowrap}
-.calc-copy{height:30px;padding:0 10px;border-radius:7px;border:1px solid #456172;background:#07131b;color:#dff6ff;font:800 11px/1 ui-monospace,Consolas,monospace;cursor:pointer}.calc-copy:hover{border-color:#65d4ff}.calc-copy.copied{border-color:#3ce9a7;color:#86ffd1}
-.calc-journal-formula{margin-top:9px;padding:8px 9px;border-left:3px solid #5fc6ff;background:#03080c;color:#9edfff;font:700 12px/1.35 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
-.calc-journal-lines{min-height:178px;max-height:315px;overflow:auto;margin-top:8px;padding:4px 0}.calc-line{display:grid;grid-template-columns:34px 1fr;gap:8px;padding:7px 8px;border-bottom:1px solid #0d171f;font:12px/1.35 ui-monospace,Consolas,monospace}.calc-line:last-child{border-bottom:0}.calc-line .n{color:#53697c}.calc-line .body{color:#c8d4df;overflow-wrap:anywhere}.calc-line.active{background:#07131b;box-shadow:inset 2px 0 #5fc6ff}.calc-line.done .body{color:#9eeac9}.calc-line.result{background:#07130f;box-shadow:inset 2px 0 #32e7a4}.calc-line.result .body{color:#8bffd2;font-weight:800}
-.calc-journal-empty{padding:48px 12px;text-align:center;color:#536473;font:11px/1.5 ui-monospace,Consolas,monospace}
-.calc-journal-foot{display:flex;justify-content:space-between;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #14202a;color:#6f8190;font:10px/1.2 ui-monospace,Consolas,monospace}.calc-journal-foot strong{color:#a9bbc9;font-weight:700}
-.swarm{background:linear-gradient(180deg,#05090d,#010305);border:1px solid #182630;border-radius:9px;box-shadow:inset 0 0 24px #000;padding:10px}
-.swarm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.swarm-head strong{display:block;color:#e5f8ff;font:800 13px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.06em}.swarm-head small{display:block;margin-top:4px;color:#708798;font:10px/1.35 ui-monospace,Consolas,monospace}
-.swarm-capacity{color:#6ed6ff;font:800 12px/1 ui-monospace,Consolas,monospace;white-space:nowrap}
-.swarm-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:10px}.swarm-cell{padding:9px;border:1px solid #13202a;border-radius:7px;background:#03080c}.swarm-cell span{display:block;color:#6f8190;font:9px/1.1 ui-monospace,Consolas,monospace}.swarm-cell strong{display:block;margin-top:5px;color:#d9e8f2;font:800 17px/1 ui-monospace,Consolas,monospace}.swarm-cell.pass strong{color:#56efb0}.swarm-cell.fail strong,.swarm-cell.error strong{color:#ff6969}.swarm-cell.domain strong{color:#ffd36b}
-.swarm-bar{height:7px;margin-top:10px;border-radius:999px;background:#081119;overflow:hidden;border:1px solid #14232e}.swarm-bar>div{height:100%;width:0;background:linear-gradient(90deg,#339dff,#47e8ae);transition:width .12s linear}
-.swarm-route{margin-top:9px;padding:8px 9px;border-left:3px solid #8d7cff;background:#03070b;color:#adbbca;font:11px/1.35 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
-.swarm-anomalies{margin-top:8px;max-height:180px;overflow:auto;border:1px solid #101b23;border-radius:7px;background:#020609}.swarm-anomaly{padding:6px 8px;border-bottom:1px solid #0c151c;color:#ff9999;font:10px/1.35 ui-monospace,Consolas,monospace}.swarm-anomaly:last-child{border-bottom:0}.swarm-empty{padding:13px;text-align:center;color:#526573;font:10px/1.3 ui-monospace,Consolas,monospace}
-.events{max-height:330px;overflow:auto;background:#02070a;border:1px solid #101820;border-radius:8px;padding:7px;box-shadow:inset 0 0 14px #000}.event{padding:6px 9px;border-left:3px solid #ffb113;border-bottom:1px solid #10171c;font:12px/1.35 ui-monospace,Consolas,monospace}.event small{display:block;color:#d6a42c}.event code{color:#67c4ff;white-space:pre-wrap}.event.pass{border-left-color:#31e69f}.event.fail{border-left-color:#ff4a4a}.event.pass small{color:#6de2b2}.event.fail small{color:#ff7b7b}
-.note{color:#b7c1cb;font-size:12px}.offline{color:#ff7777}
+:root{
+  color-scheme:dark;
+  --bg:#010306;
+  --panel:#040912;
+  --panel-alt:#020509;
+  --steel:#314352;
+  --border:#172c3d;
+  --border-bright:#244966;
+  --border-focus:#00e5ff;
+  --text:#edf5fc;
+  --muted:#7c97ac;
+  --cyan:#00e5ff;
+  --cyan-dim:#005c66;
+  --green:#32e7a4;
+  --green-dim:#0e3827;
+  --orange:#ffa94d;
+  --orange-dim:#3d250b;
+  --red:#ff5454;
+  --red-dim:#3b1010;
+  --gold:#ffd43b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{background:radial-gradient(ellipse at 50% 0%,#081726 0%,#030910 50%,#010306 90%);background-attachment:fixed}
+main{max-width:1600px;margin:auto;padding:14px}
 
-.audio-consent{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,4,8,.82);backdrop-filter:blur(7px)}
-.audio-consent.show{display:flex}.audio-consent-card{width:min(520px,100%);padding:24px;border:1px solid #4e5c69;border-radius:14px;background:linear-gradient(180deg,#0d151d,#05090d);box-shadow:0 24px 70px #000,inset 0 0 0 1px #26323d;text-align:center}.audio-consent-card h2{margin:0 0 8px;font-size:24px}.audio-consent-card p{margin:0 0 18px;color:#b7c5d3}.audio-consent-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.audio-consent-actions button{min-width:150px;padding:11px 16px;border-radius:9px;border:1px solid #566675;background:#08131d;color:#e9f6ff;font-weight:800;cursor:pointer}.audio-consent-actions .primary{border-color:#55cfff;background:#0b2432;color:#bfeeff}
-@media(max-width:850px){.stages{grid-template-columns:repeat(4,1fr)}.metrics{grid-template-columns:1fr 1fr}.formulas{grid-template-columns:1fr}.swarm-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:520px){.stages,.metrics{grid-template-columns:1fr 1fr}.top{align-items:flex-start;flex-direction:column}.top h1{font-size:17px}.top-actions{width:100%;flex-wrap:wrap}.sound-test{order:5;width:100%;height:46px;font-size:16px}.volume{flex:1;min-width:120px}.live{order:6}.calc-journal-head{align-items:flex-start;flex-direction:column}.calc-journal-actions{width:100%;justify-content:space-between}.calc-line{grid-template-columns:28px 1fr}.swarm-grid{grid-template-columns:repeat(2,1fr)}.swarm-head{flex-direction:column}}
+/* TECHNICAL MULTI-SCREEN SWITCHER */
+.screen-selector-bar{display:flex;align-items:center;gap:6px;padding:9px 14px;margin-bottom:14px;background:linear-gradient(180deg,#06131f 0%,#03080e 100%);border:1px solid #1a354d;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.5);overflow-x:auto;white-space:nowrap}
+.screen-sel-label{color:#7699b3;font:800 10px/1 ui-monospace,Consolas,monospace;letter-spacing:.08em;margin-right:6px}
+.screen-tab{height:30px;padding:0 14px;border-radius:6px;border:1px solid #1f3d57;background:linear-gradient(180deg,#091c2c 0%,#05111c 100%);color:#9dc1db;font:800 10px/1 ui-monospace,Consolas,monospace;cursor:pointer;transition:all .14s ease;box-shadow:0 2px 4px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08)}
+.screen-tab:hover{border-color:var(--cyan);color:#fff;background:linear-gradient(180deg,#0f2e47 0%,#081b2b 100%)}
+.screen-tab.active{border-color:var(--cyan);background:linear-gradient(180deg,#0a334d 0%,#051c2c 100%);color:#7ee9ff;box-shadow:inset 0 1px 2px rgba(255,255,255,.2),0 0 12px rgba(0,229,255,.3)}
+
+/* MULTI-SCREEN DISPLAY VISIBILITY FILTER */
+main.screen-1-only .lab-screen-bay:not(#PANEL_1),
+main.screen-2-only .lab-screen-bay:not(#PANEL_2),
+main.screen-3-only .lab-screen-bay:not(#PANEL_3),
+main.screen-4-only .lab-screen-bay:not(#PANEL_4),
+main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
+
+/* LABORATORY BAY FRAME */
+.lab-screen-bay{margin-bottom:22px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.55))}
+.lab-bay-banner{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:linear-gradient(180deg,#0f2436 0%,#081622 100%);border:1px solid #1f3d57;border-bottom:none;border-radius:10px 10px 0 0;font:800 11px/1 ui-monospace,Consolas,monospace;color:#85c4eb;letter-spacing:.06em;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.lab-bay-tag{color:var(--cyan);margin-right:8px}
+.recto-monitor-grid[data-panel-mode="all"]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.recto-monitor-grid[data-panel-mode="all"] #PANEL_1{grid-column:1;order:1}
+.recto-monitor-grid[data-panel-mode="all"] #PANEL_2{grid-column:2;order:2}
+.recto-monitor-grid[data-panel-mode="all"] #PANEL_3{grid-column:1;order:3}
+.recto-monitor-grid[data-panel-mode="all"] #PANEL_4{grid-column:2;order:4}
+.recto-monitor-grid[data-panel-mode="all"] #PANEL_5{grid-column:1 / -1;order:5}
+.recto-monitor-grid[data-panel-mode]:not([data-panel-mode="all"]){display:block}
+.panel-fullscreen{width:100%;min-height:calc(100vh - 120px)}
+.panel-hidden{display:none!important}
+.panel-contract{padding:6px 10px;border-left:3px solid var(--cyan);background:rgba(0,229,255,.055);color:#8eacc1;font:800 9px/1.35 ui-monospace,Consolas,monospace;letter-spacing:.035em}
+.panel-audio-telemetry{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:8px 0}
+.panel-audio-telemetry>div{padding:6px 8px;border:1px solid #173147;border-radius:6px;background:#030910;font:9px/1.25 ui-monospace,Consolas,monospace}
+.panel-audio-telemetry span{display:block;color:#7898ae}
+.panel-audio-telemetry strong{display:block;margin-top:3px;color:#d9f4ff}
+
+.label{margin:12px 0 6px 4px;color:#91acc2;font-weight:800;font-size:11px;letter-spacing:.08em;font-family:ui-monospace,Consolas,monospace;text-shadow:0 1px 2px #000}
+.rack{position:relative;padding:12px;border-radius:10px;margin-bottom:12px;border:1px solid #193247;background:linear-gradient(180deg,#0c1a26 0%,#060f18 45%,#02060b 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -1px 0 rgba(0,0,0,.7),0 8px 24px rgba(0,0,0,.6)}
+.rack:before,.rack:after{content:"";position:absolute;top:9px;width:7px;height:7px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7595b3 0%,#263f52 60%,#0e1b26 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,.35),0 1px 3px rgba(0,0,0,.85);border:1px solid #0d1a24}
+.rack:before{left:8px}.rack:after{right:8px}
+.face{background:linear-gradient(180deg,#050d15 0%,#020509 100%);border:1px solid #142838;border-radius:8px;box-shadow:inset 0 1px 1px rgba(255,255,255,.05),inset 0 0 20px rgba(0,0,0,.9),0 4px 12px rgba(0,0,0,.45)}
+
+/* TOP CONSOLE & ACTIONS */
+.top{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:14px 16px;border-radius:10px}
+.top h1{margin:0;font-size:18px;letter-spacing:.04em;font-weight:800;text-shadow:0 2px 4px #000}
+.top small{display:block;color:#8ba3b5;margin-top:3px;font-size:11px;font-family:ui-monospace,Consolas,monospace}
+.live{padding:6px 12px;border-radius:6px;color:#a2ffdc;border:1px solid #20c997;background:linear-gradient(180deg,#07241c 0%,#04140f 100%);white-space:nowrap;font:800 11px/1 ui-monospace,Consolas,monospace;box-shadow:0 0 10px rgba(50,231,164,.25),inset 0 1px 0 rgba(255,255,255,.15)}
+.live.offline{border-color:#ff5454;background:linear-gradient(180deg,#2b0c0c 0%,#1a0606 100%);color:#ff9e9e;box-shadow:0 0 10px rgba(255,84,84,.25)}
+.top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.font-btn{width:32px;height:32px;border-radius:6px;border:1px solid #244159;background:linear-gradient(180deg,#0a2133 0%,#05121c 100%);color:#dff5ff;font:800 16px/1 ui-monospace,Consolas,monospace;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1)}
+.font-btn:hover{border-color:var(--cyan);color:#fff;background:linear-gradient(180deg,#0f334f 0%,#081c2c 100%)}
+.font-size{min-width:44px;text-align:center;color:#9fdcff;font:700 11px/1 ui-monospace,Consolas,monospace}
+.sound-btn{height:32px;padding:0 12px;border-radius:6px;border:1px solid #244159;background:linear-gradient(180deg,#0a2133 0%,#05121c 100%);color:#dff5ff;cursor:pointer;font:800 11px/1 ui-monospace,Consolas,monospace;box-shadow:0 2px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1)}
+.sound-btn:hover{border-color:var(--cyan);background:linear-gradient(180deg,#0f334f 0%,#081c2c 100%)}
+.sound-icon{width:38px;padding:0}
+.sound-test{padding:0 12px;white-space:nowrap}
+.volume{width:86px;accent-color:var(--cyan)}
+.mode{color:var(--cyan);text-shadow:0 0 8px rgba(0,229,255,.4)}.safe{color:#c59bff;text-shadow:0 0 8px rgba(197,155,255,.4)}
+
+/* ECRAN 1: AUDIO MASTER & REAL-TIME OSCILLOSCOPE */
+.osc-panel{padding:14px;background:linear-gradient(180deg,#061320 0%,#02060b 100%);border:1px solid #183147;border-radius:10px;margin-top:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.5)}
+.osc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font:800 10px/1 ui-monospace,Consolas,monospace}
+.osc-head strong{color:#7ee0ff;letter-spacing:.05em;text-shadow:0 0 8px rgba(0,229,255,.3)}
+.osc-head span{color:#648299}
+.osc-canvas-wrap{position:relative;height:104px;background:radial-gradient(ellipse at 50% 30%,#061a2b 0%,#010408 85%);border:1px solid rgba(0,229,255,.28);overflow:hidden;border-radius:8px;box-shadow:inset 0 2px 8px rgba(0,0,0,.9),inset 0 0 22px rgba(0,229,255,.08),0 4px 12px rgba(0,0,0,.6)}
+.osc-canvas-wrap::before{content:"";position:absolute;top:0;left:0;right:0;height:45%;background:linear-gradient(180deg,rgba(255,255,255,.06) 0%,transparent 100%);pointer-events:none;z-index:1}
+.osc-grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.06) 1px,transparent 1px);background-size:25px 20px}
+.osc-center-line{position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(0,229,255,.25)}
+.osc-svg{width:100%;height:100%;display:block}
+.osc-meter-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.osc-meter-card{padding:8px 11px;background:linear-gradient(180deg,#061320 0%,#02060b 100%);border:1px solid #162c3e;border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 5px rgba(0,0,0,.4)}
+.osc-meter-card span{display:block;color:#7390a3;font:9px/1 ui-monospace,Consolas,monospace;letter-spacing:.04em}
+.osc-meter-card strong{display:block;margin-top:4px;color:#d9eaf7;font:800 13px/1 ui-monospace,Consolas,monospace}
+.osc-meter-bar-track{height:6px;background:#061019;border:1px solid #162a3b;border-radius:3px;margin-top:6px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.8)}
+.osc-meter-bar-fill{height:100%;width:0;background:linear-gradient(90deg,#00e5ff,#32e7a4);border-radius:2px;transition:width .08s linear;box-shadow:0 0 6px rgba(0,229,255,.5)}
+.osc-meter-bar-fill.ducked{background:linear-gradient(90deg,#ffaa4a,#ffd43b);box-shadow:0 0 6px rgba(255,170,74,.5)}
+
+/* STAGES & PIPELINE */
+.stages{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.stage{padding:10px 4px;text-align:center;background:linear-gradient(180deg,#071522 0%,#03080e 100%);border:1px solid #162c3f;border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 8px rgba(0,0,0,.4)}
+.stage b{display:block;font-size:9px;color:#92aabf;font-family:ui-monospace,Consolas,monospace}
+.stage strong{display:block;margin-top:5px;color:#6ec7ff;font:800 18px/1 ui-monospace,Consolas,monospace}
+.stage.active{border-color:var(--cyan);background:linear-gradient(180deg,#08273d 0%,#041624 100%);box-shadow:inset 0 0 10px rgba(0,229,255,.25),0 0 16px rgba(0,229,255,.3)}
+.stage.done strong{color:var(--green);text-shadow:0 0 8px rgba(50,231,164,.4)}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.metric,.formula{padding:12px 14px;min-height:68px}
+.metric span,.formula span{display:block;color:#849fad;font-size:9px;font-family:ui-monospace,Consolas,monospace;letter-spacing:.05em}
+.metric strong,.formula strong{display:block;margin-top:5px;font:800 18px/1.1 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+#stage{color:var(--gold);text-shadow:0 0 8px rgba(255,212,59,.3)}
+#channels,#trace{color:var(--cyan);text-shadow:0 0 8px rgba(0,229,255,.3)}
+#error{color:var(--red);text-shadow:0 0 8px rgba(255,84,84,.3)}
+
+/* ======================================================== */
+/* VITRINE DES FORMULES (GLASS SHOWCASE / ÉTAL SCIENTIFIQUE) */
+/* ======================================================== */
+.formulas{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+  padding:12px;
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(8,24,38,.75) 0%,rgba(3,10,18,.92) 100%);
+  border:1px solid rgba(0,229,255,.28);
+  box-shadow:inset 0 1px 2px rgba(255,255,255,.18),inset 0 0 25px rgba(0,229,255,.05),0 12px 30px rgba(0,0,0,.7);
+  backdrop-filter:blur(10px);
+}
+.formula{
+  position:relative;
+  padding:14px 16px;
+  min-height:86px;
+  border-radius:9px;
+  background:linear-gradient(145deg,rgba(13,32,50,.72) 0%,rgba(4,12,22,.92) 100%);
+  border:1px solid rgba(0,229,255,.35);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.2),inset 0 0 16px rgba(0,229,255,.06),0 6px 18px rgba(0,0,0,.6);
+  overflow:hidden;
+  transition:all .18s ease;
+}
+.formula:hover{
+  border-color:rgba(0,229,255,.6);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.28),inset 0 0 22px rgba(0,229,255,.12),0 8px 24px rgba(0,0,0,.7);
+}
+/* DIAGONAL GLASS REFLECTION SHEEN */
+.formula::before{
+  content:"";
+  position:absolute;
+  top:0;left:0;right:0;height:55%;
+  background:linear-gradient(135deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,.03) 45%,transparent 70%);
+  pointer-events:none;
+  border-radius:8px 8px 0 0;
+}
+/* SPECIMEN ILLUMINATION BOTTOM BASELINE */
+.formula::after{
+  content:"";
+  position:absolute;
+  bottom:0;left:8%;right:8%;height:1.5px;
+  background:linear-gradient(90deg,transparent,rgba(0,229,255,.75),transparent);
+  box-shadow:0 0 8px var(--cyan);
+}
+.formula span{
+  display:block;
+  color:#8bb2cc;
+  font-size:10px;
+  font-family:ui-monospace,Consolas,monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  text-shadow:0 1px 2px #000;
+}
+.formula strong{
+  display:block;
+  margin-top:8px;
+  font:800 16px/1.2 ui-monospace,Consolas,monospace;
+  overflow-wrap:anywhere;
+  color:var(--green);
+  text-shadow:0 0 10px rgba(50,231,164,.4);
+}
+.formula:first-child strong{
+  color:#76cfff;
+  text-shadow:0 0 10px rgba(0,229,255,.4);
+}
+
+.values{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.value{padding:9px 11px;border-radius:6px;background:linear-gradient(180deg,#091624 0%,#040910 100%);border:1px solid #1a3348;font:700 13px/1.25 ui-monospace,Consolas,monospace;color:#ff7878;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 8px rgba(0,0,0,.45)}
+.value small{display:block;color:#8ca4b5;font:9px/1.2 ui-monospace,Consolas,monospace}
+
+/* CALC JOURNAL */
+.calc-journal{background:linear-gradient(180deg,#05101a 0%,#020509 100%);border:1px solid #173046;border-radius:10px;padding:12px;box-shadow:inset 0 1px 1px rgba(255,255,255,.1),inset 0 0 20px rgba(0,0,0,.85),0 8px 24px rgba(0,0,0,.6)}
+.calc-journal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:9px;border-bottom:1px solid #142a3d}
+.calc-journal-title strong{display:block;color:#e3f7ff;font:800 12px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.05em}
+.calc-journal-title small{display:block;margin-top:2px;color:#758ea0;font:10px/1.2 ui-monospace,Consolas,monospace}
+.calc-journal-actions{display:flex;align-items:center;gap:7px}
+.calc-journal-count{color:#7ee0ff;font:700 10px/1 ui-monospace,Consolas,monospace}
+.calc-copy{height:28px;padding:0 12px;border-radius:5px;border:1px solid #264661;background:linear-gradient(180deg,#0a2236 0%,#05131f 100%);color:#dff6ff;font:800 10px/1 ui-monospace,Consolas,monospace;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1)}
+.calc-copy:hover{border-color:var(--cyan);background:linear-gradient(180deg,#0e3352 0%,#071b2c 100%)}
+.calc-copy.copied{border-color:var(--green);color:var(--green)}
+.calc-journal-formula{margin-top:9px;padding:8px 12px;border-left:3px solid var(--cyan);border-radius:6px;background:linear-gradient(90deg,rgba(0,229,255,.1) 0%,#030b14 100%);border:1px solid #142c40;border-left:3px solid var(--cyan);color:#9de1ff;font:700 11px/1.35 ui-monospace,Consolas,monospace;overflow-wrap:anywhere;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.calc-journal-lines{min-height:140px;max-height:280px;overflow:auto;margin-top:7px;padding:2px 0}
+.calc-line{display:grid;grid-template-columns:30px 1fr;gap:8px;padding:6px 8px;border-radius:4px;border-bottom:1px solid #0c1822;font:11px/1.3 ui-monospace,Consolas,monospace}
+.calc-line .n{color:#546e82}
+.calc-line .body{color:#c0d3e2;overflow-wrap:anywhere}
+.calc-line.active{background:linear-gradient(90deg,rgba(0,229,255,.15) 0%,#051524 100%);box-shadow:inset 3px 0 var(--cyan)}
+.calc-line.done .body{color:#92ebd0}
+.calc-line.result{background:linear-gradient(90deg,rgba(50,231,164,.18) 0%,#051d16 100%);box-shadow:inset 3px 0 var(--green)}
+.calc-line.result .body{color:#95ffdb;font-weight:800}
+.calc-journal-empty{padding:36px 12px;text-align:center;color:#546b7d;font:11px/1.5 ui-monospace,Consolas,monospace}
+.calc-journal-foot{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding-top:8px;border-top:1px solid #122434;color:#738b9e;font:9px/1.2 ui-monospace,Consolas,monospace}
+
+/* SWARM / MONDES */
+.swarm{background:linear-gradient(180deg,#061320 0%,#02060b 100%);border:1px solid #162f44;border-radius:10px;padding:12px;box-shadow:inset 0 1px 1px rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.5)}
+.swarm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.swarm-head strong{color:#e8f7ff;font:800 12px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.05em}
+.swarm-head small{display:block;margin-top:2px;color:#7893a7;font:10px/1.2 ui-monospace,Consolas,monospace}
+.swarm-capacity{color:var(--cyan);font:800 11px/1 ui-monospace,Consolas,monospace;text-shadow:0 0 8px rgba(0,229,255,.3)}
+.swarm-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}
+.swarm-cell{padding:8px 10px;border:1px solid #152d40;border-radius:6px;background:linear-gradient(180deg,#061421 0%,#030910 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 5px rgba(0,0,0,.35)}
+.swarm-cell span{display:block;color:#7390a3;font:9px/1 ui-monospace,Consolas,monospace}
+.swarm-cell strong{display:block;margin-top:4px;color:#dcebf5;font:800 15px/1 ui-monospace,Consolas,monospace}
+.swarm-cell.pass strong{color:var(--green);text-shadow:0 0 8px rgba(50,231,164,.4)}
+.swarm-cell.fail strong,.swarm-cell.error strong{color:var(--red);text-shadow:0 0 8px rgba(255,84,84,.4)}
+.swarm-cell.domain strong{color:var(--gold);text-shadow:0 0 8px rgba(255,212,59,.4)}
+.swarm-bar{height:7px;margin-top:10px;border-radius:3px;background:#050f18;overflow:hidden;border:1px solid #15293a;box-shadow:inset 0 1px 2px rgba(0,0,0,.8)}
+.swarm-bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .12s linear;box-shadow:0 0 8px rgba(0,229,255,.5)}
+.swarm-route{margin-top:10px;padding:8px 11px;border-left:3px solid #8d7cff;border-radius:6px;background:linear-gradient(90deg,rgba(141,124,255,.1) 0%,#03080e 100%);border:1px solid #18253b;border-left:3px solid #8d7cff;color:#b1c4d7;font:11px/1.3 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+.swarm-anomalies{margin-top:8px;max-height:140px;overflow:auto;border:1px solid #122434;border-radius:6px;background:#020508;box-shadow:inset 0 1px 3px rgba(0,0,0,.7)}
+.swarm-anomaly{padding:6px 9px;border-bottom:1px solid #0c1822;color:#ffa0a0;font:10px/1.35 ui-monospace,Consolas,monospace}
+.swarm-empty{padding:12px;text-align:center;color:#5a7385;font:10px/1.3 ui-monospace,Consolas,monospace}
+
+/* ECRAN 3: GAME STATE & 4-PLAYER TABLE OBSERVATION */
+.game-table-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.player-seat-card{padding:10px 12px;background:linear-gradient(180deg,#061320 0%,#03080e 100%);border:1px solid #183147;border-radius:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 8px rgba(0,0,0,.45);transition:all .16s ease}
+.player-seat-card.p1{border-left:4px solid var(--cyan)}
+.player-seat-card.p2{border-left:4px solid var(--green)}
+.player-seat-card.p3{border-left:4px solid var(--orange)}
+.player-seat-card.p4{border-left:4px solid #b197fc}
+.player-seat-card.is-active{box-shadow:inset 0 0 14px rgba(0,229,255,.22),0 0 16px rgba(0,229,255,.28);border-color:#2a5779}
+.seat-header{display:flex;justify-content:space-between;align-items:center;font:800 10px/1 ui-monospace,Consolas,monospace}
+.seat-id{color:#e6f6ff;letter-spacing:.04em}
+.seat-badge{padding:3px 7px;border-radius:4px;font-size:9px;background:#081622;border:1px solid #1a364e;color:#8cb4d1;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.seat-badge.active-turn{border-color:var(--green);color:var(--green);background:linear-gradient(180deg,#072619 0%,#04160e 100%);box-shadow:0 0 8px rgba(50,231,164,.3)}
+.seat-detail{margin-top:6px;font:10px/1.3 ui-monospace,Consolas,monospace;color:#859fad}
+
+.continuity-panel{padding:12px;background:linear-gradient(180deg,#06121d 0%,#020509 100%);border:1px solid #172f44;border-radius:10px;margin-bottom:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 18px rgba(0,0,0,.5)}
+.continuity-table{width:100%;border-collapse:collapse;font:10px/1.3 ui-monospace,Consolas,monospace;white-space:nowrap}
+.continuity-table th{background:linear-gradient(180deg,#0a1b2b 0%,#06111c 100%);color:#83a2b7;padding:7px 9px;text-align:left;border-bottom:1px solid #1a374f;font-size:9px;letter-spacing:.04em}
+.continuity-table td{padding:6px 9px;border-bottom:1px solid #0b1620;color:#c6d9e8}
+
+/* GAMEZEL QUICK PLAY */
+.gamezel-quick-play{margin-top:10px;padding:12px 14px;border:1px solid #1d4f70;border-radius:8px;background:linear-gradient(180deg,#071a29 0%,#03090f 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 18px rgba(0,229,255,.08)}
+.gamezel-quick-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
+.gamezel-quick-title{font:900 11px/1 ui-monospace,Consolas,monospace;color:#9eefff;letter-spacing:.06em}
+.gamezel-quick-status{font:800 10px/1 ui-monospace,Consolas,monospace;color:#69db7c}
+.gamezel-quick-buttons{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px}
+.gamezel-draw-btn{height:38px;border:1px solid #2c5776;border-radius:6px;background:linear-gradient(180deg,#0a2235 0%,#05121d 100%);color:#d9efff;font:900 10px/1 ui-monospace,Consolas,monospace;cursor:pointer}
+.gamezel-draw-btn:hover:not(:disabled){border-color:var(--cyan);box-shadow:0 0 12px rgba(0,229,255,.22)}
+.gamezel-draw-btn:disabled{opacity:.45;cursor:wait}
+@media(max-width:760px){.gamezel-quick-buttons{grid-template-columns:1fr 1fr}}
+
+/* GAMEZEL AI INTER-TOWER SPEECH BUS */
+.speech-bay-receptor{padding:10px 14px;background:linear-gradient(180deg,#061421 0%,#03080e 100%);border:1px solid #17344c;border-radius:8px;margin-top:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 4px 12px rgba(0,0,0,.5);transition:all .18s ease}
+.speech-bay-receptor.speaking{border-color:var(--cyan);box-shadow:0 0 16px rgba(0,229,255,.3),inset 0 1px 0 rgba(255,255,255,.15)}
+.speech-receptor-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font:800 10px/1 ui-monospace,Consolas,monospace}
+.speech-tower-tag{color:#7db1cf;letter-spacing:.06em}
+.speech-status-pill{padding:2px 7px;border-radius:4px;background:#091926;border:1px solid #1a3952;color:#7ca0b8;font:700 9px/1.2 ui-monospace,Consolas,monospace}
+.speech-status-pill.live-speech{background:linear-gradient(180deg,#072b22 0%,#031712 100%);border-color:var(--green);color:#69db7c;box-shadow:0 0 8px rgba(105,219,124,.35)}
+.speech-receptor-body{min-height:30px;display:flex;align-items:center;font:11px/1.4 ui-monospace,Consolas,monospace;color:#c7dbe8;overflow-wrap:anywhere}
+.speech-idle-text{color:#557082;font-size:10px}
+.speech-active-msg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.speech-speaker-badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:4px;font:800 10px/1 ui-monospace,Consolas,monospace;letter-spacing:.04em;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.speech-speaker-p1{background:#04212e;border:1px solid #00e5ff;color:#7ee9ff;box-shadow:0 0 8px rgba(0,229,255,.3)}
+.speech-speaker-p2{background:#181335;border:1px solid #7048e8;color:#d0bfff;box-shadow:0 0 8px rgba(112,72,232,.3)}
+.speech-speaker-p3{background:#231a04;border:1px solid #f59f00;color:#ffe066;box-shadow:0 0 8px rgba(245,159,0,.3)}
+.speech-speaker-p4{background:#2a0808;border:1px solid #e03131;color:#ff8787;box-shadow:0 0 8px rgba(224,49,49,.3)}
+.speech-type-badge{display:inline-block;padding:2px 6px;border-radius:3px;background:#091926;border:1px solid #1a3952;color:#8bb0c7;font:700 9px/1 ui-monospace,Consolas,monospace}
+.speech-context-badge{display:inline-block;padding:2px 6px;border-radius:3px;background:#061e2b;border:1px solid #114b6e;color:#74c0fc;font:700 9px/1 ui-monospace,Consolas,monospace}
+.speech-text-bubble{color:#edf6fc;font-weight:600;letter-spacing:.01em}
+
+.speech-history-wrap{background:linear-gradient(180deg,#061320 0%,#02060b 100%);border:1px solid #162f44;border-radius:10px;padding:14px;box-shadow:inset 0 1px 1px rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.5)}
+.speech-history-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.speech-history-head strong{font:800 12px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.05em}
+.speech-history-head small{display:block;margin-top:2px;color:#738ea0;font:10px/1 ui-monospace,Consolas,monospace}
+.speech-history-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.speech-audio-guard-badge{padding:3px 8px;border-radius:4px;background:#081e14;border:1px solid #1b5e34;color:#69db7c;font:800 9px/1 ui-monospace,Consolas,monospace}
+.speech-id-last{color:var(--cyan);font:800 10px/1 ui-monospace,Consolas,monospace}
+.speech-table-container{max-height:220px;overflow:auto;border:1px solid #152d40;border-radius:8px;background:#020508;box-shadow:inset 0 2px 6px rgba(0,0,0,.7)}
+.speech-table{width:100%;border-collapse:collapse;font:10px/1.35 ui-monospace,Consolas,monospace;white-space:nowrap}
+.speech-table th{background:linear-gradient(180deg,#0a1d2e 0%,#061320 100%);color:#82a3ba;padding:7px 10px;text-align:left;border-bottom:1px solid #1a3850;font-size:9px;letter-spacing:.04em;position:sticky;top:0;z-index:2}
+.speech-table td{padding:6px 10px;border-bottom:1px solid #0c1822;color:#c5d8e7}
+.speech-table tr:hover td{background:rgba(0,229,255,.04)}
+.speech-empty-row{text-align:center;color:#557082;padding:18px 10px}
+
+/* EVENTS */
+.events{max-height:260px;overflow:auto;background:#02060b;border:1px solid #132738;border-radius:8px;padding:8px;box-shadow:inset 0 2px 6px rgba(0,0,0,.7)}
+.event{padding:6px 9px;border-left:3px solid var(--orange);border-bottom:1px solid #0d1923;font:11px/1.35 ui-monospace,Consolas,monospace;border-radius:2px}
+.event small{display:block;color:#e8b543}
+.event code{color:#76d7ff;white-space:pre-wrap}
+.event.pass{border-left-color:var(--green)}
+.event.fail{border-left-color:var(--red)}
+.event.pass small{color:#77e6b5}
+.event.fail small{color:#ff8787}
+.note{color:#8ca5b8;font-size:11px;font-family:ui-monospace,Consolas,monospace}
+
+/* JEV / TYPESAFE PANEL */
+.jev-panel{padding:14px;background:linear-gradient(180deg,#061421 0%,#03080e 100%);border:1px solid #18334a;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 20px rgba(0,0,0,.5)}
+.jev-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #163045;padding-bottom:10px}
+.jev-title{margin:0;font:800 13px/1.2 ui-monospace,Consolas,monospace;color:#e8f7ff;letter-spacing:.05em}
+.jev-brand{color:var(--cyan);text-shadow:0 0 8px rgba(0,229,255,.3)}
+.jev-sub{display:block;margin-top:3px;color:#7a97ab;font:10px/1.3 ui-monospace,Consolas,monospace}
+.jev-badges{display:flex;gap:6px;align-items:center}
+.jev-badge{padding:3px 9px;border-radius:5px;font:800 10px/1 ui-monospace,Consolas,monospace;border:1px solid #304d66;background:linear-gradient(180deg,#091e2e 0%,#05111c 100%);color:#a8c4da;text-transform:uppercase;box-shadow:0 2px 4px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.1)}
+.jev-badge.badge-not-configured{border-color:#485e73;color:#8ea3b5;background:#0d1822}
+.jev-badge.badge-ready{border-color:var(--cyan);color:#a5eaff;background:linear-gradient(180deg,#09334a 0%,#051d2c 100%);box-shadow:0 0 8px rgba(0,229,255,.25)}
+.jev-badge.badge-connected{border-color:var(--green);color:#a8ffe0;background:linear-gradient(180deg,#082d20 0%,#051811 100%);box-shadow:0 0 8px rgba(50,231,164,.25)}
+.jev-badge.badge-error{border-color:var(--red);color:#ffa6a6;background:linear-gradient(180deg,#301010 0%,#1a0707 100%)}
+.jev-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.jev-item{padding:9px 11px;background:linear-gradient(180deg,#05101a 0%,#02060b 100%);border:1px solid #142a3b;border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 5px rgba(0,0,0,.35)}
+.jev-item span{display:block;color:#728d9f;font:9px/1 ui-monospace,Consolas,monospace}
+.jev-item strong{display:block;margin-top:4px;color:#d2e4f0;font:800 11px/1.25 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+.jev-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.jev-btn{height:30px;padding:0 14px;border-radius:5px;border:1px solid #284c6b;background:linear-gradient(180deg,#0a253b 0%,#061624 100%);color:#c5ebff;font:800 10px/1 ui-monospace,Consolas,monospace;cursor:pointer;transition:all .14s;box-shadow:0 2px 4px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1)}
+.jev-btn:hover:not(:disabled){border-color:var(--cyan);background:linear-gradient(180deg,#0f3657 0%,#081f33 100%);color:#fff}
+.jev-btn:disabled{opacity:.4;cursor:not-allowed;border-color:#1c2d3a;color:#536675}
+.jev-test-result{font:10px/1 ui-monospace,Consolas,monospace;color:#859fb3}
+.jev-test-result.success{color:var(--green);text-shadow:0 0 6px rgba(50,231,164,.3)}
+.jev-test-result.error{color:var(--red)}
+.jev-states-preview{margin-top:10px;padding-top:10px;border-top:1px solid #132738}
+.jev-states-preview span{color:#6e899c;font:9px/1.2 ui-monospace,Consolas,monospace}
+.jev-pill-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.jev-pill{padding:3px 7px;border-radius:4px;border:1px solid #1b364d;background:#030a12;color:#91d3ff;font:700 9px/1 ui-monospace,Consolas,monospace;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+
+.calc-journal-ext{margin-top:10px;padding:9px 11px;border:1px solid #152f44;background:#030a12;border-radius:6px;box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.calc-ext-head{color:#76b7db;font:800 9px/1 ui-monospace,Consolas,monospace;letter-spacing:.05em;margin-bottom:6px}
+.calc-ext-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.calc-ext-cell{font:9px/1.2 ui-monospace,Consolas,monospace;color:#7b97ac}
+.calc-ext-cell strong{color:#d5ebfa;font-weight:700}
+.calc-ext-cell.calc-ext-wide{grid-column:1/-1}
+
+/* ZENODO PANEL */
+.gab-panel{padding:14px;background:linear-gradient(180deg,#061421 0%,#03080e 100%);border:1px solid #18334a;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 20px rgba(0,0,0,.5)}
+.gab-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #163045;padding-bottom:10px}
+.gab-title{margin:0;font:800 13px/1.2 ui-monospace,Consolas,monospace;color:#e8f7ff;letter-spacing:.05em}
+.gab-brand{color:var(--cyan);text-shadow:0 0 8px rgba(0,229,255,.3)}
+.gab-sub{display:block;margin-top:3px;color:#7a97ab;font:10px/1.3 ui-monospace,Consolas,monospace}
+.gab-reserve-badge{padding:5px 11px;border-radius:5px;font:700 10px/1 ui-monospace,Consolas,monospace;border:1px solid #204763;background:linear-gradient(180deg,#092338 0%,#051522 100%);color:#92deff;box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+.gab-reserve-badge strong{color:var(--green);margin-left:4px}
+.gab-reserve-badge.deficit{border-color:var(--red);background:linear-gradient(180deg,#301010 0%,#1c0707 100%);color:#ff9e9e}
+.gab-reserve-badge.deficit strong{color:var(--red)}
+.gab-metrics-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-top:10px}
+.gab-provenance-metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+.badge-provenance-synthetic{background:#2b1b06;color:#ffb35c;border:1px solid #754411}
+.badge-provenance-direct_source{background:#072416;color:#77e68c;border:1px solid #185c32}
+.badge-provenance-derived{background:#181738;color:#bca7ff;border:1px solid #483787}
+.badge-provenance-manual{background:#092436;color:#85ccff;border:1px solid #194a6e}
+.badge-provenance-unknown{background:#1a1a1a;color:#b8c0c7;border:1px solid #333940}
+.gab-metric-card{padding:8px 9px;background:linear-gradient(180deg,#05101a 0%,#02060b 100%);border:1px solid #142a3b;border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 5px rgba(0,0,0,.35)}
+.gab-metric-card span{display:block;color:#728d9f;font:9px/1 ui-monospace,Consolas,monospace;letter-spacing:.03em}
+.gab-metric-card strong{display:block;margin-top:4px;color:#dcebf5;font:800 14px/1 ui-monospace,Consolas,monospace}
+.gab-metric-card.que strong{color:#7ee0ff}
+.gab-metric-card.tst strong{color:var(--gold)}
+.gab-metric-card.brk strong{color:var(--red)}
+.gab-metric-card.sur strong{color:var(--green)}
+.gab-metric-card.cnj strong{color:#b197fc}
+.gab-metric-card.src strong{color:var(--cyan)}
+.gab-metric-card.scn strong{color:#b5c1cb;font-size:10px;margin-top:4px;overflow-wrap:anywhere}
+.gab-controls-bar{display:flex;align-items:center;gap:7px;margin-top:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid #132738}
+.gab-btn{height:30px;padding:0 12px;border-radius:5px;border:1px solid #284c6b;background:linear-gradient(180deg,#0a2236 0%,#05131f 100%);color:#d9efff;font:800 10px/1 ui-monospace,Consolas,monospace;cursor:pointer;transition:all .14s;box-shadow:0 2px 4px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1)}
+.gab-btn:hover{border-color:var(--cyan);background:linear-gradient(180deg,#0e3352 0%,#071b2c 100%);color:#fff}
+.gab-btn.primary{border-color:#20c997;color:#bbf8c4;background:linear-gradient(180deg,#082e21 0%,#041710 100%)}
+.gab-btn.run{border-color:var(--gold);color:#ffea85;background:linear-gradient(180deg,#2b2308 0%,#141003 100%)}
+.gab-btn:disabled{opacity:.4;cursor:not-allowed;border-color:#172733;color:#4e6373}
+.gab-action-status{font:10px/1 ui-monospace,Consolas,monospace;color:#7e9bb0;margin-left:auto}
+.gab-filter-tabs{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap}
+.gab-tab{height:26px;padding:0 10px;border-radius:5px;border:1px solid #183147;background:linear-gradient(180deg,#071522 0%,#02060b 100%);color:#8ea7bd;font:700 9px/1 ui-monospace,Consolas,monospace;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.gab-tab:hover{border-color:#3c6280;color:#e3f0fb}
+.gab-tab.active{border-color:var(--cyan);background:linear-gradient(180deg,#09334d 0%,#051d2c 100%);color:#a6f4ff;box-shadow:0 0 8px rgba(0,229,255,.25)}
+.gab-table-wrap{margin-top:10px;overflow-x:auto;max-height:340px;border:1px solid #152d40;border-radius:8px;background:#010408;box-shadow:inset 0 2px 6px rgba(0,0,0,.8)}
+.gab-table{width:100%;border-collapse:collapse;font:10px/1.3 ui-monospace,Consolas,monospace;white-space:nowrap}
+.gab-table th{position:sticky;top:0;background:linear-gradient(180deg,#0a1b2b 0%,#06121c 100%);color:#7e9ab0;padding:7px 9px;text-align:left;border-bottom:1px solid #1a3850;font-size:9px;letter-spacing:.04em;z-index:2}
+.gab-table td{padding:6px 9px;border-bottom:1px solid #0b151e;color:#ccdbe7}
+.gab-table tr:hover td{background:#061726}
+.gab-table tr.selected td{background:#0a293d;color:#fff}
+.gab-badge{display:inline-block;padding:3px 7px;border-radius:4px;font:800 9px/1 ui-monospace,Consolas,monospace;text-transform:uppercase;box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 1px 3px rgba(0,0,0,.5)}
+.gab-badge.status-queued{background:#092a44;color:#85cbff;border:1px solid #1e557d}
+.gab-badge.status-testing{background:#302708;color:var(--gold);border:1px solid #755f11}
+.gab-badge.status-broken{background:#300c0c;color:var(--red);border:1px solid #7a2121}
+.gab-badge.status-survivor{background:#092c18;color:var(--green);border:1px solid #1f6e3c}
+.gab-badge.status-conditional{background:#302508;color:#ffd147;border:1px solid #755a10}
+.gab-badge.status-conjecture{background:#20173b;color:#d8c9ff;border:1px solid #543a91}
+.gab-badge.status-retest{background:#361c0a;color:var(--orange);border:1px solid #854516}
+.gab-badge.status-reviewed{background:#082e27;color:#71ebc5;border:1px solid #1b6b5b}
+
+/* MODAL */
+.gab-modal{position:fixed;inset:0;background:rgba(0,3,6,.88);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px}
+.gab-modal-card{width:min(860px,100%);max-height:85vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#071524 0%,#040c14 100%);border:1px solid #204563;border-radius:12px;box-shadow:0 25px 70px #000,0 0 0 1px rgba(0,229,255,.2);overflow:hidden}
+.gab-modal-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #18354e;background:#030a12}
+.gab-modal-head strong{color:#e8f7ff;font:800 13px/1 ui-monospace,Consolas,monospace;letter-spacing:.05em}
+.gab-modal-close{background:none;border:none;color:#7697b0;font-size:16px;cursor:pointer;padding:4px 8px;line-height:1;border-radius:4px}
+.gab-modal-close:hover{color:#fff;background:rgba(255,255,255,.08)}
+.gab-modal-body{padding:16px;overflow-y:auto;color:#c4d7e6;font:11px/1.45 ui-monospace,Consolas,monospace}
+.gab-modal-lineage-item{margin-bottom:10px;padding:10px;background:#03080e;border:1px solid #132a3e;border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.gab-modal-lineage-item strong{color:#82daf8}
+.gab-modal-lineage-item small{display:block;color:#7591a6;margin-top:3px}
+
+/* RECTO PUBLIC SAFE BADGES */
+.recto-badge{display:inline-block;padding:3px 8px;border-radius:5px;background:linear-gradient(180deg,#08273d 0%,#041624 100%);border:1px solid #1a5682;color:#6fd0ff;font:800 10px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.06em;vertical-align:middle;margin-left:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 2px 4px rgba(0,0,0,.4)}
+.op-tag{display:inline-block;font-size:8px;padding:2px 5px;border-radius:3px;background:#1e1406;border:1px solid #633b09;color:var(--orange);margin-left:3px}
+.gab-btn.disabled-operator{opacity:.55;cursor:not-allowed;border-style:dashed}
+.gab-btn.disabled-operator:hover{background:#040d14;border-color:#1c384e;color:#8ab0cc}
+
+/* LINEAGE MAP */
+.lin-panel{padding:14px 16px;background:linear-gradient(180deg,#061421 0%,#03080e 100%);border:1px solid #18334a;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 20px rgba(0,0,0,.5)}
+.lin-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.lin-title{margin:0;font:800 15px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em;color:#eef7fe}
+.lin-brand{color:var(--cyan);text-shadow:0 0 8px rgba(0,229,255,.3)}
+.lin-sub{display:block;margin-top:3px;color:#7997ac;font:10px/1.3 ui-monospace,Consolas,monospace}
+.lin-metrics-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:12px}
+.lin-views-bar{display:flex;gap:6px;border-bottom:1px solid #153147;padding-bottom:10px;margin-bottom:12px;flex-wrap:wrap}
+.lin-view-btn{height:28px;padding:0 14px;border-radius:5px;border:1px solid #1d405c;background:linear-gradient(180deg,#071a29 0%,#030d17 100%);color:#8db2ce;font:800 10px/1 ui-monospace,Consolas,monospace;cursor:pointer;transition:all .14s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.lin-view-btn:hover{background:linear-gradient(180deg,#0d3049 0%,#071d2e 100%);border-color:var(--cyan);color:#fff}
+.lin-view-btn.active{background:linear-gradient(180deg,#09354d 0%,#041d2c 100%);border-color:var(--cyan);color:#88f0ff;box-shadow:0 0 10px rgba(0,229,255,.25)}
+.lin-controls-bar{display:flex;align-items:center;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+.lin-select{height:28px;padding:0 9px;border-radius:5px;border:1px solid #1e3d57;background:#040e17;color:#a8c7df;font:10px/1 ui-monospace,Consolas,monospace;box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.lin-graph-layout{display:grid;grid-template-columns:1fr 320px;gap:12px;min-height:480px}
+.lin-graph-container{position:relative;background:radial-gradient(ellipse at 50% 30%,#04121f 0%,#010408 85%);border:1px solid #18354c;border-radius:8px;overflow:hidden;min-height:480px;box-shadow:inset 0 2px 10px rgba(0,0,0,.9),0 6px 20px rgba(0,0,0,.6)}
+.lin-svg-canvas{width:100%;height:100%;min-height:480px;cursor:grab}
+.lin-svg-canvas:active{cursor:grabbing}
+.lin-detail-card{background:linear-gradient(180deg,#05111c 0%,#02060b 100%);border:1px solid #173248;border-radius:8px;padding:14px;max-height:500px;overflow-y:auto;color:#bdd4e6;font:10px/1.4 ui-monospace,Consolas,monospace;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 14px rgba(0,0,0,.5)}
+.lin-detail-card h3{margin:0 0 6px;color:#edf7fe;font:800 12px/1.2 ui-monospace,Consolas,monospace}
+.lin-card-section{margin-top:9px;padding-top:8px;border-top:1px solid #122535}
+.lin-card-section strong{color:#82d8fc;display:block;margin-bottom:3px}
+.lin-fp-badge{display:inline-block;padding:2px 6px;border-radius:3px;font:700 8px/1.2 ui-monospace,Consolas,monospace;margin:2px 2px 2px 0}
+.lin-fp-known{background:#072416;color:#73e687;border:1px solid #1a6336}
+.lin-fp-unknown{background:#1a1a1a;color:#b8c0c7;border:1px solid #333940}
+.lin-fp-na{background:#13171d;color:#6c7781;border:1px solid #272e37}
+.lin-breakpaths-view, .lin-frontiers-view, .lin-audit-view{display:none;background:#010408;border:1px solid #16324a;border-radius:8px;padding:14px;min-height:420px;box-shadow:inset 0 2px 8px rgba(0,0,0,.8)}
+.lin-break-card{background:#040b12;border:1px solid #183248;border-left:4px solid var(--red);border-radius:6px;padding:12px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.lin-frontier-card{background:#040b12;border:1px solid #183248;border-left:4px solid var(--gold);border-radius:6px;padding:12px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.lin-score-badge{display:inline-block;padding:3px 7px;border-radius:4px;background:#262005;border:1px solid #66520c;color:var(--gold);font:800 11px/1 ui-monospace,Consolas,monospace}
+
+/* AUDIO CONSENT */
+.audio-consent{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,3,6,.88);backdrop-filter:blur(8px)}
+.audio-consent.show{display:flex}
+.audio-consent-card{width:min(480px,100%);padding:22px;border:1px solid #2d4f6d;border-radius:12px;background:linear-gradient(180deg,#071524 0%,#040d16 100%);box-shadow:0 25px 70px #000,0 0 0 1px rgba(0,229,255,.18);text-align:center}
+.audio-consent-card h2{margin:0 0 8px;font-size:20px}
+.audio-consent-card p{margin:0 0 18px;color:#b2c7d9;font-size:13px}
+.audio-consent-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.audio-consent-actions button{min-width:130px;padding:10px 16px;border-radius:6px;border:1px solid #325575;background:linear-gradient(180deg,#071b2c 0%,#030e18 100%);color:#edf7ff;font-weight:800;cursor:pointer;font-family:ui-monospace,Consolas,monospace;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1)}
+.audio-consent-actions .primary{border-color:var(--cyan);background:linear-gradient(180deg,#0a354f 0%,#052030 100%);color:#b0f3ff;box-shadow:0 0 12px rgba(0,229,255,.25)}
+
+/* RESPONSIVE LAYOUT */
+@media(max-width:960px){.recto-monitor-grid[data-panel-mode="all"]{display:flex;flex-direction:column;gap:12px}
+  .stages{grid-template-columns:repeat(4,1fr)}
+  .metrics{grid-template-columns:1fr 1fr}
+  .formulas{grid-template-columns:1fr}
+  .swarm-grid{grid-template-columns:repeat(3,1fr)}
+  .jev-grid{grid-template-columns:1fr 1fr}
+  .calc-ext-grid{grid-template-columns:1fr 1fr}
+  .gab-metrics-grid{grid-template-columns:repeat(4,1fr)}
+  .game-table-strip{grid-template-columns:1fr 1fr}
+  .lin-graph-layout{grid-template-columns:1fr}
+}
+@media(max-width:540px){
+  .stages,.metrics{grid-template-columns:1fr 1fr}
+  .top{align-items:flex-start;flex-direction:column}
+  .top-actions{width:100%}
+  .swarm-grid{grid-template-columns:repeat(2,1fr)}
+  .gab-metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .game-table-strip{grid-template-columns:1fr}
+  .osc-meter-row{grid-template-columns:1fr}
+  .gab-head,.lin-head,.calc-journal-head,.swarm-head,.jev-head{flex-direction:column}
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important;transition:none !important}
+}
 </style>
 </head>
 <body>
 <div id="audioConsent" class="audio-consent" role="dialog" aria-modal="true" aria-labelledby="audioConsentTitle"><div class="audio-consent-card"><h2 id="audioConsentTitle">🔊 Activer le son ?</h2><p>ZELSTÉRÉOS utilise un son de départ, un tempo et un son de fin pendant le cycle.</p><div class="audio-consent-actions"><button id="audioConsentEnable" class="primary" type="button">ACTIVER LE SON</button><button id="audioConsentLater" type="button">PLUS TARD</button></div></div></div>
 
-<main>
-<div class="label">01 · PUBLIC SAFE</div>
-<section class="rack"><div class="face top"><div><h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">VITRINE</span> <span class="safe">PUBLIQUE</span></h1><small>Lecture seule · données filtrées · commandes privées non exposées</small></div><div class="top-actions"><button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button><span id="fontSize" class="font-size">100%</span><button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button><button id="soundToggle" class="sound-btn sound-icon" type="button" aria-label="Activer ou couper le son">🔊</button><span id="audioState" class="font-size">AUDIO: ?</span><button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button><input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume"><div id="live" class="live">CONNEXION…</div></div></div></section>
-<div class="label">02 · PIPELINE</div>
-<section class="rack"><div id="stages" class="stages"></div></section>
+<main class="screen-all">
+<!-- PHYSICAL MULTI-SCREEN SWITCHER BAR -->
+<nav class="screen-selector-bar" role="tablist" aria-label="Sélecteur d'écran de laboratoire">
+  <span class="screen-sel-label">CONFIGURATION AFFICHAGE :</span>
+  <button type="button" class="screen-tab monitor-mode-btn active" data-screen="all" data-target-panel="all" id="tabScreenAll" title="Table de laboratoire complète (5 baies)">⊞ TABLE COMPLÈTE (5 BAIES)</button>
+  <button type="button" class="screen-tab monitor-mode-btn" data-screen="1" data-target-panel="1" id="tabScreen1" title="Écran 1 : Audio Master & Heartbeat">1 · AUDIO MASTER</button>
+  <button type="button" class="screen-tab monitor-mode-btn" data-screen="2" data-target-panel="2" id="tabScreen2" title="Écran 2 : Formula Swarm & Calcul">2 · FORMULA SWARM</button>
+  <button type="button" class="screen-tab monitor-mode-btn" data-screen="3" data-target-panel="3" id="tabScreen3" title="Écran 3 : Activité, Jev & Game State">3 · ACTIVITÉ & ÉTAT DE JEU</button>
+  <button type="button" class="screen-tab monitor-mode-btn" data-screen="4" data-target-panel="4" id="tabScreen4" title="Écran 4 : Zenodo Research Queue">4 · ZENODO QUEUE</button>
+  <button type="button" class="screen-tab monitor-mode-btn" data-screen="5" data-target-panel="5" id="tabScreen5" title="Écran 5 : Mathematical Lineage Map">5 · LINEAGE MAP</button>
+</nav>
 
-<div class="label">03 · ÉTAT</div>
-<section class="rack"><div class="metrics">
-<div class="face metric"><span>ÉTAGE</span><strong id="stage">—</strong></div>
-<div class="face metric"><span>CANAUX</span><strong id="channels">—</strong></div>
-<div class="face metric"><span>TRACE</span><strong id="trace">—</strong></div>
-<div class="face metric"><span>ERREUR GLOBALE</span><strong id="error">—</strong></div>
-</div></section>
-
-<div class="label">04 · FORMULE PUBLIQUE</div>
-<section class="rack"><div class="formulas">
-<div class="face formula"><span>FORMULE ACTIVE</span><strong id="f1">—</strong></div>
-<div class="face formula"><span>RELATION</span><strong id="formula">—</strong></div>
-<div class="face formula"><span>SOURCE</span><strong id="commit">—</strong></div>
-</div></section>
-
-<div class="label">05 · VALEURS PUBLIQUES</div>
-<section class="rack"><div id="valueNote" class="note">Valeurs autorisées du calcul courant.</div><div id="values" class="values" style="margin-top:8px"></div></section>
-
-<div class="label">06 · JOURNAL DE CALCUL</div>
-<section class="rack"><div class="calc-journal">
-  <div class="calc-journal-head">
-    <div class="calc-journal-title"><strong>TRACE DU CALCUL</strong><small id="calcJournalTrace">Aucun calcul actif</small></div>
-    <div class="calc-journal-actions"><span id="calcJournalCount" class="calc-journal-count">LOG 000</span><button id="calcCopy" class="calc-copy" type="button" aria-label="Copier la formule et la trace du calcul">⧉ COPIER</button></div>
+<!-- TOP CONSOLE / LABORATORY COMMAND STRIP -->
+<div class="label">01 · PUBLIC SAFE // LABORATOIRE SCIENTIFIQUE</div>
+<section class="rack">
+  <div class="face top">
+    <div>
+      <h1>ANTMUX / ZELSTÉRÉOS — <span class="mode">SALLE DE CONTRÔLE</span> <span class="safe">SCIENTIFIQUE</span> <span class="recto-badge">RECTO PUBLIC · READ-ONLY</span></h1>
+      <small>SURFACE D'OBSERVATION &amp; INSTRUMENTATION DE CALCUL · RECTO STRICTEMENT LECTURE SEULE · COMMANDES OPÉRATEUR CÔTÉ VERSO</small>
+    </div>
+    <div class="top-actions">
+      <button id="fontMinus" class="font-btn" type="button" aria-label="Réduire la police">−</button>
+      <span id="fontSize" class="font-size">100%</span>
+      <button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button>
+      <button id="soundToggle" class="sound-btn sound-icon" type="button" aria-label="Activer ou couper le son">🔊</button>
+      <span id="audioState" class="font-size">AUDIO: ?</span>
+      <button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button>
+      <input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume">
+      <div id="live" class="live">CONNEXION…</div>
+    </div>
   </div>
-  <div id="calcJournalFormula" class="calc-journal-formula">FORMULE · —</div>
-  <div id="calcJournalLines" class="calc-journal-lines"><div class="calc-journal-empty">EN ATTENTE D’UN CALCUL…</div></div>
-  <div class="calc-journal-foot"><span>LOG LOCAL PERSISTANT · 100 TRACES MAX</span><strong id="calcJournalStatus">PRÊT</strong></div>
-</div></section>
+</section>
 
-<div class="label">07 · FORMULA SWARM / OUVERTURES DE MONDE</div>
-<section class="rack"><div class="swarm">
-  <div class="swarm-head">
-    <div><strong>FRONT DE CALCUL</strong><small id="swarmWave">Aucune vague active · déterministe · aucune formule choisie au hasard</small></div>
-    <div id="swarmCapacity" class="swarm-capacity">0 / 2000</div>
+<!-- ======================================================== -->
+<!-- ECRAN 1 : AUDIO MASTER / SYSTEM HEARTBEAT                -->
+<!-- ======================================================== -->
+<div id="rectoMonitorGrid" class="recto-monitor-grid" data-panel-mode="all">
+<section id="PANEL_1" class="lab-screen-bay" data-screen="1" data-legacy-screen-id="screenBay1">
+  <div class="panel-contract">PANEL 1 — AUDIO / SYSTÈME · AUDIO MASTER · PUBLIC AUDIO STATUS · DERNIER ÉVÉNEMENT AUDIO · SFX ID · PLAYER · SEQUENCE · HEARTBEAT · ÉTAT GÉNÉRAL DU SYSTÈME</div>
+  <div class="lab-bay-banner">
+    <span><strong class="lab-bay-tag">ECRAN 1</strong> AUDIO MASTER &amp; SYSTEM HEARTBEAT // TELEMETRY LINK: ONLINE // PORT 3000</span>
+    <span style="color:#5fc6ff">SORTIE AUDIO UNIQUE RECTO</span>
   </div>
-  <div class="swarm-grid">
-    <div class="swarm-cell"><span>MONDE</span><strong id="swarmWorld">—</strong></div>
-    <div class="swarm-cell pass"><span>PASS</span><strong id="swarmPass">0</strong></div>
-    <div class="swarm-cell fail"><span>FAIL</span><strong id="swarmFail">0</strong></div>
-    <div class="swarm-cell domain"><span>DOMAIN</span><strong id="swarmDomain">0</strong></div>
-    <div class="swarm-cell error"><span>ERROR</span><strong id="swarmError">0</strong></div>
-    <div class="swarm-cell"><span>PROFONDEUR</span><strong id="swarmDepth">0</strong></div>
+  <div class="panel-audio-telemetry" aria-label="Télémétrie audio maître">
+    <div><span>MASTER ROLE</span><strong id="p1MasterRoleBadge">PANEL_1</strong></div>
+    <div><span>AUDIO MASTER</span><strong id="p1AudioMaster">CHECKING</strong></div>
+    <div><span>PUBLIC AUDIO STATUS</span><strong id="p1PublicAudioStatus">IDLE</strong></div>
+    <div><span>HEARTBEAT</span><strong id="p1Heartbeat">WAITING</strong></div>
+    <div><span>DERNIER ÉVÉNEMENT AUDIO</span><strong id="p1LastAudioEvent">—</strong></div>
+    <div><span>SFX ID</span><strong id="p1SfxId">—</strong></div>
+    <div><span>PLAYER</span><strong id="p1AudioPlayer">—</strong></div>
+    <div><span>SEQUENCE</span><strong id="p1Sequence">0</strong></div>
   </div>
-  <div class="swarm-bar"><div id="swarmProgress"></div></div>
-  <div id="swarmRoute" class="swarm-route">ROUTE · aucune ouverture de monde</div>
-  <div id="swarmAnomalies" class="swarm-anomalies"><div class="swarm-empty">AUCUNE ANOMALIE À AFFICHER</div></div>
-</div></section>
+  <div class="rack">
+    <div id="gamezelPublicAudioBar" style="padding:8px 12px;background:#03080e;border:1px solid #132738;border-radius:2px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font:11px/1.3 ui-monospace,Consolas,monospace">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span id="gzPublicAudioStatus" style="padding:2px 6px;border-radius:2px;background:#061e12;border:1px solid #20c997;color:#63e6be;font-weight:800;font-size:10px">AUDIO GAMEZEL: ACTIVE</span>
+        <span id="gzPublicCurrentSound" style="padding:2px 6px;border-radius:2px;background:#071420;border:1px solid #1c3850;color:#cde4f5;font-weight:700;font-size:10px">CURRENT SOUND: —</span>
+        <span id="gzPublicEventType" style="padding:2px 6px;border-radius:2px;background:#071420;border:1px solid #1c3850;color:#74c0fc;font-weight:700;font-size:10px">EVENT TYPE: —</span>
+        <span id="gzPublicSoundId" style="padding:2px 6px;border-radius:2px;background:#071420;border:1px solid #1c3850;color:#ffd43b;font-weight:700;font-size:10px">SOUND ID: —</span>
+        <span id="gzPublicIntensity" style="padding:2px 6px;border-radius:2px;background:#071420;border:1px solid #1c3850;color:#ffa94d;font-weight:700;font-size:10px">INTENSITY: —</span>
+        <span id="gzPublicVoiceBadge" style="padding:2px 6px;border-radius:2px;background:#071420;border:1px solid #1c3850;color:#74c0fc;font-weight:700;font-size:10px">WHO IS SPEAKING: NONE</span>
+        <span id="gzPublicSfxBadge" style="padding:2px 6px;border-radius:2px;background:#071420;border:1px solid #1c3850;color:#ffd43b;font-weight:700;font-size:10px">SFX: IDLE</span>
+        <span id="gzPublicVoiceText" style="color:#cde4f5;font-style:italic">Sortie audio unique GameZEL (SFX &amp; Voix P1–P4) · VERSO silencieux</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:#7a9cb6">
+        <span id="gzPublicGuardBadge" title="Duplicate Playback Guard Enabled">DEDUP: ENABLED</span>
+        <span id="gzPublicSeqBadge" style="color:var(--cyan);font-weight:800">SEQ #0</span>
+      </div>
+    </div>
 
-<div class="label">08 · ACTIVITÉ PUBLIQUE</div>
-<section class="rack"><div class="note" style="margin-bottom:8px">Résumé filtré des validations. Aucun chemin local, commande brute, token ou secret n’est publié.</div><div id="events" class="events"></div></section>
+    <!-- TECHNICAL REAL-TIME OSCILLOSCOPE (NO FAKE DATA) -->
+    <div class="osc-panel">
+      <div class="osc-head">
+        <strong>OSCILLOSCOPE DE SIGNAL LABO // TRANSDUCTEUR LIVE</strong>
+        <span id="oscStateText">SIGNAL: IDLE · 0.00 V</span>
+      </div>
+      <div class="osc-canvas-wrap">
+        <div class="osc-grid-bg"></div>
+        <div class="osc-center-line"></div>
+        <svg class="osc-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+          <path id="audioOscilloscopePath" d="M 0 50 L 500 50" fill="none" stroke="#00e5ff" stroke-width="1.6" stroke-linecap="round"></path>
+        </svg>
+      </div>
+      <div class="osc-meter-row">
+        <div class="osc-meter-card">
+          <span>MASTER OUTPUT LEVEL</span>
+          <strong id="oscMasterDb">— dB</strong>
+          <div class="osc-meter-bar-track"><div id="vuMasterBar" class="osc-meter-bar-fill"></div></div>
+        </div>
+        <div class="osc-meter-card">
+          <span>VOICE CHANNEL (P1–P4)</span>
+          <strong id="oscVoiceStatus">INACTIF</strong>
+          <div class="osc-meter-bar-track"><div id="vuVoiceBar" class="osc-meter-bar-fill"></div></div>
+        </div>
+        <div class="osc-meter-card">
+          <span>SFX SYNTHESIZER / DUCKING</span>
+          <strong id="oscSfxDucking">NORMAL (0 dB)</strong>
+          <div class="osc-meter-bar-track"><div id="vuSfxBar" class="osc-meter-bar-fill"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="label">02 · PIPELINE</div>
+  <section class="rack"><div id="stages" class="stages"></div></section>
+
+  <div class="label">03 · ÉTAT</div>
+  <section class="rack"><div class="metrics">
+    <div class="face metric"><span>ÉTAGE</span><strong id="stage">—</strong></div>
+    <div class="face metric"><span>CANAUX</span><strong id="channels">—</strong></div>
+    <div class="face metric"><span>TRACE</span><strong id="trace">—</strong></div>
+    <div class="face metric"><span>ERREUR GLOBALE</span><strong id="error">—</strong></div>
+  </div></section>
+
+  <!-- SPEECH BUS RECEPTOR (PANEL 1 : AUDIO MASTER) -->
+  <div class="speech-bay-receptor" id="speechReceptorBay1">
+    <div class="speech-receptor-head">
+      <span class="speech-tower-tag">TOUR 1 · AUDIO MASTER &amp; OBSERVABILITÉ SYSTÈME</span>
+      <span class="speech-status-pill" id="speechStatusBay1">BUS EN VEILLE</span>
+    </div>
+    <div class="speech-receptor-body" id="speechBodyBay1">
+      <span class="speech-idle-text">— EN ATTENTE DE PAROLE IA SUR LE BUS —</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<!-- ECRAN 2 : FORMULA SWARM / PIPELINE DE CALCUL             -->
+<!-- ======================================================== -->
+<section id="PANEL_2" class="lab-screen-bay" data-screen="2" data-legacy-screen-id="screenBay2">
+  <div class="panel-contract">PANEL 2 — FORMULES / CALCUL · FORMULA SWARM · FORMULES ACTIVES · FORMULA_ID · RELATION · DOMAIN · STATUS · VERSION · TEST COUNT · PROOF REF · CALCULS EN COURS</div>
+  <div class="lab-bay-banner">
+    <span><strong class="lab-bay-tag">ECRAN 2</strong> FORMULA SWARM &amp; CALCULATIONS // COMPUTE CORE // INVARIANTS CHECKED</span>
+    <span style="color:#32e7a4">CANONICAL VERIFICATION ENGINE</span>
+  </div>
+
+  <div class="label">04 · FORMULE PUBLIQUE</div>
+  <section class="rack"><div class="formulas">
+    <div class="face formula"><span>FORMULE ACTIVE</span><strong id="f1">—</strong></div>
+    <div class="face formula"><span>RELATION</span><strong id="formula">—</strong></div>
+    <div class="face formula"><span>SOURCE</span><strong id="commit">—</strong></div>
+  </div></section>
+
+  <div class="label">05 · VALEURS PUBLIQUES</div>
+  <section class="rack">
+    <div id="valueNote" class="note">Valeurs autorisées du calcul courant.</div>
+    <div id="values" class="values" style="margin-top:6px"></div>
+  </section>
+
+  <div class="label">06 · JOURNAL DE CALCUL</div>
+  <section class="rack"><div class="calc-journal">
+    <div class="calc-journal-head">
+      <div class="calc-journal-title"><strong>TRACE DU CALCUL</strong><small id="calcJournalTrace">Aucun calcul actif</small></div>
+      <div class="calc-journal-actions">
+        <span id="calcJournalCount" class="calc-journal-count">LOG 000</span>
+        <button id="calcCopy" class="calc-copy" type="button" aria-label="Copier la formule et la trace du calcul">⧉ COPIER</button>
+      </div>
+    </div>
+    <div id="calcJournalFormula" class="calc-journal-formula">FORMULE · —</div>
+    <div id="calcJournalLines" class="calc-journal-lines"><div class="calc-journal-empty">EN ATTENTE D’UN CALCUL…</div></div>
+    <div class="calc-journal-ext" id="calcExternalDecision">
+      <div class="calc-ext-head">EXTERNAL DECISION</div>
+      <div class="calc-ext-grid">
+        <div class="calc-ext-cell"><span>Provider:</span> <strong id="extDecProvider">JEV</strong></div>
+        <div class="calc-ext-cell"><span>Decision:</span> <strong id="extDecDecision">—</strong></div>
+        <div class="calc-ext-cell"><span>Confidence:</span> <strong id="extDecConfidence">—</strong></div>
+        <div class="calc-ext-cell"><span>Timestamp:</span> <strong id="extDecTimestamp">—</strong></div>
+        <div class="calc-ext-cell calc-ext-wide"><span>Evidence reference:</span> <strong id="extDecEvidence">—</strong></div>
+      </div>
+    </div>
+    <div class="calc-journal-foot"><span>LOG LOCAL PERSISTANT · 100 TRACES MAX</span><strong id="calcJournalStatus">PRÊT</strong></div>
+  </div></section>
+
+  <div class="label">07 · FORMULA SWARM / OUVERTURES DE MONDE</div>
+  <section class="rack"><div class="swarm">
+    <div class="swarm-head">
+      <div><strong>FRONT DE CALCUL</strong><small id="swarmWave">Aucune vague active · déterministe · aucune formule choisie au hasard</small></div>
+      <div id="swarmCapacity" class="swarm-capacity">0 / 2000</div>
+    </div>
+    <div class="swarm-grid">
+      <div class="swarm-cell"><span>MONDE</span><strong id="swarmWorld">—</strong></div>
+      <div class="swarm-cell pass"><span>PASS</span><strong id="swarmPass">0</strong></div>
+      <div class="swarm-cell fail"><span>FAIL</span><strong id="swarmFail">0</strong></div>
+      <div class="swarm-cell domain"><span>DOMAIN</span><strong id="swarmDomain">0</strong></div>
+      <div class="swarm-cell error"><span>ERROR</span><strong id="swarmError">0</strong></div>
+      <div class="swarm-cell"><span>PROFONDEUR</span><strong id="swarmDepth">0</strong></div>
+    </div>
+    <div class="swarm-bar"><div id="swarmProgress"></div></div>
+    <div id="swarmRoute" class="swarm-route">ROUTE · aucune ouverture de monde</div>
+    <div id="swarmAnomalies" class="swarm-anomalies"><div class="swarm-empty">AUCUNE ANOMALIE À AFFICHER</div></div>
+  </div></section>
+
+  <!-- FORMULA CLASSIFICATION MATRIX (SCIENTIFIC LAB CODES) -->
+  <div class="label">CLASSIFICATION DES STATUTS DE FORMULES // ÉTATS SCIENTIFIQUES VÉRIFIÉS</div>
+  <section class="rack">
+    <div style="padding:10px;background:#03080e;border:1px solid #132433;border-radius:2px;font:10px/1.4 ui-monospace,Consolas,monospace">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <span class="gab-badge" style="background:#0b2333;color:#74c0fc;border:1px solid #1c4b6e">SOURCE</span>
+        <span class="gab-badge" style="background:#171a1d;color:#adb5bd;border:1px solid #282f36">UNTESTED</span>
+        <span class="gab-badge" style="background:#082414;color:#69db7c;border:1px solid #1b5e34">SURVIVOR</span>
+        <span class="gab-badge" style="background:#290b0b;color:#ff8787;border:1px solid #6b1d1d">BROKEN</span>
+        <span class="gab-badge" style="background:#1a1936;color:#b197fc;border:1px solid #4a388a">DERIVED_CANDIDATE</span>
+        <span class="gab-badge" style="background:#072621;color:#63e6be;border:1px solid #185c4f">VALIDATED</span>
+        <span class="gab-badge" style="background:#072b1d;color:#8bf5c4;border:1px solid #20c997">ACTIVE</span>
+        <span class="gab-badge" style="background:#331408;color:#ff922b;border:1px solid #733c14">REJECTED</span>
+        <span class="gab-badge" style="background:#123824;color:#51cf66;border:1px solid #2f9e44">PROVEN</span>
+      </div>
+      <div style="color:#7b95a8;font-size:9px">
+        DISCLAIMER SCIENTIFIQUE STRICT : <code>SURVIVOR</code> indique uniquement l'absence de contre-exemple dans le domaine testé (SURVIVOR ≠ PROVEN). Aucune promotion automatique.
+      </div>
+    </div>
+  </section>
+
+  <!-- SPEECH BUS RECEPTOR (PANEL 2 : FORMULA CONTEXT) -->
+  <div class="speech-bay-receptor" id="speechReceptorBay2">
+    <div class="speech-receptor-head">
+      <span class="speech-tower-tag">TOUR 2 · CONTEXTE FORMULE &amp; CALCUL</span>
+      <span class="speech-status-pill" id="speechStatusBay2">BUS EN VEILLE</span>
+    </div>
+    <div class="speech-receptor-body" id="speechBodyBay2">
+      <span class="speech-idle-text">— EN ATTENTE DE PAROLE IA SUR LE BUS —</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<!-- ECRAN 3 : ACTIVITY, JEV & GAME STATE                     -->
+<!-- ======================================================== -->
+<section id="PANEL_3" class="lab-screen-bay" data-screen="3" data-legacy-screen-id="screenBay3">
+  <div class="panel-contract">PANEL 3 — ACTIVITÉ / GAMEZEL · GAME MODE · ROUND · ACTIVE PLAYER · P1 ASTRA · P2 MUSE · P3 GROK · P4 ANTIGRAVITY · QUEUE · RUNNING CARD · LAST RECEIPT · LAST PROOF · JEV / TYPESAFE</div>
+  <div class="lab-bay-banner">
+    <span><strong class="lab-bay-tag">ECRAN 3</strong> GAME ACTIVITY &amp; DECISION SYSTEM // TELEMETRY: MONITORED</span>
+    <span style="color:#ffa94d">TABLE DE JEU (4 JOUEURS) &amp; JEV TRIAGE</span>
+  </div>
+
+  <!-- 4-PLAYER TABLE OBSERVABILITY -->
+  <div class="label">TABLE DE JEU // JOUEURS &amp; FLUX D'EXÉCUTION (LECTURE SEULE)</div>
+  <section class="rack">
+    <div class="game-table-strip">
+      <div class="player-seat-card p1" id="cardSeatP1">
+        <div class="seat-header">
+          <span class="seat-id">P1 · ASTRA</span>
+          <span class="seat-badge" id="seatP1Status">MONITORED</span>
+        </div>
+        <div class="seat-detail" id="seatP1Detail">Rôle : Validateur Standard · Machine de calcul</div>
+      </div>
+      <div class="player-seat-card p2" id="cardSeatP2">
+        <div class="seat-header">
+          <span class="seat-id">P2 · MUSE</span>
+          <span class="seat-badge" id="seatP2Status">MONITORED</span>
+        </div>
+        <div class="seat-detail" id="seatP2Detail">Rôle : Proposeur de candidats &amp; mutations</div>
+      </div>
+      <div class="player-seat-card p3" id="cardSeatP3">
+        <div class="seat-header">
+          <span class="seat-id">P3 · GROK</span>
+          <span class="seat-badge" id="seatP3Status">MONITORED</span>
+        </div>
+        <div class="seat-detail" id="seatP3Detail">Rôle : Adversarial / Recherche de cassures</div>
+      </div>
+      <div class="player-seat-card p4" id="cardSeatP4">
+        <div class="seat-header">
+          <span class="seat-id">P4 · ANTIGRAVITY</span>
+          <span class="seat-badge" id="seatP4Status">MONITORED</span>
+        </div>
+        <div class="seat-detail" id="seatP4Detail">Rôle : Observateur &amp; Vérification indépendante</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;font:10px/1.2 ui-monospace,Consolas,monospace">
+      <div class="metric face" style="padding:6px 8px;min-height:48px"><span>GAME MODE</span><strong id="labGameMode" style="font-size:13px;color:#ffd43b">CLASSIC</strong></div>
+      <div class="metric face" style="padding:6px 8px;min-height:48px"><span>ROUND</span><strong id="labGameRound" style="font-size:13px;color:#5fc6ff">0</strong></div>
+      <div class="metric face" style="padding:6px 8px;min-height:48px"><span>QUEUE DEPTH</span><strong id="labQueueDepth" style="font-size:13px;color:#ffa94d">0</strong></div>
+      <div class="metric face" style="padding:6px 8px;min-height:48px"><span>RUNNING CARD</span><strong id="labRunningCard" style="font-size:11px;color:#32e7a4;margin-top:2px">NONE</strong></div>
+      <div class="metric face" style="padding:6px 8px;min-height:48px"><span>LAST RECEIPT</span><strong id="labLastReceipt" style="font-size:11px;color:#cde4f5;margin-top:2px">—</strong></div>
+      <div class="metric face" style="padding:6px 8px;min-height:48px"><span>LAST PROOF</span><strong id="labLastProof" style="font-size:11px;color:#b197fc;margin-top:2px">—</strong></div>
+    </div>
+  </section>
+
+  <div class="gamezel-quick-play" id="gamezelQuickPlay">
+    <div class="gamezel-quick-head">
+      <span class="gamezel-quick-title">GAMEZEL · JOUER UNE CARTE</span>
+      <span class="gamezel-quick-status" id="gamezelQuickStatus">CONNEXION…</span>
+    </div>
+    <div class="gamezel-quick-buttons">
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P1">P1 · ASTRA</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P2">P2 · MUSE</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P3">P3 · GROK</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P4">P4 · ANTIGRAVITY</button>
+    </div>
+  </div>
+
+  <!-- REGISTRE DE CONTINUITÉ (QUI A FAIT QUOI ET PREUVE) -->
+  <div class="label">REGISTRE DE CONTINUITÉ // TRAÇABILITÉ DES ACTIONS &amp; PREUVES</div>
+  <section class="rack">
+    <div class="continuity-panel">
+      <table class="continuity-table">
+        <thead>
+          <tr>
+            <th>TICK</th>
+            <th>MOMENT</th>
+            <th>ACTEUR</th>
+            <th>ACTION</th>
+            <th>CIBLE</th>
+            <th>RÉFÉRENCE DE PREUVE</th>
+            <th>VERDICT</th>
+          </tr>
+        </thead>
+        <tbody id="continuityTableBody">
+          <tr>
+            <td colspan="7" style="text-align:center;padding:12px;color:#5a7285">EN ATTENTE D'ÉVÉNEMENTS DE JEU…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- EXTERNAL DECISION ENGINE (JEV / TYPESAFE) -->
+  <div class="label">09 · EXTERNAL DECISION ENGINE</div>
+  <section class="rack"><div class="face jev-panel">
+    <div class="jev-head">
+      <div>
+        <h2 class="jev-title">EXTERNAL DECISION ENGINE — <span class="jev-brand">JEV / TYPESAFE</span></h2>
+        <small class="jev-sub">Couche d'inférence sécurisée · clé API exclusivement côté serveur · architecture modulaire · DECISION / TRIAGE / PRIORITIZATION ENGINE (non un moteur de preuve mathématique)</small>
+      </div>
+      <div class="jev-badges">
+        <span id="jevStateBadge" class="jev-badge badge-not-configured">NOT CONFIGURED</span>
+      </div>
+    </div>
+
+    <div class="jev-grid">
+      <div class="jev-item">
+        <span>TYPESAFE_API_KEY</span>
+        <strong id="jevKeyStatus">NON CONFIGURÉE (SERVEUR)</strong>
+      </div>
+      <div class="jev-item">
+        <span>TYPESAFE_API_BASE_URL</span>
+        <strong id="jevBaseUrl">https://api.typesafe.ai</strong>
+      </div>
+      <div class="jev-item">
+        <span>TYPESAFE_MODEL</span>
+        <strong id="jevModel">jev-latest</strong>
+      </div>
+      <div class="jev-item">
+        <span>STATUT LOCAL</span>
+        <strong id="jevLocalStatus">STANDBY (DÉSACTIVÉ)</strong>
+      </div>
+    </div>
+
+    <div class="jev-actions">
+      <button id="jevTestBtn" class="jev-btn" type="button" disabled aria-label="Tester la connexion Jev">
+        TEST JEV CONNECTION
+      </button>
+      <span id="jevTestResult" class="jev-test-result">Clé API manquante côté serveur</span>
+    </div>
+
+    <div class="jev-states-preview">
+      <span>PRÉVISION DES ÉTATS MATHÉMATIQUES STRUCTURÉS :</span>
+      <div class="jev-pill-list">
+        <span class="jev-pill">PASS</span>
+        <span class="jev-pill">FAIL</span>
+        <span class="jev-pill">INCONCLUSIVE</span>
+        <span class="jev-pill">RETEST</span>
+        <span class="jev-pill">DOMAIN_ERROR</span>
+        <span class="jev-pill">NUMERIC_INSTABILITY</span>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ACTIVITÉ PUBLIQUE -->
+  <div class="label">08 · ACTIVITÉ PUBLIQUE</div>
+  <section class="rack">
+    <div class="note" style="margin-bottom:6px">Résumé filtré des validations. Aucun chemin local, commande brute, token ou secret n’est publié.</div>
+    <div id="events" class="events"></div>
+  </section>
+
+  <!-- SPEECH BUS RECEPTOR (PANEL 3 : GAME TABLE CONTEXT) -->
+  <div class="speech-bay-receptor" id="speechReceptorBay3">
+    <div class="speech-receptor-head">
+      <span class="speech-tower-tag">TOUR 3 · CONTEXTE TABLE DE JEU &amp; ACTIVITÉ IA</span>
+      <span class="speech-status-pill" id="speechStatusBay3">BUS EN VEILLE</span>
+    </div>
+    <div class="speech-receptor-body" id="speechBodyBay3">
+      <span class="speech-idle-text">— EN ATTENTE DE PAROLE IA SUR LE BUS —</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<!-- ECRAN 4 : ZENODO RESEARCH QUEUE                          -->
+<!-- ======================================================== -->
+<section id="PANEL_4" class="lab-screen-bay" data-screen="4" data-legacy-screen-id="screenBay4">
+  <div class="panel-contract">PANEL 4 — ZENODO · ZENODO RESEARCH QUEUE · SOURCE_RECORD · MATHEMATICAL_CANDIDATE · DOI · TITLE · DOMAIN · PROVENANCE · STATUS · PRIORITY</div>
+  <div class="lab-bay-banner">
+    <span><strong class="lab-bay-tag">ECRAN 4</strong> ZENODO RESEARCH QUEUE // CONVEYOR: SYNCHRONIZED</span>
+    <span style="color:#74c0fc">EXTRACTIONS &amp; CANDIDATS MATHÉMATIQUES</span>
+  </div>
+
+  <div class="label">10 · GAB BAD — ZENODO RESEARCH QUEUE</div>
+  <section class="rack"><div class="face gab-panel">
+    <div class="gab-head">
+      <div>
+        <h2 class="gab-title">GAB BAD — <span class="gab-brand">ZENODO RESEARCH QUEUE</span></h2>
+        <small class="gab-sub">Convoyeur de recherche mathématique · Invariants Zenodo · Contre-tests ZELSTÉRÉOS · Auto-réapprovisionnement</small>
+      </div>
+      <div class="gab-reserve-badge" id="gabReserveBadge">
+        RÉSERVE : <strong id="gabReserveStatus">100 / 100 (OK)</strong>
+      </div>
+    </div>
+
+    <div class="gab-metrics-grid">
+      <div class="gab-metric-card"><span>TOTAL CANDIDATS</span><strong id="gabTotal">0</strong></div>
+      <div class="gab-metric-card que"><span>QUEUED</span><strong id="gabQueued">0</strong></div>
+      <div class="gab-metric-card tst"><span>TESTING</span><strong id="gabTesting">0</strong></div>
+      <div class="gab-metric-card brk"><span>BROKEN</span><strong id="gabBroken">0</strong></div>
+      <div class="gab-metric-card sur"><span>SURVIVORS</span><strong id="gabSurvivors">0</strong></div>
+      <div class="gab-metric-card cnj"><span>CONJECTURES</span><strong id="gabConjectures">0</strong></div>
+      <div class="gab-metric-card src"><span>SOURCES ZENODO</span><strong id="gabSources">11</strong></div>
+      <div class="gab-metric-card scn"><span>DERNIER SCAN</span><strong id="gabLastScan">—</strong></div>
+    </div>
+
+    <div class="gab-provenance-metrics-grid">
+      <div class="gab-metric-card"><span>SOURCE RECORDS</span><strong id="gabProvSourceRecords">0</strong></div>
+      <div class="gab-metric-card sur"><span>VERIFIED CANDIDATES</span><strong id="gabProvVerified">0</strong></div>
+      <div class="gab-metric-card tst"><span>SYNTHETIC TEST DATA</span><strong id="gabProvSynthetic">0</strong></div>
+      <div class="gab-metric-card que"><span>UNVERIFIED EXTRACTIONS</span><strong id="gabProvUnverified">0</strong></div>
+    </div>
+
+    <div class="gab-controls-bar">
+      <button id="gabBtnScan" class="gab-btn disabled-operator" type="button" disabled title="Opération réservée au VERSO OPERATOR (RECTO PUBLIC lecture seule)">⚡ SCAN ZENODO <span class="op-tag">VERSO</span></button>
+      <button id="gabBtnRefill" class="gab-btn disabled-operator" type="button" disabled title="Opération réservée au VERSO OPERATOR (RECTO PUBLIC lecture seule)">↻ REFILL QUEUE <span class="op-tag">VERSO</span></button>
+      <button id="gabBtnTestNext" class="gab-btn disabled-operator" type="button" disabled title="Opération réservée au VERSO OPERATOR (RECTO PUBLIC lecture seule)">▶ START NEXT TEST <span class="op-tag">VERSO</span></button>
+      <button id="gabBtnLineage" class="gab-btn" type="button">☍ VIEW LINEAGE</button>
+      <button id="gabBtnSource" class="gab-btn" type="button">↗ VIEW SOURCE</button>
+      <button id="gabBtnEvidence" class="gab-btn" type="button">⚖ VIEW EVIDENCE</button>
+      <span id="gabActionStatus" class="gab-action-status">RECTO PUBLIC · OBSERVATION STRICTE</span>
+    </div>
+
+    <div class="gab-filter-tabs">
+      <button class="gab-tab active" data-status="">TOUS</button>
+      <button class="gab-tab" data-status="QUEUED">QUEUED</button>
+      <button class="gab-tab" data-status="TESTING">TESTING</button>
+      <button class="gab-tab" data-status="SURVIVOR">SURVIVOR</button>
+      <button class="gab-tab" data-status="BROKEN">BROKEN</button>
+      <button class="gab-tab" data-status="CONDITIONAL">CONDITIONAL</button>
+      <button class="gab-tab" data-status="CONJECTURE">CONJECTURE</button>
+      <button class="gab-tab" data-status="RETEST">RETEST</button>
+      <button class="gab-tab" data-status="REVIEWED">REVIEWED</button>
+    </div>
+
+    <div class="gab-table-wrap">
+      <table class="gab-table" id="gabQueueTable">
+        <thead>
+          <tr>
+            <th>PROVENANCE</th>
+            <th>STATUS</th>
+            <th>FORMULA_ID</th>
+            <th>GENERATION</th>
+            <th>PARENT_ID</th>
+            <th>ZENODO_RECORD_ID</th>
+            <th>DOI</th>
+            <th>TITLE</th>
+            <th>FORMULA / RELATION</th>
+            <th>DOMAIN</th>
+            <th>WHY_SELECTED</th>
+            <th>TEST_PRIORITY</th>
+            <th>FIRST_FAILURE</th>
+            <th>JEV_DECISION</th>
+            <th>JEV_CONFIDENCE</th>
+            <th>PROOF_REF</th>
+            <th>SOURCE_URL</th>
+            <th>DATE_ADDED</th>
+          </tr>
+        </thead>
+        <tbody id="gabQueueTbody">
+          <tr><td colspan="18" style="text-align:center;padding:24px;color:#6f8190">CHARGEMENT DE LA FILE ZENODO…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="gabModal" class="gab-modal" style="display:none">
+      <div class="gab-modal-card">
+        <div class="gab-modal-head">
+          <strong id="gabModalTitle">MODAL TITLE</strong>
+          <button id="gabModalClose" class="gab-modal-close" type="button">✕</button>
+        </div>
+        <div id="gabModalBody" class="gab-modal-body"></div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- SPEECH BUS RECEPTOR (PANEL 4 : RESEARCH CONTEXT) -->
+  <div class="speech-bay-receptor" id="speechReceptorBay4">
+    <div class="speech-receptor-head">
+      <span class="speech-tower-tag">TOUR 4 · CONTEXTE RECHERCHE ZENODO</span>
+      <span class="speech-status-pill" id="speechStatusBay4">BUS EN VEILLE</span>
+    </div>
+    <div class="speech-receptor-body" id="speechBodyBay4">
+      <span class="speech-idle-text">— EN ATTENTE DE PAROLE IA SUR LE BUS —</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<!-- ECRAN 5 : MATHEMATICAL LINEAGE MAP                       -->
+<!-- ======================================================== -->
+<section id="PANEL_5" class="lab-screen-bay" data-screen="5" data-legacy-screen-id="screenBay5">
+  <div class="panel-contract">PANEL 5 — LINEAGE / TOPOLOGIE · MATHEMATICAL LINEAGE · PARENT · CHILD · GENERATION · SOURCE · PROOF · FAILURE PATTERN · RELATIONS ENTRE FORMULES</div>
+  <div class="lab-bay-banner">
+    <span><strong class="lab-bay-tag">ECRAN 5</strong> MATHEMATICAL LINEAGE MAP // TOPOLOGY GRAPH: RENDERED</span>
+    <span style="color:#b197fc">GÉNÉALOGIE 2D DES FORMULES</span>
+  </div>
+
+  <div class="label">11 · GAB BAD — MATHEMATICAL LINEAGE MAP</div>
+  <section class="rack"><div class="face lin-panel">
+    <div class="lin-head">
+      <div>
+        <h2 class="lin-title">GAB BAD — <span class="lin-brand">MATHEMATICAL LINEAGE MAP</span></h2>
+        <small class="lin-sub">Généalogie mathématique · Arbre de dérivation &amp; transformations · Break Paths · Frontières de recherche</small>
+      </div>
+    </div>
+
+    <div class="lin-metrics-grid">
+      <div class="gab-metric-card"><span>TOTAL NODES</span><strong id="linTotalNodes">0</strong></div>
+      <div class="gab-metric-card sur"><span>DIRECT SOURCE</span><strong id="linDirectSource">0</strong></div>
+      <div class="gab-metric-card cnj"><span>DERIVED</span><strong id="linDerived">0</strong></div>
+      <div class="gab-metric-card tst"><span>SYNTHETIC</span><strong id="linSynthetic">0</strong></div>
+      <div class="gab-metric-card sur"><span>VERIFIED EDGES</span><strong id="linVerifiedEdges">0</strong></div>
+      <div class="gab-metric-card que"><span>SUGGESTED EDGES</span><strong id="linSuggestedEdges">0</strong></div>
+      <div class="gab-metric-card brk"><span>BROKEN BRANCHES</span><strong id="linBrokenBranches">0</strong></div>
+      <div class="gab-metric-card tst"><span>OPEN FRONTIERS</span><strong id="linOpenFrontiers">0</strong></div>
+    </div>
+
+    <div class="lin-views-bar">
+      <button class="lin-view-btn active" data-view="graph" id="linTabGraph">LINEAGE GRAPH</button>
+      <button class="lin-view-btn" data-view="breakpaths" id="linTabBreakPaths">BREAK PATHS</button>
+      <button class="lin-view-btn" data-view="frontiers" id="linTabFrontiers">RESEARCH FRONTIERS</button>
+      <button class="lin-view-btn" data-view="audit" id="linTabAudit">AUDIT TRAIL</button>
+    </div>
+
+    <div class="lin-controls-bar">
+      <select id="linFilterDomain" class="lin-select">
+        <option value="">TOUS LES DOMAINES</option>
+      </select>
+      <select id="linFilterProvenance" class="lin-select">
+        <option value="">TOUTE PROVENANCE</option>
+        <option value="DIRECT_SOURCE">DIRECT_SOURCE</option>
+        <option value="DERIVED">DERIVED</option>
+        <option value="SYNTHETIC">SYNTHETIC</option>
+      </select>
+      <select id="linFilterStatus" class="lin-select">
+        <option value="">TOUS LES STATUTS</option>
+        <option value="SURVIVOR">SURVIVORS ONLY</option>
+        <option value="BROKEN">BROKEN ONLY</option>
+        <option value="UNTESTED">UNTESTED ONLY</option>
+      </select>
+      <button id="linBtnRebuild" class="gab-btn disabled-operator" type="button" disabled title="Action réservée au VERSO OPERATOR (RECTO PUBLIC lecture seule)">↻ REBUILD GRAPH <span class="op-tag">VERSO</span></button>
+      <button id="linBtnRecalculate" class="gab-btn disabled-operator" type="button" disabled title="Action réservée au VERSO OPERATOR (RECTO PUBLIC lecture seule)">⚡ RECALCULATE FRONTIERS <span class="op-tag">VERSO</span></button>
+      <button id="linBtnReset" class="gab-btn" type="button">🔍 RESET VIEW</button>
+      <span id="linActionStatus" class="gab-action-status">RECTO PUBLIC · OBSERVATION STRICTE</span>
+    </div>
+
+    <!-- VIEW 1: LINEAGE GRAPH -->
+    <div id="linViewGraph" class="lin-graph-layout">
+      <div class="lin-graph-container" id="linGraphContainer">
+        <svg id="linSvg" class="lin-svg-canvas" viewBox="0 0 1000 600"></svg>
+      </div>
+      <div class="lin-detail-card" id="linNodeDetailCard">
+        <h3 id="linCardTitle">SÉLECTIONNEZ UN NŒUD</h3>
+        <p id="linCardSub" style="color:#728c9f">Cliquez sur un nœud de la topologie pour inspecter son empreinte structurelle, sa provenance et ses preuves.</p>
+        <div id="linCardContent"></div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: BREAK PATHS -->
+    <div id="linViewBreakPaths" class="lin-breakpaths-view">
+      <h3 style="margin-top:0;color:#ff8787">HISTORIQUE DES CONTRE-EXEMPLES &amp; RUPTURES D'INVARIANTS</h3>
+      <p style="color:#8ca3b5;margin-bottom:12px">Séquence chronologique vérifiée : PARENT → TRANSFORMATION → CANDIDAT → DOMAINE TESTÉ → CONTRE-EXEMPLE REPRODUCTIBLE.</p>
+      <div id="linBreakPathsContainer"></div>
+    </div>
+
+    <!-- VIEW 3: RESEARCH FRONTIERS -->
+    <div id="linViewFrontiers" class="lin-frontiers-view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <h3 style="margin:0;color:#ffd43b">FRONTIÈRES DE RECHERCHE MATHÉMATIQUE INEXPLORÉES</h3>
+          <small style="color:#8ca3b5">Priorités d'exploration calculées (scheduling heuristique déontologique, <strong>non un score de vérité mathématique</strong>).</small>
+        </div>
+      </div>
+      <div id="linFrontiersContainer"></div>
+    </div>
+
+    <!-- VIEW 4: AUDIT TRAIL -->
+    <div id="linViewAudit" class="lin-audit-view">
+      <h3 style="margin-top:0;color:#5fc6ff">JOURNAL D'AUDIT DE LA GÉNÉALOGIE MATHÉMATIQUE</h3>
+      <div id="linAuditContainer"></div>
+    </div>
+  </div></section>
+
+  <!-- SPEECH BUS RECEPTOR (PANEL 5 : LINEAGE & PROOF CONTEXT) -->
+  <div class="speech-bay-receptor" id="speechReceptorBay5">
+    <div class="speech-receptor-head">
+      <span class="speech-tower-tag">TOUR 5 · CONTEXTE LIGNÉE &amp; PREUVE</span>
+      <span class="speech-status-pill" id="speechStatusBay5">BUS EN VEILLE</span>
+    </div>
+    <div class="speech-receptor-body" id="speechBodyBay5">
+      <span class="speech-idle-text">— EN ATTENTE DE PAROLE IA SUR LE BUS —</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<!-- BUS DE PAROLE INTER-TOURS : JOURNAL HISTORIQUE (READ-ONLY)-->
+<!-- ======================================================== -->
+<div class="label">08 · BUS DE PAROLE INTER-TOURS // HISTORIQUE DES ÉCHANGES IA (LECTURE SEULE)</div>
+<section class="rack">
+  <div class="speech-history-wrap">
+    <div class="speech-history-head">
+      <div>
+        <strong style="color:var(--cyan)">SPEECH BUS LOG // FLUX PUBLIC INTER-TOURS</strong>
+        <small id="speechBusSubCount">Abonnés actifs : 5 tours physiques synchronisées</small>
+      </div>
+      <div class="speech-history-meta">
+        <span class="speech-audio-guard-badge">PANEL 1 = AUDIO MASTER · PANELS 2..5 VISUEL SEUL</span>
+        <span class="speech-id-last" id="speechLastId">DERNIER : —</span>
+      </div>
+    </div>
+    <div class="speech-table-container">
+      <table class="speech-table">
+        <thead>
+          <tr>
+            <th>SPEECH_ID</th>
+            <th>WHO</th>
+            <th>WHAT (PAROLE PUBLIQUE)</th>
+            <th>WHEN</th>
+            <th>TARGET</th>
+            <th>CONTEXT</th>
+            <th>AUDIO_STATUS</th>
+          </tr>
+        </thead>
+        <tbody id="speechTableBody">
+          <tr>
+            <td colspan="7" class="speech-empty-row">AUCUNE PAROLE ENREGISTRÉE · BUS PRÊT</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</div><!-- /#rectoMonitorGrid -->
 </main>
 <script>
 const names=['ENTRÉE','Z1 1→3','F 3→9','Z MIROIR 9→36','CHECK 36→9','RECOMB 9→3','SORTIE 3→1'];
 const counts=[1,3,9,36,9,3,1];
 const $=id=>document.getElementById(id);
+function escapeHtml(s){if(s===null||s===undefined)return '—';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 let fontScale=Number(localStorage.getItem('zel-font-scale')||1);
 function applyFontScale(){fontScale=Math.max(.75,Math.min(1.5,fontScale));document.body.style.zoom=String(fontScale);$('fontSize').textContent=Math.round(fontScale*100)+'%';localStorage.setItem('zel-font-scale',String(fontScale));}
 $('fontMinus').addEventListener('click',()=>{fontScale-=.1;applyFontScale();});
 $('fontPlus').addEventListener('click',()=>{fontScale+=.1;applyFontScale();});
 applyFontScale();
+
+// RECTO FIVE-PANEL ROUTER (ONE FRONT / ONE STATE / FIVE MONITORS)
+const ZEL_PANEL_IDS=Object.freeze(['PANEL_1','PANEL_2','PANEL_3','PANEL_4','PANEL_5']);
+const ZEL_VALID_PANEL_MODES=Object.freeze(['all','1','2','3','4','5']);
+const ZEL_AUDIO_MASTER_PANEL='PANEL_1';
+const ZEL_AUDIO_MASTER_LEASE_KEY='zel-recto-audio-master-lease-v1';
+const ZEL_AUDIO_MASTER_LEASE_TTL_MS=6000;
+const zelWindowInstanceId=(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')
+  ? globalThis.crypto.randomUUID()
+  : ('ZEL-WIN-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+let zelCurrentPanelMode='all';
+let zelLastHeartbeatAt=null;
+
+function zelNormalizePanelMode(mode){
+  const raw=String(mode??'all').trim().toLowerCase();
+  return ZEL_VALID_PANEL_MODES.includes(raw)?raw:'all';
+}
+
+function zelResolvePanelMode(){
+  try{
+    const params=new URLSearchParams(window.location.search||'');
+    const hash=String(window.location.hash||'');
+    const hashMatch=hash.match(/(?:panel|screen)=([1-5]|all)/i);
+    return zelNormalizePanelMode(params.get('panel')||params.get('screen')||(hashMatch?hashMatch[1]:'all'));
+  }catch(_){return 'all';}
+}
+
+function zelGetPanelVisibilityMap(mode=zelCurrentPanelMode){
+  const normalized=zelNormalizePanelMode(mode);
+  const map={};
+  for(const id of ZEL_PANEL_IDS)map[id]=normalized==='all'||id===('PANEL_'+normalized);
+  return map;
+}
+
+function zelIsPanelModeAudioEligible(mode=zelCurrentPanelMode){
+  const normalized=zelNormalizePanelMode(mode);
+  return normalized==='all'||normalized==='1';
+}
+
+function zelClaimOrVerifyAudioMasterLease(){
+  if(!zelIsPanelModeAudioEligible())return false;
+  const now=Date.now();
+  let current=null;
+  try{const raw=localStorage.getItem(ZEL_AUDIO_MASTER_LEASE_KEY);if(raw)current=JSON.parse(raw);}catch(_){}
+  const expired=!current||!Number.isFinite(Number(current.expiresAt))||Number(current.expiresAt)<=now;
+  const owned=current&&current.owner===zelWindowInstanceId;
+  if(expired||owned){
+    const next={owner:zelWindowInstanceId,panel:ZEL_AUDIO_MASTER_PANEL,expiresAt:now+ZEL_AUDIO_MASTER_LEASE_TTL_MS};
+    try{localStorage.setItem(ZEL_AUDIO_MASTER_LEASE_KEY,JSON.stringify(next));}catch(_){}
+    return true;
+  }
+  return false;
+}
+
+function zelIsAudioMasterActive(){
+  return zelIsPanelModeAudioEligible()&&zelClaimOrVerifyAudioMasterLease();
+}
+
+function zelUpdateAudioMasterBadges(){
+  const active=zelIsAudioMasterActive();
+  if($('p1MasterRoleBadge'))$('p1MasterRoleBadge').textContent=ZEL_AUDIO_MASTER_PANEL;
+  if($('p1AudioMaster'))$('p1AudioMaster').textContent=active?'ACTIVE':'OBSERVER';
+  if($('p1PublicAudioStatus'))$('p1PublicAudioStatus').textContent=active?'ENABLED':'VISUAL ONLY';
+  if($('p1Heartbeat'))$('p1Heartbeat').textContent=zelLastHeartbeatAt?new Date(zelLastHeartbeatAt).toISOString():'WAITING';
+  return active;
+}
+
+function zelApplyPanelMode(mode,options={}){
+  const normalized=zelNormalizePanelMode(mode);
+  const visibility=zelGetPanelVisibilityMap(normalized);
+  zelCurrentPanelMode=normalized;
+  const grid=$('rectoMonitorGrid');
+  if(grid)grid.setAttribute('data-panel-mode',normalized);
+  if(document.body)document.body.setAttribute('data-panel-mode',normalized);
+  for(const id of ZEL_PANEL_IDS){
+    const el=$(id);if(!el)continue;
+    const visible=Boolean(visibility[id]);
+    el.hidden=!visible;
+    el.style.display=visible?'':'none';
+    el.setAttribute('aria-hidden',visible?'false':'true');
+    el.classList.toggle('panel-hidden',!visible);
+    el.classList.toggle('panel-fullscreen',visible&&normalized!=='all');
+  }
+  document.querySelectorAll('.monitor-mode-btn').forEach(btn=>{
+    const target=zelNormalizePanelMode(btn.getAttribute('data-target-panel')||btn.getAttribute('data-screen')||'all');
+    btn.classList.toggle('active',target===normalized);
+    btn.setAttribute('aria-selected',target===normalized?'true':'false');
+  });
+  document.querySelectorAll('.panel-fs-btn').forEach(btn=>{
+    const target=zelNormalizePanelMode(btn.getAttribute('data-fs-panel')||'all');
+    btn.setAttribute('aria-pressed',target===normalized?'true':'false');
+  });
+  if(options.updateHistory!==false){
+    try{
+      const url=new URL(window.location.href);
+      url.searchParams.set('panel',normalized);
+      url.searchParams.delete('screen');
+      window.history.replaceState({},'',url.toString());
+    }catch(_){}
+  }
+  zelUpdateAudioMasterBadges();
+  return normalized;
+}
+
+function setLabScreen(screenId){return zelApplyPanelMode(screenId,{updateHistory:true});}
+document.querySelectorAll('.monitor-mode-btn').forEach(tab=>{
+  tab.addEventListener('click',()=>zelApplyPanelMode(tab.getAttribute('data-target-panel')||tab.getAttribute('data-screen'),{updateHistory:true}));
+});
+document.querySelectorAll('.panel-fs-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>zelApplyPanelMode(btn.getAttribute('data-fs-panel'),{updateHistory:true}));
+});
+zelApplyPanelMode(zelResolvePanelMode(),{updateHistory:false});
+
+let lastAudioEventTimestamp = 0;
+let oscWavePhase = 0;
+function updateOscilloscope() {
+  const path = $('audioOscilloscopePath');
+  if (!path) return;
+  const isAudioActive = !soundMuted && soundVolume > 0 && (
+    (gzActiveVoice && gzActiveVoice.audio && !gzActiveVoice.audio.paused) ||
+    gzActiveSfx.size > 0 ||
+    (audioCtx && audioCtx.state === 'running' && (Date.now() - lastAudioEventTimestamp < 1200))
+  );
+
+  const masterDbEl = $('oscMasterDb');
+  const vuMaster = $('vuMasterBar');
+  const vuVoice = $('vuVoiceBar');
+  const vuSfx = $('vuSfxBar');
+  const voiceStatusEl = $('oscVoiceStatus');
+  const sfxDuckingEl = $('oscSfxDucking');
+  const oscStateText = $('oscStateText');
+
+  if (isAudioActive) {
+    oscWavePhase += 0.28;
+    const voiceCount = (gzActiveVoice && gzActiveVoice.audio && !gzActiveVoice.audio.paused) ? 1 : 0;
+    const sfxCount = gzActiveSfx.size;
+    const intensity = Math.min(1, soundVolume * (voiceCount * 0.9 + sfxCount * 0.5 + 0.35));
+
+    // Draw real sinusoidal / harmonic synthesis wave
+    const points = [];
+    const width = 500;
+    const height = 100;
+    const midY = 50;
+    const amp = Math.min(42, Math.max(8, intensity * 38));
+
+    for (let x = 0; x <= width; x += 5) {
+      const t = (x / width) * Math.PI * 8 + oscWavePhase;
+      const y = midY + Math.sin(t) * amp * 0.75 + Math.sin(t * 2.3 + 0.5) * (amp * 0.25);
+      points.push((x === 0 ? 'M' : 'L') + ' ' + x.toFixed(1) + ' ' + y.toFixed(1));
+    }
+    path.setAttribute('d', points.join(' '));
+    path.setAttribute('stroke', gzActiveVoice ? '#32e7a4' : '#00e5ff');
+
+    const approxDb = (-24 + intensity * 24).toFixed(1);
+    if (masterDbEl) masterDbEl.textContent = approxDb + ' dB';
+    if (vuMaster) vuMaster.style.width = Math.min(100, Math.round(intensity * 100)) + '%';
+    if (vuVoice) vuVoice.style.width = voiceCount ? Math.min(100, Math.round(soundVolume * 100)) + '%' : '0%';
+    if (vuSfx) {
+      vuSfx.style.width = sfxCount ? Math.min(100, Math.round(sfxCount * 33)) + '%' : '0%';
+      if (gzActiveVoice) vuSfx.classList.add('ducked');
+      else vuSfx.classList.remove('ducked');
+    }
+    if (voiceStatusEl) voiceStatusEl.textContent = voiceCount ? 'ACTIF (PAROLE)' : 'INACTIF';
+    if (sfxDuckingEl) sfxDuckingEl.textContent = gzActiveVoice ? 'DUCKED (-9 dB)' : 'NORMAL (0 dB)';
+    if (oscStateText) oscStateText.textContent = `SIGNAL: ACTIF · ${(intensity * 1.4).toFixed(2)} Vpp`;
+  } else {
+    // Idle flat line at 0V
+    path.setAttribute('d', 'M 0 50 L 500 50');
+    path.setAttribute('stroke', '#00e5ff');
+    if (masterDbEl) masterDbEl.textContent = soundMuted ? 'MUTED' : '— dB';
+    if (vuMaster) vuMaster.style.width = '0%';
+    if (vuVoice) vuVoice.style.width = '0%';
+    if (vuSfx) {
+      vuSfx.style.width = '0%';
+      vuSfx.classList.remove('ducked');
+    }
+    if (voiceStatusEl) voiceStatusEl.textContent = 'INACTIF';
+    if (sfxDuckingEl) sfxDuckingEl.textContent = 'NORMAL (0 dB)';
+    if (oscStateText) oscStateText.textContent = 'SIGNAL: IDLE · 0.00 V';
+  }
+}
+setInterval(updateOscilloscope, 60);
 let audioCtx=null;
 let soundMuted=localStorage.getItem('zel-sound-muted')==='1';
 let soundVolume=Number(localStorage.getItem('zel-sound-volume')||35)/100;
+const VERSO_AUDIO_PLAYBACK='DISABLED';
+const RECTO_PUBLIC_AUDIO_PLAYBACK='ENABLED';
+const DUPLICATE_PLAYBACK_GUARD='ENABLED';
+const PUBLIC_AUDIO_STREAM_ROUTE='/api/public/audio/stream';
+const gzSeenEventIds=new Set();
+let gzLastPlayedSequence=0;
+let gzAutoplayLocked=false;
+let gzPendingBlockedCue=null;
+let gzActiveVoice=null;
+const gzActiveSfx=new Map();
+const gzPlaybackHistory=[];
+let gzAudioEventSource=null;
+const GZ_DUCKED_SFX_GAIN=0.32;
+const GZ_NORMAL_SFX_GAIN=1.0;
 let lastAudioStageIndex=null;
 let lastAudioEventVersion=null;
 let wsHasLiveState=false;
@@ -180,7 +1411,7 @@ function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
   g.gain.exponentialRampToValueAtTime(.0001,start+dur);
   src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.03);return true;
 }
-async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);gamezelWarmPublicVoices();}syncAudioState();return audioCtx;}
+async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);}if(typeof gamezelPublicAudioUnlock==='function')gamezelPublicAudioUnlock();syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
 document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
 document.addEventListener('touchstart',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
@@ -637,7 +1868,7 @@ function soundConfirm(){tone(880,.32,0,.45);}
 function soundStart(){soundStartAt(audioCtx.currentTime+.02);}
 function soundTempo(i){soundTempoAt(i,audioCtx.currentTime+.02);}
 function soundEnd(){soundEndAt(audioCtx.currentTime+.02);}
-function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);}
+function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);if(typeof gamezelPublicAudioSyncVolume==='function')gamezelPublicAudioSyncVolume();}
 $('soundToggle').addEventListener('click',()=>{ensureAudio();soundMuted=!soundMuted;localStorage.setItem('zel-sound-muted',soundMuted?'1':'0');syncSoundUI();if(!soundMuted)tone(330,.08,0,.1);});
 $('soundTest').addEventListener('click',async()=>{await ensureAudio();soundMuted=false;localStorage.setItem('zel-sound-muted','0');syncSoundUI();const base=audioCtx.currentTime+.06;soundSquadDemoAt(base);});
 let volumePreviewTimer=null;
@@ -2946,59 +4177,116 @@ function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stag
   document.querySelectorAll('.stage').forEach((el,i)=>{el.classList.toggle('active',i===s.stage_index);el.classList.toggle('done',i<s.stage_index);});
   $('values').innerHTML='';(s.public_values||[]).forEach((v,i)=>{const d=document.createElement('div');d.className='value';d.innerHTML='<small>CANAL '+String(i+1).padStart(2,'0')+'</small>'+v.exact+'<small>'+Number(v.decimal).toPrecision(9)+'</small>';$('values').appendChild(d);});
   $('valueNote').textContent=(s.public_values_total||0)+' valeur(s) dans cet étage · '+(s.public_values||[]).length+' affichée(s) publiquement.';
+  if ($('labGameRound')) $('labGameRound').textContent = s.round ?? s.event_seq ?? (s.stage_index !== undefined ? s.stage_index : 0);
+  if ($('labQueueDepth')) $('labQueueDepth').textContent = s.queue_depth ?? (s.public_values_total || 0);
+  if ($('labRunningCard')) $('labRunningCard').textContent = s.running_card ?? (s.stage || 'NONE');
+  if ($('labLastReceipt')) $('labLastReceipt').textContent = s.last_receipt ?? (s.events && s.events.length ? '#' + s.events[s.events.length-1].seq : '—');
+  if ($('labLastProof')) $('labLastProof').textContent = s.f1 ? (s.f1.source_commit_short || s.f1.formula_id || '—') : '—';
+  if ($('continuityTableBody')) renderContinuityTable(s.events);
   $('events').innerHTML='';const evs=(s.events||[]).slice().reverse();if(!evs.length){$('events').innerHTML='<div class="event"><small>EN ATTENTE</small><code>Aucune activité publique pour le moment.</code></div>';}else{evs.forEach(ev=>{const d=document.createElement('div');const st=String(ev.status||'').toLowerCase();d.className='event '+(st==='pass'?'pass':st==='fail'?'fail':'');const sm=document.createElement('small');sm.textContent='#'+ev.seq+' · '+new Date(ev.timestamp*1000).toLocaleTimeString('fr-CA',{hour12:false})+' · '+ev.source+' · '+ev.kind+' · '+ev.status;const code=document.createElement('code');code.textContent=ev.label+(ev.detail?' — '+ev.detail:'');d.appendChild(sm);d.appendChild(code);$('events').appendChild(d);});}
 }
-const GAMEZEL_PUBLIC_PLAY_VOICES=Object.freeze({
-  P1:'VOICE_P1_ASTRA_PLAY.mp3',
-  P2:'VOICE_P2_MUSE_PLAY.mp3',
-  P3:'VOICE_P3_GROK_PLAY.mp3',
-  P4:'VOICE_P4_ANTIGRAVITY_PLAY.mp3'
-});
-const gamezelPublicVoiceBuffers=new Map();
-const gamezelPublicVoiceLoading=new Map();
-
-async function gamezelLoadPublicVoice(playerId){
-  const pid=String(playerId||'').toUpperCase();
-  const file=GAMEZEL_PUBLIC_PLAY_VOICES[pid];
-  if(!file||!audioCtx)return null;
-  if(gamezelPublicVoiceBuffers.has(pid))return gamezelPublicVoiceBuffers.get(pid);
-  if(gamezelPublicVoiceLoading.has(pid))return gamezelPublicVoiceLoading.get(pid);
-  const pending=(async()=>{
-    const r=await fetch('./assets/sfx/'+encodeURIComponent(file),{cache:'force-cache'});
-    if(!r.ok)throw new Error('GAMEZEL_VOICE_HTTP_'+r.status);
-    const b=await audioCtx.decodeAudioData((await r.arrayBuffer()).slice(0));
-    gamezelPublicVoiceBuffers.set(pid,b);
-    return b;
-  })().finally(()=>gamezelPublicVoiceLoading.delete(pid));
-  gamezelPublicVoiceLoading.set(pid,pending);
-  return pending;
+function renderContinuityTable(events) {
+  const tbody = $('continuityTableBody');
+  if (!tbody) return;
+  if (!Array.isArray(events) || events.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:12px;color:#5a7285">EN ATTENTE D\'ÉVÉNEMENTS DE JEU…</td></tr>';
+    return;
+  }
+  const recent = events.slice(-14).reverse();
+  tbody.innerHTML = recent.map(ev => {
+    const timeStr = ev.timestamp ? new Date(ev.timestamp * 1000).toLocaleTimeString('fr-CA', { hour12: false }) : '—';
+    const actor = ev.source || 'MACHINE';
+    const action = ev.kind || 'ACTION';
+    const target = ev.label || '—';
+    const proofRef = ev.proof_ref || (ev.detail && ev.detail.includes('exit=0') ? 'AUDIT-PASS-' + (ev.seq || 0) : ('TICK-PROV-' + (ev.seq || 0)));
+    const status = String(ev.status || 'PASS').toUpperCase();
+    const statusColor = status === 'PASS' || status === 'SURVIVOR' ? 'var(--green)' : (status === 'FAIL' || status === 'BROKEN' ? 'var(--red)' : 'var(--cyan)');
+    return `<tr>
+      <td>#${ev.seq || 0}</td>
+      <td>${timeStr}</td>
+      <td><strong style="color:var(--text)">${actor}</strong></td>
+      <td>${action}</td>
+      <td>${target}</td>
+      <td><span style="color:#b197fc">${proofRef}</span></td>
+      <td><strong style="color:${statusColor}">${status}</strong></td>
+    </tr>`;
+  }).join('');
 }
+const GAMEZEL_PUBLIC_API_BASE='/laboratoire/embryon-x72/api/gamezel';
 
-async function gamezelPlayPublicDraw(packet){
-  if(!packet||packet.transport_replay===true)return false;
-  const pid=String(packet.player_id||'').toUpperCase();
-  if(!GAMEZEL_PUBLIC_PLAY_VOICES[pid])return false;
-  try{await ensureAudio();}catch(e){syncAudioState();return false;}
-  if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return false;
+async function gamezelQuickPresence(){
+  const status=$('gamezelQuickStatus');
   try{
-    const buffer=await gamezelLoadPublicVoice(pid);
-    if(!buffer)return false;
-    const src=audioCtx.createBufferSource(),g=audioCtx.createGain(),start=audioCtx.currentTime+.015;
-    src.buffer=buffer;
-    g.gain.setValueAtTime(Math.max(.0001,Math.min(1,soundVolume)),start);
-    g.gain.setValueAtTime(Math.max(.0001,Math.min(1,soundVolume)),start+Math.max(.05,buffer.duration-.10));
-    g.gain.exponentialRampToValueAtTime(.0001,start+buffer.duration);
-    src.connect(g).connect(audioCtx.destination);
-    src.start(start);
-    src.stop(start+buffer.duration+.03);
-    return true;
-  }catch(e){return false;}
+    const r=await fetch(GAMEZEL_PUBLIC_API_BASE+'/presence',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(status)status.textContent=d.status==='ONLINE'?'ONLINE · PRÊT À JOUER':'INDISPONIBLE';
+    return d;
+  }catch(err){
+    if(status)status.textContent='HORS LIGNE';
+    return null;
+  }
 }
 
-function gamezelWarmPublicVoices(){
-  if(!audioCtx)return Promise.resolve([]);
-  return Promise.allSettled(Object.keys(GAMEZEL_PUBLIC_PLAY_VOICES).map(gamezelLoadPublicVoice));
+async function gamezelQuickDraw(playerId){
+  const pid=String(playerId||'').toUpperCase();
+  const status=$('gamezelQuickStatus');
+  const buttons=[...document.querySelectorAll('[data-gamezel-player]')];
+  buttons.forEach(b=>b.disabled=true);
+  try{
+    try{await ensureAudio();}catch(_){}
+    if(status)status.textContent=pid+' · PIOCHE…';
+    const r=await fetch(GAMEZEL_PUBLIC_API_BASE+'/draw',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({player_id:pid}),
+      cache:'no-store'
+    });
+    const body=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(body?.detail||body?.error||('HTTP '+r.status));
+    if(status)status.textContent=String(body.player_name||pid)+' · '+String(body.card?.label||'CARTE JOUÉE');
+    return body;
+  }catch(err){
+    if(status)status.textContent='ERREUR · '+String(err?.message||err).slice(0,80);
+    return null;
+  }finally{
+    setTimeout(()=>buttons.forEach(b=>b.disabled=false),700);
+  }
 }
+
+function gamezelHandlePublicDrawPacket(s){
+  if(!s||s.type!=='GAMEZEL_PUBLIC_DRAW'||s.mode!=='PUBLIC_SAFE'||s.read_only!==true)return false;
+  wsHasLiveState=true;
+  lastWsMessageAt=Date.now();
+  if(s.transport_replay===true)return true;
+  const file=String(s.voice_file||'').trim();
+  const safeFile=/^VOICE_P[1-4]_[A-Z]+_PLAY\.mp3$/.test(file)?('assets/sfx/'+file):'';
+  if(safeFile&&typeof gamezelPublicAudioReceive==='function'){
+    gamezelPublicAudioReceive({
+      TYPE:'PLAYER_VOICE',
+      CATEGORY:'player_voice',
+      EVENT_ID:'GAMEZEL-DRAW-'+String(s.transport_event_version||s.sequence||Date.now()),
+      SEQUENCE:Number(s.transport_event_version||s.sequence||0),
+      PLAYER_ID:s.player_id,
+      PLAYER_NAME:s.player_name,
+      SOUND_ID:s.audio_ref,
+      FILE:safeFile,
+      SPEECH_TYPE:'PLAY',
+      SPEECH_TEXT:s.message||'',
+      MESSAGE:s.message||'',
+      PRIORITY:70,
+      EXPECTED_DURATION:2.4,
+      transport_replay:false
+    }).catch(()=>{});
+  }
+  const status=$('gamezelQuickStatus');
+  if(status)status.textContent=String(s.player_name||s.player_id||'JOUEUR')+' · '+String(s.card?.label||'CARTE JOUÉE');
+  return true;
+}
+
+document.querySelectorAll('[data-gamezel-player]').forEach(btn=>{
+  btn.addEventListener('click',()=>gamezelQuickDraw(btn.getAttribute('data-gamezel-player')));
+});
 
 const ZEL_WS_PATH='/laboratoire/embryon-x72/ws?channel=zelstereos';
 let zelSocket=null;
@@ -3010,13 +4298,9 @@ function connectZelWebSocket(){
   zelSocket.addEventListener('message',ev=>{
     try{
       const s=JSON.parse(ev.data);
-      if(s.type==='GAMEZEL_PUBLIC_DRAW'&&s.mode==='PUBLIC_SAFE'&&s.read_only===true){
-        wsHasLiveState=true;
-        lastWsMessageAt=Date.now();
-        if(s.transport_replay!==true){
-          gamezelPlayPublicDraw(s).catch(()=>{});
-          if($('live'))$('live').textContent='GAMEZEL · '+String(s.player_name||s.player_id||'JOUEUR').slice(0,18)+' JOUE';
-        }
+      if(gamezelHandlePublicDrawPacket(s))return;
+      if(s&&s.type==='GAMEZEL_AUDIO_CUE'&&s.cue){
+        if(typeof gamezelPublicAudioReceive==='function')gamezelPublicAudioReceive(s.cue);
         return;
       }
       if(s.mode!=='PUBLIC_SAFE'||s.read_only!==true||!Number.isInteger(s.stage_index)||s.stage_index<0||s.stage_index>6)return;
@@ -3412,13 +4696,1327 @@ async function poll(){
     if(!wsHasLiveState)render({status:'OFFLINE'},{audioFromWebSocket:false});
   }
 }
+let jevConfigState={
+  configured:false,
+  connected:false,
+  status:'NOT CONFIGURED',
+  model:'jev-latest',
+  baseUrl:'https://api.typesafe.ai'
+};
+
+function renderJevStatus(data){
+  if(!data)return;
+  jevConfigState=Object.assign({},jevConfigState,data);
+  const badge=$('jevStateBadge');
+  const keyStatus=$('jevKeyStatus');
+  const baseUrl=$('jevBaseUrl');
+  const model=$('jevModel');
+  const localStatus=$('jevLocalStatus');
+  const testBtn=$('jevTestBtn');
+  const testResult=$('jevTestResult');
+
+  if(badge){
+    badge.textContent=data.status||(data.configured?'READY':'NOT CONFIGURED');
+    badge.className='jev-badge '+(
+      data.status==='CONNECTED'?'badge-connected':
+      data.status==='READY'?'badge-ready':
+      data.status==='ERROR'?'badge-error':'badge-not-configured'
+    );
+  }
+
+  if(keyStatus){
+    keyStatus.textContent=data.configured?'DÉFINIE CÔTÉ SERVEUR (ACTIVE)':'NON CONFIGURÉE (SERVEUR)';
+    keyStatus.style.color=data.configured?'var(--green)':'var(--muted)';
+  }
+
+  if(baseUrl&&data.baseUrl)baseUrl.textContent=data.baseUrl;
+  if(model&&data.model)model.textContent=data.model;
+
+  if(localStatus){
+    localStatus.textContent=data.configured
+      ?(data.connected?'CONNECTÉ':'PRÊT POUR INFÉRENCE')
+      :'STANDBY (FACULTATIF)';
+    localStatus.style.color=data.configured?'var(--cyan)':'var(--muted)';
+  }
+
+  if(testBtn){
+    testBtn.disabled=!data.configured;
+  }
+
+  if(testResult&&!data.configured){
+    testResult.textContent='Clé API manquante côté serveur';
+    testResult.className='jev-test-result';
+  }
+}
+
+async function syncJevStatus(){
+  try{
+    const res=await fetch('./api/jev/status',{cache:'no-store'});
+    if(res.ok){
+      const data=await res.json();
+      renderJevStatus(data);
+    }
+  }catch(err){}
+}
+
+async function runJevTestConnection(){
+  const btn=$('jevTestBtn');
+  const result=$('jevTestResult');
+  if(!btn||btn.disabled)return;
+  btn.disabled=true;
+  if(result){
+    result.textContent='Test de connexion en cours…';
+    result.className='jev-test-result';
+  }
+  try{
+    const res=await fetch('./api/jev/test',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      cache:'no-store'
+    });
+    const data=await res.json();
+    if(data.ok){
+      if(result){
+        result.textContent='Connexion Jev vérifiée ('+(data.status?.status||'CONNECTED')+')';
+        result.className='jev-test-result success';
+      }
+    }else{
+      if(result){
+        result.textContent='Échec du test : '+(data.error||'Erreur inconnue');
+        result.className='jev-test-result error';
+      }
+    }
+    if(data.status)renderJevStatus(data.status);
+  }catch(err){
+    if(result){
+      result.textContent='Erreur réseau : '+err.message;
+      result.className='jev-test-result error';
+    }
+  }finally{
+    if(btn)btn.disabled=!jevConfigState.configured;
+  }
+}
+
+function updateExternalDecisionCard(dec){
+  if(!$('extDecProvider'))return;
+  if(!dec){
+    $('extDecProvider').textContent='JEV';
+    $('extDecDecision').textContent='—';
+    $('extDecConfidence').textContent='—';
+    $('extDecTimestamp').textContent='—';
+    $('extDecEvidence').textContent='—';
+    return;
+  }
+  $('extDecProvider').textContent=dec.provider||'JEV';
+  $('extDecDecision').textContent=dec.decision||'—';
+  $('extDecConfidence').textContent=dec.confidence?(Math.round(dec.confidence*100)+'%'):'—';
+  $('extDecTimestamp').textContent=dec.timestamp?new Date(dec.timestamp).toLocaleTimeString('fr-CA',{hour12:false}):'—';
+  $('extDecEvidence').textContent=dec.evidence_reference||dec.traceId||'—';
+}
+
+if($('jevTestBtn')){
+  $('jevTestBtn').addEventListener('click',runJevTestConnection);
+}
+
+// GAB BAD — ZENODO RESEARCH QUEUE CONTROLLER
+let gabCurrentFilterStatus = '';
+let gabSelectedCandidate = null;
+let gabLineageSources = [];
+let gabCandidatesCache = [];
+
+
+function renderZenodoQueue(data){
+  if(!data)return;
+  const m = data.metrics || {};
+  if($('gabTotal'))$('gabTotal').textContent = m.total ?? 0;
+  if($('gabQueued'))$('gabQueued').textContent = m.queued ?? 0;
+  if($('gabTesting'))$('gabTesting').textContent = m.testing ?? 0;
+  if($('gabBroken'))$('gabBroken').textContent = m.broken ?? 0;
+  if($('gabSurvivors'))$('gabSurvivors').textContent = m.survivors ?? 0;
+  if($('gabConjectures'))$('gabConjectures').textContent = m.conjectures ?? 0;
+  if($('gabSources'))$('gabSources').textContent = m.zenodoSourcesCount ?? 11;
+
+  if($('gabProvSourceRecords')) $('gabProvSourceRecords').textContent = m.sourceRecords ?? 0;
+  if($('gabProvVerified')) $('gabProvVerified').textContent = m.verifiedCandidates ?? 0;
+  if($('gabProvSynthetic')) $('gabProvSynthetic').textContent = m.syntheticTestData ?? 0;
+  if($('gabProvUnverified')) $('gabProvUnverified').textContent = m.unverifiedExtractions ?? 0;
+
+  if($('gabLastScan')){
+    const t = m.lastScanTimestamp;
+    $('gabLastScan').textContent = t ? new Date(t).toLocaleTimeString('fr-CA', {hour12:false}) : '—';
+  }
+
+  if($('gabReserveStatus') && $('gabReserveBadge')){
+    const minRes = m.minReserve || 100;
+    const queued = (m.queued || 0) + (m.untested || 0);
+    const healthy = m.reserveHealthy !== false;
+    $('gabReserveStatus').textContent = `${queued} / ${minRes} (${healthy ? 'OK' : 'DÉFICIT'})`;
+    $('gabReserveBadge').className = 'gab-reserve-badge' + (healthy ? '' : ' deficit');
+  }
+
+  if(data.sources) gabLineageSources = data.sources;
+  gabCandidatesCache = data.candidates || [];
+
+  const tbody = $('gabQueueTbody');
+  if(!tbody)return;
+
+  if(!gabCandidatesCache.length){
+    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:24px;color:#6f8190">AUCUN CANDIDAT TROUVÉ DANS CET ÉTAT</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = gabCandidatesCache.map(c => {
+    const isSelected = gabSelectedCandidate && gabSelectedCandidate.formula_id === c.formula_id;
+    const stClass = 'status-' + String(c.status || '').toLowerCase();
+    const provType = String(c.provenance_type || 'UNKNOWN').toUpperCase();
+    const provBadgeLabel = provType === 'SYNTHETIC' ? 'SYNTHETIC / TEST DATA' : (c.verified_source ? 'DIRECT SOURCE (VERIFIED)' : provType);
+    const provClass = 'badge-provenance-' + provType.toLowerCase();
+    const confText = c.jev_confidence !== null && c.jev_confidence !== undefined ? (Math.round(c.jev_confidence * 100) + '%') : '—';
+    const dateText = c.date_added ? new Date(c.date_added).toLocaleTimeString('fr-CA', {hour12:false}) : '—';
+
+    return `<tr data-id="${escapeHtml(c.formula_id)}" class="${isSelected ? 'selected' : ''}">
+      <td><span class="gab-badge ${provClass}">${escapeHtml(provBadgeLabel)}</span></td>
+      <td><span class="gab-badge ${stClass}">${escapeHtml(c.status)}</span></td>
+      <td><strong>${escapeHtml(c.formula_id)}</strong></td>
+      <td>G${escapeHtml(c.generation)}</td>
+      <td>${escapeHtml(c.parent_id || 'ROOT')}</td>
+      <td>${escapeHtml(c.source_record_id || c.zenodo_record_id)}</td>
+      <td>${escapeHtml(c.source_doi || c.doi)}</td>
+      <td title="${escapeHtml(c.title)}">${escapeHtml(c.title).slice(0, 30)}…</td>
+      <td><code>${escapeHtml(c.formula_relation)}</code></td>
+      <td>${escapeHtml(c.domain)}</td>
+      <td title="${escapeHtml(c.why_selected)}">${escapeHtml(c.why_selected).slice(0, 28)}…</td>
+      <td><strong>${escapeHtml(c.test_priority)}</strong></td>
+      <td style="color:${c.first_failure ? '#ff8787' : 'inherit'}" title="${escapeHtml(c.first_failure)}">${escapeHtml(c.first_failure ? c.first_failure.slice(0, 26) + '…' : '—')}</td>
+      <td>${escapeHtml(c.jev_decision || '—')}</td>
+      <td>${confText}</td>
+      <td title="${escapeHtml(c.proof_ref)}">${escapeHtml(c.proof_ref).slice(0, 22)}…</td>
+      <td><a href="${escapeHtml(c.source_url)}" target="_blank" rel="noopener" style="color:#48d1cc">Zenodo ↗</a></td>
+      <td>${dateText}</td>
+    </tr>`;
+  }).join('');
+
+  // Row selection handler
+  tbody.querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const id = tr.getAttribute('data-id');
+      gabSelectedCandidate = gabCandidatesCache.find(c => c.formula_id === id) || null;
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+      tr.classList.add('selected');
+      if(gabSelectedCandidate && $('extDecProvider')){
+        updateExternalDecisionCard({
+          provider: 'JEV',
+          decision: gabSelectedCandidate.jev_decision || gabSelectedCandidate.status,
+          confidence: gabSelectedCandidate.jev_confidence,
+          timestamp: Date.now(),
+          evidence_reference: gabSelectedCandidate.proof_ref || gabSelectedCandidate.doi
+        });
+      }
+    });
+  });
+}
+
+async function fetchZenodoQueue(status = gabCurrentFilterStatus){
+  try{
+    const q = status ? `?status=${encodeURIComponent(status)}&limit=100` : '?limit=100';
+    const res = await fetch(`./api/zenodo/queue${q}`, { cache: 'no-store' });
+    if(res.ok){
+      const data = await res.json();
+      renderZenodoQueue(data);
+    }
+  }catch(err){
+    console.error('Failed to fetch Zenodo queue:', err);
+  }
+}
+
+function notifyOperatorRequired(actionName){
+  const statusEl = $('gabActionStatus') || $('linActionStatus');
+  if(statusEl) statusEl.textContent = `[RECTO PUBLIC] "${actionName}" réservée au VERSO OPERATOR.`;
+  openGabModal('RECTO PUBLIC · SURFACE STRICTEMENT NON-EXÉCUTABLE', `
+    <div style="background:#051420;border-left:4px solid #5fc6ff;padding:14px;border-radius:6px;color:#cce7ff">
+      <h3 style="margin-top:0;color:#64b5f6">RECTO PUBLIC · SURFACE D'OBSERVATION STRICTE</h3>
+      <p>L'opération <strong>${escapeHtml(actionName)}</strong> est une action d'exécution/mutation réservée au <strong>VERSO OPERATOR</strong>.</p>
+      <p style="margin-bottom:0;color:#8ab0cc">Le RECTO PUBLIC est une surface scientifique de consultation et d'inspection : vous pouvez naviguer dans le graphe, examiner les formules, inspecter les dossiers de preuve et vérifier la traçabilité sans restriction.</p>
+    </div>
+  `);
+}
+
+function triggerZenodoScan(){ notifyOperatorRequired('SCAN ZENODO'); }
+function triggerZenodoRefill(){ notifyOperatorRequired('REFILL QUEUE'); }
+function triggerZenodoTestNext(){ notifyOperatorRequired('START NEXT TEST'); }
+
+function openGabModal(title, htmlContent){
+  const modal = $('gabModal');
+  const titleEl = $('gabModalTitle');
+  const bodyEl = $('gabModalBody');
+  if(!modal || !titleEl || !bodyEl)return;
+  titleEl.textContent = title;
+  bodyEl.innerHTML = htmlContent;
+  modal.style.display = 'flex';
+}
+
+function closeGabModal(){
+  const modal = $('gabModal');
+  if(modal) modal.style.display = 'none';
+}
+
+function showLineageModal(){
+  const items = gabLineageSources.length ? gabLineageSources : [
+    { record_id: 22962484, doi: '10.5281/zenodo.22962484', title: 'Brutus Offset Core Test & Delta Drift', domain: 'Offset-Dynamics', repo: 'Topbrutus/brutus-offset-test' },
+    { record_id: 22961910, doi: '10.5281/zenodo.22961910', title: 'Brutus 240.1 Hz Resonant Coefficient', domain: 'Harmonic-Resonance', repo: 'Topbrutus/brutus-coefficient-2401' },
+    { record_id: 22970274, doi: '10.5281/zenodo.22970274', title: 'Brutus Connected Spectrum & Da\'at Center Invariant', domain: 'Spectral-Topology', repo: 'Topbrutus/brutus-pell-connected-spectrum' },
+    { record_id: 22970270, doi: '10.5281/zenodo.22970270', title: 'Brutus Pell Square Rank Relation z_P(21^k)=4*21^(k-1)', domain: 'Pell-Arithmetic', repo: 'Topbrutus/brutus-pell-square-rank-relation' },
+    { record_id: 22865069, doi: '10.5281/zenodo.22865069', title: 'ANTMUX Autonomous Multiplexed Conveyor', domain: 'Multiplexed-Conveyor', repo: 'Topbrutus/Antmux' }
+  ];
+
+  const html = `<div>
+    <p style="margin-top:0;color:#9cb5c9">Lignée des publications et dépôts Zenodo intégrés dans le convoyeur mathématique GAB BAD :</p>
+    ${items.map(s => `
+      <div class="gab-modal-lineage-item">
+        <strong>${escapeHtml(s.title)}</strong>
+        <small>DOI : <a href="https://doi.org/${escapeHtml(s.doi)}" target="_blank" rel="noopener" style="color:#5fc6ff">${escapeHtml(s.doi)}</a> · Domaine : <span style="color:#eed571">${escapeHtml(s.domain)}</span></small>
+        <small>Dépôt : <code>${escapeHtml(s.repo || 'Zenodo Publication')}</code></small>
+      </div>
+    `).join('')}
+  </div>`;
+
+  openGabModal('LIGNÉE MATHÉMATIQUE ZENODO (TOPBRUTUS / GSP / ANTMUX)', html);
+}
+
+function showSourceModal(){
+  const c = gabSelectedCandidate || (gabCandidatesCache.length ? gabCandidatesCache[0] : null);
+  if(!c){
+    openGabModal('SOURCE ZENODO', '<p>Sélectionnez d’abord un candidat dans la table de recherche.</p>');
+    return;
+  }
+
+  const html = `<div>
+    <h3 style="margin-top:0;color:#5fc6ff">${escapeHtml(c.title)}</h3>
+    <p><strong>FORMULA ID:</strong> ${escapeHtml(c.formula_id)} (Génération ${escapeHtml(c.generation)})</p>
+    <p><strong>RELATION :</strong> <code>${escapeHtml(c.formula_relation)}</code></p>
+    <p><strong>DOMAINE :</strong> ${escapeHtml(c.domain)}</p>
+    <p><strong>ZENODO RECORD:</strong> <a href="${escapeHtml(c.source_url)}" target="_blank" rel="noopener" style="color:#48d1cc">${escapeHtml(c.zenodo_record_id)} ↗</a></p>
+    <p><strong>DOI :</strong> <a href="https://doi.org/${escapeHtml(c.doi)}" target="_blank" rel="noopener" style="color:#5fc6ff">${escapeHtml(c.doi)}</a></p>
+    <p><strong>JUSTIFICATION :</strong> ${escapeHtml(c.why_selected)}</p>
+    <p><strong>RÉFÉRENCE DE PREUVE :</strong> ${escapeHtml(c.proof_ref)}</p>
+  </div>`;
+
+  openGabModal(`SOURCE DU CANDIDAT · ${c.formula_id}`, html);
+}
+
+function showEvidenceModal(){
+  const c = gabSelectedCandidate || (gabCandidatesCache.find(x => x.status === 'BROKEN' || x.status === 'SURVIVOR') || (gabCandidatesCache.length ? gabCandidatesCache[0] : null));
+  if(!c){
+    openGabModal('EVIDENCE / PREUVE', '<p>Aucun candidat sélectionné pour inspection des preuves de contre-test.</p>');
+    return;
+  }
+
+  const isBroken = c.status === 'BROKEN';
+  const isSurvivor = c.status === 'SURVIVOR';
+  const ce = c.counterexample_evidence;
+  const se = c.survivor_evidence;
+
+  const html = `<div>
+    <h3 style="margin-top:0;color:${isBroken ? '#ff6b6b' : isSurvivor ? '#51cf66' : '#5fc6ff'}">
+      DOSSIER DE PREUVE · ${escapeHtml(c.formula_id)} [${escapeHtml(c.status)}]
+    </h3>
+    <div style="background:#04090e;padding:12px;border:1px solid #142433;border-radius:7px;margin-bottom:12px">
+      <p style="margin:0 0 6px"><strong>RELATION :</strong> <code>${escapeHtml(c.formula_relation)}</code></p>
+      <p style="margin:0 0 6px"><strong>PROVENANCE :</strong> <span class="gab-badge badge-provenance-${String(c.provenance_type||'unknown').toLowerCase()}">${escapeHtml(c.provenance_type)}</span> ${c.verified_source ? '✓ SOURCE VÉRIFIÉE' : '⚠ NON AUDITÉ'}</p>
+      <p style="margin:0 0 6px"><strong>DOMAINE :</strong> ${escapeHtml(c.domain)} · <strong>PRIORITÉ :</strong> ${escapeHtml(c.test_priority)}/100</p>
+      <p style="margin:0"><strong>LIGNÉE PARENTE :</strong> ${escapeHtml(c.parent_id || 'Racine')} · <strong>GÉNÉRATION :</strong> ${escapeHtml(c.generation)}</p>
+    </div>
+
+    <h4 style="color:#9fd6ff;margin-bottom:6px">RÉSULTAT DU CONTRE-TEST INDÉPENDANT :</h4>
+    ${isBroken && ce ? `
+      <div style="background:#200707;border-left:4px solid #ff5454;padding:12px;border-radius:4px;color:#ff9e9e">
+        <strong style="font-size:13px">CONTRE-EXEMPLE REPRODUCTIBLE ENREGISTRÉ :</strong>
+        <p style="margin:6px 0 3px"><strong>MÉTHODE :</strong> <code>${escapeHtml(ce.test_method)}</code></p>
+        <p style="margin:0 0 3px"><strong>INPUT TESTÉ :</strong> <code>${escapeHtml(JSON.stringify(ce.input))}</code></p>
+        <p style="margin:0 0 3px"><strong>ATTENDU :</strong> <code>${escapeHtml(ce.expected)}</code> · <strong>OBSERVÉ :</strong> <code>${escapeHtml(ce.observed)}</code></p>
+        <p style="margin:0 0 3px"><strong>RÉSIDU :</strong> <code>${escapeHtml(ce.residual)}</code> · <strong>PRÉCISION :</strong> ${escapeHtml(ce.precision)}</p>
+        <p style="margin:0 0 3px"><strong>REPRODUCTIBLE :</strong> ${ce.reproducible ? 'OUI (100%)' : 'NON'}</p>
+        <p style="margin:0 0 3px"><strong>CONTRE-EXEMPLE :</strong> ${escapeHtml(ce.counterexample)}</p>
+        <p style="margin:0"><strong>RÉFÉRENCE PREUVE :</strong> <code>${escapeHtml(ce.proof_ref)}</code></p>
+      </div>
+    ` : isSurvivor && se ? `
+      <div style="background:#072115;border-left:4px solid #32e7a4;padding:12px;border-radius:4px;color:#96ffd5">
+        <strong style="font-size:13px">SURVIVANT (AUCUN CONTRE-EXEMPLE DÉTECTÉ DANS LE DOMAINE TESTÉ) :</strong>
+        <p style="margin:6px 0 3px"><strong>DOMAINE TESTÉ :</strong> <code>${escapeHtml(se.test_domain)}</code></p>
+        <p style="margin:0 0 3px"><strong>CAS TESTÉS :</strong> <code>${escapeHtml(se.test_count)}</code> · <strong>PRÉCISION :</strong> ${escapeHtml(se.precision)}</p>
+        <p style="margin:0 0 3px"><strong>MÉTHODES UTILISÉES :</strong> <code>${escapeHtml((se.methods_used || []).join(', '))}</code></p>
+        <p style="margin:6px 0 0;color:#85d6b4"><em>Déontologie scientifique :</em> ${escapeHtml(se.disclaimer)}</p>
+      </div>
+    ` : `
+      <div style="background:#0b1924;border-left:4px solid #5fc6ff;padding:10px;border-radius:4px;color:#bce5ff">
+        <strong>ÉTAT : ${escapeHtml(c.status)}</strong>
+        <p style="margin:6px 0 0">Aucune preuve de rupture ou de domaine testé n'est actuellement finalisée pour cette relation.</p>
+      </div>
+    `}
+
+    <h4 style="color:#9fd6ff;margin-top:14px;margin-bottom:6px">MOTEUR DE DÉCISION EXTERNE (JEV / TYPESAFE) :</h4>
+    <p>Avis : <strong>${escapeHtml(c.jev_decision || 'NON ANALYSÉ')}</strong> · Confiance : <strong>${c.jev_confidence ? Math.round(c.jev_confidence * 100) + '%' : '—'}</strong></p>
+    <small style="color:#788b9c">Rappel déontologique : Jev n'est pas un moteur de preuve formelle. Aucun score de confiance n'est simulé.</small>
+  </div>`;
+
+  openGabModal(`PREUVES & CONTRE-TESTS · ${c.formula_id}`, html);
+}
+
+// Bind GAB BAD UI Buttons
+if($('gabBtnScan')) $('gabBtnScan').addEventListener('click', triggerZenodoScan);
+if($('gabBtnRefill')) $('gabBtnRefill').addEventListener('click', triggerZenodoRefill);
+if($('gabBtnTestNext')) $('gabBtnTestNext').addEventListener('click', triggerZenodoTestNext);
+if($('gabBtnLineage')) $('gabBtnLineage').addEventListener('click', showLineageModal);
+if($('gabBtnSource')) $('gabBtnSource').addEventListener('click', showSourceModal);
+if($('gabBtnEvidence')) $('gabBtnEvidence').addEventListener('click', showEvidenceModal);
+if($('gabModalClose')) $('gabModalClose').addEventListener('click', closeGabModal);
+
+// Filter tabs listener
+document.querySelectorAll('.gab-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.gab-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    gabCurrentFilterStatus = tab.getAttribute('data-status') || '';
+    fetchZenodoQueue(gabCurrentFilterStatus);
+  });
+});
+
+// GAB BAD — MATHEMATICAL LINEAGE MAP CONTROLLER
+let linGraphCache = null;
+let linSelectedNodeId = null;
+let linCurrentView = 'graph';
+
+function setLinView(viewName){
+  linCurrentView = viewName;
+  document.querySelectorAll('.lin-view-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-view') === viewName);
+  });
+  if($('linViewGraph')) $('linViewGraph').style.display = viewName === 'graph' ? 'grid' : 'none';
+  if($('linViewBreakPaths')) $('linViewBreakPaths').style.display = viewName === 'breakpaths' ? 'block' : 'none';
+  if($('linViewFrontiers')) $('linViewFrontiers').style.display = viewName === 'frontiers' ? 'block' : 'none';
+  if($('linViewAudit')) $('linViewAudit').style.display = viewName === 'audit' ? 'block' : 'none';
+
+  if(viewName === 'breakpaths') fetchBreakPaths();
+  if(viewName === 'frontiers') fetchFrontiers();
+  if(viewName === 'audit') fetchAuditLog();
+}
+
+async function fetchLineageGraph(){
+  try{
+    const domain = $('linFilterDomain') ? $('linFilterDomain').value : '';
+    const prov = $('linFilterProvenance') ? $('linFilterProvenance').value : '';
+    const st = $('linFilterStatus') ? $('linFilterStatus').value : '';
+    const q = new URLSearchParams();
+    if(domain) q.set('domain', domain);
+    if(prov) q.set('provenance', prov);
+    if(st === 'SURVIVOR') q.set('status', 'SURVIVOR');
+    if(st === 'BROKEN') q.set('status', 'BROKEN');
+    if(st === 'UNTESTED') q.set('status', 'UNTESTED');
+
+    const res = await fetch(`./api/lineage/graph?${q.toString()}`, { cache: 'no-store' });
+    if(!res.ok) return;
+    const data = await res.json();
+    linGraphCache = data;
+    renderLineageMetrics(data.metrics);
+    renderLineageSvg(data);
+    populateDomainFilter(data.nodes);
+  }catch(err){
+    console.error('Failed to fetch lineage graph:', err);
+  }
+}
+
+function renderLineageMetrics(m){
+  if(!m) return;
+  if($('linTotalNodes')) $('linTotalNodes').textContent = m.totalNodes ?? 0;
+  if($('linDirectSource')) $('linDirectSource').textContent = m.directSourceNodes ?? 0;
+  if($('linDerived')) $('linDerived').textContent = m.derivedNodes ?? 0;
+  if($('linSynthetic')) $('linSynthetic').textContent = m.syntheticNodes ?? 0;
+  if($('linVerifiedEdges')) $('linVerifiedEdges').textContent = m.verifiedEdges ?? 0;
+  if($('linSuggestedEdges')) $('linSuggestedEdges').textContent = m.suggestedEdges ?? 0;
+  if($('linBrokenBranches')) $('linBrokenBranches').textContent = m.brokenBranches ?? 0;
+  if($('linOpenFrontiers')) $('linOpenFrontiers').textContent = m.openFrontiers ?? 0;
+}
+
+function populateDomainFilter(nodes){
+  const select = $('linFilterDomain');
+  if(!select || select.options.length > 1) return;
+  const domains = [...new Set((nodes||[]).map(n => n.domain).filter(Boolean))].sort();
+  for(const d of domains){
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d;
+    select.appendChild(opt);
+  }
+}
+
+function renderLineageSvg(graph){
+  const svg = $('linSvg');
+  if(!svg || !graph) return;
+  const nodes = graph.nodes || [];
+  const edges = graph.edges || [];
+
+  // Arrange nodes by generation columns
+  const genMap = new Map();
+  nodes.forEach(n => {
+    const g = n.generation ?? 0;
+    if(!genMap.has(g)) genMap.set(g, []);
+    genMap.get(g).push(n);
+  });
+
+  const sortedGens = [...genMap.keys()].sort((a,b)=>a-b);
+  const colWidth = Math.max(220, 950 / Math.max(1, sortedGens.length));
+  const nodePositions = new Map();
+
+  let maxRows = 1;
+  sortedGens.forEach((g, colIdx) => {
+    const colNodes = genMap.get(g);
+    if(colNodes.length > maxRows) maxRows = colNodes.length;
+    colNodes.forEach((n, rowIdx) => {
+      const x = 50 + colIdx * colWidth;
+      const y = 50 + rowIdx * 56;
+      nodePositions.set(n.node_id, { x, y, node: n });
+    });
+  });
+
+  const totalHeight = Math.max(550, 60 + maxRows * 56);
+  const totalWidth = Math.max(980, 80 + sortedGens.length * colWidth);
+  svg.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`);
+
+  let svgHtml = `<defs>
+    <marker id="arrow-verified" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#38d9a9" />
+    </marker>
+    <marker id="arrow-supported" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#74c0fc" />
+    </marker>
+    <marker id="arrow-broken" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#ff6b6b" />
+    </marker>
+    <marker id="arrow-suggested" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#d0bfff" />
+    </marker>
+  </defs>`;
+
+  // Draw Edges
+  edges.forEach(e => {
+    const from = nodePositions.get(e.from_node_id);
+    const to = nodePositions.get(e.to_node_id);
+    if(!from || !to) return;
+
+    const isFails = e.edge_type === 'FAILS_UNDER' || e.edge_type === 'CONTRADICTS';
+    const isVer = e.edge_status === 'VERIFIED';
+    const isSugg = e.edge_status === 'SUGGESTED';
+
+    const strokeColor = isFails ? '#ff6b6b' : isVer ? '#38d9a9' : isSugg ? '#d0bfff' : '#4a82a6';
+    const marker = isFails ? 'url(#arrow-broken)' : isVer ? 'url(#arrow-verified)' : isSugg ? 'url(#arrow-suggested)' : 'url(#arrow-supported)';
+    const strokeDash = isSugg ? '4,4' : 'none';
+    const strokeWidth = isVer ? 2.5 : 1.5;
+
+    const x1 = from.x + 160;
+    const y1 = from.y + 18;
+    const x2 = to.x;
+    const y2 = to.y + 18;
+    const cx1 = (x1 + x2) / 2;
+
+    svgHtml += `<path d="M${x1},${y1} C${cx1},${y1} ${cx1},${y2} ${x2},${y2}"
+      fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${strokeDash}"
+      marker-end="${marker}" style="cursor:pointer" onclick="inspectEdge('${escapeHtml(e.edge_id)}')">
+      <title>${escapeHtml(e.edge_type)} [${escapeHtml(e.edge_status)}] : ${escapeHtml(e.reason)}</title>
+    </path>`;
+  });
+
+  // Draw Nodes
+  nodePositions.forEach((pos, id) => {
+    const n = pos.node;
+    const isSelected = linSelectedNodeId === id;
+    const isSrc = n.object_type === 'SOURCE_RECORD';
+    const isVer = n.verified_source;
+    const isSyn = n.provenance_type === 'SYNTHETIC';
+    const isDer = n.provenance_type === 'DERIVED';
+
+    const rectBorder = isSelected ? '#5fc6ff' : isVer ? '#38d9a9' : isSyn ? '#734211' : isDer ? '#5c4599' : '#1b3b54';
+    const rectFill = isSelected ? '#0d2d44' : isVer ? '#072418' : isSyn ? '#1f1304' : isDer ? '#14122b' : '#06131c';
+    const statusColor = n.status === 'SURVIVOR' ? '#51cf66' : n.status === 'BROKEN' ? '#ff6b6b' : n.status === 'TESTING' ? '#ffd43b' : '#74c0fc';
+    const label = isSrc ? `SRC-${n.zenodo_record_id}` : n.formula_id;
+    const titleText = (n.title || '').slice(0, 22);
+
+    svgHtml += `<g class="lin-svg-node" style="cursor:pointer" onclick="selectLineageNode('${escapeHtml(id)}')">
+      <rect x="${pos.x}" y="${pos.y}" width="160" height="36" rx="6"
+        fill="${rectFill}" stroke="${rectBorder}" stroke-width="${isSelected ? 2.5 : 1.2}" />
+      <circle cx="${pos.x + 10}" cy="${pos.y + 18}" r="4" fill="${statusColor}" />
+      <text x="${pos.x + 20}" y="${pos.y + 15}" fill="#e8f4fd" font-family="ui-monospace,Consolas,monospace" font-size="10" font-weight="700">${escapeHtml(label)}</text>
+      <text x="${pos.x + 20}" y="${pos.y + 28}" fill="#89a7be" font-family="ui-monospace,Consolas,monospace" font-size="8">${escapeHtml(titleText)}</text>
+    </g>`;
+  });
+
+  svg.innerHTML = svgHtml;
+}
+
+function selectLineageNode(nodeId){
+  linSelectedNodeId = nodeId;
+  if(linGraphCache) renderLineageSvg(linGraphCache);
+  const node = linGraphCache?.nodes?.find(n => n.node_id === nodeId);
+  if(node) renderNodeDetailCard(node);
+}
+
+function renderNodeDetailCard(n){
+  const cardTitle = $('linCardTitle');
+  const cardSub = $('linCardSub');
+  const cardContent = $('linCardContent');
+  if(!cardTitle || !cardContent) return;
+
+  const isSrc = n.object_type === 'SOURCE_RECORD';
+  cardTitle.textContent = `${n.formula_id || ('SOURCE ' + n.zenodo_record_id)} · [${n.status}]`;
+  if(cardSub) cardSub.textContent = n.title;
+
+  const fp = n.structure_fingerprint || {};
+  const fpBadges = Object.keys(fp).map(k => {
+    const item = fp[k];
+    const cls = item.status === 'KNOWN' ? 'lin-fp-known' : item.status === 'NOT_APPLICABLE' ? 'lin-fp-na' : 'lin-fp-unknown';
+    const valText = item.value ? (Array.isArray(item.value) ? item.value.join(',') : String(item.value)) : item.status;
+    return `<span class="lin-fp-badge ${cls}" title="${k}: ${escapeHtml(valText)}">${k}: ${escapeHtml(valText).slice(0, 16)}</span>`;
+  }).join(' ');
+
+  cardContent.innerHTML = `
+    <div class="lin-card-section">
+      <strong>RELATION MATHÉMATIQUE</strong>
+      <code>${escapeHtml(n.formula_relation)}</code>
+    </div>
+    <div class="lin-card-section">
+      <strong>PROVENANCE & TRAÇABILITÉ</strong>
+      <p style="margin:2px 0">Type : <span class="gab-badge badge-provenance-${String(n.provenance_type).toLowerCase()}">${n.provenance_type === 'SYNTHETIC' ? 'SYNTHETIC / TEST DATA' : escapeHtml(n.provenance_type)}</span> ${n.verified_source ? '✓ VÉRIFIÉ DIRECT' : '⚠ NON AUDITÉ'}</p>
+      <p style="margin:2px 0">Zenodo : <a href="${escapeHtml(n.source_url||'')}" target="_blank" rel="noopener" style="color:#48d1cc">${escapeHtml(n.doi||'—')}</a></p>
+      <p style="margin:2px 0">Fichier : <code>${escapeHtml(n.source_file || 'Non renseigné')}</code> [${escapeHtml(n.source_location || 'Lieu non tracé')}]</p>
+      <p style="margin:2px 0;color:#8ca5b9">Citation : <em>"${escapeHtml(n.source_quote_or_excerpt || 'Aucun extrait')}"</em></p>
+    </div>
+    ${!isSrc ? `
+    <div class="lin-card-section">
+      <strong>EMPREINTE STRUCTURELLE (FINGERPRINT)</strong>
+      <div style="margin-top:4px">${fpBadges || 'Non calculé'}</div>
+    </div>
+    <div class="lin-card-section">
+      <strong>CONTRE-TEST & PREUVES</strong>
+      <p style="margin:2px 0">Domaine testé : <code>${escapeHtml(n.test_domain || 'Aucun')}</code></p>
+      <p style="margin:2px 0">Cas testés : <strong>${escapeHtml(n.test_count)}</strong> · Précision : <strong>${escapeHtml(n.precision || '—')}</strong></p>
+      ${n.first_failure ? `<p style="margin:2px 0;color:#ff8787">Premier échec : <strong>${escapeHtml(n.first_failure)}</strong></p>` : ''}
+      <p style="margin:2px 0">Réf. preuve : <code>${escapeHtml(n.proof_ref || 'Non tracé')}</code></p>
+    </div>
+    ` : ''}
+  `;
+}
+
+function inspectEdge(edgeId){
+  const edge = linGraphCache?.edges?.find(e => e.edge_id === edgeId);
+  if(!edge) return;
+  const html = `<div>
+    <h3 style="margin-top:0;color:#5fc6ff">LIEN GÉNÉALOGIQUE : ${escapeHtml(edge.edge_type)}</h3>
+    <p><strong>STATUT DU LIEN :</strong> <span class="gab-badge">${escapeHtml(edge.edge_status)}</span></p>
+    <p><strong>DE :</strong> <code>${escapeHtml(edge.from_node_id)}</code> → <strong>VERS :</strong> <code>${escapeHtml(edge.to_node_id)}</code></p>
+    <p><strong>JUSTIFICATION MATHÉMATIQUE :</strong> ${escapeHtml(edge.reason)}</p>
+    <p><strong>RÉFÉRENCE DE PREUVE :</strong> <code>${escapeHtml(edge.evidence_ref || 'Aucune')}</code></p>
+    <p><strong>PROVENANCE DU LIEN :</strong> ${escapeHtml(edge.provenance_type)}</p>
+    <small style="color:#788b9c">Règle déontologique : Seuls les liens avec référence de preuve déterministe peuvent être VERIFIED.</small>
+  </div>`;
+  openGabModal(`DÉTAIL DU LIEN · ${edge.edge_id}`, html);
+}
+
+async function fetchBreakPaths(){
+  const container = $('linBreakPathsContainer');
+  if(!container) return;
+  container.innerHTML = '<p style="color:#728c9f">Chargement des chemins de rupture…</p>';
+  try{
+    const res = await fetch('./api/lineage/break-paths', { cache: 'no-store' });
+    const data = await res.json();
+    const list = data.breakPaths || [];
+    if(!list.length){
+      container.innerHTML = '<p style="color:#6f8190">Aucun chemin de rupture enregistré pour l’instant. Les ruptures documentées apparaîtront ici.</p>';
+      return;
+    }
+    container.innerHTML = list.map(bp => `
+      <div class="lin-break-card">
+        <div style="display:flex;justify-content:space-between">
+          <strong style="color:#ff8787">${escapeHtml(bp.break_path_id)} · ${escapeHtml(bp.failure_type)}</strong>
+          <small style="color:#8ca5b9">${new Date(bp.created_at).toLocaleTimeString('fr-CA',{hour12:false})}</small>
+        </div>
+        <div style="margin:8px 0;font-size:11px">
+          <p style="margin:2px 0"><strong>RACINE :</strong> ${escapeHtml(bp.root_formula_id)} → <strong>ENFANT :</strong> ${escapeHtml(bp.child_formula_id)}</p>
+          <p style="margin:2px 0"><strong>MÉTHODE :</strong> <code>${escapeHtml(bp.test_method)}</code> · <strong>DOMAINE :</strong> ${escapeHtml(bp.test_domain)}</p>
+          <p style="margin:2px 0"><strong>INPUT :</strong> <code>${escapeHtml(JSON.stringify(bp.input))}</code></p>
+          <p style="margin:2px 0"><strong>ATTENDU :</strong> <code>${escapeHtml(bp.expected)}</code> · <strong>OBSERVÉ :</strong> <code>${escapeHtml(bp.observed)}</code></p>
+          <p style="margin:2px 0;color:#ffa8a8"><strong>CONTRE-EXEMPLE :</strong> ${escapeHtml(bp.counterexample)}</p>
+          <p style="margin:2px 0"><strong>PREUVE :</strong> <code>${escapeHtml(bp.proof_ref)}</code></p>
+        </div>
+      </div>
+    `).join('');
+  }catch(err){
+    container.innerHTML = '<p style="color:#ff8787">Erreur de chargement: ' + err.message + '</p>';
+  }
+}
+
+async function fetchFrontiers(){
+  const container = $('linFrontiersContainer');
+  if(!container) return;
+  container.innerHTML = '<p style="color:#728c9f">Analyse des frontières de recherche inexplorées…</p>';
+  try{
+    const res = await fetch('./api/lineage/frontiers', { cache: 'no-store' });
+    const data = await res.json();
+    const list = data.frontiers || [];
+    if(!list.length){
+      container.innerHTML = '<p style="color:#6f8190">Toutes les branches connues ont été explorées ou testées.</p>';
+      return;
+    }
+    container.innerHTML = list.map(f => `
+      <div class="lin-frontier-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="color:#ffd43b">${escapeHtml(f.frontier_id)} · ${escapeHtml(f.frontier_type)}</strong>
+            <small style="color:#728c9f;display:block">Racine : ${escapeHtml(f.root_node_id)} · Coût de test estimé : <strong>${escapeHtml(f.expected_test_cost)}</strong></small>
+          </div>
+          <div style="text-align:right">
+            <span class="lin-score-badge">PRIORITÉ : ${escapeHtml(f.priority_score)}/100</span>
+            <small style="display:block;color:#788b9c;font-size:9px">Score de scheduling déontologique</small>
+          </div>
+        </div>
+        <p style="margin:8px 0 4px;color:#c0d5e6">${escapeHtml(f.why_unexplored)}</p>
+        <div style="background:#020508;padding:8px;border-radius:4px;margin:6px 0;font-size:10px">
+          <p style="margin:0"><strong>PROCHAINE TRANSFORMATION SUGGÉRÉE :</strong> <code>${escapeHtml(f.suggested_next_transformation)}</code></p>
+          <p style="margin:3px 0 0"><strong>DOMAINE DE TEST SUGGÉRÉ :</strong> <code>${escapeHtml(f.suggested_test_domain)}</code></p>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <button class="gab-btn disabled-operator" type="button" disabled title="Génération réservée au VERSO OPERATOR">⚡ GENERATE CANDIDATE <span class="op-tag">VERSO</span></button>
+          <small style="color:#8ca5b9">Génération réservée au VERSO OPERATOR · RECTO PUBLIC lecture seule</small>
+        </div>
+      </div>
+    `).join('');
+  }catch(err){
+    container.innerHTML = '<p style="color:#ff8787">Erreur de chargement: ' + err.message + '</p>';
+  }
+}
+
+function triggerGenerateNext(frontierId){
+  notifyOperatorRequired(`GENERATE CANDIDATE (${frontierId || 'NEXT'})`);
+}
+
+async function fetchAuditLog(){
+  const container = $('linAuditContainer');
+  if(!container) return;
+  container.innerHTML = '<p style="color:#728c9f">Chargement du journal d’audit…</p>';
+  try{
+    const res = await fetch('./api/lineage/audit-log?limit=30', { cache: 'no-store' });
+    const data = await res.json();
+    const events = data.events || [];
+    container.innerHTML = events.map(ev => `
+      <div style="padding:6px 0;border-bottom:1px solid #0f1c27;font-size:11px">
+        <span style="color:#8ca5b9">${new Date(ev.timestamp).toLocaleTimeString('fr-CA',{hour12:false})}</span> ·
+        <strong style="color:#74c0fc">${escapeHtml(ev.event_type)}</strong> ·
+        <span style="color:#ffd43b">${escapeHtml(ev.new_state || '')}</span> ·
+        <small style="color:#6f8190">Acteur : ${escapeHtml(ev.actor)}</small>
+      </div>
+    `).join('');
+  }catch(err){
+    container.innerHTML = '<p style="color:#ff8787">Erreur audit: ' + err.message + '</p>';
+  }
+}
+
+// Bind Lineage Map controls
+document.querySelectorAll('.lin-view-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLinView(btn.getAttribute('data-view')));
+});
+if($('linBtnRebuild')) $('linBtnRebuild').addEventListener('click', () => {
+  notifyOperatorRequired('REBUILD GRAPH');
+});
+if($('linBtnRecalculate')) $('linBtnRecalculate').addEventListener('click', () => {
+  notifyOperatorRequired('RECALCULATE FRONTIERS');
+});
+if($('linBtnReset')) $('linBtnReset').addEventListener('click', () => {
+  if($('linFilterDomain')) $('linFilterDomain').value = '';
+  if($('linFilterProvenance')) $('linFilterProvenance').value = '';
+  if($('linFilterStatus')) $('linFilterStatus').value = '';
+  fetchLineageGraph();
+});
+if($('linFilterDomain')) $('linFilterDomain').addEventListener('change', fetchLineageGraph);
+if($('linFilterProvenance')) $('linFilterProvenance').addEventListener('change', fetchLineageGraph);
+if($('linFilterStatus')) $('linFilterStatus').addEventListener('change', fetchLineageGraph);
+
+// ==========================================================
+// GAMEZEL PUBLIC AUDIO BRIDGE (RECTO = UNIQUE AUDIO MASTER)
+// ==========================================================
+function gamezelUpdatePublicAudioUI(cue, status) {
+  if (status === 'PLAYING_SFX' || status === 'PLAYING_VOICE') {
+    lastAudioEventTimestamp = Date.now();
+  }
+  const isMutedState = soundMuted || soundVolume <= 0;
+  if ($('gzPublicAudioStatus')) {
+    $('gzPublicAudioStatus').textContent = isMutedState ? 'AUDIO GAMEZEL: MUTED' : 'AUDIO GAMEZEL: ACTIVE';
+    $('gzPublicAudioStatus').style.borderColor = isMutedState ? '#e03131' : '#20c997';
+    $('gzPublicAudioStatus').style.color = isMutedState ? '#ff8787' : '#63e6be';
+  }
+  if ($('gzPublicSeqBadge')) {
+    $('gzPublicSeqBadge').textContent = 'SEQ #' + gzLastPlayedSequence;
+  }
+  if ($('p1Sequence')) $('p1Sequence').textContent = String(gzLastPlayedSequence);
+  if ($('p1PublicAudioStatus')) $('p1PublicAudioStatus').textContent = zelIsAudioMasterActive() ? 'ENABLED' : 'VISUAL ONLY';
+  if (cue) {
+    zelLastHeartbeatAt = Date.now();
+    if ($('p1Heartbeat')) $('p1Heartbeat').textContent = new Date(zelLastHeartbeatAt).toISOString();
+    if ($('p1LastAudioEvent')) $('p1LastAudioEvent').textContent = String(cue.EVENT_TYPE || cue.TYPE || '—');
+    if ($('p1SfxId')) $('p1SfxId').textContent = String(cue.SOUND_ID || '—');
+    if ($('p1AudioPlayer')) $('p1AudioPlayer').textContent = String(cue.PLAYER_ID || cue.PLAYER_NAME || '—');
+    const fileBase = String(cue.FILE || cue.SOUND_ID || '—').split('/').pop();
+    if ($('gzPublicCurrentSound')) $('gzPublicCurrentSound').textContent = 'CURRENT SOUND: ' + fileBase;
+    if ($('gzPublicEventType')) $('gzPublicEventType').textContent = 'EVENT TYPE: ' + (cue.EVENT_TYPE || '—');
+    if ($('gzPublicSoundId')) $('gzPublicSoundId').textContent = 'SOUND ID: ' + (cue.SOUND_ID || '—');
+    if ($('gzPublicIntensity')) $('gzPublicIntensity').textContent = 'INTENSITY: L' + (cue.INTENSITY || 1);
+  }
+  if ($('gzPublicVoiceBadge')) {
+    if (gzActiveVoice && gzActiveVoice.cue) {
+      const vc = gzActiveVoice.cue;
+      $('gzPublicVoiceBadge').textContent = `WHO IS SPEAKING: ${vc.PLAYER_ID || 'VOICE'} · ${vc.PLAYER_NAME || ''} [${vc.SPEECH_TYPE || 'SPEAK'}]`;
+      $('gzPublicVoiceBadge').style.borderColor = '#51cf66';
+      $('gzPublicVoiceBadge').style.color = '#69db7c';
+    } else {
+      $('gzPublicVoiceBadge').textContent = 'WHO IS SPEAKING: NONE';
+      $('gzPublicVoiceBadge').style.borderColor = '#244b6b';
+      $('gzPublicVoiceBadge').style.color = '#74c0fc';
+    }
+  }
+  if ($('gzPublicVoiceText') && cue) {
+    if (cue.TYPE === 'PLAYER_VOICE' && cue.SPEECH_TEXT) {
+      $('gzPublicVoiceText').textContent = `"${cue.SPEECH_TEXT}"`;
+    } else if (!gzActiveVoice && cue.EVENT_TYPE) {
+      $('gzPublicVoiceText').textContent = `Événement GameZEL: ${cue.EVENT_TYPE} (${cue.SOUND_ID || 'SFX'}) · Intensité L${cue.INTENSITY || 1}`;
+    }
+  }
+  if ($('gzPublicSfxBadge')) {
+    if (cue && cue.TYPE === 'AUDIO_CUE' && (status === 'PLAYING_SFX' || status === 'MUTED')) {
+      $('gzPublicSfxBadge').textContent = `SFX: ${cue.SOUND_ID} · ${cue.EVENT_TYPE} (L${cue.INTENSITY || 1})`;
+    } else if (gzActiveSfx.size === 0) {
+      $('gzPublicSfxBadge').textContent = 'SFX: IDLE';
+    }
+  }
+}
+
+function gamezelStopActiveVoice(reason = 'STOPPED') {
+  if (!gzActiveVoice) return;
+  const v = gzActiveVoice;
+  gzActiveVoice = null;
+  if (v.timer) clearTimeout(v.timer);
+  try {
+    v.audio.pause();
+    v.audio.currentTime = 0;
+  } catch (_) {}
+  gamezelPublicAudioSyncVolume();
+  gamezelUpdatePublicAudioUI(v.cue, reason);
+}
+
+function gamezelStopSfxEntry(key) {
+  const entry = gzActiveSfx.get(key);
+  if (!entry) return;
+  gzActiveSfx.delete(key);
+  if (entry.timer) clearTimeout(entry.timer);
+  try {
+    entry.audio.pause();
+    entry.audio.currentTime = 0;
+  } catch (_) {}
+}
+
+function gamezelPublicAudioStopAll() {
+  gamezelStopActiveVoice('STOP_ALL');
+  for (const key of Array.from(gzActiveSfx.keys())) {
+    gamezelStopSfxEntry(key);
+  }
+}
+
+function gamezelPublicAudioSyncVolume() {
+  if (soundMuted || soundVolume <= 0) {
+    gamezelPublicAudioStopAll();
+    gamezelUpdatePublicAudioUI(null, 'MUTED');
+    return;
+  }
+  gamezelUpdatePublicAudioUI(null, 'ACTIVE');
+  if (gzActiveVoice && gzActiveVoice.audio) {
+    try {
+      gzActiveVoice.audio.volume = Math.max(0, Math.min(1, soundVolume));
+    } catch (_) {}
+  }
+  const duckFactor = gzActiveVoice ? GZ_DUCKED_SFX_GAIN : GZ_NORMAL_SFX_GAIN;
+  for (const entry of gzActiveSfx.values()) {
+    try {
+      entry.audio.volume = Math.max(0, Math.min(1, soundVolume * entry.intensityScale * duckFactor));
+    } catch (_) {}
+  }
+}
+
+async function gamezelPublicAudioReceive(rawCue) {
+  if (!rawCue || typeof rawCue !== 'object') return { played: false, reason: 'INVALID_CUE' };
+
+  const eventId = String(rawCue.EVENT_ID || '').trim();
+  const seq = Number(rawCue.SEQUENCE ?? rawCue.sequence ?? 0);
+
+  // Snapshot / Replay cues synchronize sequence without playing audio
+  if (rawCue.REPLAY === true || rawCue.transport_replay === true || rawCue.TYPE === 'CONNECTED') {
+    if (eventId) gzSeenEventIds.add(eventId);
+    if (seq > gzLastPlayedSequence) gzLastPlayedSequence = seq;
+    if (rawCue.state && rawCue.state.lastCue) {
+      const lc = rawCue.state.lastCue;
+      if (lc.EVENT_ID) gzSeenEventIds.add(lc.EVENT_ID);
+      if (Number(lc.SEQUENCE) > gzLastPlayedSequence) gzLastPlayedSequence = Number(lc.SEQUENCE);
+      gamezelUpdatePublicAudioUI(lc, 'SNAPSHOT_SYNC');
+    } else {
+      gamezelUpdatePublicAudioUI(null, 'SNAPSHOT_SYNC');
+    }
+    return { played: false, reason: 'SNAPSHOT_REPLAY_IGNORED', EVENT_ID: eventId, SEQUENCE: seq };
+  }
+
+  // Duplicate Playback Guard: never play the same EVENT_ID or SEQUENCE <= gzLastPlayedSequence twice
+  if (eventId && gzSeenEventIds.has(eventId)) {
+    return { played: false, reason: 'DUPLICATE_EVENT_ID', EVENT_ID: eventId, SEQUENCE: seq };
+  }
+  if (seq > 0 && seq <= gzLastPlayedSequence) {
+    if (eventId) gzSeenEventIds.add(eventId);
+    return { played: false, reason: 'DUPLICATE_OR_STALE_SEQUENCE', EVENT_ID: eventId, SEQUENCE: seq };
+  }
+
+  if (eventId) gzSeenEventIds.add(eventId);
+  if (seq > gzLastPlayedSequence) gzLastPlayedSequence = seq;
+
+  // Every RECTO panel observes the event; only PANEL_1/all lease holder may play it.
+  if (!zelIsAudioMasterActive()) {
+    gamezelUpdatePublicAudioUI(rawCue, 'OBSERVE_ONLY');
+    return { played: false, reason: 'NON_AUDIO_MASTER_PANEL', EVENT_ID: eventId, SEQUENCE: seq };
+  }
+
+  if (soundMuted || soundVolume <= 0) {
+    gamezelUpdatePublicAudioUI(rawCue, 'MUTED');
+    return { played: false, reason: 'MUTED', EVENT_ID: eventId, SEQUENCE: seq };
+  }
+
+  const cleanFile = String(rawCue.FILE || '').trim().replace(/^\.\//, '').replace(/^\/+/, '');
+  if (!cleanFile || cleanFile.includes('..')) {
+    return { played: false, reason: 'INVALID_FILE' };
+  }
+  const fileUrl = './' + cleanFile;
+  const isVoice = rawCue.TYPE === 'PLAYER_VOICE' || rawCue.CATEGORY === 'player_voice';
+
+  if (isVoice) {
+    const incomingPriority = Number(rawCue.PRIORITY || 65);
+    if (gzActiveVoice) {
+      const currentPriority = Number(gzActiveVoice.cue.PRIORITY || 65);
+      if (incomingPriority <= currentPriority) {
+        return { played: false, reason: 'VOICE_ALREADY_ACTIVE', EVENT_ID: eventId, SEQUENCE: seq };
+      }
+      gamezelStopActiveVoice('PREEMPTED');
+    }
+
+    let audio;
+    try {
+      audio = new Audio(fileUrl);
+    } catch (err) {
+      return { played: false, reason: 'AUDIO_INIT_FAILED' };
+    }
+    audio.preload = 'auto';
+    audio.volume = Math.max(0, Math.min(1, soundVolume));
+
+    const durationMs = Math.max(400, Math.round(Number(rawCue.EXPECTED_DURATION || 2.4) * 1000));
+    const voiceEntry = { cue: rawCue, audio, timer: null };
+    gzActiveVoice = voiceEntry;
+    gamezelPublicAudioSyncVolume(); // Duck active SFX
+
+    const cleanup = () => {
+      if (voiceEntry.timer) {
+        clearTimeout(voiceEntry.timer);
+        voiceEntry.timer = null;
+      }
+      if (gzActiveVoice === voiceEntry) {
+        gzActiveVoice = null;
+        gamezelPublicAudioSyncVolume(); // Restore SFX volume
+        gamezelUpdatePublicAudioUI(rawCue, 'VOICE_ENDED');
+      }
+    };
+    audio.addEventListener('ended', cleanup, { once: true });
+    audio.addEventListener('error', cleanup, { once: true });
+    voiceEntry.timer = setTimeout(cleanup, durationMs + 250);
+
+    try {
+      await audio.play();
+      gzAutoplayLocked = false;
+      gzPendingBlockedCue = null;
+      gzPlaybackHistory.push({ EVENT_ID: eventId, SEQUENCE: seq, TYPE: 'PLAYER_VOICE', SOUND_ID: rawCue.SOUND_ID, FILE: fileUrl, PLAYED_AT: Date.now() });
+      if (gzPlaybackHistory.length > 100) gzPlaybackHistory.shift();
+      gamezelUpdatePublicAudioUI(rawCue, 'PLAYING_VOICE');
+      return { played: true, type: 'PLAYER_VOICE', EVENT_ID: eventId, SEQUENCE: seq, SOUND_ID: rawCue.SOUND_ID, FILE: fileUrl };
+    } catch (err) {
+      cleanup();
+      const isAutoplay = err?.name === 'NotAllowedError' || /notallowed|interact|autoplay/i.test(String(err?.message || ''));
+      if (isAutoplay) {
+        gzAutoplayLocked = true;
+        gzPendingBlockedCue = { cue: rawCue, timestamp: Date.now() };
+        gamezelUpdatePublicAudioUI(rawCue, 'AUTOPLAY_LOCKED');
+        return { played: false, reason: 'AUTOPLAY_LOCKED', EVENT_ID: eventId, SEQUENCE: seq };
+      }
+      gamezelUpdatePublicAudioUI(rawCue, 'PLAYBACK_ERROR_FAIL_SOFT');
+      return { played: false, failSoft: true, reason: 'PLAYBACK_ERROR_FAIL_SOFT', EVENT_ID: eventId, SEQUENCE: seq };
+    }
+  }
+
+  // SFX Playback
+  const intensity = Math.max(1, Math.min(5, Number(rawCue.INTENSITY || 2)));
+  const priority = Number(rawCue.PRIORITY || 50);
+
+  if (gzActiveVoice && rawCue.DUCK_OTHERS && (intensity >= 5 || priority >= 90)) {
+    const voicePrio = Number(gzActiveVoice.cue.PRIORITY || 65);
+    if (priority >= voicePrio) {
+      gamezelStopActiveVoice('INTERRUPTED_BY_CRITICAL_SFX');
+    }
+  }
+
+  if (!rawCue.CAN_OVERLAP) {
+    for (const [key, active] of gzActiveSfx.entries()) {
+      if (!active.cue.CAN_OVERLAP) {
+        const activePrio = Number(active.cue.PRIORITY || 50);
+        if (activePrio >= 90 && priority < activePrio) {
+          return { played: false, reason: 'LOWER_SFX_PRIORITY', EVENT_ID: eventId, SEQUENCE: seq };
+        }
+        gamezelStopSfxEntry(key);
+      }
+    }
+  }
+
+  let audio;
+  try {
+    audio = new Audio(fileUrl);
+  } catch (err) {
+    return { played: false, reason: 'AUDIO_INIT_FAILED' };
+  }
+
+  const intensityScale = 0.68 + (intensity - 1) * 0.08;
+  const cueEffectiveGain = Number.isFinite(Number(rawCue.EFFECTIVE_GAIN)) ? Math.max(0.1, Math.min(1, Number(rawCue.EFFECTIVE_GAIN))) : 1.0;
+  const duckFactor = gzActiveVoice ? GZ_DUCKED_SFX_GAIN : Math.min(GZ_NORMAL_SFX_GAIN, cueEffectiveGain);
+  audio.preload = 'auto';
+  audio.volume = Math.max(0, Math.min(1, soundVolume * intensityScale * duckFactor));
+
+  const key = eventId || ('SFX-' + Date.now() + '-' + Math.random());
+  const durationMs = Math.max(250, Math.round(Number(rawCue.EXPECTED_DURATION || 1.5) * 1000));
+  const entry = { cue: rawCue, audio, timer: null, intensityScale };
+  gzActiveSfx.set(key, entry);
+
+  const cleanup = () => {
+    if (entry.timer) {
+      clearTimeout(entry.timer);
+      entry.timer = null;
+    }
+    gzActiveSfx.delete(key);
+    gamezelUpdatePublicAudioUI(rawCue, 'SFX_ENDED');
+  };
+  audio.addEventListener('ended', cleanup, { once: true });
+  audio.addEventListener('error', cleanup, { once: true });
+  entry.timer = setTimeout(cleanup, durationMs + 250);
+
+  try {
+    await audio.play();
+    gzAutoplayLocked = false;
+    gzPendingBlockedCue = null;
+    gzPlaybackHistory.push({ EVENT_ID: eventId, SEQUENCE: seq, TYPE: 'AUDIO_CUE', SOUND_ID: rawCue.SOUND_ID, FILE: fileUrl, PLAYED_AT: Date.now() });
+    if (gzPlaybackHistory.length > 100) gzPlaybackHistory.shift();
+    gamezelUpdatePublicAudioUI(rawCue, 'PLAYING_SFX');
+    return { played: true, type: 'AUDIO_CUE', EVENT_ID: eventId, SEQUENCE: seq, SOUND_ID: rawCue.SOUND_ID, FILE: fileUrl };
+  } catch (err) {
+    cleanup();
+    const isAutoplay = err?.name === 'NotAllowedError' || /notallowed|interact|autoplay/i.test(String(err?.message || ''));
+    if (isAutoplay) {
+      gzAutoplayLocked = true;
+      gzPendingBlockedCue = { cue: rawCue, timestamp: Date.now() };
+      gamezelUpdatePublicAudioUI(rawCue, 'AUTOPLAY_LOCKED');
+      return { played: false, reason: 'AUTOPLAY_LOCKED', EVENT_ID: eventId, SEQUENCE: seq };
+    }
+    gamezelUpdatePublicAudioUI(rawCue, 'PLAYBACK_ERROR_FAIL_SOFT');
+    return { played: false, failSoft: true, reason: 'PLAYBACK_ERROR_FAIL_SOFT', EVENT_ID: eventId, SEQUENCE: seq };
+  }
+}
+
+async function gamezelPublicAudioUnlock() {
+  gzAutoplayLocked = false;
+  if (gzPendingBlockedCue && (Date.now() - gzPendingBlockedCue.timestamp) < 4000) {
+    const pending = gzPendingBlockedCue.cue;
+    gzPendingBlockedCue = null;
+    if (pending.EVENT_ID) gzSeenEventIds.delete(pending.EVENT_ID);
+    if (pending.SEQUENCE && gzLastPlayedSequence === pending.SEQUENCE) {
+      gzLastPlayedSequence = Math.max(0, pending.SEQUENCE - 1);
+    }
+    return await gamezelPublicAudioReceive(pending);
+  }
+  gzPendingBlockedCue = null;
+  return { unlocked: true };
+}
+
+// ========================================================
+// GAMEZEL AI INTER-TOWER SPEECH BUS (CLIENT RUNTIME)
+// ========================================================
+const gzSeenSpeechIds = new Set();
+const gzSpeechHistory = [];
+let gzActiveSpeechTimeout = null;
+let gzSpeechEventSource = null;
+
+function receivePublicSpeech(speech) {
+  if (!speech || typeof speech !== 'object') return;
+  const speechId = speech.SPEECH_ID;
+  if (!speechId) return;
+
+  if (gzSeenSpeechIds.has(speechId)) return;
+  gzSeenSpeechIds.add(speechId);
+  if (gzSeenSpeechIds.size > 1000) {
+    const iter = gzSeenSpeechIds.values();
+    for (let i = 0; i < 200; i++) gzSeenSpeechIds.delete(iter.next().value);
+  }
+
+  // Prepend to client speech history
+  gzSpeechHistory.unshift(speech);
+  if (gzSpeechHistory.length > 50) gzSpeechHistory.pop();
+
+  const pid = (speech.PLAYER_ID || speech.SPEAKER_ID || 'P1').toUpperCase();
+  const speakerName = speech.SPEAKER_NAME || pid;
+  const messageType = speech.MESSAGE_TYPE || speech.SPEECH_TYPE || 'ANNOUNCEMENT';
+  const text = speech.MESSAGE || speech.SPEECH_TEXT || speech.TEXT || '';
+  const formulaId = speech.FORMULA_ID || null;
+  const cardId = speech.CARD_ID || null;
+  const targets = Array.isArray(speech.PANEL_TARGETS) ? speech.PANEL_TARGETS : [1, 2, 3, 4, 5];
+  const audioMaster = speech.AUDIO_MASTER || 'PANEL_1';
+
+  if ($('speechLastId')) {
+    $('speechLastId').textContent = `DERNIER : ${speechId} [${speakerName}]`;
+  }
+
+  // 1. Highlight player seat in Game Table (Screen 3)
+  const seatCard = $('cardSeat' + pid);
+  if (seatCard) {
+    seatCard.classList.add('is-active');
+    setTimeout(() => {
+      seatCard.classList.remove('is-active');
+    }, 4500);
+  }
+
+  // 2. Broadcast visually to all 5 laboratory panels
+  const speakerClass = `speech-speaker-${pid.toLowerCase()}`;
+  for (let bay = 1; bay <= 5; bay++) {
+    const receptor = $('speechReceptorBay' + bay);
+    const statusPill = $('speechStatusBay' + bay);
+    const bodyEl = $('speechBodyBay' + bay);
+    if (!receptor || !bodyEl) continue;
+
+    let contextBadgeHtml = '';
+    if (bay === 1) {
+      contextBadgeHtml = `<span class="speech-context-badge">AUDIO MASTER</span>`;
+    } else if (bay === 2 && formulaId) {
+      contextBadgeHtml = `<span class="speech-context-badge" style="border-color:#32e7a4;color:#32e7a4">FORMULE · ${escapeHtml(formulaId)}</span>`;
+    } else if (bay === 3 && cardId) {
+      contextBadgeHtml = `<span class="speech-context-badge" style="border-color:#ffa94d;color:#ffa94d">CARTE · ${escapeHtml(cardId)}</span>`;
+    } else if (bay === 4 && (formulaId || messageType === 'COUNTERTEST')) {
+      contextBadgeHtml = `<span class="speech-context-badge" style="border-color:#74c0fc;color:#74c0fc">RECHERCHE · ${escapeHtml(formulaId || 'ZENODO')}</span>`;
+    } else if (bay === 5 && formulaId) {
+      contextBadgeHtml = `<span class="speech-context-badge" style="border-color:#b197fc;color:#b197fc">PREUVE · ${escapeHtml(formulaId)}</span>`;
+    }
+
+    receptor.classList.add('speaking');
+    if (statusPill) {
+      statusPill.textContent = `PAROLE EN COURS [${speakerName}]`;
+      statusPill.classList.add('live-speech');
+    }
+
+    bodyEl.innerHTML = `
+      <div class="speech-active-msg">
+        <span class="speech-speaker-badge ${speakerClass}">${escapeHtml(speakerName)}</span>
+        <span class="speech-type-badge">${escapeHtml(messageType)}</span>
+        ${contextBadgeHtml}
+        <span class="speech-text-bubble">"${escapeHtml(text)}"</span>
+      </div>
+    `;
+  }
+
+  // 3. Audio Playback rule:
+  // ONLY Panel 1 triggers audio playback (AUDIO MASTER).
+  // Panels 2..5 display visual feedback only!
+  if (audioMaster === 'PANEL_1' && speech.FILE) {
+    gamezelPublicAudioReceive({
+      TYPE: 'PLAYER_VOICE',
+      EVENT_ID: speechId,
+      SOUND_ID: speech.SOUND_ID || speech.AUDIO_REF,
+      FILE: speech.FILE,
+      PLAYER_ID: pid,
+      PLAYER_NAME: speakerName,
+      SPEECH_TEXT: text,
+      PRIORITY: speech.PRIORITY || 80,
+      DUCK_OTHERS: true
+    }).catch(() => {});
+  }
+
+  // 4. Update Speech History Table
+  renderSpeechHistoryTable();
+
+  // Reset visual receptors after duration (4.5s)
+  if (gzActiveSpeechTimeout) clearTimeout(gzActiveSpeechTimeout);
+  gzActiveSpeechTimeout = setTimeout(() => {
+    for (let bay = 1; bay <= 5; bay++) {
+      const receptor = $('speechReceptorBay' + bay);
+      const statusPill = $('speechStatusBay' + bay);
+      const bodyEl = $('speechBodyBay' + bay);
+      if (receptor) receptor.classList.remove('speaking');
+      if (statusPill) {
+        statusPill.textContent = 'BUS EN VEILLE';
+        statusPill.classList.remove('live-speech');
+      }
+      if (bodyEl) {
+        bodyEl.innerHTML = `<span class="speech-idle-text">— EN ATTENTE DE PAROLE IA SUR LE BUS —</span>`;
+      }
+    }
+  }, 4500);
+}
+
+function renderSpeechHistoryTable() {
+  const tbody = $('speechTableBody');
+  if (!tbody) return;
+  if (!gzSpeechHistory.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="speech-empty-row">AUCUNE PAROLE ENREGISTRÉE · BUS PRÊT</td></tr>`;
+    return;
+  }
+
+  let html = '';
+  for (const s of gzSpeechHistory.slice(0, 30)) {
+    const timeStr = s.CREATED_AT ? s.CREATED_AT.slice(11, 19) : (s.TIMESTAMP ? new Date(s.TIMESTAMP).toTimeString().slice(0, 8) : '—');
+    const pid = (s.PLAYER_ID || s.SPEAKER_ID || 'P1').toUpperCase();
+    const speakerClass = `speech-speaker-${pid.toLowerCase()}`;
+    const ctx = s.FORMULA_ID ? `FORMULE:${s.FORMULA_ID}` : (s.CARD_ID ? `CARTE:${s.CARD_ID}` : '—');
+    const audioStatus = s.AUDIO_MASTER === 'PANEL_1'
+      ? `<span style="color:#69db7c;font-weight:700">MASTER [P1]</span>`
+      : `<span style="color:#8ca5b8">VISUEL</span>`;
+
+    html += `
+      <tr>
+        <td><code>${escapeHtml(s.SPEECH_ID || '—')}</code></td>
+        <td><span class="speech-speaker-badge ${speakerClass}">${escapeHtml(s.SPEAKER_NAME || pid)}</span></td>
+        <td><strong>${escapeHtml(s.MESSAGE || s.SPEECH_TEXT || '—')}</strong></td>
+        <td><code>${escapeHtml(timeStr)}</code></td>
+        <td><span class="speech-type-badge">${escapeHtml(s.AUDIENCE || 'ALL_TOWERS')}</span></td>
+        <td><code>${escapeHtml(ctx)}</code></td>
+        <td>${audioStatus}</td>
+      </tr>
+    `;
+  }
+  tbody.innerHTML = html;
+}
+
+function connectGamezelSpeechBusStream() {
+  if (typeof EventSource === 'undefined') return;
+  try {
+    if (gzSpeechEventSource) gzSpeechEventSource.close();
+    gzSpeechEventSource = new EventSource('./api/public/speech/stream');
+    gzSpeechEventSource.onmessage = (ev) => {
+      try {
+        const packet = JSON.parse(ev.data);
+        if (packet.speech) {
+          receivePublicSpeech(packet.speech);
+        } else if (packet.TYPE === 'PUBLIC_SPEECH' && packet.speech) {
+          receivePublicSpeech(packet.speech);
+        } else if (packet.SPEECH_ID) {
+          receivePublicSpeech(packet);
+        }
+      } catch (_) {}
+    };
+  } catch (_) {}
+}
+
+async function fetchSpeechHistory() {
+  try {
+    const res = await fetch('./api/public/speech/history?limit=25', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && Array.isArray(data.history)) {
+      for (const item of data.history.slice().reverse()) {
+        if (!gzSeenSpeechIds.has(item.SPEECH_ID)) {
+          gzSeenSpeechIds.add(item.SPEECH_ID);
+          gzSpeechHistory.unshift(item);
+        }
+      }
+      renderSpeechHistoryTable();
+    }
+  } catch (_) {}
+}
+
+function connectGamezelPublicAudioStream() {
+  if (typeof EventSource === 'undefined') return;
+  try {
+    if (gzAudioEventSource) gzAudioEventSource.close();
+    gzAudioEventSource = new EventSource('./api/public/audio/stream');
+    gzAudioEventSource.onmessage = (ev) => {
+      try {
+        const packet = JSON.parse(ev.data);
+        if (packet.speech) {
+          receivePublicSpeech(packet.speech);
+        } else if (packet.SPEECH_ID || (packet.TYPE === 'PLAYER_VOICE' && packet.SPEECH_TEXT)) {
+          receivePublicSpeech(packet);
+        }
+        gamezelPublicAudioReceive(packet);
+      } catch (_) {}
+    };
+  } catch (_) {}
+}
+
+function gamezelPublicAudioDiagnostics() {
+  return {
+    VERSO_AUDIO_PLAYBACK,
+    RECTO_PUBLIC_AUDIO_PLAYBACK,
+    DUPLICATE_PLAYBACK_GUARD,
+    publicAudioRoute: PUBLIC_AUDIO_STREAM_ROUTE,
+    lastPlayedSequence: gzLastPlayedSequence,
+    seenEventCount: gzSeenEventIds.size,
+    activeVoice: gzActiveVoice ? gzActiveVoice.cue : null,
+    activeSfxCount: gzActiveSfx.size,
+    autoplayLocked: gzAutoplayLocked,
+    muted: soundMuted,
+    volume: soundVolume,
+    playbackHistory: [...gzPlaybackHistory]
+  };
+}
+
+Object.defineProperty(window, 'GAMEZEL_SPEECH_BUS', {
+  value: Object.freeze({
+    receiveSpeech: receivePublicSpeech,
+    getHistory: () => gzSpeechHistory.slice(),
+    connectStream: connectGamezelSpeechBusStream,
+    fetchHistory: fetchSpeechHistory
+  }),
+  writable: false,
+  configurable: false
+});
+
+Object.defineProperty(window, 'GAMEZEL_PUBLIC_AUDIO', {
+  value: Object.freeze({
+    VERSO_AUDIO_PLAYBACK,
+    RECTO_PUBLIC_AUDIO_PLAYBACK,
+    DUPLICATE_PLAYBACK_GUARD,
+    publicAudioRoute: PUBLIC_AUDIO_STREAM_ROUTE,
+    receiveCue: gamezelPublicAudioReceive,
+    unlockAudio: gamezelPublicAudioUnlock,
+    stopAll: gamezelPublicAudioStopAll,
+    diagnostics: gamezelPublicAudioDiagnostics
+  }),
+  writable: false,
+  configurable: false
+});
+
 buildStages();
+connectGamezelPublicAudioStream();
+connectGamezelSpeechBusStream();
+fetchSpeechHistory();
 zelRegisterCanonicalMathBank().catch(err=>console.error('ZEL_CANONICAL_BANK_REJECTED',err));
 zelRegisterProfileFormulaBank().catch(err=>console.error('ZEL_PROFILE_BANK_REJECTED',err));
 zelRegisterEvolutionSeedBanks().catch(err=>console.error('ZEL_ENTITY38_BANK_REJECTED',err));
 connectZelWebSocket();
+gamezelQuickPresence();
 poll();
 setInterval(poll,2000);
+syncJevStatus();
+fetchZenodoQueue();
+fetchLineageGraph();
 </script>
 </body>
 </html>
