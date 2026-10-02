@@ -1,0 +1,98 @@
+name: Repair Antigravity CLI CPU compatibility on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/repair-antigravity-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install user-space QEMU and wrap agy
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+          AGY="$HOME/.local/bin/agy"
+          test -x "$AGY"
+
+          echo '=== HOST CPU ==='
+          if grep -qm1 -w pclmulqdq /proc/cpuinfo; then
+            echo 'HOST_PCLMUL=YES'
+          else
+            echo 'HOST_PCLMUL=NO'
+          fi
+
+          ROOT="$HOME/.local/lib/gamezel-qemu"
+          BIN="$HOME/.local/libexec"
+          mkdir -p "$ROOT" "$BIN" "$HOME/.cache/gamezel-qemu"
+
+          if ! test -x "$BIN/qemu-x86_64-static"; then
+            cd "$HOME/.cache/gamezel-qemu"
+            rm -f qemu-user-static_*.deb
+            apt-get download qemu-user-static >/tmp/gamezel-qemu-download.log 2>&1 || apt download qemu-user-static >/tmp/gamezel-qemu-download.log 2>&1
+            DEB="$(ls -1 qemu-user-static_*.deb | head -n 1)"
+            test -n "$DEB"
+            rm -rf "$ROOT"
+            mkdir -p "$ROOT"
+            dpkg-deb -x "$DEB" "$ROOT"
+            QEMU_FOUND="$(find "$ROOT" -type f \( -name 'qemu-x86_64-static' -o -name 'qemu-x86_64' -o -name 'x86_64-binfmt-P' \) -perm -u+x | head -n 1)"
+            test -n "$QEMU_FOUND"
+            cp "$QEMU_FOUND" "$BIN/qemu-x86_64-static"
+            chmod 755 "$BIN/qemu-x86_64-static"
+          fi
+
+          echo '=== QEMU ==='
+          "$BIN/qemu-x86_64-static" --version | head -n 1
+
+          echo '=== AGY UNDER EMULATION ==='
+          QEMU_CPU=max "$BIN/qemu-x86_64-static" -cpu max "$AGY" --version >/tmp/agy-version.txt 2>/tmp/agy-version.err || {
+            cat /tmp/agy-version.err
+            exit 1
+          }
+          cat /tmp/agy-version.txt
+
+          # Preserve Google's native binary and expose a transparent compatibility wrapper.
+          if ! test -e "$HOME/.local/bin/agy.native"; then
+            mv "$AGY" "$HOME/.local/bin/agy.native"
+          fi
+
+          cat > "$HOME/.local/bin/agy" <<'WRAP'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          QEMU="$HOME/.local/libexec/qemu-x86_64-static"
+          NATIVE="$HOME/.local/bin/agy.native"
+          exec env QEMU_CPU=max "$QEMU" -cpu max "$NATIVE" "$@"
+          WRAP
+          chmod 755 "$HOME/.local/bin/agy"
+
+          echo '=== WRAPPED AGY ==='
+          "$HOME/.local/bin/agy" --version
+          "$HOME/.local/bin/agy" --help >/tmp/agy-help.txt 2>&1
+          grep -E -i 'prompt|headless|json|resume|session|output|auth|login' /tmp/agy-help.txt | head -n 80 || true
+
+          echo 'ANTIGRAVITY_QEMU_COMPAT=PASS'
+          REMOTE
