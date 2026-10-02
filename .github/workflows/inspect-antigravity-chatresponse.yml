@@ -1,0 +1,41 @@
+name: Inspect Antigravity ChatResponse on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/inspect-antigravity-chatresponse.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+
+      - name: Inspect ChatResponse type
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          PY="$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"
+          "$PY" - <<'PY'
+          import inspect
+          from google.antigravity.types import ChatResponse
+          print("CHAT_RESPONSE_TYPE=", ChatResponse)
+          print("CHAT_RESPONSE_SIG=", inspect.signature(ChatResponse))
+          print("ANNOTATIONS=", getattr(ChatResponse,'__annotations__',{}))
+          print("PUBLIC=", [n for n in dir(ChatResponse) if not n.startswith('_')])
+          PY
+          REMOTE
