@@ -1,0 +1,84 @@
+name: Audit GAMEZEL AI runtimes on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/audit-gamezel-ai-runtimes-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Audit installed AI runtimes
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
+          export NO_COLOR=1
+
+          echo '=== CPU ==='
+          uname -m
+          if grep -qw pclmulqdq /proc/cpuinfo; then
+            echo 'CPU_PCLMUL=YES'
+          else
+            echo 'CPU_PCLMUL=NO'
+          fi
+
+          echo '=== GROK ==='
+          command -v grok
+          grok --version | head -n 1
+          grok --help 2>&1 | grep -E -i 'output-format|json-schema|oauth|login|auth|headless|prompt|max-turns|model' | head -n 80 || true
+
+          echo '=== GROK NONINTERACTIVE AUTH PROBE ==='
+          set +e
+          timeout 12s grok --output-format json --max-turns 1 'Return exactly the word READY and nothing else.' >/tmp/grok-probe.out 2>/tmp/grok-probe.err
+          GROK_RC=$?
+          set -e
+          echo "GROK_PROBE_RC=$GROK_RC"
+          sed -n '1,12p' /tmp/grok-probe.out | sed -E 's/(token|key|secret|password)[^ ]*/[REDACTED]/Ig' || true
+          sed -n '1,12p' /tmp/grok-probe.err | sed -E 's/(token|key|secret|password)[^ ]*/[REDACTED]/Ig' || true
+
+          echo '=== MUSE ==='
+          command -v muse
+          muse --version | head -n 1
+          muse --help 2>&1 | grep -E -i 'exec|json|login|auth|headless|model|session|prompt|non-interactive' | head -n 100 || true
+
+          echo '=== MUSE NONINTERACTIVE AUTH PROBE ==='
+          set +e
+          timeout 12s muse exec --json 'Return exactly the word READY and nothing else.' >/tmp/muse-probe.out 2>/tmp/muse-probe.err
+          MUSE_RC=$?
+          set -e
+          echo "MUSE_PROBE_RC=$MUSE_RC"
+          sed -n '1,12p' /tmp/muse-probe.out | sed -E 's/(token|key|secret|password)[^ ]*/[REDACTED]/Ig' || true
+          sed -n '1,12p' /tmp/muse-probe.err | sed -E 's/(token|key|secret|password)[^ ]*/[REDACTED]/Ig' || true
+
+          echo '=== ANTIGRAVITY ==='
+          command -v agy || true
+          ls -l "$(command -v agy 2>/dev/null)" 2>/dev/null || true
+          file "$(command -v agy 2>/dev/null)" 2>/dev/null || true
+          echo 'AGY_EXPECTED_CPU_BLOCK=PCLMUL_MISSING'
+
+          echo 'GAMEZEL_AI_RUNTIME_AUDIT=PASS'
+          REMOTE
