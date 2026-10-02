@@ -1,0 +1,272 @@
+name: Deploy GAMEZEL SSH Engine to VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/deploy-gamezel-engine-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gamezel-engine-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ENGINE_SHA: 13e196dea0b83081c5e93949a9814c49ae0400f7
+      REMOTE_TAR: /tmp/zelstereos-gamezel-${{ github.run_id }}.tgz
+
+    steps:
+      - name: Fetch pinned ZELSTEREOS engine
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/Topbrutus/zelstereos.git _gamezel_engine
+          cd _gamezel_engine
+          git checkout --quiet "$ENGINE_SHA"
+          test "$(git rev-parse HEAD)" = "$ENGINE_SHA"
+
+      - name: Validate shared SSH engine
+        run: |
+          set -euo pipefail
+          cd _gamezel_engine
+          npm install --silent --ignore-scripts --no-audit --no-fund
+          node --check server.js
+          node --check verso/ssh-player-adapter.js
+          node --test tests/ssh-player-shared-server.test.mjs
+
+      - name: Package engine
+        run: |
+          set -euo pipefail
+          rm -rf _gamezel_payload
+          mkdir _gamezel_payload
+          (
+            cd _gamezel_engine
+            tar --exclude='.git' --exclude='node_modules' -cf - .
+          ) | tar -xf - -C _gamezel_payload
+          tar -czf gamezel-engine.tgz -C _gamezel_payload .
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload engine payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519             gamezel-engine.tgz "$VPS_USER@$VPS_HOST:$REMOTE_TAR"
+
+      - name: Install central GAMEZEL engine and SSH player commands
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          test "$(hostname)" = "server1.antmux.com"
+          command -v node >/dev/null
+          command -v npm >/dev/null
+          command -v systemctl >/dev/null
+          command -v openssl >/dev/null
+
+          APP_ROOT="$HOME/zelstereos-gamezel"
+          CFG_ROOT="$HOME/.config/zelstereos"
+          SERVICE_DIR="$HOME/.config/systemd/user"
+          BACKUP_ROOT="$HOME/zelstereos-gamezel-backups/$(date -u +%Y%m%d-%H%M%S)-${{ env.ENGINE_SHA }}"
+          STAGE="$HOME/.cache/zelstereos-gamezel-${{ github.run_id }}"
+          REMOTE_TAR='${{ env.REMOTE_TAR }}'
+
+          mkdir -p "$CFG_ROOT" "$SERVICE_DIR" "$HOME/.cache" "$HOME/zelstereos-gamezel-backups"
+          chmod 700 "$CFG_ROOT"
+
+          if ! test -s "$CFG_ROOT/operator-token"; then
+            umask 077
+            openssl rand -hex 32 > "$CFG_ROOT/operator-token"
+          fi
+          if ! test -s "$CFG_ROOT/player-gateway-token"; then
+            umask 077
+            openssl rand -hex 32 > "$CFG_ROOT/player-gateway-token"
+          fi
+          chmod 600 "$CFG_ROOT/operator-token" "$CFG_ROOT/player-gateway-token"
+
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          tar -xzf "$REMOTE_TAR" -C "$STAGE"
+          rm -f "$REMOTE_TAR"
+
+          cd "$STAGE"
+          npm install --omit=dev --silent --ignore-scripts --no-audit --no-fund
+          node --check server.js
+          node --check verso/ssh-player-adapter.js
+
+          OLD_DATA=''
+          if test -d "$APP_ROOT"; then
+            mkdir -p "$BACKUP_ROOT"
+            cp -a "$APP_ROOT/." "$BACKUP_ROOT/"
+            if test -d "$APP_ROOT/.verso-vps"; then
+              OLD_DATA="$BACKUP_ROOT/.verso-vps"
+            fi
+            systemctl --user stop zelstereos-gamezel.service 2>/dev/null || true
+            rm -rf "$APP_ROOT"
+          fi
+
+          mv "$STAGE" "$APP_ROOT"
+          mkdir -p "$APP_ROOT/.verso-vps" "$APP_ROOT/logs"
+          if test -n "$OLD_DATA" && test -d "$OLD_DATA"; then
+            rm -rf "$APP_ROOT/.verso-vps"
+            cp -a "$OLD_DATA" "$APP_ROOT/.verso-vps"
+          fi
+
+          cat > "$APP_ROOT/bin/start-gamezel-service.sh" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+          CFG_ROOT="$HOME/.config/zelstereos"
+          export OPERATOR_TOKEN="$(cat "$CFG_ROOT/operator-token")"
+          export PLAYER_GATEWAY_TOKEN="$(cat "$CFG_ROOT/player-gateway-token")"
+          export PORT=3217
+          export HOST=127.0.0.1
+          export PUBLIC_SAFE=true
+          export VERSO_DATA_DIR="$APP_ROOT/.verso-vps"
+          export PLAYER_TURN_TIMEOUT_MS=120000
+          export VERSO_DEPLOY_ENABLED=false
+          export GAMEZEL_PUBLIC_DRAW_ENABLED=false
+          cd "$APP_ROOT"
+          exec /usr/bin/node server.js
+          SCRIPT
+          chmod 700 "$APP_ROOT/bin/start-gamezel-service.sh"
+
+          cat > "$APP_ROOT/bin/gamezel-player" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [ "$#" -lt 1 ]; then
+            echo 'usage: gamezel-player P1|P2|P3|P4 <command> [args...]' >&2
+            exit 2
+          fi
+          SEAT="$1"
+          shift
+          case "$SEAT" in P1|P2|P3|P4) ;; *) echo 'invalid GAMEZEL seat' >&2; exit 2 ;; esac
+          APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+          export ZEL_PLAYER_SERVER_URL='http://127.0.0.1:3217'
+          export ZEL_PLAYER_GATEWAY_TOKEN_FILE="$HOME/.config/zelstereos/player-gateway-token"
+          exec /usr/bin/node "$APP_ROOT/bin/zel-player.mjs" --player "$SEAT" "$@"
+          SCRIPT
+          chmod 700 "$APP_ROOT/bin/gamezel-player"
+
+          for seat in P1 P2 P3 P4; do
+            lower="$(printf '%s' "$seat" | tr '[:upper:]' '[:lower:]')"
+            cat > "$APP_ROOT/bin/gamezel-$lower" <<SCRIPT
+          #!/usr/bin/env bash
+          exec "$APP_ROOT/bin/gamezel-player" "$seat" "\$@"
+          SCRIPT
+            chmod 700 "$APP_ROOT/bin/gamezel-$lower"
+          done
+
+          cat > "$APP_ROOT/bin/gamezel-start-round" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          TOKEN="$(cat "$HOME/.config/zelstereos/operator-token")"
+          exec curl --fail --silent --show-error             -H "Authorization: Bearer $TOKEN"             -H 'Content-Type: application/json'             -X POST http://127.0.0.1:3217/api/operator/game/start-round             -d '{}'
+          SCRIPT
+          chmod 700 "$APP_ROOT/bin/gamezel-start-round"
+
+          cat > "$SERVICE_DIR/zelstereos-gamezel.service" <<'UNIT'
+          [Unit]
+          Description=ZELSTEREOS GAMEZEL central SSH engine
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=%h/zelstereos-gamezel
+          ExecStart=%h/zelstereos-gamezel/bin/start-gamezel-service.sh
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=default.target
+          UNIT
+
+          systemctl --user daemon-reload
+          systemctl --user enable zelstereos-gamezel.service >/dev/null
+          systemctl --user restart zelstereos-gamezel.service
+
+          READY=0
+          for i in $(seq 1 40); do
+            if curl --fail --silent --show-error http://127.0.0.1:3217/api/mode >/tmp/gamezel-mode.json 2>/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          test "$READY" -eq 1
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/gamezel-mode.json',encoding='utf-8'))
+          assert d['publicSafe'] is True
+          print('GAMEZEL_SERVICE_3217=PASS')
+          PY
+
+          PG_TOKEN="$(cat "$CFG_ROOT/player-gateway-token")"
+          curl --fail --silent --show-error             -H "x-player-gateway-auth: $PG_TOKEN"             http://127.0.0.1:3217/api/internal/player-gateway/status >/tmp/gamezel-gateway.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/gamezel-gateway.json',encoding='utf-8'))
+          assert d['gateway']=='READY'
+          assert set(d['canonicalSeats'])=={'P1','P2','P3','P4'}
+          print('GAMEZEL_SHARED_GATEWAY=PASS')
+          PY
+
+          echo '=== FOUR SSH COMMAND PROBE ==='
+          "$APP_ROOT/bin/gamezel-p1" join --json >/tmp/p1.json
+          "$APP_ROOT/bin/gamezel-p2" join --json >/tmp/p2.json
+          "$APP_ROOT/bin/gamezel-p3" join --json >/tmp/p3.json
+          "$APP_ROOT/bin/gamezel-p4" join --json >/tmp/p4.json
+          python3 - <<'PY'
+          import json
+          p1=json.load(open('/tmp/p1.json'))
+          p2=json.load(open('/tmp/p2.json'))
+          p3=json.load(open('/tmp/p3.json'))
+          p4=json.load(open('/tmp/p4.json'))
+          assert p1['MODE']=='SOLO'
+          assert p2['MODE']=='DUEL'
+          assert p3['MODE']=='TABLE_3'
+          assert p4['MODE']=='TABLE_4'
+          assert p4['status']['activePlayerCount']==4
+          print('GAMEZEL_SSH_TABLE4=PASS')
+          PY
+
+          "$APP_ROOT/bin/gamezel-p1" leave --json >/dev/null
+          "$APP_ROOT/bin/gamezel-p2" leave --json >/dev/null
+          "$APP_ROOT/bin/gamezel-p3" leave --json >/dev/null
+          "$APP_ROOT/bin/gamezel-p4" leave --json >/dev/null
+
+          echo "GAMEZEL_APP_ROOT=$APP_ROOT"
+          echo 'SSH_PLAYER_P1=~/zelstereos-gamezel/bin/gamezel-p1'
+          echo 'SSH_PLAYER_P2=~/zelstereos-gamezel/bin/gamezel-p2'
+          echo 'SSH_PLAYER_P3=~/zelstereos-gamezel/bin/gamezel-p3'
+          echo 'SSH_PLAYER_P4=~/zelstereos-gamezel/bin/gamezel-p4'
+          echo 'GAMEZEL_DEPLOY=PASS'
+          REMOTE
