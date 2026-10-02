@@ -1,0 +1,174 @@
+name: GAMEZEL TABLE4 End-to-End Test
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/test-gamezel-table4-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  table4-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run real four-player GAMEZEL round on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          APP="$HOME/zelstereos-gamezel"
+          systemctl --user is-active --quiet zelstereos-gamezel.service
+
+          # Reset only the live table seats; preserve all persisted cards and receipts.
+          for seat in p1 p2 p3 p4; do
+            "$APP/bin/gamezel-$seat" leave --json >/dev/null 2>&1 || true
+          done
+
+          echo '=== JOIN P1 ASTRA ==='
+          "$APP/bin/gamezel-p1" join --json >/tmp/gz4-join-p1.json
+          echo '=== JOIN P2 MUSE ==='
+          "$APP/bin/gamezel-p2" join --json >/tmp/gz4-join-p2.json
+          echo '=== JOIN P3 GROK ==='
+          "$APP/bin/gamezel-p3" join --json >/tmp/gz4-join-p3.json
+          echo '=== JOIN P4 ANTIGRAVITY ==='
+          "$APP/bin/gamezel-p4" join --json >/tmp/gz4-join-p4.json
+
+          echo '=== START TABLE_4 ROUND ==='
+          "$APP/bin/gamezel-start-round" >/tmp/gz4-round.json
+          "$APP/bin/gamezel-p1" status --json >/tmp/gz4-status-0.json
+
+          echo '=== TURN P1 ASTRA: CONNECT ALL ==='
+          "$APP/bin/gamezel-p1" play --card-json '{"card_type":"CONNECT","title":"TABLE4 P1 ASTRA CONNECT ALL","target":"all","method":"connectivity-probe","priority":"HIGH","expected_effect":"Probe GAMEZEL central subsystems from ASTRA seat","expected_output":"Successful connectivity receipt and turn handoff to P2"}' --json >/tmp/gz4-play-p1.json
+          "$APP/bin/gamezel-p1" status --json >/tmp/gz4-status-1.json
+
+          echo '=== TURN P2 MUSE: FULL TEST SUITE ==='
+          "$APP/bin/gamezel-p2" play --card-json '{"card_type":"TEST","title":"TABLE4 P2 MUSE FULL VPS SUITE","target":"all","method":"node-test","priority":"HIGH","expected_effect":"Run complete ZELSTEREOS suite from MUSE seat","expected_output":"Zero failures, receipt, turn handoff to P3"}' --json >/tmp/gz4-play-p2.json
+          "$APP/bin/gamezel-p2" status --json >/tmp/gz4-status-2.json
+
+          echo '=== TURN P3 GROK: CHECKPOINT ==='
+          "$APP/bin/gamezel-p3" play --card-json '{"card_type":"CHECKPOINT","title":"TABLE4 P3 GROK CHECKPOINT","target":"all","method":"checkpoint-capture","priority":"HIGH","expected_effect":"Capture current VPS GAMEZEL state from GROK seat","expected_output":"Checkpoint proof, rollback reference, turn handoff to P4"}' --json >/tmp/gz4-play-p3.json
+          "$APP/bin/gamezel-p3" status --json >/tmp/gz4-status-3.json
+
+          echo '=== TURN P4 ANTIGRAVITY: SSH SHARED-GATEWAY TEST ==='
+          "$APP/bin/gamezel-p4" play --card-json '{"card_type":"TEST","title":"TABLE4 P4 ANTIGRAVITY SSH SHARED GATEWAY","target":"tests/ssh-player-shared-server.test.mjs","method":"node-test","priority":"HIGH","expected_effect":"Revalidate shared SSH table isolation and auth from ANTIGRAVITY seat","expected_output":"Zero failures, receipt, turn returns to P1"}' --json >/tmp/gz4-play-p4.json
+          "$APP/bin/gamezel-p4" status --json >/tmp/gz4-status-4.json
+
+          python3 - <<'PY'
+          import json
+
+          def load(name):
+              with open('/tmp/'+name,encoding='utf-8') as f:
+                  return json.load(f)
+
+          joins=[load('gz4-join-p1.json'),load('gz4-join-p2.json'),load('gz4-join-p3.json'),load('gz4-join-p4.json')]
+          rnd=load('gz4-round.json')
+          statuses=[load(f'gz4-status-{i}.json') for i in range(5)]
+          plays=[load('gz4-play-p1.json'),load('gz4-play-p2.json'),load('gz4-play-p3.json'),load('gz4-play-p4.json')]
+
+          expected_join_modes=['SOLO','DUEL','TABLE_3','TABLE_4']
+          expected_names=['ASTRA','MUSE','GROK','ANTIGRAVITY']
+          for i,(j,mode,name) in enumerate(zip(joins,expected_join_modes,expected_names),1):
+              assert j['SUCCESS'] is True, (i,j)
+              assert j['MODE']==mode, (i,j['MODE'],mode)
+              assert j['PLAYER_NAME']==name, (i,j['PLAYER_NAME'],name)
+
+          assert rnd['mode']=='TABLE_4', rnd
+          assert rnd['roundActive'] is True
+          assert rnd['activePlayerCount']==4
+          assert rnd['currentTurn']['PLAYER_ID']=='P1'
+
+          expected_turns=['P1','P2','P3','P4','P1']
+          for idx,(s,turn) in enumerate(zip(statuses,expected_turns)):
+              assert s['MODE']=='TABLE_4', (idx,s['MODE'])
+              assert s['activePlayerCount']==4, (idx,s['activePlayerCount'])
+              assert s['currentTurn']['PLAYER_ID']==turn, (idx,s['currentTurn'],turn)
+
+          expected_players=[('P1','ASTRA'),('P2','MUSE'),('P3','GROK'),('P4','ANTIGRAVITY')]
+          for payload,(pid,pname) in zip(plays,expected_players):
+              assert payload['SUCCESS'] is True, (pid,payload.get('ERROR'))
+              assert payload['PLAYER_ID']==pid
+              assert payload['PLAYER_NAME']==pname
+              assert payload['card']['STATUS']=='SUCCEEDED', (pid,payload['card'].get('STATUS'),payload['card'].get('ERROR'))
+              assert payload.get('receipt') is not None, (pid,'missing receipt')
+              assert payload['receipt']['RESULT_STATUS']=='SUCCEEDED', (pid,payload['receipt'].get('RESULT_STATUS'))
+
+          muse_tests=plays[1]['receipt'].get('TEST_RESULTS') or {}
+          assert muse_tests.get('fail')==0, muse_tests
+          assert muse_tests.get('pass',0)>0, muse_tests
+
+          p4_tests=plays[3]['receipt'].get('TEST_RESULTS') or {}
+          assert p4_tests.get('fail')==0, p4_tests
+          assert p4_tests.get('pass',0)>0, p4_tests
+
+          rollback=plays[2]['receipt'].get('ROLLBACK_REF') or plays[2]['card'].get('ROLLBACK_REF')
+          assert rollback, 'P3 checkpoint rollback ref missing'
+
+          result={
+            'TEST':'GAMEZEL_TABLE4_E2E',
+            'SUCCESS':True,
+            'MODE':statuses[-1]['MODE'],
+            'ROUND':statuses[-1]['round'],
+            'ROUND_ACTIVE':statuses[-1]['roundActive'],
+            'ACTIVE_PLAYER_COUNT':statuses[-1]['activePlayerCount'],
+            'TURN_SEQUENCE':expected_turns,
+            'FINAL_CURRENT_TURN':statuses[-1]['currentTurn']['PLAYER_ID'],
+            'P1':{
+              'NAME':'ASTRA',
+              'CARD_ID':plays[0]['CARD_ID'],
+              'RECEIPT_ID':plays[0]['RECEIPT_ID'],
+              'STATUS':plays[0]['receipt']['RESULT_STATUS']
+            },
+            'P2':{
+              'NAME':'MUSE',
+              'CARD_ID':plays[1]['CARD_ID'],
+              'RECEIPT_ID':plays[1]['RECEIPT_ID'],
+              'STATUS':plays[1]['receipt']['RESULT_STATUS'],
+              'TESTS_PASS':muse_tests.get('pass'),
+              'TESTS_FAIL':muse_tests.get('fail'),
+              'TESTS_TOTAL':muse_tests.get('total'),
+              'DURATION_MS':muse_tests.get('duration')
+            },
+            'P3':{
+              'NAME':'GROK',
+              'CARD_ID':plays[2]['CARD_ID'],
+              'RECEIPT_ID':plays[2]['RECEIPT_ID'],
+              'STATUS':plays[2]['receipt']['RESULT_STATUS'],
+              'ROLLBACK_REF':rollback
+            },
+            'P4':{
+              'NAME':'ANTIGRAVITY',
+              'CARD_ID':plays[3]['CARD_ID'],
+              'RECEIPT_ID':plays[3]['RECEIPT_ID'],
+              'STATUS':plays[3]['receipt']['RESULT_STATUS'],
+              'TESTS_PASS':p4_tests.get('pass'),
+              'TESTS_FAIL':p4_tests.get('fail'),
+              'TESTS_TOTAL':p4_tests.get('total'),
+              'DURATION_MS':p4_tests.get('duration')
+            }
+          }
+          print(json.dumps(result,indent=2))
+          print('GAMEZEL_TABLE4_E2E=PASS')
+          PY
+          REMOTE
