@@ -19,7 +19,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      ENGINE_SHA: 5f0fb7a6dae061466c84b9d323cb39ae1e436b91
+      ENGINE_SHA: aaaf609e2d1c5d8ee0959c6705e26f0f086d9e33
       REMOTE_TAR: /tmp/zelstereos-gamezel-${{ github.run_id }}.tgz
 
     steps:
