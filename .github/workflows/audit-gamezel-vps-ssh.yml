@@ -1,0 +1,93 @@
+name: Audit GAMEZEL VPS SSH
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/audit-gamezel-vps-ssh.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only GAMEZEL VPS audit
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          echo '=== HOST ==='
+          hostname
+          id -un
+
+          echo '=== NODE ==='
+          command -v node || true
+          node --version 2>/dev/null || true
+          command -v npm || true
+
+          echo '=== GAMEZEL PORT 3217 ==='
+          ss -ltn 2>/dev/null | grep -E '(^|[[:space:]])127\.0\.0\.1:3217([[:space:]]|$)|(^|[[:space:]])0\.0\.0\.0:3217([[:space:]]|$)|\[::1\]:3217' || true
+
+          echo '=== GAMEZEL USER SERVICE ==='
+          systemctl --user is-enabled zelstereos-gamezel.service 2>/dev/null || true
+          systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true
+          systemctl --user status zelstereos-gamezel.service --no-pager -n 8 2>/dev/null | sed -E 's/(TOKEN|KEY|SECRET)=[^[:space:]]+/\1=[REDACTED]/g' || true
+
+          echo '=== RELEVANT HOME DIRECTORIES ==='
+          find "$HOME" -maxdepth 1 -mindepth 1 -type d \( -iname '*zel*' -o -iname '*gamezel*' \) -printf '%f\n' 2>/dev/null | sort || true
+
+          echo '=== RELEVANT USER SERVICE FILES ==='
+          if test -d "$HOME/.config/systemd/user"; then
+            find "$HOME/.config/systemd/user" -maxdepth 1 -type f \( -iname '*zel*' -o -iname '*gamezel*' \) -printf '%f\n' 2>/dev/null | sort || true
+            for f in "$HOME"/.config/systemd/user/*zel* "$HOME"/.config/systemd/user/*gamezel*; do
+              test -f "$f" || continue
+              echo "--- $(basename "$f")"
+              grep -En '^(Description|WorkingDirectory|ExecStart|EnvironmentFile|Restart|RestartSec)=' "$f" || true
+            done
+          fi
+
+          echo '=== SSH FORCED COMMANDS ONLY ==='
+          if test -f "$HOME/.ssh/authorized_keys"; then
+            grep -oE 'command="[^"]+"' "$HOME/.ssh/authorized_keys" || true
+          fi
+          if test -d "$HOME/.ssh/authorized_keys.d"; then
+            for f in "$HOME"/.ssh/authorized_keys.d/*; do
+              test -f "$f" || continue
+              echo "--- $(basename "$f")"
+              grep -oE 'command="[^"]+"' "$f" || true
+            done
+          fi
+
+          echo '=== NGINX ZELSTEREOS/GAMEZEL ROUTES ==='
+          for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
+            test -f "$f" || continue
+            grep -HnE 'zelstereos|gamezel|3217|proxy_pass' "$f" 2>/dev/null || true
+          done
+
+          echo '=== AUDIT COMPLETE ==='
+          REMOTE
