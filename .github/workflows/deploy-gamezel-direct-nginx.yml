@@ -1,0 +1,137 @@
+name: Deploy direct GAMEZEL public proxy
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/deploy-gamezel-direct-nginx.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install direct public proxy on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          SITE=/etc/nginx/sites-enabled/antmux.com
+          SNIPPET=/etc/nginx/snippets/zelstereos-gamezel-public.conf
+          BACKUP="/tmp/antmux.com.before-gamezel.$(date -u +%Y%m%d%H%M%S)"
+
+          systemctl --user is-active --quiet zelstereos-gamezel.service
+          curl --fail --silent --show-error http://127.0.0.1:3217/api/public/gamezel/state >/tmp/gamezel-local-state.json
+
+          sudo -n cp "$SITE" "$BACKUP"
+
+          cat >/tmp/zelstereos-gamezel-public.conf <<'NGINX'
+          # ZELSTEREOS / GAMEZEL direct public read-only bridge.
+          # Operator and mutation APIs are intentionally NOT proxied.
+
+          location ^~ /laboratoire/zelstereos/api/public/ {
+              proxy_pass http://127.0.0.1:3217/api/public/;
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_set_header Connection "";
+              proxy_buffering off;
+              proxy_cache off;
+              proxy_read_timeout 3600s;
+              proxy_send_timeout 3600s;
+              add_header Cache-Control "no-store" always;
+              add_header X-Accel-Buffering "no" always;
+          }
+
+          location = /laboratoire/zelstereos/api/mode {
+              proxy_pass http://127.0.0.1:3217/api/mode;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              add_header Cache-Control "no-store" always;
+          }
+
+          location = /laboratoire/zelstereos/api/jev/status {
+              proxy_pass http://127.0.0.1:3217/api/jev/status;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              add_header Cache-Control "no-store" always;
+          }
+          NGINX
+
+          sudo -n install -m 0644 /tmp/zelstereos-gamezel-public.conf "$SNIPPET"
+
+          python3 - <<'PY' >/tmp/antmux.com.updated
+          from pathlib import Path
+          p=Path('/etc/nginx/sites-enabled/antmux.com')
+          s=p.read_text()
+          include='    include /etc/nginx/snippets/zelstereos-gamezel-public.conf;\n'
+          if include not in s:
+              anchor='    # ANTMUX X72 shared Queen routes\n'
+              if anchor not in s:
+                  raise SystemExit('HTTPS insertion anchor missing')
+              s=s.replace(anchor, include+'\n'+anchor, 1)
+          print(s,end='')
+          PY
+
+          sudo -n install -m 0644 /tmp/antmux.com.updated "$SITE"
+
+          if ! sudo -n nginx -t; then
+            sudo -n cp "$BACKUP" "$SITE"
+            sudo -n nginx -t
+            exit 1
+          fi
+
+          sudo -n systemctl reload nginx
+
+          curl --fail --silent --show-error https://antmux.com/laboratoire/zelstereos/api/public/gamezel/state >/tmp/gamezel-public-state.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/gamezel-public-state.json',encoding='utf-8'))
+          assert d['status']=='ONLINE'
+          assert d['surface']=='GAMEZEL_LIVE'
+          assert d['read_only'] is True
+          assert d['persisted'] is True
+          print('GAMEZEL_PUBLIC_STATE=PASS')
+          PY
+
+          curl --fail --silent --show-error https://antmux.com/laboratoire/zelstereos/api/mode >/tmp/gamezel-mode-public.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/gamezel-mode-public.json',encoding='utf-8'))
+          assert d['surface']=='RECTO_PUBLIC'
+          assert d['readOnly'] is True
+          print('GAMEZEL_PUBLIC_MODE=PASS')
+          PY
+
+          # SSE must emit a direct GAMEZEL snapshot without needing X72/WebSocket.
+          timeout 5s curl --fail --silent --show-error --no-buffer             https://antmux.com/laboratoire/zelstereos/api/public/gamezel/stream             | sed -n '1p' >/tmp/gamezel-sse-first-line || true
+          grep -Fq 'GAMEZEL_LIVE_SNAPSHOT' /tmp/gamezel-sse-first-line
+          echo 'GAMEZEL_PUBLIC_SSE=PASS'
+          echo 'GAMEZEL_DIRECT_NGINX=PASS'
+          REMOTE
