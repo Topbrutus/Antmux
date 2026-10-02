@@ -771,14 +771,14 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
 
   <div class="gamezel-quick-play" id="gamezelQuickPlay">
     <div class="gamezel-quick-head">
-      <span class="gamezel-quick-title">GAMEZEL · JOUER UNE CARTE</span>
-      <span class="gamezel-quick-status" id="gamezelQuickStatus">CONNEXION…</span>
+      <span class="gamezel-quick-title">GAMEZEL · TABLE VPS · JOUEURS VIA SSH</span>
+      <span class="gamezel-quick-status" id="gamezelQuickStatus">VPS : CONNEXION…</span>
     </div>
     <div class="gamezel-quick-buttons">
-      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P1">P1 · ASTRA</button>
-      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P2">P2 · MUSE</button>
-      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P3">P3 · GROK</button>
-      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P4">P4 · ANTIGRAVITY</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P1" disabled title="Siège piloté par SSH sur le VPS">P1 · ASTRA</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P2" disabled title="Siège piloté par SSH sur le VPS">P2 · MUSE</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P3" disabled title="Siège piloté par SSH sur le VPS">P3 · GROK</button>
+      <button type="button" class="gamezel-draw-btn" data-gamezel-player="P4" disabled title="Siège piloté par SSH sur le VPS">P4 · ANTIGRAVITY</button>
     </div>
   </div>
 
@@ -4177,12 +4177,8 @@ function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stag
   document.querySelectorAll('.stage').forEach((el,i)=>{el.classList.toggle('active',i===s.stage_index);el.classList.toggle('done',i<s.stage_index);});
   $('values').innerHTML='';(s.public_values||[]).forEach((v,i)=>{const d=document.createElement('div');d.className='value';d.innerHTML='<small>CANAL '+String(i+1).padStart(2,'0')+'</small>'+v.exact+'<small>'+Number(v.decimal).toPrecision(9)+'</small>';$('values').appendChild(d);});
   $('valueNote').textContent=(s.public_values_total||0)+' valeur(s) dans cet étage · '+(s.public_values||[]).length+' affichée(s) publiquement.';
-  if ($('labGameRound')) $('labGameRound').textContent = s.round ?? s.event_seq ?? (s.stage_index !== undefined ? s.stage_index : 0);
-  if ($('labQueueDepth')) $('labQueueDepth').textContent = s.queue_depth ?? (s.public_values_total || 0);
-  if ($('labRunningCard')) $('labRunningCard').textContent = s.running_card ?? (s.stage || 'NONE');
-  if ($('labLastReceipt')) $('labLastReceipt').textContent = s.last_receipt ?? (s.events && s.events.length ? '#' + s.events[s.events.length-1].seq : '—');
-  if ($('labLastProof')) $('labLastProof').textContent = s.f1 ? (s.f1.source_commit_short || s.f1.formula_id || '—') : '—';
-  if ($('continuityTableBody')) renderContinuityTable(s.events);
+  // GAMEZEL telemetry is owned by the direct VPS static mirror.
+  // X72 rendering must never overwrite the live game table.
   $('events').innerHTML='';const evs=(s.events||[]).slice().reverse();if(!evs.length){$('events').innerHTML='<div class="event"><small>EN ATTENTE</small><code>Aucune activité publique pour le moment.</code></div>';}else{evs.forEach(ev=>{const d=document.createElement('div');const st=String(ev.status||'').toLowerCase();d.className='event '+(st==='pass'?'pass':st==='fail'?'fail':'');const sm=document.createElement('small');sm.textContent='#'+ev.seq+' · '+new Date(ev.timestamp*1000).toLocaleTimeString('fr-CA',{hour12:false})+' · '+ev.source+' · '+ev.kind+' · '+ev.status;const code=document.createElement('code');code.textContent=ev.label+(ev.detail?' — '+ev.detail:'');d.appendChild(sm);d.appendChild(code);$('events').appendChild(d);});}
 }
 function renderContinuityTable(events) {
@@ -4298,11 +4294,7 @@ function connectZelWebSocket(){
   zelSocket.addEventListener('message',ev=>{
     try{
       const s=JSON.parse(ev.data);
-      if(gamezelHandlePublicDrawPacket(s))return;
-      if(s&&s.type==='GAMEZEL_AUDIO_CUE'&&s.cue){
-        if(typeof gamezelPublicAudioReceive==='function')gamezelPublicAudioReceive(s.cue);
-        return;
-      }
+      // GAMEZEL no longer travels through the X72 websocket.
       if(s.mode!=='PUBLIC_SAFE'||s.read_only!==true||!Number.isInteger(s.stage_index)||s.stage_index<0||s.stage_index>6)return;
       wsHasLiveState=true;
       lastWsMessageAt=Date.now();
@@ -5988,6 +5980,180 @@ Object.defineProperty(window, 'GAMEZEL_SPEECH_BUS', {
   configurable: false
 });
 
+// ========================================================
+// GAMEZEL DIRECT VPS STATIC MIRROR — NO WEBSOCKET / NO X72 BRIDGE
+// ========================================================
+const GAMEZEL_STATIC_MIRROR_BASE='./live';
+let gzMirrorPollTimer=null;
+let gzMirrorPollBusy=false;
+let gzMirrorAudioInitialized=false;
+let gzMirrorSpeechInitialized=false;
+let gzMirrorLastAudioSequence=0;
+let gzMirrorLastSpeechSequence=0;
+
+const GAMEZEL_SEAT_ROLES=Object.freeze({
+  P1:'Rôle : Validateur Standard · Machine de calcul',
+  P2:'Rôle : Proposeur de candidats & mutations',
+  P3:'Rôle : Adversarial / Recherche de cassures',
+  P4:'Rôle : Observateur & Vérification indépendante'
+});
+
+async function gamezelMirrorFetch(fileName){
+  const sep=fileName.includes('?')?'&':'?';
+  const r=await fetch(GAMEZEL_STATIC_MIRROR_BASE+'/'+fileName+sep+'_='+Date.now(),{cache:'no-store'});
+  if(!r.ok)throw new Error('GAMEZEL_MIRROR_HTTP_'+r.status);
+  return await r.json();
+}
+
+function gamezelRenderMirrorState(s){
+  if(!s||s.status!=='ONLINE'||s.surface!=='GAMEZEL_LIVE')throw new Error('GAMEZEL_MIRROR_BAD_STATE');
+
+  if($('labGameMode'))$('labGameMode').textContent=String(s.mode||'CLASSIC');
+  if($('labGameRound'))$('labGameRound').textContent=String(s.round??0);
+  if($('labQueueDepth'))$('labQueueDepth').textContent=String(s.queue_depth??0);
+
+  const running=s.running_card;
+  if($('labRunningCard'))$('labRunningCard').textContent=running
+    ? String((running.CARD_TYPE||'CARD')+' · '+(running.PLAYER_NAME||running.PLAYER_ID||'—'))
+    : 'NONE';
+
+  const receipt=s.last_receipt;
+  if($('labLastReceipt'))$('labLastReceipt').textContent=receipt?.RECEIPT_ID||'—';
+  if($('labLastProof'))$('labLastProof').textContent=receipt?.PROOF_REF||'—';
+
+  const currentId=s.current_turn?.PLAYER_ID||null;
+  for(const p of (Array.isArray(s.players)?s.players:[])){
+    const pid=String(p.PLAYER_ID||'').toUpperCase();
+    if(!/^P[1-4]$/.test(pid))continue;
+    const badge=$('seat'+pid+'Status');
+    const detail=$('seat'+pid+'Detail');
+    const card=$('cardSeat'+pid);
+    const isTurn=currentId===pid;
+    if(badge)badge.textContent=isTurn?'TOUR ACTIF':String(p.STATUS||'AVAILABLE');
+    if(detail){
+      const roundLabel=p.IN_ROUND?'EN RONDE':(p.PENDING_NEXT_ROUND?'PROCHAINE RONDE':'DISPONIBLE');
+      detail.textContent=(GAMEZEL_SEAT_ROLES[pid]||'Rôle : joueur')+' · '+roundLabel+(isTurn?' · JOUE MAINTENANT':'');
+    }
+    if(card)card.classList.toggle('is-active',isTurn);
+  }
+
+  const status=$('gamezelQuickStatus');
+  if(status){
+    const turn=s.current_turn?.PLAYER_ID||'—';
+    status.textContent='VPS LIVE · '+String(s.mode||'CLASSIC')+' · '+String(s.active_player_count??0)+'/4 · TOUR '+turn;
+  }
+
+  document.querySelectorAll('[data-gamezel-player]').forEach(btn=>{
+    btn.disabled=true;
+    btn.title='Siège piloté par SSH sur le VPS';
+  });
+}
+
+function gamezelRenderMirrorEvents(packet){
+  const src=Array.isArray(packet?.events)?packet.events:[];
+  const mapped=src.map(e=>{
+    const receipt=e.receipt||null;
+    const card=e.card||null;
+    const rawStatus=String(receipt?.RESULT_STATUS||card?.STATUS||'PASS').toUpperCase();
+    const failed=['FAILED','FAIL','INVALID','CANCELLED','INTERRUPTED','BROKEN'].includes(rawStatus);
+    const label=card
+      ? String((card.CARD_TYPE||'CARD')+' · '+(card.TITLE||card.CARD_ID||'—'))
+      : String(e.event_type||'GAMEZEL');
+    const detail=receipt
+      ? String((receipt.RECEIPT_ID||'')+(receipt.RESULT_STATUS?' · '+receipt.RESULT_STATUS:''))
+      : '';
+    const tsMs=Number(e.timestamp)||Date.now();
+    return {
+      seq:Number(e.mirror_sequence)||0,
+      timestamp:Math.floor(tsMs/1000),
+      source:e.player_name||e.player_id||'GAMEZEL',
+      kind:e.event_type||'EVENT',
+      label,
+      detail,
+      proof_ref:receipt?.PROOF_REF||null,
+      status:failed?'FAIL':'PASS'
+    };
+  });
+  renderContinuityTable(mapped);
+}
+
+async function gamezelConsumeMirrorAudio(packet){
+  const cues=Array.isArray(packet?.cues)?packet.cues.slice():[];
+  cues.sort((a,b)=>(Number(a.SEQUENCE)||0)-(Number(b.SEQUENCE)||0));
+
+  const packetSeq=Number(packet?.sequence)||0;
+  if(!gzMirrorAudioInitialized){
+    gzMirrorLastAudioSequence=packetSeq;
+    gzMirrorAudioInitialized=true;
+    return;
+  }
+
+  for(const cue of cues){
+    const seq=Number(cue.SEQUENCE)||0;
+    if(seq<=gzMirrorLastAudioSequence)continue;
+    if(typeof gamezelPublicAudioReceive==='function'){
+      try{await gamezelPublicAudioReceive(cue);}catch(_){}
+    }
+    gzMirrorLastAudioSequence=Math.max(gzMirrorLastAudioSequence,seq);
+  }
+  gzMirrorLastAudioSequence=Math.max(gzMirrorLastAudioSequence,packetSeq);
+}
+
+function gamezelConsumeMirrorSpeech(packet){
+  const history=Array.isArray(packet?.history)?packet.history.slice():[];
+  const seqOf=s=>Number(s?.SEQUENCE)||0;
+
+  if(!gzMirrorSpeechInitialized){
+    const chronological=history.slice().sort((a,b)=>seqOf(a)-seqOf(b));
+    for(const s of chronological){
+      if(!s?.SPEECH_ID||gzSeenSpeechIds.has(s.SPEECH_ID))continue;
+      gzSeenSpeechIds.add(s.SPEECH_ID);
+      gzSpeechHistory.unshift(s);
+      gzMirrorLastSpeechSequence=Math.max(gzMirrorLastSpeechSequence,seqOf(s));
+    }
+    if(gzSpeechHistory.length>50)gzSpeechHistory.length=50;
+    renderSpeechHistoryTable();
+    gzMirrorSpeechInitialized=true;
+    return;
+  }
+
+  const fresh=history
+    .filter(s=>seqOf(s)>gzMirrorLastSpeechSequence)
+    .sort((a,b)=>seqOf(a)-seqOf(b));
+  for(const s of fresh){
+    receivePublicSpeech(s);
+    gzMirrorLastSpeechSequence=Math.max(gzMirrorLastSpeechSequence,seqOf(s));
+  }
+}
+
+async function gamezelPollStaticMirror(){
+  if(gzMirrorPollBusy)return;
+  gzMirrorPollBusy=true;
+  try{
+    const [state,events,audio,speech]=await Promise.all([
+      gamezelMirrorFetch('state.json'),
+      gamezelMirrorFetch('events.json'),
+      gamezelMirrorFetch('audio.json'),
+      gamezelMirrorFetch('speech.json')
+    ]);
+    gamezelRenderMirrorState(state);
+    gamezelRenderMirrorEvents(events);
+    await gamezelConsumeMirrorAudio(audio);
+    gamezelConsumeMirrorSpeech(speech);
+  }catch(err){
+    const status=$('gamezelQuickStatus');
+    if(status)status.textContent='VPS MIRROR · RECONNEXION…';
+  }finally{
+    gzMirrorPollBusy=false;
+  }
+}
+
+function connectGamezelStaticMirror(){
+  if(gzMirrorPollTimer)clearInterval(gzMirrorPollTimer);
+  gamezelPollStaticMirror();
+  gzMirrorPollTimer=setInterval(gamezelPollStaticMirror,1000);
+}
+
 Object.defineProperty(window, 'GAMEZEL_PUBLIC_AUDIO', {
   value: Object.freeze({
     VERSO_AUDIO_PLAYBACK,
@@ -6004,14 +6170,11 @@ Object.defineProperty(window, 'GAMEZEL_PUBLIC_AUDIO', {
 });
 
 buildStages();
-connectGamezelPublicAudioStream();
-connectGamezelSpeechBusStream();
-fetchSpeechHistory();
+connectGamezelStaticMirror();
 zelRegisterCanonicalMathBank().catch(err=>console.error('ZEL_CANONICAL_BANK_REJECTED',err));
 zelRegisterProfileFormulaBank().catch(err=>console.error('ZEL_PROFILE_BANK_REJECTED',err));
 zelRegisterEvolutionSeedBanks().catch(err=>console.error('ZEL_ENTITY38_BANK_REJECTED',err));
 connectZelWebSocket();
-gamezelQuickPresence();
 poll();
 setInterval(poll,2000);
 syncJevStatus();
