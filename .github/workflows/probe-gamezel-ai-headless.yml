@@ -1,0 +1,59 @@
+name: Probe GAMEZEL AI headless commands
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/probe-gamezel-ai-headless.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect headless flags on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
+
+          echo '=== GROK SINGLE HELP ==='
+          grok --help 2>&1 | sed -n '1,240p'
+
+          echo '=== GROK AGENT HELP ==='
+          grok agent --help 2>&1 | sed -n '1,220p' || true
+
+          echo '=== GROK LOGIN HELP ==='
+          grok login --help 2>&1 | sed -n '1,160p' || true
+
+          echo '=== MUSE EXEC HELP ==='
+          muse exec --help 2>&1 | sed -n '1,260p'
+
+          echo '=== MUSE AUTH HELP ==='
+          muse auth --help 2>&1 | sed -n '1,220p' || true
+
+          echo '=== MUSE LOGIN HELP ==='
+          muse login --help 2>&1 | sed -n '1,220p' || true
+
+          echo 'GAMEZEL_AI_HEADLESS_PROBE=PASS'
+          REMOTE
