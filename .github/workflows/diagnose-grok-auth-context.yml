@@ -1,0 +1,78 @@
+name: Diagnose Grok auth context on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/diagnose-grok-auth-context.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Diagnose auth context without exposing credentials
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          export PATH="$HOME/.grok/bin:$HOME/.local/bin:$PATH"
+
+          echo '=== CONTEXT ==='
+          printf 'USER=%s\n' "$(id -un)"
+          printf 'HOME=%s\n' "$HOME"
+          printf 'SHELL=%s\n' "${SHELL:-}"
+          printf 'XDG_RUNTIME_DIR_SET=%s\n' "$(test -n "${XDG_RUNTIME_DIR:-}" && echo YES || echo NO)"
+          printf 'DBUS_SESSION_BUS_ADDRESS_SET=%s\n' "$(test -n "${DBUS_SESSION_BUS_ADDRESS:-}" && echo YES || echo NO)"
+
+          echo '=== GROK CONFIG PRESENCE ONLY ==='
+          test -d "$HOME/.grok" && echo 'GROK_HOME= PRESENT' || echo 'GROK_HOME= MISSING'
+          if test -d "$HOME/.grok"; then
+            find "$HOME/.grok" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null               | grep -Ev '(^|[^A-Za-z])(token|secret|credential|auth|key)([^A-Za-z]|$)'               | sort               | sed -n '1,80p' || true
+          fi
+
+          echo '=== GROK MODELS CLASSIFICATION ==='
+          set +e
+          timeout 15s grok models >/tmp/grok-models.out 2>/tmp/grok-models.err
+          rc=$?
+          set -e
+          echo "GROK_MODELS_RC=$rc"
+          if [ "$rc" -eq 0 ]; then
+            echo 'GROK_MODELS=PASS'
+          elif grep -qiE 'not authenticated|login required|not logged|authenticate|authorization' /tmp/grok-models.out /tmp/grok-models.err; then
+            echo 'GROK_MODELS=AUTH_REQUIRED'
+          else
+            echo 'GROK_MODELS=OTHER_FAILURE'
+          fi
+
+          echo '=== GROK SINGLE CLASSIFICATION ==='
+          set +e
+          timeout 20s grok --single 'Return exactly READY and nothing else.' --output-format plain --max-turns 1 --disable-web-search --permission-mode plan >/tmp/grok-single.out 2>/tmp/grok-single.err
+          rc2=$?
+          set -e
+          echo "GROK_SINGLE_RC=$rc2"
+          if [ "$rc2" -eq 0 ] && grep -qi 'READY' /tmp/grok-single.out; then
+            echo 'GROK_SINGLE=PASS'
+          elif grep -qiE 'not authenticated|login required|not logged|authenticate|authorization' /tmp/grok-single.out /tmp/grok-single.err; then
+            echo 'GROK_SINGLE=AUTH_REQUIRED'
+          else
+            echo 'GROK_SINGLE=OTHER_FAILURE'
+          fi
+          REMOTE
