@@ -19,7 +19,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      ENGINE_SHA: aaaf609e2d1c5d8ee0959c6705e26f0f086d9e33
+      ENGINE_SHA: d159d9fd31218f8048abbf7ce2870baf8b8ec375
       REMOTE_TAR: /tmp/zelstereos-gamezel-${{ github.run_id }}.tgz
 
     steps:
@@ -155,6 +155,8 @@ jobs:
           export PLAYER_TURN_TIMEOUT_MS=120000
           export VERSO_DEPLOY_ENABLED=false
           export GAMEZEL_PUBLIC_DRAW_ENABLED=false
+          export PUBLIC_MIRROR_DIR='/var/www/antmux.com/public_html/laboratoire/zelstereos/live'
+          export PUBLIC_MIRROR_INTERVAL_MS=1000
           cd "$APP_ROOT"
           exec /usr/bin/node server.js
           SCRIPT
