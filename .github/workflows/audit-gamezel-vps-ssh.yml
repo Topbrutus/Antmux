@@ -83,6 +83,22 @@ jobs:
             done
           fi
 
+          echo '=== PRIVATE ZELSTEREOS REPO ACCESS FROM VPS ==='
+          if GIT_TERMINAL_PROMPT=0 git ls-remote git@github.com:Topbrutus/zelstereos.git HEAD >/tmp/zel-private-head 2>/tmp/zel-private-err; then
+            printf 'GITHUB_PRIVATE_REPO_SSH=PASS HEAD='
+            awk '{print $1}' /tmp/zel-private-head
+          else
+            echo 'GITHUB_PRIVATE_REPO_SSH=FAIL'
+            sed -n '1,3p' /tmp/zel-private-err | sed -E 's/(token|password|secret|key)[^ ]*/[REDACTED]/Ig'
+          fi
+
+          if GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/Topbrutus/zelstereos.git HEAD >/tmp/zel-private-head-https 2>/tmp/zel-private-err-https; then
+            printf 'GITHUB_PRIVATE_REPO_HTTPS=PASS HEAD='
+            awk '{print $1}' /tmp/zel-private-head-https
+          else
+            echo 'GITHUB_PRIVATE_REPO_HTTPS=FAIL'
+          fi
+
           echo '=== NGINX ZELSTEREOS/GAMEZEL ROUTES ==='
           for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
             test -f "$f" || continue
