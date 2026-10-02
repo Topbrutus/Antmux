@@ -180,7 +180,7 @@ function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
   g.gain.exponentialRampToValueAtTime(.0001,start+dur);
   src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.03);return true;
 }
-async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);}syncAudioState();return audioCtx;}
+async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);gamezelWarmPublicVoices();}syncAudioState();return audioCtx;}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
 document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
 document.addEventListener('touchstart',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
@@ -2948,6 +2948,58 @@ function render(s,{audioFromWebSocket=false,stageDt=.65,stageWorkRatio=null,stag
   $('valueNote').textContent=(s.public_values_total||0)+' valeur(s) dans cet étage · '+(s.public_values||[]).length+' affichée(s) publiquement.';
   $('events').innerHTML='';const evs=(s.events||[]).slice().reverse();if(!evs.length){$('events').innerHTML='<div class="event"><small>EN ATTENTE</small><code>Aucune activité publique pour le moment.</code></div>';}else{evs.forEach(ev=>{const d=document.createElement('div');const st=String(ev.status||'').toLowerCase();d.className='event '+(st==='pass'?'pass':st==='fail'?'fail':'');const sm=document.createElement('small');sm.textContent='#'+ev.seq+' · '+new Date(ev.timestamp*1000).toLocaleTimeString('fr-CA',{hour12:false})+' · '+ev.source+' · '+ev.kind+' · '+ev.status;const code=document.createElement('code');code.textContent=ev.label+(ev.detail?' — '+ev.detail:'');d.appendChild(sm);d.appendChild(code);$('events').appendChild(d);});}
 }
+const GAMEZEL_PUBLIC_PLAY_VOICES=Object.freeze({
+  P1:'VOICE_P1_ASTRA_PLAY.mp3',
+  P2:'VOICE_P2_MUSE_PLAY.mp3',
+  P3:'VOICE_P3_GROK_PLAY.mp3',
+  P4:'VOICE_P4_ANTIGRAVITY_PLAY.mp3'
+});
+const gamezelPublicVoiceBuffers=new Map();
+const gamezelPublicVoiceLoading=new Map();
+
+async function gamezelLoadPublicVoice(playerId){
+  const pid=String(playerId||'').toUpperCase();
+  const file=GAMEZEL_PUBLIC_PLAY_VOICES[pid];
+  if(!file||!audioCtx)return null;
+  if(gamezelPublicVoiceBuffers.has(pid))return gamezelPublicVoiceBuffers.get(pid);
+  if(gamezelPublicVoiceLoading.has(pid))return gamezelPublicVoiceLoading.get(pid);
+  const pending=(async()=>{
+    const r=await fetch('./assets/sfx/'+encodeURIComponent(file),{cache:'force-cache'});
+    if(!r.ok)throw new Error('GAMEZEL_VOICE_HTTP_'+r.status);
+    const b=await audioCtx.decodeAudioData((await r.arrayBuffer()).slice(0));
+    gamezelPublicVoiceBuffers.set(pid,b);
+    return b;
+  })().finally(()=>gamezelPublicVoiceLoading.delete(pid));
+  gamezelPublicVoiceLoading.set(pid,pending);
+  return pending;
+}
+
+async function gamezelPlayPublicDraw(packet){
+  if(!packet||packet.transport_replay===true)return false;
+  const pid=String(packet.player_id||'').toUpperCase();
+  if(!GAMEZEL_PUBLIC_PLAY_VOICES[pid])return false;
+  try{await ensureAudio();}catch(e){syncAudioState();return false;}
+  if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return false;
+  try{
+    const buffer=await gamezelLoadPublicVoice(pid);
+    if(!buffer)return false;
+    const src=audioCtx.createBufferSource(),g=audioCtx.createGain(),start=audioCtx.currentTime+.015;
+    src.buffer=buffer;
+    g.gain.setValueAtTime(Math.max(.0001,Math.min(1,soundVolume)),start);
+    g.gain.setValueAtTime(Math.max(.0001,Math.min(1,soundVolume)),start+Math.max(.05,buffer.duration-.10));
+    g.gain.exponentialRampToValueAtTime(.0001,start+buffer.duration);
+    src.connect(g).connect(audioCtx.destination);
+    src.start(start);
+    src.stop(start+buffer.duration+.03);
+    return true;
+  }catch(e){return false;}
+}
+
+function gamezelWarmPublicVoices(){
+  if(!audioCtx)return Promise.resolve([]);
+  return Promise.allSettled(Object.keys(GAMEZEL_PUBLIC_PLAY_VOICES).map(gamezelLoadPublicVoice));
+}
+
 const ZEL_WS_PATH='/laboratoire/embryon-x72/ws?channel=zelstereos';
 let zelSocket=null;
 let zelReconnectTimer=null;
@@ -2958,6 +3010,15 @@ function connectZelWebSocket(){
   zelSocket.addEventListener('message',ev=>{
     try{
       const s=JSON.parse(ev.data);
+      if(s.type==='GAMEZEL_PUBLIC_DRAW'&&s.mode==='PUBLIC_SAFE'&&s.read_only===true){
+        wsHasLiveState=true;
+        lastWsMessageAt=Date.now();
+        if(s.transport_replay!==true){
+          gamezelPlayPublicDraw(s).catch(()=>{});
+          if($('live'))$('live').textContent='GAMEZEL · '+String(s.player_name||s.player_id||'JOUEUR').slice(0,18)+' JOUE';
+        }
+        return;
+      }
       if(s.mode!=='PUBLIC_SAFE'||s.read_only!==true||!Number.isInteger(s.stage_index)||s.stage_index<0||s.stage_index>6)return;
       wsHasLiveState=true;
       lastWsMessageAt=Date.now();
