@@ -1,0 +1,92 @@
+name: Probe Antigravity SDK on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/probe-antigravity-sdk-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install and CPU-probe official Antigravity SDK
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          VENV="$HOME/.local/share/gamezel-antigravity-sdk/venv"
+          mkdir -p "$HOME/.local/share/gamezel-antigravity-sdk"
+          if ! test -x "$VENV/bin/python"; then
+            python3 -m venv "$VENV"
+          fi
+          "$VENV/bin/python" -m pip install --upgrade pip >/dev/null
+          "$VENV/bin/python" -m pip install --upgrade google-antigravity >/tmp/agy-sdk-pip.log
+
+          echo '=== SDK PACKAGE ==='
+          "$VENV/bin/python" - <<'PY'
+          import importlib.metadata
+          import google.antigravity
+          print("ANTIGRAVITY_SDK_VERSION="+importlib.metadata.version("google-antigravity"))
+          print("ANTIGRAVITY_SDK_IMPORT=PASS")
+          PY
+
+          cat > "$HOME/.local/share/gamezel-antigravity-sdk/probe.py" <<'PY'
+          import asyncio
+          from google.antigravity import Agent, LocalAgentConfig
+
+          async def main():
+              config = LocalAgentConfig(
+                  system_instructions="Compatibility probe only. Do not run tools."
+              )
+              try:
+                  async with Agent(config) as agent:
+                      print("ANTIGRAVITY_SDK_RUNTIME_STARTED=YES")
+              except Exception as exc:
+                  msg = str(exc).replace("\n", " ")[:500]
+                  print("ANTIGRAVITY_SDK_RUNTIME_EXCEPTION="+type(exc).__name__+":"+msg)
+                  print("ANTIGRAVITY_SDK_RUNTIME_REACHED_PYTHON=YES")
+
+          asyncio.run(main())
+          PY
+
+          unset GEMINI_API_KEY GOOGLE_API_KEY GOOGLE_APPLICATION_CREDENTIALS GOOGLE_GENAI_USE_VERTEXAI GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION || true
+          set +e
+          timeout 25s "$VENV/bin/python" "$HOME/.local/share/gamezel-antigravity-sdk/probe.py" >/tmp/agy-sdk-probe.out 2>/tmp/agy-sdk-probe.err
+          CODE=$?
+          set -e
+          cat /tmp/agy-sdk-probe.out
+          sed -n '1,25p' /tmp/agy-sdk-probe.err
+
+          if [ "$CODE" -eq 132 ] || grep -qiE 'illegal instruction|pclmul|sigill' /tmp/agy-sdk-probe.err /tmp/agy-sdk-probe.out; then
+            echo 'ANTIGRAVITY_SDK_CPU_COMPAT=FAIL'
+            exit 1
+          fi
+          if [ "$CODE" -eq 124 ]; then
+            echo 'ANTIGRAVITY_SDK_CPU_COMPAT=TIMEOUT'
+            exit 1
+          fi
+
+          echo "ANTIGRAVITY_SDK_PROBE_EXIT=$CODE"
+          echo 'ANTIGRAVITY_SDK_CPU_COMPAT=PASS'
+          REMOTE
