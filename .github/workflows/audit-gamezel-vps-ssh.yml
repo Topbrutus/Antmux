@@ -103,6 +103,13 @@ jobs:
             echo 'GITHUB_PRIVATE_REPO_HTTPS=FAIL'
           fi
 
+          echo '=== NGINX ANTMUX SITE CONTEXT ==='
+          if sudo -n test -r /etc/nginx/sites-enabled/antmux.com 2>/dev/null; then
+            sudo -n sed -n '1,240p' /etc/nginx/sites-enabled/antmux.com
+          elif test -r /etc/nginx/sites-enabled/antmux.com; then
+            sed -n '1,240p' /etc/nginx/sites-enabled/antmux.com
+          fi
+
           echo '=== NGINX ZELSTEREOS/GAMEZEL ROUTES ==='
           for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
             test -f "$f" || continue
