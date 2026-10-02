@@ -1,0 +1,60 @@
+name: Verify Grok auth on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/verify-grok-auth-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify Grok non-interactive auth only
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          export PATH="$HOME/.grok/bin:$HOME/.local/bin:$PATH"
+          test -x "$(command -v grok)"
+          tmp_out="$(mktemp)"
+          tmp_err="$(mktemp)"
+          trap 'rm -f "$tmp_out" "$tmp_err"' EXIT
+
+          set +e
+          timeout 20s grok --output-format json --max-turns 1 --disable-web-search --permission-mode plan             'Return exactly READY and nothing else.' >"$tmp_out" 2>"$tmp_err"
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ] && grep -qi 'READY' "$tmp_out"; then
+            echo 'GROK_AUTH=PASS'
+            exit 0
+          fi
+
+          if grep -qiE 'not authenticated|login required|not logged|authenticate|authorization' "$tmp_err" "$tmp_out"; then
+            echo 'GROK_AUTH=FAIL'
+            exit 2
+          fi
+
+          echo "GROK_AUTH=UNKNOWN_RC_$rc"
+          exit 3
+          REMOTE
