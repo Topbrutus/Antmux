@@ -1,0 +1,117 @@
+name: Verify GAMEZEL P1 End-to-End Result
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/verify-gamezel-p1-e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify existing P1 ASTRA round artifacts on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "python3 - <<'PY'"
+          import json, os
+
+          paths={
+            'join':'/tmp/gamezel-p1-join.json',
+            'round':'/tmp/gamezel-round.json',
+            'connect':'/tmp/gamezel-card-connect.json',
+            'test':'/tmp/gamezel-card-test.json',
+            'checkpoint':'/tmp/gamezel-card-checkpoint.json',
+            'final':'/tmp/gamezel-p1-final.json',
+          }
+          for name,path in paths.items():
+              assert os.path.isfile(path), f'missing {name}: {path}'
+
+          def load(k):
+              with open(paths[k],encoding='utf-8') as f:
+                  return json.load(f)
+
+          join=load('join')
+          rnd=load('round')
+          connect=load('connect')
+          test=load('test')
+          checkpoint=load('checkpoint')
+          final=load('final')
+
+          assert join['SUCCESS'] is True
+          assert join['MODE']=='SOLO'
+          assert join['PLAYER_ID']=='P1'
+          assert join['PLAYER_NAME']=='ASTRA'
+
+          assert rnd['roundActive'] is True
+          assert rnd['mode']=='SOLO'
+          assert rnd['activePlayerCount']==1
+          assert rnd['currentTurn']['PLAYER_ID']=='P1'
+
+          for name,payload in [('CONNECT',connect),('TEST',test),('CHECKPOINT',checkpoint)]:
+              assert payload['SUCCESS'] is True, (name,payload.get('ERROR'))
+              assert payload['PLAYER_ID']=='P1'
+              assert payload['PLAYER_NAME']=='ASTRA'
+              assert payload['card']['STATUS']=='SUCCEEDED', (name,payload['card'].get('STATUS'),payload['card'].get('ERROR'))
+              assert payload.get('receipt') is not None, (name,'missing receipt')
+              assert payload['receipt']['RESULT_STATUS']=='SUCCEEDED', (name,payload['receipt'].get('RESULT_STATUS'))
+
+          tr=test['receipt'].get('TEST_RESULTS') or {}
+          assert tr.get('fail')==0, tr
+          assert tr.get('pass',0)>0, tr
+          assert tr.get('total',0)>=tr.get('pass',0), tr
+
+          rollback_ref=checkpoint['receipt'].get('ROLLBACK_REF') or checkpoint['card'].get('ROLLBACK_REF')
+          assert rollback_ref, 'checkpoint rollback ref missing'
+
+          assert final['MODE']=='SOLO'
+          assert final['activePlayerCount']==1
+          assert final['currentTurn']['PLAYER_ID']=='P1'
+
+          result={
+            'TEST':'GAMEZEL_P1_ASTRA_E2E',
+            'SUCCESS':True,
+            'MODE':final['MODE'],
+            'ROUND':final['round'],
+            'ROUND_ACTIVE':final['roundActive'],
+            'CURRENT_TURN':final['currentTurn']['PLAYER_ID'],
+            'CONNECT_CARD_ID':connect['CARD_ID'],
+            'CONNECT_RECEIPT_ID':connect['RECEIPT_ID'],
+            'CONNECT_RESULT_STATUS':connect['receipt']['RESULT_STATUS'],
+            'TEST_CARD_ID':test['CARD_ID'],
+            'TEST_RECEIPT_ID':test['RECEIPT_ID'],
+            'TEST_RESULT_STATUS':test['receipt']['RESULT_STATUS'],
+            'TESTS_PASS':tr.get('pass'),
+            'TESTS_FAIL':tr.get('fail'),
+            'TESTS_TOTAL':tr.get('total'),
+            'TEST_DURATION_MS':tr.get('duration'),
+            'CHECKPOINT_CARD_ID':checkpoint['CARD_ID'],
+            'CHECKPOINT_RECEIPT_ID':checkpoint['RECEIPT_ID'],
+            'CHECKPOINT_RESULT_STATUS':checkpoint['receipt']['RESULT_STATUS'],
+            'CHECKPOINT_ROLLBACK_REF':rollback_ref,
+          }
+          print(json.dumps(result,indent=2))
+          print('GAMEZEL_P1_E2E=PASS')
+          PY
