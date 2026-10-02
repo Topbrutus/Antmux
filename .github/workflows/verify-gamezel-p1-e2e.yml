@@ -35,7 +35,9 @@ jobs:
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "python3 - <<'PY'"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          python3 - <<'PY'
           import json, os
 
           paths={
@@ -115,3 +117,4 @@ jobs:
           print(json.dumps(result,indent=2))
           print('GAMEZEL_P1_E2E=PASS')
           PY
+          REMOTE
