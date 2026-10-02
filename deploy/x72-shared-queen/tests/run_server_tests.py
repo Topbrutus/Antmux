@@ -106,7 +106,21 @@ async def zel_relay_sequence(base: str, ws_url: str, token: str) -> tuple[list[i
                 {"Authorization": f"Bearer {token}"},
             )
             codes.append(code)
-            received.append(json.loads(await asyncio.wait_for(ws.recv(), timeout=10)))
+
+            matched = None
+            for _ in range(16):
+                message = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+                if message.get("transport_replay") is True:
+                    continue
+                if message.get("type") == "GAMEZEL_PUBLIC_DRAW":
+                    continue
+                if message.get("stage_index") == stage_index:
+                    matched = message
+                    break
+
+            if matched is None:
+                raise AssertionError(f"missing ZEL stage {stage_index} on multiplexed relay")
+            received.append(matched)
     return codes, received
 
 
