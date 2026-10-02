@@ -173,6 +173,7 @@ jobs:
           APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
           export ZEL_PLAYER_SERVER_URL='http://127.0.0.1:3217'
           export ZEL_PLAYER_GATEWAY_TOKEN_FILE="$HOME/.config/zelstereos/player-gateway-token"
+          cd "$APP_ROOT"
           exec /usr/bin/node "$APP_ROOT/bin/zel-player.mjs" --player "$SEAT" "$@"
           SCRIPT
           chmod 700 "$APP_ROOT/bin/gamezel-player"
