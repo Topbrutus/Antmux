@@ -53,6 +53,10 @@ jobs:
           echo '=== GAMEZEL PORT 3217 ==='
           ss -ltn 2>/dev/null | grep -E '(^|[[:space:]])127\.0\.0\.1:3217([[:space:]]|$)|(^|[[:space:]])0\.0\.0\.0:3217([[:space:]]|$)|\[::1\]:3217' || true
 
+          echo '=== GAMEZEL PERSISTENCE / LINGER ==='
+          loginctl show-user "$(id -un)" -p Linger -p State 2>/dev/null || true
+          systemctl --user show-environment 2>/dev/null | grep -E '^XDG_RUNTIME_DIR=' || true
+
           echo '=== GAMEZEL USER SERVICE ==='
           systemctl --user is-enabled zelstereos-gamezel.service 2>/dev/null || true
           systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true
