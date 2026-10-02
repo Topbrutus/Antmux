@@ -1,0 +1,146 @@
+name: Install GAMEZEL AI auth helpers
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/install-gamezel-ai-auth-helpers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install auth and activation helpers
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          APP="$HOME/zelstereos-gamezel"
+          CFG="$HOME/.config/zelstereos/agents"
+          SERVICES="$HOME/.config/systemd/user"
+          mkdir -p "$APP/bin" "$CFG"
+
+          cat > "$APP/bin/gamezel-auth-grok" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PATH="$HOME/.grok/bin:$HOME/.local/bin:$PATH"
+          exec grok login --device-auth
+          SCRIPT
+
+          cat > "$APP/bin/gamezel-auth-muse" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          exec muse login
+          SCRIPT
+
+          cat > "$APP/bin/gamezel-auth-antigravity" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          CFG="$HOME/.config/zelstereos/agents"
+          mkdir -p "$CFG"
+          chmod 700 "$CFG"
+          printf 'Gemini API key for Antigravity (input hidden): ' >&2
+          IFS= read -r -s key
+          printf '\n' >&2
+          if [ -z "$key" ]; then
+            echo 'No key entered; nothing changed.' >&2
+            exit 2
+          fi
+          umask 077
+          printf 'GEMINI_API_KEY=%s\n' "$key" > "$CFG/p4-secret.env"
+          unset key
+          chmod 600 "$CFG/p4-secret.env"
+          echo 'Antigravity credential stored locally on VPS with mode 600.'
+          SCRIPT
+
+          cat > "$APP/bin/gamezel-enable-ai-seat" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          seat="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+          case "$seat" in p2|p3|p4) ;; *)
+            echo 'usage: gamezel-enable-ai-seat P2|P3|P4' >&2
+            exit 2
+          esac
+          cfg="$HOME/.config/zelstereos/agents/$seat.env"
+          test -f "$cfg"
+          sed -i 's/^GAMEZEL_AGENT_ENABLED=.*/GAMEZEL_AGENT_ENABLED=true/' "$cfg"
+          systemctl --user enable --now "zelstereos-gamezel-$seat.service"
+          echo "$seat enabled"
+          SCRIPT
+
+          cat > "$APP/bin/gamezel-disable-ai-seat" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          seat="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+          case "$seat" in p2|p3|p4) ;; *)
+            echo 'usage: gamezel-disable-ai-seat P2|P3|P4' >&2
+            exit 2
+          esac
+          cfg="$HOME/.config/zelstereos/agents/$seat.env"
+          if [ -f "$cfg" ]; then
+            sed -i 's/^GAMEZEL_AGENT_ENABLED=.*/GAMEZEL_AGENT_ENABLED=false/' "$cfg"
+          fi
+          systemctl --user disable --now "zelstereos-gamezel-$seat.service" 2>/dev/null || true
+          echo "$seat disabled"
+          SCRIPT
+
+          cat > "$APP/bin/gamezel-ai-status" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PATH="$HOME/.grok/bin:$HOME/.local/bin:$PATH"
+          echo '=== RUNTIMES ==='
+          grok --version 2>/dev/null | head -n 1 || echo 'grok unavailable'
+          muse --version 2>/dev/null | head -n 1 || echo 'muse unavailable'
+          if [ -x "$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python" ]; then
+            "$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python" - <<'PY'
+          import importlib.metadata
+          print("Antigravity SDK", importlib.metadata.version("google-antigravity"))
+          PY
+          else
+            echo 'Antigravity SDK unavailable'
+          fi
+          echo '=== SERVICES ==='
+          for seat in p2 p3 p4; do
+            printf '%s: ' "$seat"
+            systemctl --user is-active "zelstereos-gamezel-$seat.service" 2>/dev/null || true
+          done
+          echo '=== ENABLE FLAGS ==='
+          for seat in p2 p3 p4; do
+            printf '%s: ' "$seat"
+            grep '^GAMEZEL_AGENT_ENABLED=' "$HOME/.config/zelstereos/agents/$seat.env" 2>/dev/null || true
+          done
+          echo 'P4_SECRET_FILE='$(test -s "$HOME/.config/zelstereos/agents/p4-secret.env" && echo PRESENT || echo MISSING)
+          SCRIPT
+
+          chmod 700 "$APP/bin/gamezel-auth-grok"                     "$APP/bin/gamezel-auth-muse"                     "$APP/bin/gamezel-auth-antigravity"                     "$APP/bin/gamezel-enable-ai-seat"                     "$APP/bin/gamezel-disable-ai-seat"                     "$APP/bin/gamezel-ai-status"
+
+          unit="$SERVICES/zelstereos-gamezel-p4.service"
+          test -f "$unit"
+          if ! grep -Fq 'p4-secret.env' "$unit"; then
+            sed -i '/EnvironmentFile=%h\/\.config\/zelstereos\/agents\/p4.env/a EnvironmentFile=-%h/.config/zelstereos/agents/p4-secret.env' "$unit"
+          fi
+          systemctl --user daemon-reload
+
+          echo 'GAMEZEL_AI_AUTH_HELPERS=PASS'
+          "$APP/bin/gamezel-ai-status"
+          REMOTE
