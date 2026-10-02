@@ -41,7 +41,7 @@ jobs:
           trap 'rm -f "$tmp_out" "$tmp_err"' EXIT
 
           set +e
-          timeout 20s grok --output-format json --max-turns 1 --disable-web-search --permission-mode plan             'Return exactly READY and nothing else.' >"$tmp_out" 2>"$tmp_err"
+          timeout 20s grok --single 'Return exactly READY and nothing else.' --output-format json --max-turns 1 --disable-web-search --permission-mode plan >"$tmp_out" 2>"$tmp_err"
           rc=$?
           set -e
 
