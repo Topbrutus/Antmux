@@ -62,6 +62,20 @@ jobs:
             echo 'GROK_MODELS=OTHER_FAILURE'
           fi
 
+          echo '=== GROK OAUTH SINGLE CLASSIFICATION ==='
+          set +e
+          timeout 20s grok --oauth --single 'Return exactly READY and nothing else.' --output-format plain --max-turns 1 --disable-web-search --permission-mode plan >/tmp/grok-oauth.out 2>/tmp/grok-oauth.err
+          rc_oauth=$?
+          set -e
+          echo "GROK_OAUTH_SINGLE_RC=$rc_oauth"
+          if [ "$rc_oauth" -eq 0 ] && grep -qi 'READY' /tmp/grok-oauth.out; then
+            echo 'GROK_OAUTH_SINGLE=PASS'
+          elif grep -qiE 'not authenticated|login required|not logged|authenticate|authorization' /tmp/grok-oauth.out /tmp/grok-oauth.err; then
+            echo 'GROK_OAUTH_SINGLE=AUTH_REQUIRED'
+          else
+            echo 'GROK_OAUTH_SINGLE=OTHER_FAILURE'
+          fi
+
           echo '=== GROK SINGLE CLASSIFICATION ==='
           set +e
           timeout 20s grok --single 'Return exactly READY and nothing else.' --output-format plain --max-turns 1 --disable-web-search --permission-mode plan >/tmp/grok-single.out 2>/tmp/grok-single.err
