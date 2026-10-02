@@ -166,6 +166,66 @@ async def main() -> None:
     else:
         print("ZEL_RELAY_TEST=SKIP_NO_TOKEN")
 
+    presence_code, presence = request_json("GET", f"{base}/api/gamezel/presence")
+    assert_test(
+        results,
+        "E6 GAMEZEL public presence",
+        presence_code == 200
+        and presence.get("mode") == "PUBLIC_SAFE"
+        and presence.get("execution") == "NONE"
+        and presence.get("persisted") is False
+        and [seat.get("player_id") for seat in presence.get("seats", [])] == ["P1", "P2", "P3", "P4"],
+        str(presence),
+    )
+
+    draw_code, draw = request_json(
+        "POST",
+        f"{base}/api/gamezel/draw",
+        {"player_id": "P1"},
+        ip="10.72.90.1",
+    )
+    assert_test(
+        results,
+        "E7 GAMEZEL public draw is non-executable",
+        draw_code == 200
+        and draw.get("ok") is True
+        and draw.get("execution") == "NONE"
+        and draw.get("persisted") is False
+        and draw.get("card", {}).get("player_id") == "P1"
+        and draw.get("speech", {}).get("sound_id") == "SFX86",
+        str(draw),
+    )
+    async with websockets.connect(ws_url + "?channel=zelstereos", open_timeout=10) as gamezel_ws:
+        gamezel_state = json.loads(await asyncio.wait_for(gamezel_ws.recv(), timeout=10))
+    demo = gamezel_state.get("gamezel_demo") if isinstance(gamezel_state, dict) else None
+    assert_test(
+        results,
+        "E8 GAMEZEL draw reaches zelstereos WebSocket",
+        isinstance(demo, dict)
+        and demo.get("player_id") == "P1"
+        and demo.get("sound_id") == "SFX86"
+        and demo.get("execution") == "NONE"
+        and demo.get("persisted") is False
+        and gamezel_state.get("transport_replay") is True,
+        str(gamezel_state),
+    )
+    limited_code, _ = request_json(
+        "POST",
+        f"{base}/api/gamezel/draw",
+        {"player_id": "P1"},
+        ip="10.72.90.1",
+    )
+    assert_test(results, "E9 GAMEZEL draw rate limit", limited_code == 429, str(limited_code))
+    invalid_code, _ = request_json(
+        "POST",
+        f"{base}/api/gamezel/draw",
+        {"player_id": "P9"},
+        ip="10.72.90.2",
+    )
+    assert_test(results, "E10 GAMEZEL rejects unknown seat", invalid_code == 400, str(invalid_code))
+    print("GAMEZEL_PUBLIC_DRAW=PASS")
+    print("GAMEZEL_WEBSOCKET_BRIDGE=PASS")
+
     for index in range(1, 8):
         synapse = f"S{index}"
         _, before = request_json("GET", f"{base}/api/state")

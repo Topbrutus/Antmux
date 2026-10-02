@@ -534,6 +534,10 @@ class NoyauHeldInputRequest(BaseModel):
     value: float = 0.0
 
 
+class GamezelPublicDrawRequest(BaseModel):
+    player_id: str = "P1"
+
+
 DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-queen/data"))
 def load_zel_ingest_token() -> str:
     token = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
@@ -554,6 +558,21 @@ zel_state: dict[str, Any] | None = None
 zel_state_version = 0
 zel_state_condition = asyncio.Condition()
 zel_state_history: deque[tuple[int, dict[str, Any]]] = deque(maxlen=256)
+GAMEZEL_PUBLIC_SEATS: dict[str, dict[str, str]] = {
+    "P1": {"player_name": "ASTRA", "sound_id": "SFX86", "voice_file": "SFX086_P1_ASTRA_PLAY.mp3"},
+    "P2": {"player_name": "MUSE", "sound_id": "SFX90", "voice_file": "SFX090_P2_MUSE_PLAY.mp3"},
+    "P3": {"player_name": "GROK", "sound_id": "SFX94", "voice_file": "SFX094_P3_GROK_PLAY.mp3"},
+    "P4": {"player_name": "ANTIGRAVITY", "sound_id": "SFX98", "voice_file": "SFX098_P4_ANTIGRAVITY_PLAY.mp3"},
+}
+GAMEZEL_PUBLIC_DECK: tuple[tuple[str, str], ...] = (
+    ("COUNTERTEST", "contre-test cible"),
+    ("COMPARE", "comparaison independante"),
+    ("VALIDATE", "validation croisee"),
+    ("CHECKPOINT", "checkpoint de preuve"),
+)
+GAMEZEL_PUBLIC_DRAW_COOLDOWN_SECONDS = 2.5
+gamezel_demo_sequence = 0
+last_gamezel_draw_by_ip: dict[str, float] = {}
 
 
 def normalize_zel_public_state(raw: Any) -> dict[str, Any]:
@@ -856,6 +875,153 @@ async def repair(request: Request) -> dict[str, Any]:
         queen.bus.emit(queen.tick, "REPAIR_COMPLETED", verdict=verdict, after_h256=after)
         persistence.save(queen)
         return {"ok": report_obj.verdict == "PASS", "report": asdict(report_obj), "state": queen.visual_state()}
+
+
+@app.get("/api/gamezel/presence")
+async def gamezel_public_presence() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "status": "ONLINE",
+        "mode": "PUBLIC_SAFE",
+        "surface": "GAMEZEL_PUBLIC_DEMO",
+        "execution": "NONE",
+        "persisted": False,
+        "seats": [
+            {"player_id": player_id, "player_name": seat["player_name"], "sound_id": seat["sound_id"]}
+            for player_id, seat in GAMEZEL_PUBLIC_SEATS.items()
+        ],
+    }
+
+
+@app.post("/api/gamezel/draw")
+async def gamezel_public_draw(request: Request, draw: GamezelPublicDrawRequest) -> dict[str, Any]:
+    global zel_state, zel_state_version, gamezel_demo_sequence
+
+    player_id = str(draw.player_id or "").strip().upper()
+    seat = GAMEZEL_PUBLIC_SEATS.get(player_id)
+    if seat is None:
+        raise HTTPException(status_code=400, detail="invalid player_id")
+
+    ip = client_ip(request)
+    now_mono = time.monotonic()
+    previous = last_gamezel_draw_by_ip.get(ip)
+    if previous is not None and now_mono - previous < GAMEZEL_PUBLIC_DRAW_COOLDOWN_SECONDS:
+        retry_after = max(0.0, GAMEZEL_PUBLIC_DRAW_COOLDOWN_SECONDS - (now_mono - previous))
+        raise HTTPException(status_code=429, detail=f"draw cooldown {retry_after:.3f}s")
+    last_gamezel_draw_by_ip[ip] = now_mono
+    if len(last_gamezel_draw_by_ip) > 1000:
+        last_gamezel_draw_by_ip.pop(next(iter(last_gamezel_draw_by_ip)), None)
+
+    async with zel_state_condition:
+        gamezel_demo_sequence += 1
+        sequence = gamezel_demo_sequence
+        card_code, card_label = GAMEZEL_PUBLIC_DECK[(sequence - 1) % len(GAMEZEL_PUBLIC_DECK)]
+        timestamp = time.time()
+        card_id = f"PUBLIC-DEMO-{sequence:06d}"
+        demo = {
+            "schema": "ANTMUX-GAMEZEL-PUBLIC-DRAW-v1",
+            "sequence": sequence,
+            "card_id": card_id,
+            "card_code": card_code,
+            "label": card_label,
+            "player_id": player_id,
+            "player_name": seat["player_name"],
+            "speech_type": "PLAY",
+            "sound_id": seat["sound_id"],
+            "audio_url": f"/laboratoire/zelstereos/assets/voices/gamezel/{seat['voice_file']}",
+            "execution": "NONE",
+            "persisted": False,
+            "timestamp": timestamp,
+        }
+
+        if zel_state is None:
+            payload: dict[str, Any] = {
+                "mode": "PUBLIC_SAFE",
+                "read_only": True,
+                "status": "LIVE",
+                "stage_index": 0,
+                "stage": "GAMEZEL",
+                "channels": 1,
+                "trace_points": 0,
+                "trace_total": 1,
+                "stage_exec_us": 0.0,
+                "stage_work_ratio": 0.0,
+                "public_values": [],
+                "public_values_total": 0,
+                "global_error": {"exact": "0", "decimal": 0.0},
+                "f1": {
+                    "formula_id": "",
+                    "k": 0,
+                    "value": "",
+                    "formula": "",
+                    "source_commit_short": "",
+                },
+                "events": [],
+                "event_seq": 0,
+                "timestamp": timestamp,
+            }
+        else:
+            payload = dict(zel_state)
+            payload["events"] = [
+                dict(event)
+                for event in payload.get("events", [])
+                if isinstance(event, dict)
+            ][-19:]
+
+        event_seq = payload.get("event_seq", 0)
+        if type(event_seq) is not int:
+            event_seq = 0
+        event_seq += 1
+        events = list(payload.get("events", []))
+        events.append(
+            {
+                "seq": event_seq,
+                "timestamp": timestamp,
+                "source": "GAMEZEL",
+                "kind": "PUBLIC_DRAW",
+                "status": "PASS",
+                "label": f"{seat['player_name']} joue",
+                "detail": card_label,
+            }
+        )
+        payload.update(
+            {
+                "mode": "PUBLIC_SAFE",
+                "read_only": True,
+                "status": "LIVE",
+                "gamezel_demo": demo,
+                "events": events[-20:],
+                "event_seq": event_seq,
+                "timestamp": timestamp,
+            }
+        )
+
+        zel_state = payload
+        zel_state_version += 1
+        version = zel_state_version
+        zel_state_history.append((version, dict(payload)))
+        zel_state_condition.notify_all()
+
+    return {
+        "ok": True,
+        "version": version,
+        "mode": "PUBLIC_SAFE",
+        "surface": "GAMEZEL_PUBLIC_DEMO",
+        "execution": "NONE",
+        "persisted": False,
+        "card": {
+            "card_id": card_id,
+            "card_code": card_code,
+            "label": card_label,
+            "player_id": player_id,
+            "player_name": seat["player_name"],
+        },
+        "speech": {
+            "speech_type": "PLAY",
+            "sound_id": seat["sound_id"],
+            "audio_url": demo["audio_url"],
+        },
+    }
 
 
 @app.post("/api/zelstereos/ingest")

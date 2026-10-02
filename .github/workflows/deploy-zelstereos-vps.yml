@@ -9,6 +9,7 @@ on:
       - 'laboratoire/zelstereos/index.html'
       - 'laboratoire/zelstereos/api/state'
       - 'laboratoire/zelstereos/assets/sfx/**'
+      - 'laboratoire/zelstereos/assets/voices/**'
       - 'laboratoire/index.html'
   workflow_dispatch:
     inputs:
@@ -46,6 +47,10 @@ jobs:
           test -f laboratoire/zelstereos/index.html
           test -f laboratoire/zelstereos/api/state
           test -f laboratoire/zelstereos/assets/sfx/manifest.json
+          test -f laboratoire/zelstereos/assets/voices/gamezel/SFX086_P1_ASTRA_PLAY.mp3
+          test -f laboratoire/zelstereos/assets/voices/gamezel/SFX090_P2_MUSE_PLAY.mp3
+          test -f laboratoire/zelstereos/assets/voices/gamezel/SFX094_P3_GROK_PLAY.mp3
+          test -f laboratoire/zelstereos/assets/voices/gamezel/SFX098_P4_ANTIGRAVITY_PLAY.mp3
           test -f laboratoire/index.html
           test "$(find laboratoire/zelstereos/assets/sfx -maxdepth 1 -type f -name 'SFX*.mp3' | wc -l)" -eq 36
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' laboratoire/zelstereos/index.html
@@ -61,10 +66,11 @@ jobs:
           print('ZELSTEREOS_SFX36_PAYLOAD=PASS')
           PY
           rm -rf _zelstereos_deploy
-          mkdir -p _zelstereos_deploy/api _zelstereos_deploy/assets/sfx
+          mkdir -p _zelstereos_deploy/api _zelstereos_deploy/assets/sfx _zelstereos_deploy/assets/voices
           cp laboratoire/zelstereos/index.html _zelstereos_deploy/index.html
           cp laboratoire/zelstereos/api/state _zelstereos_deploy/api/state
           cp -a laboratoire/zelstereos/assets/sfx/. _zelstereos_deploy/assets/sfx/
+          cp -a laboratoire/zelstereos/assets/voices/. _zelstereos_deploy/assets/voices/
           cp laboratoire/index.html _zelstereos_deploy/laboratoire-index.html
           (cd _zelstereos_deploy && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 
@@ -121,14 +127,19 @@ jobs:
           mkdir -p "$BACKUP_ROOT"
           if test -f "$TARGET_ROOT/index.html"; then cp -a "$TARGET_ROOT/index.html" "$BACKUP_ROOT/index.html"; fi
           if test -d "$TARGET_ROOT/assets/sfx"; then mkdir -p "$BACKUP_ROOT/assets"; cp -a "$TARGET_ROOT/assets/sfx" "$BACKUP_ROOT/assets/sfx"; fi
+          if test -d "$TARGET_ROOT/assets/voices"; then mkdir -p "$BACKUP_ROOT/assets"; cp -a "$TARGET_ROOT/assets/voices" "$BACKUP_ROOT/assets/voices"; fi
           if test -f "$LAB_ROOT/index.html"; then cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html"; fi
           install -d -m 0755 "$TARGET_ROOT/api" "$TARGET_ROOT/assets"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
           install -m 0644 "$REMOTE_STAGE/api/state" "$TARGET_ROOT/api/state"
           rm -rf "$TARGET_ROOT/assets/sfx"
           cp -a "$REMOTE_STAGE/assets/sfx" "$TARGET_ROOT/assets/sfx"
+          rm -rf "$TARGET_ROOT/assets/voices"
+          cp -a "$REMOTE_STAGE/assets/voices" "$TARGET_ROOT/assets/voices"
           find "$TARGET_ROOT/assets/sfx" -type d -exec chmod 0755 {} +
           find "$TARGET_ROOT/assets/sfx" -type f -exec chmod 0644 {} +
+          find "$TARGET_ROOT/assets/voices" -type d -exec chmod 0755 {} +
+          find "$TARGET_ROOT/assets/voices" -type f -exec chmod 0644 {} +
           install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
@@ -140,6 +151,10 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/ -o /tmp/zelstereos.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/api/state -o /tmp/zelstereos-state.json
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/assets/sfx/manifest.json -o /tmp/zelstereos-sfx.json
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/voices/gamezel/SFX086_P1_ASTRA_PLAY.mp3 -o /tmp/astra-play.bin
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/voices/gamezel/SFX090_P2_MUSE_PLAY.mp3 -o /tmp/muse-play.bin
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/voices/gamezel/SFX094_P3_GROK_PLAY.mp3 -o /tmp/grok-play.bin
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/voices/gamezel/SFX098_P4_ANTIGRAVITY_PLAY.mp3 -o /tmp/antigravity-play.bin
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/laboratoire.html
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' /tmp/zelstereos.html
           grep -Fq 'Lecture seule · données filtrées · commandes privées non exposées' /tmp/zelstereos.html

@@ -126,6 +126,15 @@ let lastRenderedPublicState=null;
 let lastExternalPublicState=null;
 let aiSelectedFormula=null;
 const ZEL_SFX_IDS=Array.from({length:36},(_,i)=>'SFX'+String(i+1).padStart(2,'0'));
+const ZEL_GAMEZEL_PLAY_VOICES=Object.freeze({
+  P1:Object.freeze({sound_id:'SFX86',file:'./assets/voices/gamezel/SFX086_P1_ASTRA_PLAY.mp3',name:'ASTRA'}),
+  P2:Object.freeze({sound_id:'SFX90',file:'./assets/voices/gamezel/SFX090_P2_MUSE_PLAY.mp3',name:'MUSE'}),
+  P3:Object.freeze({sound_id:'SFX94',file:'./assets/voices/gamezel/SFX094_P3_GROK_PLAY.mp3',name:'GROK'}),
+  P4:Object.freeze({sound_id:'SFX98',file:'./assets/voices/gamezel/SFX098_P4_ANTIGRAVITY_PLAY.mp3',name:'ANTIGRAVITY'})
+});
+const zelGamezelVoiceBuffers=new Map();
+let lastGamezelDemoSequence=0;
+let pendingGamezelDemo=null;
 let aiSfxStageMap=['SFX06','SFX03','SFX08','SFX24','SFX12','SFX30','SFX35'];
 let aiSfxRandomMode=true;
 let zelLastRandomSfxMap=[...aiSfxStageMap];
@@ -181,9 +190,48 @@ function zelSfxPlayAt(id,start,stageDt=.65,gain=.82){
   src.connect(g).connect(audioCtx.destination);src.start(start);src.stop(start+dur+.03);return true;
 }
 async function ensureAudio(){if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')await audioCtx.resume();if(audioCtx.state==='running'){if(aiSfxRandomMode)zelSfxWarmAll();else zelSfxWarm(aiSfxStageMap);}syncAudioState();return audioCtx;}
+async function zelGamezelLoadVoice(playerId){
+  const key=String(playerId||'').toUpperCase();
+  const spec=ZEL_GAMEZEL_PLAY_VOICES[key];
+  if(!spec)return null;
+  if(zelGamezelVoiceBuffers.has(key))return zelGamezelVoiceBuffers.get(key);
+  await ensureAudio();
+  if(!audioCtx)return null;
+  const r=await fetch(spec.file,{cache:'force-cache'});
+  if(!r.ok)throw new Error('GAMEZEL_VOICE_HTTP_'+r.status);
+  const b=await audioCtx.decodeAudioData((await r.arrayBuffer()).slice(0));
+  zelGamezelVoiceBuffers.set(key,b);
+  return b;
+}
+async function zelGamezelPlayDemo(demo,isReplay=false){
+  if(!demo||typeof demo!=='object')return false;
+  const playerId=String(demo.player_id||'').toUpperCase();
+  const spec=ZEL_GAMEZEL_PLAY_VOICES[playerId];
+  const seq=Number(demo.sequence);
+  if(!spec||!Number.isInteger(seq)||seq<1)return false;
+  if(String(demo.sound_id||'')!==spec.sound_id||demo.execution!=='NONE'||demo.persisted!==false)return false;
+  if(seq<=lastGamezelDemoSequence)return false;
+  if(isReplay){lastGamezelDemoSequence=seq;pendingGamezelDemo=null;return false;}
+  pendingGamezelDemo=demo;
+  try{
+    await ensureAudio();
+    if(!audioCtx||audioCtx.state!=='running'||soundMuted||soundVolume<=0)return false;
+    const b=await zelGamezelLoadVoice(playerId);
+    if(!b)return false;
+    const src=audioCtx.createBufferSource(),g=audioCtx.createGain();
+    src.buffer=b;
+    g.gain.setValueAtTime(Math.max(.0001,.90*soundVolume),audioCtx.currentTime);
+    src.connect(g).connect(audioCtx.destination);
+    src.start();
+    lastGamezelDemoSequence=seq;
+    pendingGamezelDemo=null;
+    if($('audioState'))$('audioState').textContent='AUDIO: '+spec.name+' PLAY';
+    return true;
+  }catch(e){return false;}
+}
 function syncAudioState(){if(!$('audioState'))return;const state=audioCtx?audioCtx.state:'not-started';$('audioState').textContent='AUDIO: '+(state==='running'?'ACTIF':'BLOQUÉ');}
-document.addEventListener('pointerdown',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
-document.addEventListener('touchstart',async()=>{try{await ensureAudio();}catch(e){syncAudioState();}},{passive:true});
+document.addEventListener('pointerdown',async()=>{try{await ensureAudio();if(pendingGamezelDemo)await zelGamezelPlayDemo(pendingGamezelDemo,false);}catch(e){syncAudioState();}},{passive:true});
+document.addEventListener('touchstart',async()=>{try{await ensureAudio();if(pendingGamezelDemo)await zelGamezelPlayDemo(pendingGamezelDemo,false);}catch(e){syncAudioState();}},{passive:true});
 syncAudioState();
 
 const audioConsent=$('audioConsent');
@@ -2959,6 +3007,7 @@ function connectZelWebSocket(){
     try{
       const s=JSON.parse(ev.data);
       if(s.mode!=='PUBLIC_SAFE'||s.read_only!==true||!Number.isInteger(s.stage_index)||s.stage_index<0||s.stage_index>6)return;
+      if(s.gamezel_demo&&typeof s.gamezel_demo==='object')void zelGamezelPlayDemo(s.gamezel_demo,s.transport_replay===true);
       wsHasLiveState=true;
       lastWsMessageAt=Date.now();
       lastExternalPublicState=JSON.parse(JSON.stringify(s));
