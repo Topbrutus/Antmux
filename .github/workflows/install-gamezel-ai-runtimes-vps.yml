@@ -1,0 +1,76 @@
+name: Install GAMEZEL AI runtimes on VPS
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/install-gamezel-ai-runtimes-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install Grok Build, Muse Code and Antigravity CLI
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+
+          export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
+          mkdir -p "$HOME/.local/bin" "$HOME/.cache/gamezel-agent-installers"
+
+          echo '=== INSTALL GROK BUILD ==='
+          curl -fsSL https://x.ai/cli/install.sh -o "$HOME/.cache/gamezel-agent-installers/grok-install.sh"
+          bash "$HOME/.cache/gamezel-agent-installers/grok-install.sh"
+
+          echo '=== INSTALL MUSE CODE ==='
+          curl -fsSL https://dev.meta.ai/install.sh -o "$HOME/.cache/gamezel-agent-installers/muse-install.sh"
+          bash "$HOME/.cache/gamezel-agent-installers/muse-install.sh"
+
+          echo '=== INSTALL ANTIGRAVITY CLI ==='
+          curl -fsSL https://antigravity.google/cli/install.sh -o "$HOME/.cache/gamezel-agent-installers/agy-install.sh"
+          bash "$HOME/.cache/gamezel-agent-installers/agy-install.sh"
+
+          export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH"
+
+          echo '=== COMMAND RESOLUTION ==='
+          command -v grok
+          command -v muse
+          command -v agy
+
+          echo '=== VERSIONS ==='
+          printf 'GROK_VERSION='
+          grok --version | head -n 1
+          printf 'MUSE_VERSION='
+          muse --version | head -n 1
+          printf 'AGY_VERSION='
+          agy --version | head -n 1
+
+          echo '=== HEADLESS CAPABILITY PROBE ==='
+          grok --help 2>&1 | grep -E -i 'headless|output-format|prompt|print|json|auth|oauth' | head -n 30 || true
+          muse --help 2>&1 | grep -E -i 'exec|headless|json|login|auth|model|session' | head -n 40 || true
+          agy --help 2>&1 | grep -E -i 'headless|prompt|json|auth|login|resume|session|output' | head -n 40 || true
+
+          echo 'GAMEZEL_AI_RUNTIMES_INSTALLED=PASS'
+          REMOTE
