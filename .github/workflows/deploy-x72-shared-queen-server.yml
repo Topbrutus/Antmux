@@ -67,8 +67,8 @@ jobs:
           mkdir -p _x72_runner_data
           printf '%s' 'ci-zelstereos-test-token' > _x72_runner_data/zel-ingest-token
           chmod 600 _x72_runner_data/zel-ingest-token
-          ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data/journal-test" \\
-          PYTHONPATH="$PWD/deploy/x72-shared-queen:$PWD/_x72_runner_vendor" \\
+          ANTMUX_X72_DATA_DIR="$PWD/_x72_runner_data/journal-test" \
+          PYTHONPATH="$PWD/deploy/x72-shared-queen:$PWD/_x72_runner_vendor" \
           python3 deploy/x72-shared-queen/tests/test_public_journal.py
           printf 'PUBLIC_JOURNAL_RUNNER=PASS\\n'
           export ANTMUX_ZEL_INGEST_TOKEN_FILE="$PWD/_x72_runner_data/zel-ingest-token"
