@@ -65,12 +65,24 @@ jobs:
           printf 'MUSE_VERSION='
           muse --version | head -n 1
           printf 'AGY_VERSION='
-          agy --version | head -n 1
+          (agy --version 2>&1 | head -n 1) || true
 
           echo '=== HEADLESS CAPABILITY PROBE ==='
-          grok --help 2>&1 | grep -E -i 'headless|output-format|prompt|print|json|auth|oauth' | head -n 30 || true
-          muse --help 2>&1 | grep -E -i 'exec|headless|json|login|auth|model|session' | head -n 40 || true
-          agy --help 2>&1 | grep -E -i 'headless|prompt|json|auth|login|resume|session|output' | head -n 40 || true
+          echo '--- GROK ---'
+          grok --help 2>&1 | grep -E -i 'headless|output-format|prompt|print|json|auth|oauth|login|resume|session' | head -n 80 || true
+          echo '--- MUSE ---'
+          muse --help 2>&1 | grep -E -i 'exec|headless|json|login|auth|model|session|resume|print|output' | head -n 100 || true
+          echo '--- AGY DIRECT ---'
+          (agy --help 2>&1 | grep -E -i 'headless|prompt|json|auth|login|resume|session|output' | head -n 80) || true
 
-          echo 'GAMEZEL_AI_RUNTIMES_INSTALLED=PASS'
+          echo '=== AUTH COMMAND DISCOVERY ==='
+          grok --help 2>&1 | grep -E '^  [a-zA-Z0-9_-]+ ' | head -n 80 || true
+          muse --help 2>&1 | grep -E '^  [a-zA-Z0-9_-]+ ' | head -n 100 || true
+
+          echo '=== CPU / EMULATION ==='
+          grep -m1 '^flags' /proc/cpuinfo | grep -oE 'pclmulqdq|aes|sse4_2|avx2' | sort -u | tr '\n' ' '; echo
+          command -v qemu-x86_64 || true
+          command -v qemu-x86_64-static || true
+
+          echo 'GAMEZEL_AI_RUNTIME_PROBE=PASS'
           REMOTE
