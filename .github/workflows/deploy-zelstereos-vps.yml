@@ -48,7 +48,16 @@ jobs:
           test -f laboratoire/zelstereos/assets/sfx/manifest.json
           test -f laboratoire/index.html
           test "$(find laboratoire/zelstereos/assets/sfx -maxdepth 1 -type f -name 'SFX*.mp3' | wc -l)" -eq 36
+          test -f laboratoire/zelstereos/assets/sfx/VOICE_P1_ASTRA_PLAY.mp3
+          test -f laboratoire/zelstereos/assets/sfx/VOICE_P2_MUSE_PLAY.mp3
+          test -f laboratoire/zelstereos/assets/sfx/VOICE_P3_GROK_PLAY.mp3
+          test -f laboratoire/zelstereos/assets/sfx/VOICE_P4_ANTIGRAVITY_PLAY.mp3
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' laboratoire/zelstereos/index.html
+          grep -Fq 'id="tabScreen1"' laboratoire/zelstereos/index.html
+          grep -Fq 'id="tabScreen5"' laboratoire/zelstereos/index.html
+          grep -Fq 'id="gamezelQuickPlay"' laboratoire/zelstereos/index.html
+          grep -Fq 'data-gamezel-player="P1"' laboratoire/zelstereos/index.html
+          grep -Fq 'data-gamezel-player="P4"' laboratoire/zelstereos/index.html
           grep -Fq './zelstereos/' laboratoire/index.html
           ! grep -Eq 'Â|Ã|â' laboratoire/zelstereos/index.html
           python - <<'PY'
@@ -140,9 +149,17 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/ -o /tmp/zelstereos.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/api/state -o /tmp/zelstereos-state.json
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/assets/sfx/manifest.json -o /tmp/zelstereos-sfx.json
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/sfx/VOICE_P1_ASTRA_PLAY.mp3 -o /tmp/gamezel-p1.bin
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/sfx/VOICE_P2_MUSE_PLAY.mp3 -o /tmp/gamezel-p2.bin
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/sfx/VOICE_P3_GROK_PLAY.mp3 -o /tmp/gamezel-p3.bin
+          curl --fail --silent --show-error --location --range 0-63 https://antmux.com/laboratoire/zelstereos/assets/sfx/VOICE_P4_ANTIGRAVITY_PLAY.mp3 -o /tmp/gamezel-p4.bin
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/laboratoire.html
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' /tmp/zelstereos.html
-          grep -Fq 'Lecture seule · données filtrées · commandes privées non exposées' /tmp/zelstereos.html
+          grep -Fq 'id="tabScreen1"' /tmp/zelstereos.html
+          grep -Fq 'id="tabScreen5"' /tmp/zelstereos.html
+          grep -Fq 'id="gamezelQuickPlay"' /tmp/zelstereos.html
+          grep -Fq 'data-gamezel-player="P1"' /tmp/zelstereos.html
+          grep -Fq 'data-gamezel-player="P4"' /tmp/zelstereos.html
           ! grep -Eq 'Â|Ã|â' /tmp/zelstereos.html
           grep -Fq './zelstereos/' /tmp/laboratoire.html
           python - <<'PY'
