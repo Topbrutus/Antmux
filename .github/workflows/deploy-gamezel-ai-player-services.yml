@@ -1,0 +1,102 @@
+name: Deploy GAMEZEL autonomous AI player services
+
+on:
+  push:
+    branches:
+      - astra/gamezel-vps-audit-20261002
+    paths:
+      - '.github/workflows/deploy-gamezel-ai-player-services.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install disabled systemd services on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          APP="$HOME/zelstereos-gamezel"
+          SERVICE_DIR="$HOME/.config/systemd/user"
+          CFG_DIR="$HOME/.config/zelstereos/agents"
+          mkdir -p "$SERVICE_DIR" "$CFG_DIR"
+
+          test -f "$APP/agents/gamezel-autoplayer.mjs"
+          test -f "$APP/agents/antigravity-card-agent.py"
+
+          cat > "$CFG_DIR/p2.env" <<'ENV'
+          GAMEZEL_PLAYER_ID=P2
+          GAMEZEL_PROVIDER=muse
+          GAMEZEL_AGENT_ENABLED=false
+          GAMEZEL_AGENT_POLL_MS=3000
+          GAMEZEL_PROVIDER_TIMEOUT_MS=180000
+          ENV
+
+          cat > "$CFG_DIR/p3.env" <<'ENV'
+          GAMEZEL_PLAYER_ID=P3
+          GAMEZEL_PROVIDER=grok
+          GAMEZEL_AGENT_ENABLED=false
+          GAMEZEL_AGENT_POLL_MS=3000
+          GAMEZEL_PROVIDER_TIMEOUT_MS=180000
+          ENV
+
+          cat > "$CFG_DIR/p4.env" <<'ENV'
+          GAMEZEL_PLAYER_ID=P4
+          GAMEZEL_PROVIDER=antigravity
+          GAMEZEL_AGENT_ENABLED=false
+          GAMEZEL_AGENT_POLL_MS=3000
+          GAMEZEL_PROVIDER_TIMEOUT_MS=180000
+          ENV
+          chmod 600 "$CFG_DIR"/*.env
+
+          for seat in p2 p3 p4; do
+            upper="$(printf '%s' "$seat" | tr '[:lower:]' '[:upper:]')"
+            cat > "$SERVICE_DIR/zelstereos-gamezel-$seat.service" <<UNIT
+          [Unit]
+          Description=ZELSTEREOS GAMEZEL autonomous $upper player
+          After=network-online.target zelstereos-gamezel.service
+          Requires=zelstereos-gamezel.service
+
+          [Service]
+          Type=simple
+          WorkingDirectory=%h/zelstereos-gamezel
+          Environment=GAMEZEL_APP_ROOT=%h/zelstereos-gamezel
+          Environment=PATH=%h/.local/bin:%h/.grok/bin:/usr/local/bin:/usr/bin:/bin
+          EnvironmentFile=%h/.config/zelstereos/agents/$seat.env
+          ExecStart=/usr/bin/node %h/zelstereos-gamezel/agents/gamezel-autoplayer.mjs
+          Restart=on-failure
+          RestartSec=15
+
+          [Install]
+          WantedBy=default.target
+          UNIT
+          done
+
+          systemctl --user daemon-reload
+          systemctl --user disable --now zelstereos-gamezel-p2.service 2>/dev/null || true
+          systemctl --user disable --now zelstereos-gamezel-p3.service 2>/dev/null || true
+          systemctl --user disable --now zelstereos-gamezel-p4.service 2>/dev/null || true
+
+          echo 'P2_SERVICE=INSTALLED_DISABLED'
+          echo 'P3_SERVICE=INSTALLED_DISABLED'
+          echo 'P4_SERVICE=INSTALLED_DISABLED'
+          echo 'GAMEZEL_AI_PLAYER_SERVICES=PASS'
+          REMOTE
