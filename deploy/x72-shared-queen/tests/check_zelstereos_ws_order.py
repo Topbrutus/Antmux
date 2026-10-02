@@ -52,8 +52,24 @@ def publish(base: str, token: str, index: int) -> dict:
     return result
 
 
+def public_draw(base: str, player_id: str = "P1") -> dict:
+    req = urllib.request.Request(
+        base.rstrip("/") + "/api/gamezel/draw",
+        data=json.dumps({"player_id": player_id}).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=5) as response:
+        result = json.loads(response.read().decode("utf-8"))
+    if result.get("ok") is not True:
+        raise AssertionError(f"GAMEZEL public draw failed: {result}")
+    return result
+
+
 async def run(base: str, ws_url: str, token: str) -> None:
     received = []
+    draw_event = None
+    draw_result = None
     async with websockets.connect(ws_url, open_timeout=5) as ws:
         for index in range(7):
             publish(base, token, index)
@@ -64,6 +80,15 @@ async def run(base: str, ws_url: str, token: str) -> None:
             if message.get("transport_replay") is True:
                 continue
             received.append(message)
+
+        draw_result = public_draw(base, "P1")
+        while draw_event is None:
+            raw = await asyncio.wait_for(ws.recv(), timeout=5)
+            message = json.loads(raw)
+            if message.get("transport_replay") is True:
+                continue
+            if message.get("type") == "GAMEZEL_PUBLIC_DRAW":
+                draw_event = message
 
     indexes = [item.get("stage_index") for item in received]
     if indexes != list(range(7)):
@@ -88,9 +113,28 @@ async def run(base: str, ws_url: str, token: str) -> None:
         if float(item.get("stage_work_ratio", -1)) != expected_ratio:
             raise AssertionError(f"stage_work_ratio mismatch at stage {index}: {item}")
 
+    if not isinstance(draw_result, dict) or not isinstance(draw_event, dict):
+        raise AssertionError("missing GAMEZEL public draw result/event")
+    if draw_result.get("execution") != "NONE" or draw_result.get("persisted") is not False:
+        raise AssertionError(f"unsafe GAMEZEL draw result: {draw_result}")
+    if draw_result.get("player_id") != "P1" or draw_result.get("audio_ref") != "SFX86":
+        raise AssertionError(f"wrong ASTRA public draw identity: {draw_result}")
+    if draw_event.get("player_id") != "P1" or draw_event.get("player_name") != "ASTRA":
+        raise AssertionError(f"wrong ASTRA WebSocket event: {draw_event}")
+    if draw_event.get("audio_ref") != "SFX86":
+        raise AssertionError(f"wrong ASTRA audio ref: {draw_event}")
+    if draw_event.get("transport_replay") is not False:
+        raise AssertionError(f"live GAMEZEL draw marked as replay: {draw_event}")
+    if draw_event.get("card", {}).get("card_id") != draw_result.get("card", {}).get("card_id"):
+        raise AssertionError("GAMEZEL draw card mismatch between HTTP result and WebSocket event")
+    draw_version = draw_event.get("transport_event_version")
+    if not isinstance(draw_version, int) or draw_version <= versions[-1]:
+        raise AssertionError(f"GAMEZEL draw transport version not monotonic: {draw_version}")
+
     print(
         "ZELSTEREOS_WS_ORDER=PASS "
-        f"stages={indexes} channels={channels} versions={versions}"
+        f"stages={indexes} channels={channels} versions={versions} "
+        f"gamezel_draw_version={draw_version} gamezel_player=P1"
     )
 
 
