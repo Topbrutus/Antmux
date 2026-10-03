@@ -99,7 +99,14 @@ def test_private_api_attach_state_move() -> None:
         app.include_router(
             create_live_transport_router(
                 Path(tmp),
-                lambda: tick["value"],
+                lambda: {
+                    "entity_id": "QUEEN-X72-0072",
+                    "tick_count": tick["value"],
+                    "generation": 3,
+                    "queen_mode": "STABLE",
+                    "integrity_match": True,
+                    "reference_h256": "c" * 64,
+                },
                 transport_token=TOKEN,
             )
         )
@@ -127,6 +134,14 @@ def test_private_api_attach_state_move() -> None:
         assert body["schema"] == "ANTMUX-LIVE-FOURMI-TRANSPORT-v0.1"
         assert body["authority"] == "QUEEN_SERVER_V0_2"
         assert body["tick"] == 200
+        assert body["queen"] == {
+            "entity_id": "QUEEN-X72-0072",
+            "tick_count": 200,
+            "generation": 3,
+            "queen_mode": "STABLE",
+            "integrity_match": True,
+            "reference_h256": "c" * 64,
+        }
         assert body["position"] == "W:START"
         assert body["material"]["binding_state"] == "ATTACHED"
         assert body["integrity_match"] is True
@@ -213,7 +228,14 @@ def test_move_rejects_wrong_from_and_unsafe_flags() -> None:
         app.include_router(
             create_live_transport_router(
                 Path(tmp),
-                lambda: tick["value"],
+                lambda: {
+                    "entity_id": "QUEEN-X72-0072",
+                    "tick_count": tick["value"],
+                    "generation": 4,
+                    "queen_mode": "STABLE",
+                    "integrity_match": True,
+                    "reference_h256": "d" * 64,
+                },
                 transport_token=TOKEN,
             )
         )
