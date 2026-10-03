@@ -9,6 +9,8 @@ import os
 import random
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from collections import deque
 from contextlib import closing
 from dataclasses import asdict, dataclass, field
@@ -540,6 +542,10 @@ class GamezelDrawRequest(BaseModel):
     player_id: str = "P1"
 
 
+class GamezelBatchRequest(BaseModel):
+    games: int = 1
+
+
 DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-queen/data"))
 def load_zel_ingest_token() -> str:
     token = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
@@ -574,6 +580,11 @@ GAMEZEL_PUBLIC_DECK = (
     {"card_code": "CHECKPOINT", "label": "checkpoint de preuve"},
 )
 GAMEZEL_PUBLIC_DRAW_COOLDOWN_SECONDS = 2.5
+GAMEZEL_OPERATOR_BASE_URL = os.environ.get(
+    "GAMEZEL_OPERATOR_BASE_URL",
+    "http://127.0.0.1:3217",
+).rstrip("/")
+GAMEZEL_OPERATOR_TIMEOUT_SECONDS = 10.0
 gamezel_public_draw_sequence = 0
 gamezel_public_draw_last_by_ip: dict[str, float] = {}
 
@@ -906,6 +917,72 @@ async def repair(request: Request) -> dict[str, Any]:
         return {"ok": report_obj.verdict == "PASS", "report": asdict(report_obj), "state": queen.visual_state()}
 
 
+def gamezel_operator_proxy_sync(
+    *,
+    method: str,
+    path: str,
+    authorization: str,
+    payload: dict[str, Any] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    auth = str(authorization or "").strip()
+    if not auth.startswith("Bearer ") or len(auth) > 4096:
+        return 401, {"error": "OPERATOR_AUTH_REQUIRED"}
+
+    data = None
+    headers = {
+        "Accept": "application/json",
+        "Authorization": auth,
+        "User-Agent": "ANTMUX-Shared-Queen-GAMEZEL-Operator-Relay/1",
+    }
+    if payload is not None:
+        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = urllib.request.Request(
+        GAMEZEL_OPERATOR_BASE_URL + path,
+        data=data,
+        headers=headers,
+        method=method,
+    )
+
+    try:
+        with urllib.request.urlopen(
+            request,
+            timeout=GAMEZEL_OPERATOR_TIMEOUT_SECONDS,
+        ) as response:
+            status = int(getattr(response, "status", 200))
+            raw = response.read(262144)
+    except urllib.error.HTTPError as exc:
+        status = int(exc.code)
+        raw = exc.read(262144)
+    except Exception:
+        return 502, {"error": "GAMEZEL_OPERATOR_UPSTREAM_UNAVAILABLE"}
+
+    try:
+        body = json.loads(raw.decode("utf-8")) if raw else {}
+    except Exception:
+        body = {"error": "GAMEZEL_OPERATOR_BAD_RESPONSE"}
+
+    if not isinstance(body, dict):
+        body = {"result": body}
+    return status, body
+
+
+async def gamezel_operator_proxy(
+    request: Request,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    return await asyncio.to_thread(
+        gamezel_operator_proxy_sync,
+        method=method,
+        path=path,
+        authorization=request.headers.get("authorization", ""),
+        payload=payload,
+    )
+
+
 @app.get("/api/gamezel/presence")
 async def gamezel_public_presence() -> dict[str, Any]:
     return {
@@ -920,6 +997,58 @@ async def gamezel_public_presence() -> dict[str, Any]:
             for player_id, seat in GAMEZEL_PUBLIC_SEATS.items()
         ],
     }
+
+
+@app.post("/api/gamezel/operator/batch/play")
+async def gamezel_operator_batch_play(
+    body: GamezelBatchRequest,
+    request: Request,
+) -> dict[str, Any]:
+    if type(body.games) is not int or not 1 <= body.games <= 10000:
+        raise HTTPException(status_code=422, detail="games must be between 1 and 10000")
+    status, result = await gamezel_operator_proxy(
+        request,
+        "POST",
+        "/api/operator/game/batch/play",
+        {"games": body.games},
+    )
+    if status >= 400:
+        raise HTTPException(
+            status_code=status,
+            detail=result.get("error") or result.get("message") or result,
+        )
+    return result
+
+
+@app.post("/api/gamezel/operator/batch/stop")
+async def gamezel_operator_batch_stop(request: Request) -> dict[str, Any]:
+    status, result = await gamezel_operator_proxy(
+        request,
+        "POST",
+        "/api/operator/game/batch/stop",
+        {},
+    )
+    if status >= 400:
+        raise HTTPException(
+            status_code=status,
+            detail=result.get("error") or result.get("message") or result,
+        )
+    return result
+
+
+@app.get("/api/gamezel/operator/batch/status")
+async def gamezel_operator_batch_status(request: Request) -> dict[str, Any]:
+    status, result = await gamezel_operator_proxy(
+        request,
+        "GET",
+        "/api/operator/game/batch/status",
+    )
+    if status >= 400:
+        raise HTTPException(
+            status_code=status,
+            detail=result.get("error") or result.get("message") or result,
+        )
+    return result
 
 
 @app.post("/api/gamezel/draw")
