@@ -13,11 +13,12 @@ import urllib.error
 import urllib.request
 from collections import deque
 from contextlib import closing
+from http.cookies import SimpleCookie
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from .relation_runtime import RelationRuntime
@@ -547,6 +548,10 @@ class GamezelBatchRequest(BaseModel):
     players: list[str] | None = None
 
 
+class GamezelOperatorLoginRequest(BaseModel):
+    token: str = ""
+
+
 DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-queen/data"))
 def load_zel_ingest_token() -> str:
     token = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
@@ -612,6 +617,32 @@ def _gamezel_runtime_request(
         with urllib.request.urlopen(req, timeout=8.0) as response:
             raw = response.read()
             return json.loads(raw.decode("utf-8")) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        detail = f"GAMEZEL HTTP {exc.code}"
+        try:
+            parsed = json.loads(raw.decode("utf-8")) if raw else {}
+            detail = str(parsed.get("message") or parsed.get("error") or detail)
+        except Exception:
+            pass
+        raise HTTPException(status_code=exc.code, detail=detail) from exc
+    except urllib.error.URLError as exc:
+        raise HTTPException(status_code=503, detail="GAMEZEL runtime unavailable") from exc
+
+
+def _gamezel_runtime_login(token: str) -> tuple[dict[str, Any], str]:
+    payload = json.dumps({"token": token}, separators=(",", ":")).encode("utf-8")
+    req = urllib.request.Request(
+        GAMEZEL_RUNTIME_BASE + "/api/operator/login",
+        data=payload,
+        method="POST",
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8.0) as response:
+            raw = response.read()
+            data = json.loads(raw.decode("utf-8")) if raw else {}
+            return data, str(response.headers.get("Set-Cookie") or "")
     except urllib.error.HTTPError as exc:
         raw = exc.read()
         detail = f"GAMEZEL HTTP {exc.code}"
@@ -983,6 +1014,45 @@ async def gamezel_operator_session(request: Request) -> dict[str, Any]:
         "configured": bool(data.get("configured")),
         "authenticated": bool(data.get("authenticated")),
         "authType": data.get("authType"),
+        "csrfToken": data.get("csrfToken"),
+        "expiresAt": data.get("expiresAt"),
+    }
+
+
+@app.post("/api/gamezel/operator-login")
+async def gamezel_operator_login(
+    body: GamezelOperatorLoginRequest,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    token = str(body.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=422, detail="operator token required")
+
+    data, set_cookie = await asyncio.to_thread(_gamezel_runtime_login, token)
+    if not data.get("authenticated") or not data.get("csrfToken"):
+        raise HTTPException(status_code=401, detail="operator authentication failed")
+
+    cookie = SimpleCookie()
+    if set_cookie:
+        cookie.load(set_cookie)
+    session = cookie.get("verso_session")
+    if session is None or not session.value:
+        raise HTTPException(status_code=502, detail="GAMEZEL session cookie missing")
+
+    response.set_cookie(
+        key="verso_session",
+        value=session.value,
+        max_age=8 * 60 * 60,
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+    return {
+        "ok": True,
+        "authenticated": True,
+        "authType": "session",
         "csrfToken": data.get("csrfToken"),
         "expiresAt": data.get("expiresAt"),
     }
