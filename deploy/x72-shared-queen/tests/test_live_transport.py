@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -112,6 +113,70 @@ def test_store_atomic_move_and_replay() -> None:
             assert "already consumed" in str(exc)
         else:
             raise AssertionError("replayed command must fail")
+
+
+def test_private_system_ant_bootstrap_is_idempotent_and_attachable() -> None:
+    with tempfile.TemporaryDirectory(prefix="antmux-live-transport-bootstrap-") as tmp:
+        data_dir = Path(tmp)
+        tick = {"value": 150}
+        app = FastAPI()
+        app.include_router(
+            create_live_transport_router(
+                data_dir,
+                lambda: {
+                    "entity_id": "QUEEN-X72-0072",
+                    "tick_count": tick["value"],
+                    "generation": 2,
+                    "queen_mode": "STABLE",
+                    "integrity_match": True,
+                    "reference_h256": "b" * 64,
+                },
+                transport_token=TOKEN,
+            )
+        )
+        client = TestClient(app)
+        headers = {"Authorization": f"Bearer {TOKEN}"}
+
+        unauthorized = client.post("/api/live-transport/bootstrap-ant")
+        assert unauthorized.status_code == 401
+
+        first = client.post("/api/live-transport/bootstrap-ant", headers=headers)
+        assert first.status_code == 200
+        receipt = first.json()
+        assert receipt["schema"] == "ANTMUX-ANT-BIRTH-v1"
+        assert receipt["role"] == "SYNAPSE"
+        assert receipt["state"] == "SINGING_TO_MEET"
+        ant_id = receipt["ant_id"]
+
+        second = client.post("/api/live-transport/bootstrap-ant", headers=headers)
+        assert second.status_code == 200
+        assert second.json() == receipt
+
+        fetched = client.get(
+            f"/api/live-transport/ant/{ant_id}",
+            headers=headers,
+        )
+        assert fetched.status_code == 200
+        assert fetched.json() == receipt
+
+        with closing(sqlite3.connect(data_dir / "live-transport.db")) as db:
+            count = db.execute("SELECT COUNT(*) FROM carrier_ants").fetchone()[0]
+        assert count == 1
+
+        attached = client.post(
+            "/api/live-transport/attach",
+            json={
+                "ANT_ID": ant_id,
+                "MATERIAL_ID": MATERIAL_ID,
+                "MATERIAL_H256": MATERIAL_H256,
+                "POSITION": "W:START",
+                "TRACE_ID": "TRACE-SYSTEM-ANT-BOOTSTRAP",
+            },
+            headers=headers,
+        )
+        assert attached.status_code == 200
+        assert attached.json()["ant_id"] == ant_id
+        assert attached.json()["position"] == "W:START"
 
 
 def test_private_api_attach_state_move() -> None:
@@ -334,11 +399,13 @@ def test_move_rejects_wrong_from_and_unsafe_flags() -> None:
 
 if __name__ == "__main__":
     test_store_atomic_move_and_replay()
+    test_private_system_ant_bootstrap_is_idempotent_and_attachable()
     test_private_api_attach_state_move()
     test_move_rejects_wrong_from_and_unsafe_flags()
     print("LIVE_TRANSPORT_STORE=PASS")
     print("LIVE_TRANSPORT_AUTH=PASS")
     print("LIVE_TRANSPORT_REAL_ANT_IDENTITY=PASS")
+    print("LIVE_TRANSPORT_SYSTEM_ANT_BOOTSTRAP=PASS")
     print("LIVE_TRANSPORT_STATE_HASH=PASS")
     print("LIVE_TRANSPORT_SINGLE_USE=PASS")
     print("LIVE_TRANSPORT_FAIL_CLOSED=PASS")

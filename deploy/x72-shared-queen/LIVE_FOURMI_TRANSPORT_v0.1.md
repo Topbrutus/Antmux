@@ -6,8 +6,9 @@ Status: candidate.
 
 Provide the first server-authoritative software transport seam for one live Fourmi carrying one exact Brutus math material.
 
-The Queen server exposes four private endpoints:
+The Queen server exposes five private endpoints:
 
+- POST /api/live-transport/bootstrap-ant
 - GET /api/live-transport/ant/{ant_id}
 - POST /api/live-transport/attach
 - GET /api/live-transport/state/{ant_id}/{material_id}
@@ -49,11 +50,25 @@ The server persists:
 
 ## Persisted Ant identity
 
-GET /ant/{ant_id} returns the exact persisted ANTMUX-ANT-BIRTH-v1 receipt from the private ant registry.
+GET /ant/{ant_id} returns the exact persisted ANTMUX-ANT-BIRTH-v1 receipt from an accepted private carrier source.
+
+The normal source remains the persisted public-journal ant registry.
+
+For an empty production registry, POST /bootstrap-ant creates one private system carrier in live-transport.db. The operation is token-protected and idempotent: once a system carrier exists, later bootstrap calls return the same receipt instead of minting additional identities.
+
+The system carrier receipt is produced by the same build_ant_birth() contract, has role SYNAPSE and state SINGING_TO_MEET, but it does not create a public visitor post and does not require visitor identity or email.
 
 POST /attach refuses an ANT_ID that has no persisted birth receipt or whose persisted role is not SYNAPSE.
 
 This prevents production attachment to invented ANT identifiers.
+
+Bootstrap invariants:
+
+- BOOTSTRAP != ATTACH
+- BOOTSTRAP != MOVE
+- BOOTSTRAP != PROOF
+- no material is created or attached by bootstrap
+- no wheel ingress authority is created
 
 ## Attach
 
@@ -141,6 +156,9 @@ ACTION_ACKNOWLEDGED != BRUTUS_MOVEMENT_RECEIPT
 
 Local tests passed for:
 
+- private system carrier bootstrap with Bearer authentication
+- idempotent bootstrap returning exactly one persisted carrier
+- system carrier accepted by the normal attach path
 - persisted ANTMUX-ANT-BIRTH-v1 identity lookup
 - rejection of nonexistent/ineligible ants
 - persistent attach
