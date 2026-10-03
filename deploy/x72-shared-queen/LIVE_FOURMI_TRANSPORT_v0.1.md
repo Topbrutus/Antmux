@@ -6,8 +6,9 @@ Status: candidate.
 
 Provide the first server-authoritative software transport seam for one live Fourmi carrying one exact Brutus math material.
 
-The Queen server exposes three private endpoints:
+The Queen server exposes four private endpoints:
 
+- GET /api/live-transport/ant/{ant_id}
 - POST /api/live-transport/attach
 - GET /api/live-transport/state/{ant_id}/{material_id}
 - POST /api/live-transport/move
@@ -46,6 +47,14 @@ The server persists:
 - last authorization ID
 - state version
 
+## Persisted Ant identity
+
+GET /ant/{ant_id} returns the exact persisted ANTMUX-ANT-BIRTH-v1 receipt from the private ant registry.
+
+POST /attach refuses an ANT_ID that has no persisted birth receipt or whose persisted role is not SYNAPSE.
+
+This prevents production attachment to invented ANT identifiers.
+
 ## Attach
 
 POST /attach establishes the initial server-authoritative runtime attachment.
@@ -56,11 +65,16 @@ A conflicting second attachment fails closed.
 
 ## State
 
-GET /state returns:
+GET /state returns one combined same-instant transport + Queen snapshot:
 
 - schema = ANTMUX-LIVE-FOURMI-TRANSPORT-v0.1
 - authority = QUEEN_SERVER_V0_2
 - current Queen tick
+- Queen entity_id
+- Queen generation
+- Queen mode
+- Queen integrity_match
+- Queen reference_h256
 - ANT_ID
 - world position
 - exact material ID/hash
@@ -70,7 +84,9 @@ GET /state returns:
 - state_h256
 - integrity_match = true
 
-state_h256 is SHA-256 over the canonical response payload excluding state_h256 and integrity_match.
+The embedded Queen tick is exactly the same tick as the transport-state tick.
+
+state_h256 is SHA-256 over the canonical response payload excluding state_h256 and integrity_match. The embedded Queen snapshot is therefore also covered by the hash.
 
 ## Move
 
@@ -125,6 +141,8 @@ ACTION_ACKNOWLEDGED != BRUTUS_MOVEMENT_RECEIPT
 
 Local tests passed for:
 
+- persisted ANTMUX-ANT-BIRTH-v1 identity lookup
+- rejection of nonexistent/ineligible ants
 - persistent attach
 - idempotent exact re-attach
 - atomic move
@@ -134,6 +152,7 @@ Local tests passed for:
 - exact API acknowledgment shape
 - wrong FROM rejection
 - unsafe flag rejection
+- same-tick Queen + transport snapshot
 - full Queen-server route mounting
 
 ## Production boundary
