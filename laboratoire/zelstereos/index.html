@@ -267,6 +267,14 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
 .gamezel-draw-btn{height:38px;border:1px solid #2c5776;border-radius:6px;background:linear-gradient(180deg,#0a2235 0%,#05121d 100%);color:#d9efff;font:900 10px/1 ui-monospace,Consolas,monospace;cursor:pointer}
 .gamezel-draw-btn:hover:not(:disabled){border-color:var(--cyan);box-shadow:0 0 12px rgba(0,229,255,.22)}
 .gamezel-draw-btn:disabled{opacity:.45;cursor:wait}
+.gamezel-batch-controls{display:grid;grid-template-columns:minmax(110px,.7fr) minmax(150px,1fr) auto auto minmax(170px,1.2fr);gap:8px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #16384f}
+.gamezel-batch-input{height:34px;border:1px solid #284e6c;border-radius:6px;background:#03101a;color:#e2f4ff;padding:0 9px;font:800 10px/1 ui-monospace,Consolas,monospace;outline:none}
+.gamezel-batch-input:focus{border-color:var(--cyan);box-shadow:0 0 10px rgba(0,229,255,.16)}
+.gamezel-batch-btn{height:34px;padding:0 14px;border-radius:6px;border:1px solid #2f678b;background:linear-gradient(180deg,#0b2b43 0%,#061725 100%);color:#dff6ff;font:900 10px/1 ui-monospace,Consolas,monospace;cursor:pointer}
+.gamezel-batch-btn.play{border-color:#2b8a5d;color:#9dffcb}.gamezel-batch-btn.stop{border-color:#9d3c3c;color:#ffb1b1}
+.gamezel-batch-btn:disabled{opacity:.4;cursor:wait}
+.gamezel-batch-progress{font:800 10px/1.2 ui-monospace,Consolas,monospace;color:#74c0fc;overflow-wrap:anywhere}
+@media(max-width:900px){.gamezel-batch-controls{grid-template-columns:1fr 1fr}.gamezel-batch-progress{grid-column:1/-1}}
 @media(max-width:760px){.gamezel-quick-buttons{grid-template-columns:1fr 1fr}}
 
 /* GAMEZEL AI INTER-TOWER SPEECH BUS */
@@ -779,6 +787,13 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
       <button type="button" class="gamezel-draw-btn" data-gamezel-player="P2" disabled title="Siège piloté par SSH sur le VPS">P2 · MUSE</button>
       <button type="button" class="gamezel-draw-btn" data-gamezel-player="P3" disabled title="Siège piloté par SSH sur le VPS">P3 · GROK</button>
       <button type="button" class="gamezel-draw-btn" data-gamezel-player="P4" disabled title="Siège piloté par SSH sur le VPS">P4 · ANTIGRAVITY</button>
+    </div>
+    <div class="gamezel-batch-controls">
+      <input id="gamezelBatchCountPublic" class="gamezel-batch-input" type="number" min="1" max="10000" step="1" value="1000" aria-label="Nombre de parties" title="1 partie = 1 round complet à 4 joueurs">
+      <input id="gamezelOperatorToken" class="gamezel-batch-input" type="password" autocomplete="off" placeholder="TOKEN OPÉRATEUR · 1×/ONGLET" aria-label="Jeton opérateur">
+      <button id="gamezelBatchPlayPublic" class="gamezel-batch-btn play" type="button">▶ PLAY</button>
+      <button id="gamezelBatchStopPublic" class="gamezel-batch-btn stop" type="button">■ STOP</button>
+      <span id="gamezelBatchProgressPublic" class="gamezel-batch-progress">BATCH · PRÊT</span>
     </div>
   </div>
 
@@ -4209,6 +4224,103 @@ function renderContinuityTable(events) {
   }).join('');
 }
 const GAMEZEL_PUBLIC_API_BASE='/laboratoire/embryon-x72/api/gamezel';
+const GAMEZEL_BATCH_API_BASE=GAMEZEL_PUBLIC_API_BASE+'/operator/batch';
+let gamezelBatchPollTimer=null;
+
+function gamezelGetOperatorToken(){
+  const input=$('gamezelOperatorToken');
+  const typed=String(input?.value||'').trim();
+  if(typed)return typed;
+  try{return String(sessionStorage.getItem('GAMEZEL_OPERATOR_TOKEN')||'').trim();}catch(_){return '';}
+}
+function gamezelRememberOperatorToken(token){
+  if(!token)return;
+  try{sessionStorage.setItem('GAMEZEL_OPERATOR_TOKEN',token);}catch(_){}
+  const input=$('gamezelOperatorToken');
+  if(input){input.value='';input.placeholder='TOKEN OPÉRATEUR · AUTORISÉ CET ONGLET';}
+}
+function gamezelForgetOperatorToken(){
+  try{sessionStorage.removeItem('GAMEZEL_OPERATOR_TOKEN');}catch(_){}
+  const input=$('gamezelOperatorToken');
+  if(input){input.value='';input.placeholder='TOKEN OPÉRATEUR · 1×/ONGLET';}
+}
+function gamezelRenderBatchStatus(batch){
+  const out=$('gamezelBatchProgressPublic');
+  const play=$('gamezelBatchPlayPublic');
+  const stop=$('gamezelBatchStopPublic');
+  const count=$('gamezelBatchCountPublic');
+  const running=Boolean(batch?.running);
+  if(play)play.disabled=running;
+  if(stop)stop.disabled=!running;
+  if(count)count.disabled=running;
+  if(!out)return;
+  if(running){
+    out.textContent='BATCH · '+String(batch.completedGames||0)+'/'+String(batch.requestedGames||0)+' PARTIES · '+String(batch.completedTurns||0)+' TOURS';
+    out.style.color='#69db7c';
+  }else if(batch?.state==='FAILED'){
+    out.textContent='BATCH · ÉCHEC · '+String(batch.lastError||'ERREUR').slice(0,120);
+    out.style.color='#ff8787';
+  }else if(batch?.state==='COMPLETED'){
+    out.textContent='BATCH · TERMINÉ · '+String(batch.completedGames||0)+'/'+String(batch.requestedGames||0);
+    out.style.color='#74c0fc';
+  }else if(batch?.state==='STOPPED'){
+    out.textContent='BATCH · ARRÊTÉ · '+String(batch.completedGames||0)+'/'+String(batch.requestedGames||0);
+    out.style.color='#ffa94d';
+  }else{
+    out.textContent='BATCH · PRÊT';
+    out.style.color='#74c0fc';
+  }
+}
+async function gamezelBatchFetch(path,options={}){
+  const token=gamezelGetOperatorToken();
+  if(!token)throw new Error('TOKEN OPÉRATEUR REQUIS UNE FOIS POUR CET ONGLET');
+  const headers={...(options.headers||{}),Authorization:'Bearer '+token};
+  const r=await fetch(GAMEZEL_BATCH_API_BASE+path,{...options,headers,cache:'no-store'});
+  const body=await r.json().catch(()=>({}));
+  if(r.status===401||r.status===403){gamezelForgetOperatorToken();}
+  if(!r.ok)throw new Error(String(body?.detail||body?.error||('HTTP '+r.status)));
+  gamezelRememberOperatorToken(token);
+  return body;
+}
+async function gamezelBatchRefresh(){
+  if(!gamezelGetOperatorToken())return null;
+  try{
+    const d=await gamezelBatchFetch('/status');
+    gamezelRenderBatchStatus(d);
+    if(d.running&&!gamezelBatchPollTimer){
+      gamezelBatchPollTimer=setInterval(gamezelBatchRefresh,1200);
+    }else if(!d.running&&gamezelBatchPollTimer){
+      clearInterval(gamezelBatchPollTimer);gamezelBatchPollTimer=null;
+    }
+    return d;
+  }catch(err){
+    const out=$('gamezelBatchProgressPublic');
+    if(out){out.textContent='BATCH · '+String(err?.message||err).slice(0,100);out.style.color='#ff8787';}
+    return null;
+  }
+}
+async function gamezelBatchPlay(){
+  const count=Number.parseInt($('gamezelBatchCountPublic')?.value||'0',10);
+  if(!Number.isInteger(count)||count<1||count>10000)throw new Error('PARTIES: 1 À 10000');
+  const d=await gamezelBatchFetch('/play',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({games:count})
+  });
+  gamezelRenderBatchStatus(d);
+  if(gamezelBatchPollTimer)clearInterval(gamezelBatchPollTimer);
+  gamezelBatchPollTimer=setInterval(gamezelBatchRefresh,1200);
+  return d;
+}
+async function gamezelBatchStop(){
+  const d=await gamezelBatchFetch('/stop',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:'{}'
+  });
+  gamezelRenderBatchStatus(d);
+  return d;
+}
 
 async function gamezelQuickPresence(){
   const status=$('gamezelQuickStatus');
@@ -4283,6 +4395,29 @@ function gamezelHandlePublicDrawPacket(s){
 document.querySelectorAll('[data-gamezel-player]').forEach(btn=>{
   btn.addEventListener('click',()=>gamezelQuickDraw(btn.getAttribute('data-gamezel-player')));
 });
+
+if($('gamezelBatchPlayPublic')){
+  $('gamezelBatchPlayPublic').addEventListener('click',async()=>{
+    try{await gamezelBatchPlay();}
+    catch(err){
+      const out=$('gamezelBatchProgressPublic');
+      if(out){out.textContent='BATCH · '+String(err?.message||err).slice(0,110);out.style.color='#ff8787';}
+    }
+  });
+}
+if($('gamezelBatchStopPublic')){
+  $('gamezelBatchStopPublic').addEventListener('click',async()=>{
+    try{await gamezelBatchStop();}
+    catch(err){
+      const out=$('gamezelBatchProgressPublic');
+      if(out){out.textContent='BATCH · '+String(err?.message||err).slice(0,110);out.style.color='#ff8787';}
+    }
+  });
+}
+if($('gamezelOperatorToken')){
+  $('gamezelOperatorToken').addEventListener('change',()=>gamezelBatchRefresh());
+}
+setTimeout(()=>gamezelBatchRefresh(),900);
 
 const ZEL_WS_PATH='/laboratoire/embryon-x72/ws?channel=zelstereos';
 let zelSocket=null;
