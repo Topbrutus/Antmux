@@ -43,7 +43,7 @@ jobs:
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
           set -euo pipefail
           cd "$HOME/antmux-x72-queen"
-          PYTHONPATH="$HOME/antmux-x72-queen" python3 - <<'PY'
+          PYTHONPATH="$HOME/antmux-x72-queen:$HOME/antmux-x72-queen/vendor" python3 - <<'PY'
           import sqlite3
           from contextlib import closing
           from pathlib import Path
