@@ -1,0 +1,92 @@
+name: Bootstrap Production System Ant
+
+on:
+  push:
+    branches:
+      - astra/prod-system-ant-bootstrap-run-20261002
+    paths:
+      - '.github/workflows/bootstrap-production-system-ant.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-production-system-ant:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Bootstrap one persisted system carrier
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/antmux-x72-queen"
+          PYTHONPATH="$HOME/antmux-x72-queen" python3 - <<'PY'
+          import sqlite3
+          from contextlib import closing
+          from pathlib import Path
+          from app.live_transport import LiveTransportStore
+
+          data_dir = Path.home() / "antmux-x72-queen" / "data"
+          store = LiveTransportStore(data_dir)
+
+          with closing(sqlite3.connect(store.db_path)) as db:
+              pre_count = int(db.execute("SELECT COUNT(*) FROM carrier_ants").fetchone()[0])
+          if pre_count not in (0, 1):
+              raise SystemExit(f"PRE_CARRIER_COUNT=UNEXPECTED_{pre_count}")
+
+          first = store.bootstrap_system_ant()
+          second = store.bootstrap_system_ant()
+
+          if first != second:
+              raise SystemExit("BOOTSTRAP_IDEMPOTENCE=FAIL")
+          ant_id = first.get("ant_id")
+          if first.get("schema") != "ANTMUX-ANT-BIRTH-v1":
+              raise SystemExit("BOOTSTRAP_SCHEMA=FAIL")
+          if first.get("role") != "SYNAPSE":
+              raise SystemExit("BOOTSTRAP_ROLE=FAIL")
+          if first.get("state") != "SINGING_TO_MEET":
+              raise SystemExit("BOOTSTRAP_STATE=FAIL")
+
+          fetched = store.read_ant_receipt(ant_id)
+          if fetched != first:
+              raise SystemExit("PERSISTED_RECEIPT_MATCH=FAIL")
+
+          with closing(sqlite3.connect(store.db_path)) as db:
+              post_count = int(db.execute("SELECT COUNT(*) FROM carrier_ants").fetchone()[0])
+          if post_count != 1:
+              raise SystemExit(f"POST_CARRIER_COUNT=FAIL_{post_count}")
+
+          print(f"PRE_CARRIER_COUNT={pre_count}")
+          print(f"BOOTSTRAP_CREATED={'true' if pre_count == 0 else 'false'}")
+          print("BOOTSTRAP_IDEMPOTENCE=PASS")
+          print("PERSISTED_RECEIPT_MATCH=PASS")
+          print("CARRIER_PERSISTENCE=PASS")
+          print(f"ANT_ID={ant_id}")
+          print(f"ANT_ROLE={first.get('role')}")
+          print(f"ANT_STATE={first.get('state')}")
+          print("PROD_SYSTEM_ANT_BOOTSTRAP=PASS")
+          PY
+          REMOTE
