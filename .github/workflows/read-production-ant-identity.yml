@@ -1,0 +1,64 @@
+name: Read Production Ant Identity
+
+on:
+  push:
+    branches:
+      - astra/prod-system-ant-bootstrap-run-20261002
+    paths:
+      - '.github/workflows/read-production-ant-identity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  read-production-ant-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read safe persisted ant identity fields
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/antmux-x72-queen"
+          PYTHONPATH="$HOME/antmux-x72-queen:$HOME/antmux-x72-queen/vendor" python3 - <<'PY'
+          from pathlib import Path
+          from app.live_transport import LiveTransportStore
+
+          ant_id = "ANT-9F7FC681CD80"
+          store = LiveTransportStore(Path.home() / "antmux-x72-queen" / "data")
+          receipt = store.read_ant_receipt(ant_id)
+          soul = receipt["project_soul"]
+
+          print("ANT_ID=" + receipt["ant_id"])
+          print("ANT_ROLE=" + receipt["role"])
+          print("ANT_STATE=" + receipt["state"])
+          print("ANT_FORM=" + receipt["form"])
+          print("MEMORY_ID=" + soul["memory_id"])
+          print("BIRTH_TICK_MS=" + str(soul["birth_tick_ms"]))
+          print("LINEAGE_ROOT=" + soul["lineage"][0])
+          print("PROD_ANT_IDENTITY_READ=PASS")
+          PY
+          REMOTE
