@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -158,7 +159,7 @@ def test_private_system_ant_bootstrap_is_idempotent_and_attachable() -> None:
         assert fetched.status_code == 200
         assert fetched.json() == receipt
 
-        with sqlite3.connect(data_dir / "live-transport.db") as db:
+        with closing(sqlite3.connect(data_dir / "live-transport.db")) as db:
             count = db.execute("SELECT COUNT(*) FROM carrier_ants").fetchone()[0]
         assert count == 1
 
