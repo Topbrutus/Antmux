@@ -13,7 +13,7 @@ The Queen server exposes four private endpoints:
 - GET /api/live-transport/state/{ant_id}/{material_id}
 - POST /api/live-transport/move
 
-All three require a dedicated Bearer transport token.
+All four require a dedicated Bearer transport token.
 
 ## Security
 
