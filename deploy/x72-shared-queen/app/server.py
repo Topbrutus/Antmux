@@ -651,7 +651,14 @@ queen = persistence.load_latest() or QueenCore(seed=72)
 app.include_router(
     create_live_transport_router(
         DATA_DIR,
-        lambda: queen.tick,
+        lambda: {
+            "entity_id": queen.entity_id,
+            "tick_count": queen.tick,
+            "generation": queen.generation,
+            "queen_mode": queen.mode,
+            "integrity_match": queen.integrity_match(),
+            "reference_h256": queen.reference_h256(),
+        },
     )
 )
 state_lock = asyncio.Lock()
