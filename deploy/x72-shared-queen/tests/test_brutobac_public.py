@@ -7,7 +7,7 @@ from contextlib import closing
 from pathlib import Path
 
 from app.ant_birth import build_ant_birth
-from app.brutobac_public import PUBLIC_SCHEMA, build_public_events
+from app.brutobac_public import PUBLIC_SCHEMA, UI_ROOT, build_public_events
 from app.live_transport import LiveTransportStore
 
 
@@ -75,6 +75,17 @@ def test_public_projection_contains_queen_and_valid_ant_only() -> None:
         assert "token" not in json.dumps(events).lower()
 
 
+def test_public_ui_bundle_is_present() -> None:
+    index_path = UI_ROOT / "index.html"
+    assert index_path.is_file()
+    html = index_path.read_text(encoding="utf-8")
+    assert "BRUTUS LIVE FOURMI AQUARIUM 3D" in html
+    assert "/laboratoire/embryon-x72/api/brutobac/assets/" in html
+    assets = UI_ROOT / "assets"
+    assert any(assets.glob("*.js"))
+    assert any(assets.glob("*.css"))
+
+
 def test_public_projection_fails_closed_without_birth_receipt() -> None:
     with tempfile.TemporaryDirectory(prefix="antmux-brutobac-public-missing-ant-") as tmp:
         data_dir = Path(tmp)
@@ -108,5 +119,7 @@ def test_public_projection_fails_closed_without_birth_receipt() -> None:
 if __name__ == "__main__":
     test_public_projection_contains_queen_and_valid_ant_only()
     test_public_projection_fails_closed_without_birth_receipt()
+    test_public_ui_bundle_is_present()
     print("BRUTOBAC_PUBLIC_PROJECTION=PASS")
     print("BRUTOBAC_PUBLIC_FAIL_CLOSED=PASS")
+    print("BRUTOBAC_PUBLIC_UI=PASS")

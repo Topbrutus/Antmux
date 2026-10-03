@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 
 PUBLIC_SCHEMA = "BRUTUS-AQUARIUM-EVENT-v1"
@@ -17,6 +17,7 @@ AUTHORITY = "QUEEN_SERVER_V0_2"
 ROUTER_PREFIX = "/api/brutobac"
 LIVE_DB_FILE = "live-transport.db"
 JOURNAL_DB_FILE = "public-journal.db"
+UI_ROOT = Path(__file__).resolve().parent / "brutobac_ui"
 
 
 def _queen_snapshot(get_queen_snapshot: Callable[[], dict[str, Any]]) -> dict[str, Any]:
@@ -249,6 +250,21 @@ def create_brutobac_public_router(
 ) -> APIRouter:
     router = APIRouter(prefix=ROUTER_PREFIX, tags=["brutobac-public-readonly"])
 
+    @router.get("/")
+    async def ui_index() -> FileResponse:
+        index_path = UI_ROOT / "index.html"
+        if not index_path.is_file():
+            raise HTTPException(status_code=503, detail="BrutoBac UI bundle unavailable")
+        return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-transform"})
+
+    @router.get("/assets/{asset_path:path}")
+    async def ui_asset(asset_path: str) -> FileResponse:
+        assets_root = (UI_ROOT / "assets").resolve()
+        candidate = (assets_root / asset_path).resolve()
+        if assets_root not in candidate.parents or not candidate.is_file():
+            raise HTTPException(status_code=404, detail="BrutoBac asset not found")
+        return FileResponse(candidate, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
     @router.get("/snapshot")
     async def snapshot() -> list[dict[str, Any]]:
         return build_public_events(Path(data_dir), get_queen_snapshot)
@@ -297,6 +313,7 @@ __all__ = [
     "PUBLIC_SCHEMA",
     "PUBLIC_SOURCE",
     "ROUTER_PREFIX",
+    "UI_ROOT",
     "build_public_events",
     "create_brutobac_public_router",
 ]
