@@ -521,9 +521,13 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
         <div id="gamezelBatchMini" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 6px;border:1px solid #1b425c;border-radius:5px;background:#03080e;font:800 9px/1 ui-monospace,Consolas,monospace">
           <span style="color:#7fa4bd">JOUEURS</span>
           <label title="Activer ou désactiver P1"><input class="gamezel-batch-player" type="checkbox" value="P1"> 1</label>
+          <select class="gamezel-seat-occupant" data-seat="P1" aria-label="Occupant P1" title="Occupant du siège P1" style="max-width:92px;padding:2px 3px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace"><option value="ASTRA" selected>ASTRA</option><option value="CODEX">CODEX</option></select>
           <label title="Activer ou désactiver P2"><input class="gamezel-batch-player" type="checkbox" value="P2"> 2</label>
+          <select class="gamezel-seat-occupant" data-seat="P2" aria-label="Occupant P2" title="Occupant du siège P2" style="max-width:92px;padding:2px 3px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace"><option value="MUSE" selected>MUSE</option><option value="CODEX">CODEX</option></select>
           <label title="Activer ou désactiver P3"><input class="gamezel-batch-player" type="checkbox" value="P3"> 3</label>
+          <select class="gamezel-seat-occupant" data-seat="P3" aria-label="Occupant P3" title="Occupant du siège P3" style="max-width:92px;padding:2px 3px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace"><option value="GROK" selected>GROK</option><option value="CODEX">CODEX</option></select>
           <label title="Activer ou désactiver P4"><input class="gamezel-batch-player" type="checkbox" value="P4"> 4</label>
+          <select class="gamezel-seat-occupant" data-seat="P4" aria-label="Occupant P4" title="Occupant du siège P4" style="max-width:112px;padding:2px 3px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace"><option value="ANTIGRAVITY" selected>ANTIGRAVITY</option><option value="CODEX">CODEX</option></select>
           <span style="color:#7fa4bd">TOURS</span>
           <input id="gamezelBatchRounds" type="number" min="1" max="10000" step="1" value="2" style="width:52px;padding:2px 4px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace">
           <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" disabled title="Commande GAMEZEL réservée à une session VERSO valide">▶ PLAY</button>
@@ -1901,6 +1905,17 @@ function gamezelBatchSelection(){
     .map(el=>el.value)
     .filter(id=>['P1','P2','P3','P4'].includes(id));
 }
+function gamezelBatchOccupants(){
+  const occupants={};
+  document.querySelectorAll('.gamezel-seat-occupant').forEach(el=>{
+    const seat=String(el.dataset.seat||'').toUpperCase();
+    const occupant=String(el.value||'').toUpperCase();
+    if(['P1','P2','P3','P4'].includes(seat)&&['ASTRA','MUSE','GROK','ANTIGRAVITY','CODEX'].includes(occupant)){
+      occupants[seat]=occupant;
+    }
+  });
+  return occupants;
+}
 function gamezelBatchEnable(authenticated){
   const play=$('gamezelBatchPlay');
   if(play){
@@ -1911,6 +1926,7 @@ function gamezelBatchEnable(authenticated){
   }
   if($('gamezelBatchRounds'))$('gamezelBatchRounds').disabled=false;
   document.querySelectorAll('.gamezel-batch-player').forEach(el=>{el.disabled=false;});
+  document.querySelectorAll('.gamezel-seat-occupant').forEach(el=>{el.disabled=gamezelBatchRunning;});
 }
 function gamezelBatchShowLogin(show=true){
   const box=$('gamezelBatchLogin');
@@ -1943,6 +1959,13 @@ async function gamezelBatchPoll(){
     const d=await r.json().catch(()=>({}));
     if(!r.ok){await gamezelBatchAuth();return;}
     const selected=Array.isArray(d.selectedPlayers)?d.selectedPlayers.map(x=>String(x).replace('P','')).join(','):'—';
+    if(d.occupants&&typeof d.occupants==='object'){
+      document.querySelectorAll('.gamezel-seat-occupant').forEach(el=>{
+        const seat=String(el.dataset.seat||'').toUpperCase();
+        const occupant=String(d.occupants[seat]||'').toUpperCase();
+        if(occupant&&Array.from(el.options).some(opt=>opt.value===occupant))el.value=occupant;
+      });
+    }
     if($('gamezelBatchMiniStatus')){
       if(d.running)$('gamezelBatchMiniStatus').textContent='EN COURS '+(d.completedGames||0)+'/'+(d.requestedGames||0)+' · J'+selected;
       else if(d.state==='COMPLETED')$('gamezelBatchMiniStatus').textContent='TERMINÉ '+(d.completedGames||0)+'/'+(d.requestedGames||0);
@@ -1959,6 +1982,7 @@ async function gamezelBatchPoll(){
 }
 async function gamezelBatchStart(){
   const players=gamezelBatchSelection();
+  const occupants=gamezelBatchOccupants();
   const games=Number.parseInt($('gamezelBatchRounds')?.value||'0',10);
   if(players.length===0){$('gamezelBatchMiniStatus').textContent='CHOISIR 1–4';return;}
   if(!Number.isInteger(games)||games<1||games>10000){$('gamezelBatchMiniStatus').textContent='TOURS 1–10000';return;}
@@ -1976,7 +2000,7 @@ async function gamezelBatchStart(){
       method:'POST',
       credentials:'same-origin',
       headers:{'Content-Type':'application/json','X-CSRF-Token':gamezelBatchCsrf},
-      body:JSON.stringify({games,players}),
+      body:JSON.stringify({games,players,occupants}),
       cache:'no-store'
     });
     const d=await r.json().catch(()=>({}));
