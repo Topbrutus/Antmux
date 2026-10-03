@@ -20,6 +20,7 @@ AUTHORITY = "QUEEN_SERVER_V0_2"
 ROUTER_PREFIX = "/api/live-transport"
 TOKEN_FILE_NAME = "live-transport-token"
 DB_FILE_NAME = "live-transport.db"
+JOURNAL_DB_FILE_NAME = "public-journal.db"
 MAX_COMMAND_AGE_TICKS = 65536
 
 
@@ -185,6 +186,38 @@ class LiveTransportStore:
                 """
             )
             db.commit()
+
+    def read_ant_receipt(self, ant_id: str) -> dict[str, Any]:
+        journal_db = self.data_dir / JOURNAL_DB_FILE_NAME
+        if not journal_db.exists():
+            raise HTTPException(status_code=404, detail="ant registry unavailable")
+
+        try:
+            with closing(sqlite3.connect(journal_db)) as db:
+                row = db.execute(
+                    "SELECT receipt_json FROM ants WHERE id=?",
+                    (ant_id,),
+                ).fetchone()
+        except sqlite3.Error as exc:
+            raise HTTPException(status_code=503, detail="ant registry unavailable") from exc
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="ant birth receipt not found")
+
+        try:
+            receipt = json.loads(row[0])
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=503, detail="ant birth receipt malformed") from exc
+
+        if not isinstance(receipt, dict):
+            raise HTTPException(status_code=503, detail="ant birth receipt malformed")
+        if receipt.get("schema") != "ANTMUX-ANT-BIRTH-v1":
+            raise HTTPException(status_code=503, detail="ant birth schema mismatch")
+        if receipt.get("ant_id") != ant_id:
+            raise HTTPException(status_code=503, detail="ant birth identity mismatch")
+        if receipt.get("role") != "SYNAPSE":
+            raise HTTPException(status_code=409, detail="ant role is not SYNAPSE")
+        return receipt
 
     def attach(
         self,
@@ -498,10 +531,16 @@ def create_live_transport_router(
             "integrity_match": True,
         }
 
+    @router.get("/ant/{ant_id}")
+    async def ant_receipt(ant_id: str, request: Request) -> dict[str, Any]:
+        require_token(request)
+        return store.read_ant_receipt(_ant_id(ant_id))
+
     @router.post("/attach")
     async def attach(body: AttachRequest, request: Request) -> dict[str, Any]:
         require_token(request)
         ant_id = _ant_id(body.ANT_ID)
+        store.read_ant_receipt(ant_id)
         material_id = _material_id(body.MATERIAL_ID)
         material_h256 = _h256(body.MATERIAL_H256, "MATERIAL_H256")
         position = _world_ref(body.POSITION, "POSITION")
