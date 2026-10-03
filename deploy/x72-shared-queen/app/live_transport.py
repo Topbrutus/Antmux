@@ -412,7 +412,7 @@ class LiveTransportStore:
 
 def create_live_transport_router(
     data_dir: Path,
-    get_queen_tick: Callable[[], int],
+    get_queen_snapshot: Callable[[], dict[str, Any]],
     *,
     transport_token: str | None = None,
 ) -> APIRouter:
@@ -432,20 +432,52 @@ def create_live_transport_router(
         if not hmac.compare_digest(supplied, token):
             raise HTTPException(status_code=401, detail="live transport authorization required")
 
-    def current_tick() -> int:
-        tick = get_queen_tick()
-        if type(tick) is not int or tick < 0:
+    def queen_snapshot() -> dict[str, Any]:
+        value = get_queen_snapshot()
+        if not isinstance(value, dict):
+            raise HTTPException(status_code=503, detail="Queen snapshot unavailable")
+        required = {
+            "entity_id",
+            "tick_count",
+            "generation",
+            "queen_mode",
+            "integrity_match",
+            "reference_h256",
+        }
+        if set(value.keys()) != required:
+            raise HTTPException(status_code=503, detail="Queen snapshot shape invalid")
+        if not isinstance(value["entity_id"], str) or not value["entity_id"]:
+            raise HTTPException(status_code=503, detail="Queen entity unavailable")
+        if type(value["tick_count"]) is not int or value["tick_count"] < 0:
             raise HTTPException(status_code=503, detail="Queen tick unavailable")
-        return tick
+        if type(value["generation"]) is not int or value["generation"] < 0:
+            raise HTTPException(status_code=503, detail="Queen generation unavailable")
+        if not isinstance(value["queen_mode"], str) or not value["queen_mode"]:
+            raise HTTPException(status_code=503, detail="Queen mode unavailable")
+        if value["integrity_match"] is not True:
+            raise HTTPException(status_code=503, detail="Queen integrity mismatch")
+        reference = str(value["reference_h256"]).strip().lower()
+        if len(reference) != 64 or any(ch not in "0123456789abcdef" for ch in reference):
+            raise HTTPException(status_code=503, detail="Queen reference hash unavailable")
+        return {
+            "entity_id": value["entity_id"],
+            "tick_count": value["tick_count"],
+            "generation": value["generation"],
+            "queen_mode": value["queen_mode"],
+            "integrity_match": True,
+            "reference_h256": reference,
+        }
 
     def snapshot(state: dict[str, Any]) -> dict[str, Any]:
         now = time.time()
+        queen = queen_snapshot()
         payload = {
             "schema": SCHEMA,
             "authority": AUTHORITY,
             "source_endpoint": f"{ROUTER_PREFIX}/state",
             "observed_at_utc": _utc_iso(now),
-            "tick": current_tick(),
+            "tick": queen["tick_count"],
+            "queen": queen,
             "ant_id": state["ant_id"],
             "position": state["position"],
             "material": {
@@ -473,7 +505,7 @@ def create_live_transport_router(
         material_id = _material_id(body.MATERIAL_ID)
         material_h256 = _h256(body.MATERIAL_H256, "MATERIAL_H256")
         position = _world_ref(body.POSITION, "POSITION")
-        tick = current_tick()
+        tick = queen_snapshot()["tick_count"]
 
         state = store.attach(
             ant_id=ant_id,
@@ -537,7 +569,7 @@ def create_live_transport_router(
             from_position=from_position,
             to_position=to_position,
             requested_at_tick=int(body.REQUESTED_AT_TICK),
-            executed_at_tick=current_tick(),
+            executed_at_tick=queen_snapshot()["tick_count"],
         )
 
         # Keep this acknowledgment shape intentionally minimal and exact:
