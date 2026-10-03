@@ -80,7 +80,7 @@ def test_public_projection_fails_closed_without_birth_receipt() -> None:
         data_dir = Path(tmp)
         store = LiveTransportStore(data_dir)
 
-        with sqlite3.connect(data_dir / "live-transport.db") as db:
+        with closing(sqlite3.connect(data_dir / "live-transport.db")) as db:
             db.execute(
                 """
                 INSERT INTO transport_state(
