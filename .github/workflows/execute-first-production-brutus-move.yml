@@ -1,0 +1,257 @@
+name: Execute First Production Brutus Move
+
+on:
+  push:
+    branches:
+      - astra/prod-system-ant-bootstrap-run-20261002
+    paths:
+      - '.github/workflows/execute-first-production-brutus-move.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  first-production-move:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify grant and execute exactly one move
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/antmux-x72-queen"
+          PYTHONPATH="$HOME/antmux-x72-queen:$HOME/antmux-x72-queen/vendor" python3 - <<'PY'
+          import hashlib
+          import json
+          import sqlite3
+          import time
+          import urllib.request
+          from contextlib import closing
+          from pathlib import Path
+          from app.live_transport import LiveTransportStore
+
+          ANT_ID = "ANT-9F7FC681CD80"
+          MATERIAL_ID = "MAT-MATH-ED5FB0A15F49E6386DFC0F3E"
+          MATERIAL_H256 = "391b53d02d51ce6d9d9dbcb7c730983f721689d260f5841b31fc5321ca9bfb6d"
+          AUTHORIZATION_ID = "LTA-T196670817-B0A6DFDF2524D10F8F34"
+          AUTHORIZATION_H256 = "0b224674e68bba1a50d2f337c104eb00c949168d7c26d03f02cfca330feb6771"
+          VALID_FROM_TICK = 196670817
+          EXPIRES_AT_TICK = 196736353
+          FROM = "W:START"
+          TO = "W:GENESIS-A"
+
+          grant = {
+              "SCHEMA": "BRUTUS-LIVE-FOURMI-TRANSPORT-AUTHORIZATION-v0.1",
+              "VERSION": "0.1",
+              "AUTHORIZATION_ID": AUTHORIZATION_ID,
+              "ANT_ID": ANT_ID,
+              "ANT_IDENTITY_H256": "dcca73e291994c08a67a7a7dec184e2423565bd758026ce581bc214057f4f321",
+              "MATERIAL_ID": MATERIAL_ID,
+              "MATERIAL_H256": MATERIAL_H256,
+              "ISSUED_AT_TICK": 196670817,
+              "VALID_FROM_TICK": VALID_FROM_TICK,
+              "EXPIRES_AT_TICK": EXPIRES_AT_TICK,
+              "CLOCK_AUTHORITY": "QUEEN_SERVER_V0_2",
+              "SCOPE": {
+                  "PURPOSE": "MATERIAL_TRANSPORT",
+                  "FROM": FROM,
+                  "TO": TO,
+                  "MATERIAL_CLASS": "FOURMI_MATH_MATERIAL",
+                  "REQUIRED_ANT_ROLE": "SYNAPSE",
+                  "REQUIRED_ANT_STATE": "SINGING_TO_MEET",
+                  "MAX_MOVES": 1,
+              },
+              "AUTHORIZATION": {
+                  "POLICY": "BRUTUS-LIVE-FOURMI-TRANSPORT-v0.1",
+                  "DECISION": "APPROVED",
+                  "APPROVER": "BRUTUS_CONTROL_PLANE",
+              },
+              "TRACE_ID": "TRACE-PROD-LIVE-MOVE-20261002-0003",
+              "PROOF_REF": None,
+              "SINGLE_USE": True,
+              "EXECUTABLE": False,
+              "GATE_AUTHORITY": False,
+              "ROUTING_AUTHORIZATION": "AUTHORIZED",
+              "SIGNATURE_METHOD": "BRUTUS-CANONICAL-JSON-SHA256-v0.1",
+              "SIGNATURE_H256": AUTHORIZATION_H256,
+          }
+
+          def h256(value):
+              raw = json.dumps(
+                  value,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  ensure_ascii=False,
+                  allow_nan=False,
+              ).encode("utf-8")
+              return hashlib.sha256(raw).hexdigest()
+
+          unsigned = dict(grant)
+          unsigned.pop("SIGNATURE_H256")
+          if h256(unsigned) != AUTHORIZATION_H256:
+              raise SystemExit("GRANT_SIGNATURE=FAIL")
+          if grant["SCOPE"]["MAX_MOVES"] != 1 or grant["SINGLE_USE"] is not True:
+              raise SystemExit("GRANT_BOUNDS=FAIL")
+          if grant["PROOF_REF"] is not None or grant["EXECUTABLE"] is not False:
+              raise SystemExit("GRANT_PROOF_EXECUTION_BOUNDARY=FAIL")
+          if grant["GATE_AUTHORITY"] is not False:
+              raise SystemExit("GRANT_GATE_BOUNDARY=FAIL")
+          if grant["ROUTING_AUTHORIZATION"] != "AUTHORIZED":
+              raise SystemExit("GRANT_ROUTING=FAIL")
+
+          def health():
+              with urllib.request.urlopen("http://127.0.0.1:8720/api/health", timeout=10) as response:
+                  body = json.loads(response.read().decode("utf-8"))
+              if body.get("ok") is not True or body.get("integrity_match") is not True:
+                  raise SystemExit("QUEEN_HEALTH=FAIL")
+              return body
+
+          store = LiveTransportStore(Path.home() / "antmux-x72-queen" / "data")
+          receipt = store.read_ant_receipt(ANT_ID)
+          if receipt.get("role") != "SYNAPSE" or receipt.get("state") != "SINGING_TO_MEET":
+              raise SystemExit("ANT_IDENTITY=FAIL")
+
+          pre_health = health()
+          pre_tick = int(pre_health["tick_count"])
+          if not (VALID_FROM_TICK <= pre_tick <= EXPIRES_AT_TICK):
+              raise SystemExit(f"GRANT_ACTIVE=FAIL_TICK_{pre_tick}")
+
+          pre_state = store.read(ant_id=ANT_ID, material_id=MATERIAL_ID)
+          if pre_state["material_h256"] != MATERIAL_H256:
+              raise SystemExit("PRE_MATERIAL_H256=FAIL")
+          if pre_state["position"] != FROM:
+              raise SystemExit("PRE_POSITION=FAIL")
+          if pre_state["binding_state"] != "ATTACHED":
+              raise SystemExit("PRE_BINDING=FAIL")
+          if pre_state["state_version"] != 1:
+              raise SystemExit(f"PRE_STATE_VERSION=FAIL_{pre_state['state_version']}")
+          if pre_state["last_move_tick"] is not None:
+              raise SystemExit("PRE_LAST_MOVE=FAIL")
+          if pre_state["last_command_id"] is not None:
+              raise SystemExit("PRE_LAST_COMMAND=FAIL")
+          if pre_state["last_authorization_id"] is not None:
+              raise SystemExit("PRE_LAST_AUTHORIZATION=FAIL")
+
+          with closing(sqlite3.connect(store.db_path)) as db:
+              consumed = db.execute(
+                  "SELECT COUNT(*) FROM move_commands WHERE authorization_id=? OR material_id=?",
+                  (AUTHORIZATION_ID, MATERIAL_ID),
+              ).fetchone()[0]
+          if int(consumed) != 0:
+              raise SystemExit("PRE_CONSUMED=FAIL")
+
+          command_seed = {
+              "AUTHORIZATION_ID": AUTHORIZATION_ID,
+              "AUTHORIZATION_H256": AUTHORIZATION_H256,
+              "ANT_ID": ANT_ID,
+              "MATERIAL_ID": MATERIAL_ID,
+              "MATERIAL_H256": MATERIAL_H256,
+              "TICK": pre_tick,
+              "FROM": FROM,
+              "TO": TO,
+          }
+          command_id = f"LTC-T{pre_tick}-{h256(command_seed)[:20].upper()}"
+
+          exec_tick = pre_tick
+          for _ in range(100):
+              exec_tick = int(health()["tick_count"])
+              if exec_tick > pre_tick:
+                  break
+              time.sleep(0.02)
+          if exec_tick <= pre_tick:
+              raise SystemExit("EXEC_TICK_DID_NOT_ADVANCE")
+
+          moved = store.move(
+              command_id=command_id,
+              authorization_id=AUTHORIZATION_ID,
+              authorization_h256=AUTHORIZATION_H256,
+              ant_id=ANT_ID,
+              material_id=MATERIAL_ID,
+              material_h256=MATERIAL_H256,
+              from_position=FROM,
+              to_position=TO,
+              requested_at_tick=pre_tick,
+              executed_at_tick=exec_tick,
+          )
+
+          post_health = health()
+          post_tick = int(post_health["tick_count"])
+          post_state = store.read(ant_id=ANT_ID, material_id=MATERIAL_ID)
+
+          if post_state["position"] != TO:
+              raise SystemExit("POST_POSITION=FAIL")
+          if post_state["state_version"] != 2:
+              raise SystemExit(f"POST_STATE_VERSION=FAIL_{post_state['state_version']}")
+          if post_state["last_move_tick"] != exec_tick:
+              raise SystemExit("POST_LAST_MOVE_TICK=FAIL")
+          if post_state["last_command_id"] != command_id:
+              raise SystemExit("POST_LAST_COMMAND=FAIL")
+          if post_state["last_authorization_id"] != AUTHORIZATION_ID:
+              raise SystemExit("POST_LAST_AUTHORIZATION=FAIL")
+          if post_tick <= pre_tick:
+              raise SystemExit("POST_QUEEN_TICK=FAIL")
+
+          with closing(sqlite3.connect(store.db_path)) as db:
+              rows = db.execute(
+                  """
+                  SELECT command_id, authorization_id, authorization_h256,
+                         ant_id, material_id, material_h256,
+                         from_position, to_position,
+                         requested_at_tick, executed_at_tick
+                  FROM move_commands
+                  WHERE authorization_id=?
+                  """,
+                  (AUTHORIZATION_ID,),
+              ).fetchall()
+
+          if len(rows) != 1:
+              raise SystemExit(f"CONSUMPTION_ROW_COUNT=FAIL_{len(rows)}")
+          row = rows[0]
+          expected = (
+              command_id, AUTHORIZATION_ID, AUTHORIZATION_H256,
+              ANT_ID, MATERIAL_ID, MATERIAL_H256,
+              FROM, TO, pre_tick, exec_tick,
+          )
+          if tuple(row) != expected:
+              raise SystemExit("CONSUMPTION_ROW=FAIL")
+
+          print("GRANT_SIGNATURE=PASS")
+          print("GRANT_ACTIVE=PASS")
+          print("PRE_POSITION=" + pre_state["position"])
+          print("PRE_STATE_VERSION=" + str(pre_state["state_version"]))
+          print("PRE_TICK=" + str(pre_tick))
+          print("COMMAND_ID=" + command_id)
+          print("EXECUTED_AT_TICK=" + str(exec_tick))
+          print("POST_POSITION=" + post_state["position"])
+          print("POST_STATE_VERSION=" + str(post_state["state_version"]))
+          print("POST_TICK=" + str(post_tick))
+          print("LAST_MOVE_TICK=" + str(post_state["last_move_tick"]))
+          print("LAST_COMMAND_ID=" + post_state["last_command_id"])
+          print("LAST_AUTHORIZATION_ID=" + post_state["last_authorization_id"])
+          print("CONSUMPTION_ROW_COUNT=1")
+          print("FIRST_PRODUCTION_BRUTUS_MOVE=PASS")
+          PY
+          REMOTE
