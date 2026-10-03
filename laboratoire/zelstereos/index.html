@@ -1988,9 +1988,9 @@ async function gamezelBatchStart(){
   if(!Number.isInteger(games)||games<1||games>10000){$('gamezelBatchMiniStatus').textContent='TOURS 1–10000';return;}
 
   if(!gamezelBatchCsrf&&!await gamezelBatchAuth()){
-    gamezelBatchPendingStart=true;
-    gamezelBatchShowLogin(true);
-    if($('gamezelBatchMiniStatus'))$('gamezelBatchMiniStatus').textContent='VERSO LOGIN';
+    gamezelBatchPendingStart=false;
+    gamezelBatchShowLogin(false);
+    if($('gamezelBatchMiniStatus'))$('gamezelBatchMiniStatus').textContent='CONNECTE-TOI AU VERSO';
     return;
   }
 
