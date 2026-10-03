@@ -518,15 +518,15 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
       <span id="audioState" class="font-size">AUDIO: ?</span>
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
         <button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button>
-        <div id="gamezelBatchMini" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 6px;border:1px solid #1b425c;border-radius:5px;background:#03080e;font:800 9px/1 ui-monospace,Consolas,monospace" title="Commande GAMEZEL réservée à une session VERSO valide">
+        <div id="gamezelBatchMini" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 6px;border:1px solid #1b425c;border-radius:5px;background:#03080e;font:800 9px/1 ui-monospace,Consolas,monospace">
           <span style="color:#7fa4bd">JOUEURS</span>
-          <label><input class="gamezel-batch-player" type="checkbox" value="P1" checked> 1</label>
-          <label><input class="gamezel-batch-player" type="checkbox" value="P2" checked> 2</label>
-          <label><input class="gamezel-batch-player" type="checkbox" value="P3" checked> 3</label>
-          <label><input class="gamezel-batch-player" type="checkbox" value="P4" checked> 4</label>
+          <label><input class="gamezel-batch-player" type="radio" name="gamezelBatchPlayer" value="P1"> 1</label>
+          <label><input class="gamezel-batch-player" type="radio" name="gamezelBatchPlayer" value="P2"> 2</label>
+          <label><input class="gamezel-batch-player" type="radio" name="gamezelBatchPlayer" value="P3"> 3</label>
+          <label><input class="gamezel-batch-player" type="radio" name="gamezelBatchPlayer" value="P4"> 4</label>
           <span style="color:#7fa4bd">TOURS</span>
           <input id="gamezelBatchRounds" type="number" min="1" max="10000" step="1" value="2" style="width:52px;padding:2px 4px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace">
-          <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" disabled>▶ PLAY</button>
+          <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" disabled title="Commande GAMEZEL réservée à une session VERSO valide">▶ PLAY</button>
           <span id="gamezelBatchMiniStatus" style="color:#718da1">VERSO…</span>
         </div>
       </div>
@@ -1892,8 +1892,9 @@ function gamezelBatchSelection(){
 }
 function gamezelBatchEnable(enabled){
   if($('gamezelBatchPlay'))$('gamezelBatchPlay').disabled=!enabled;
-  if($('gamezelBatchRounds'))$('gamezelBatchRounds').disabled=!enabled;
-  document.querySelectorAll('.gamezel-batch-player').forEach(el=>{el.disabled=!enabled;});
+  // Local setup stays interactive in RECTO. Only PLAY is VERSO-gated.
+  if($('gamezelBatchRounds'))$('gamezelBatchRounds').disabled=false;
+  document.querySelectorAll('.gamezel-batch-player').forEach(el=>{el.disabled=false;});
 }
 async function gamezelBatchAuth(){
   try{
