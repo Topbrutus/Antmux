@@ -546,6 +546,7 @@ class GamezelDrawRequest(BaseModel):
 class GamezelBatchRequest(BaseModel):
     games: int = 1
     players: list[str] | None = None
+    occupants: dict[str, str] | None = None
 
 
 class GamezelOperatorLoginRequest(BaseModel):
@@ -579,6 +580,7 @@ GAMEZEL_PUBLIC_SEATS = {
     "P3": {"name": "GROK", "audio_ref": "SFX94", "voice_file": "VOICE_P3_GROK_PLAY.mp3"},
     "P4": {"name": "ANTIGRAVITY", "audio_ref": "SFX98", "voice_file": "VOICE_P4_ANTIGRAVITY_PLAY.mp3"},
 }
+GAMEZEL_ALLOWED_OCCUPANTS = {"ASTRA", "MUSE", "GROK", "ANTIGRAVITY", "CODEX"}
 GAMEZEL_PUBLIC_DECK = (
     {"card_code": "COUNTERTEST", "label": "contre-test ciblé"},
     {"card_code": "COMPARE", "label": "comparaison indépendante"},
@@ -1081,10 +1083,28 @@ async def gamezel_batch_play(body: GamezelBatchRequest, request: Request) -> dic
     if not normalized:
         raise HTTPException(status_code=422, detail="select at least one player")
 
+    normalized_occupants: dict[str, str] = {}
+    if body.occupants is not None:
+        for raw_seat, raw_occupant in body.occupants.items():
+            seat = str(raw_seat or "").strip().upper()
+            occupant = str(raw_occupant or "").strip().upper()
+            if seat not in GAMEZEL_PUBLIC_SEATS:
+                raise HTTPException(status_code=422, detail="occupant keys must be P1, P2, P3, P4")
+            if occupant not in GAMEZEL_ALLOWED_OCCUPANTS:
+                raise HTTPException(
+                    status_code=422,
+                    detail="occupants must be ASTRA, MUSE, GROK, ANTIGRAVITY, or CODEX",
+                )
+            normalized_occupants[seat] = occupant
+
+    payload: dict[str, Any] = {"games": body.games, "players": normalized}
+    if body.occupants is not None:
+        payload["occupants"] = normalized_occupants
+
     return await gamezel_runtime_request(
         "/api/operator/game/batch/play",
         method="POST",
-        payload={"games": body.games, "players": normalized},
+        payload=payload,
         cookie=request.headers.get("cookie", ""),
         csrf_token=request.headers.get("x-csrf-token", ""),
     )
