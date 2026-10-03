@@ -516,7 +516,20 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
       <button id="fontPlus" class="font-btn" type="button" aria-label="Augmenter la police">=</button>
       <button id="soundToggle" class="sound-btn sound-icon" type="button" aria-label="Activer ou couper le son">🔊</button>
       <span id="audioState" class="font-size">AUDIO: ?</span>
-      <button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <button id="soundTest" class="sound-btn sound-test" type="button" aria-label="Tester le son">▶ TEST SON</button>
+        <div id="gamezelBatchMini" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 6px;border:1px solid #1b425c;border-radius:5px;background:#03080e;font:800 9px/1 ui-monospace,Consolas,monospace" title="Commande GAMEZEL réservée à une session VERSO valide">
+          <span style="color:#7fa4bd">JOUEURS</span>
+          <label><input class="gamezel-batch-player" type="checkbox" value="P1" checked> 1</label>
+          <label><input class="gamezel-batch-player" type="checkbox" value="P2" checked> 2</label>
+          <label><input class="gamezel-batch-player" type="checkbox" value="P3" checked> 3</label>
+          <label><input class="gamezel-batch-player" type="checkbox" value="P4" checked> 4</label>
+          <span style="color:#7fa4bd">TOURS</span>
+          <input id="gamezelBatchRounds" type="number" min="1" max="10000" step="1" value="2" style="width:52px;padding:2px 4px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace">
+          <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" disabled>▶ PLAY</button>
+          <span id="gamezelBatchMiniStatus" style="color:#718da1">VERSO…</span>
+        </div>
+      </div>
       <input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume">
       <div id="live" class="live">CONNEXION…</div>
     </div>
@@ -1871,6 +1884,82 @@ function soundEnd(){soundEndAt(audioCtx.currentTime+.02);}
 function syncSoundUI(){$('soundToggle').textContent=soundMuted?'🔇':'🔊';$('volume').value=Math.round(soundVolume*100);if(typeof gamezelPublicAudioSyncVolume==='function')gamezelPublicAudioSyncVolume();}
 $('soundToggle').addEventListener('click',()=>{ensureAudio();soundMuted=!soundMuted;localStorage.setItem('zel-sound-muted',soundMuted?'1':'0');syncSoundUI();if(!soundMuted)tone(330,.08,0,.1);});
 $('soundTest').addEventListener('click',async()=>{await ensureAudio();soundMuted=false;localStorage.setItem('zel-sound-muted','0');syncSoundUI();const base=audioCtx.currentTime+.06;soundSquadDemoAt(base);});
+
+let gamezelBatchCsrf=null;
+let gamezelBatchPollTimer=null;
+function gamezelBatchSelection(){
+  return Array.from(document.querySelectorAll('.gamezel-batch-player:checked')).map(el=>el.value);
+}
+function gamezelBatchEnable(enabled){
+  if($('gamezelBatchPlay'))$('gamezelBatchPlay').disabled=!enabled;
+  if($('gamezelBatchRounds'))$('gamezelBatchRounds').disabled=!enabled;
+  document.querySelectorAll('.gamezel-batch-player').forEach(el=>{el.disabled=!enabled;});
+}
+async function gamezelBatchAuth(){
+  try{
+    const r=await fetch(GAMEZEL_PUBLIC_API_BASE+'/operator-session',{credentials:'same-origin',cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.authenticated&&d.csrfToken){
+      gamezelBatchCsrf=d.csrfToken;
+      gamezelBatchEnable(true);
+      if($('gamezelBatchMiniStatus'))$('gamezelBatchMiniStatus').textContent='PRÊT';
+      return true;
+    }
+  }catch(_){}
+  gamezelBatchCsrf=null;
+  gamezelBatchEnable(false);
+  if($('gamezelBatchMiniStatus'))$('gamezelBatchMiniStatus').textContent='VERSO LOGIN';
+  return false;
+}
+async function gamezelBatchPoll(){
+  clearTimeout(gamezelBatchPollTimer);
+  try{
+    const r=await fetch(GAMEZEL_PUBLIC_API_BASE+'/batch/status',{credentials:'same-origin',cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){await gamezelBatchAuth();return;}
+    const selected=Array.isArray(d.selectedPlayers)?d.selectedPlayers.map(x=>String(x).replace('P','')).join(','):'—';
+    if($('gamezelBatchMiniStatus')){
+      if(d.running)$('gamezelBatchMiniStatus').textContent='EN COURS '+(d.completedGames||0)+'/'+(d.requestedGames||0)+' · J'+selected;
+      else if(d.state==='COMPLETED')$('gamezelBatchMiniStatus').textContent='TERMINÉ '+(d.completedGames||0)+'/'+(d.requestedGames||0);
+      else if(d.state==='FAILED')$('gamezelBatchMiniStatus').textContent='ERREUR';
+      else if(d.state==='WAITING_FOR_CREDITS')$('gamezelBatchMiniStatus').textContent='ATTENTE CRÉDIT';
+      else $('gamezelBatchMiniStatus').textContent='PRÊT';
+    }
+    gamezelBatchEnable(!d.running&&Boolean(gamezelBatchCsrf));
+    if(d.running)gamezelBatchPollTimer=setTimeout(gamezelBatchPoll,500);
+  }catch(_){
+    if($('gamezelBatchMiniStatus'))$('gamezelBatchMiniStatus').textContent='HORS LIGNE';
+  }
+}
+if($('gamezelBatchPlay')){
+  $('gamezelBatchPlay').addEventListener('click',async()=>{
+    const players=gamezelBatchSelection();
+    const games=Number.parseInt($('gamezelBatchRounds')?.value||'0',10);
+    if(players.length===0){$('gamezelBatchMiniStatus').textContent='CHOISIR 1–4';return;}
+    if(!Number.isInteger(games)||games<1||games>10000){$('gamezelBatchMiniStatus').textContent='TOURS 1–10000';return;}
+    if(!gamezelBatchCsrf&&!await gamezelBatchAuth())return;
+    try{
+      await ensureAudio();
+      const r=await fetch(GAMEZEL_PUBLIC_API_BASE+'/batch/play',{
+        method:'POST',
+        credentials:'same-origin',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':gamezelBatchCsrf},
+        body:JSON.stringify({games,players}),
+        cache:'no-store'
+      });
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(d.detail||d.error||('HTTP '+r.status));
+      $('gamezelBatchMiniStatus').textContent='DÉPART';
+      gamezelBatchEnable(false);
+      gamezelBatchPoll();
+    }catch(err){
+      $('gamezelBatchMiniStatus').textContent='ERREUR · '+String(err?.message||err).slice(0,36);
+      gamezelBatchEnable(true);
+    }
+  });
+}
+gamezelBatchAuth().then(()=>gamezelBatchPoll());
+
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
 syncSoundUI();
