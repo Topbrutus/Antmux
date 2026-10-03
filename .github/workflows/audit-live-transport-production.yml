@@ -41,7 +41,9 @@ jobs:
           test -n "${VPS_USER:-}"
           echo "::add-mask::$VPS_HOST"
           echo "::add-mask::$VPS_USER"
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "python3 - <<'PY'"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          python3 - <<'PY'
           import json
           import sqlite3
           import urllib.request
@@ -106,3 +108,4 @@ jobs:
           print(f"QUEEN_TICK={health.get('tick_count')}")
           print("PROD_LIVE_TRANSPORT_READ_ONLY_AUDIT=PASS")
           PY
+          REMOTE
