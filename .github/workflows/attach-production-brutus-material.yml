@@ -1,0 +1,130 @@
+name: Attach Production Brutus Material
+
+on:
+  push:
+    branches:
+      - astra/prod-system-ant-bootstrap-run-20261002
+    paths:
+      - '.github/workflows/attach-production-brutus-material.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  attach-production-material:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Attach exact Brutus material at W START
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/antmux-x72-queen"
+          PYTHONPATH="$HOME/antmux-x72-queen:$HOME/antmux-x72-queen/vendor" python3 - <<'PY'
+          import json
+          import sqlite3
+          import urllib.request
+          from contextlib import closing
+          from pathlib import Path
+          from app.live_transport import LiveTransportStore
+
+          ANT_ID = "ANT-9F7FC681CD80"
+          MATERIAL_ID = "MAT-MATH-ED5FB0A15F49E6386DFC0F3E"
+          MATERIAL_H256 = "391b53d02d51ce6d9d9dbcb7c730983f721689d260f5841b31fc5321ca9bfb6d"
+          POSITION = "W:START"
+
+          data_dir = Path.home() / "antmux-x72-queen" / "data"
+          store = LiveTransportStore(data_dir)
+          receipt = store.read_ant_receipt(ANT_ID)
+          if receipt.get("role") != "SYNAPSE":
+              raise SystemExit("ANT_ROLE=FAIL")
+
+          with closing(sqlite3.connect(store.db_path)) as db:
+              pre = db.execute(
+                  "SELECT material_h256, ant_id, position, binding_state, last_move_tick, state_version FROM transport_state WHERE material_id=?",
+                  (MATERIAL_ID,),
+              ).fetchone()
+
+          with urllib.request.urlopen("http://127.0.0.1:8720/api/health", timeout=10) as response:
+              health_before = json.loads(response.read().decode("utf-8"))
+          if health_before.get("ok") is not True or health_before.get("integrity_match") is not True:
+              raise SystemExit("QUEEN_HEALTH_BEFORE=FAIL")
+
+          tick = int(health_before["tick_count"])
+          state = store.attach(
+              ant_id=ANT_ID,
+              material_id=MATERIAL_ID,
+              material_h256=MATERIAL_H256,
+              position=POSITION,
+              tick=tick,
+          )
+
+          expected = {
+              "material_id": MATERIAL_ID,
+              "material_h256": MATERIAL_H256,
+              "ant_id": ANT_ID,
+              "position": POSITION,
+              "binding_state": "ATTACHED",
+          }
+          for key, value in expected.items():
+              if state.get(key) != value:
+                  raise SystemExit(f"ATTACH_{key.upper()}=FAIL")
+          if state.get("last_move_tick") is not None:
+              raise SystemExit("ATTACH_LAST_MOVE_TICK=FAIL")
+          if state.get("last_command_id") is not None:
+              raise SystemExit("ATTACH_LAST_COMMAND_ID=FAIL")
+          if state.get("last_authorization_id") is not None:
+              raise SystemExit("ATTACH_LAST_AUTHORIZATION_ID=FAIL")
+
+          with closing(sqlite3.connect(store.db_path)) as db:
+              moves = int(db.execute(
+                  "SELECT COUNT(*) FROM move_commands WHERE material_id=?",
+                  (MATERIAL_ID,),
+              ).fetchone()[0])
+
+          if moves != 0:
+              raise SystemExit(f"MOVE_COMMAND_COUNT=FAIL_{moves}")
+
+          with urllib.request.urlopen("http://127.0.0.1:8720/api/health", timeout=10) as response:
+              health_after = json.loads(response.read().decode("utf-8"))
+          if health_after.get("ok") is not True or health_after.get("integrity_match") is not True:
+              raise SystemExit("QUEEN_HEALTH_AFTER=FAIL")
+
+          print(f"PRE_EXISTED={'true' if pre is not None else 'false'}")
+          print("ANT_ID=" + ANT_ID)
+          print("MATERIAL_ID=" + MATERIAL_ID)
+          print("MATERIAL_H256=" + MATERIAL_H256)
+          print("POSITION=" + state["position"])
+          print("BINDING_STATE=" + state["binding_state"])
+          print("ATTACHED_TICK=" + str(state["attached_tick"]))
+          print("UPDATED_TICK=" + str(state["updated_tick"]))
+          print("STATE_VERSION=" + str(state["state_version"]))
+          print("MOVE_COMMAND_COUNT=0")
+          print("QUEEN_TICK_BEFORE=" + str(health_before["tick_count"]))
+          print("QUEEN_TICK_AFTER=" + str(health_after["tick_count"]))
+          print("PROD_MATERIAL_ATTACH=PASS")
+          PY
+          REMOTE
