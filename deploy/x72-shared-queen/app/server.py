@@ -9,6 +9,8 @@ import os
 import random
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from collections import deque
 from contextlib import closing
 from dataclasses import asdict, dataclass, field
@@ -540,6 +542,11 @@ class GamezelDrawRequest(BaseModel):
     player_id: str = "P1"
 
 
+class GamezelBatchRequest(BaseModel):
+    games: int = 1
+    players: list[str] | None = None
+
+
 DATA_DIR = Path(os.environ.get("ANTMUX_X72_DATA_DIR", "/home/rob/antmux-x72-queen/data"))
 def load_zel_ingest_token() -> str:
     token = os.environ.get("ANTMUX_ZEL_INGEST_TOKEN", "").strip()
@@ -574,8 +581,52 @@ GAMEZEL_PUBLIC_DECK = (
     {"card_code": "CHECKPOINT", "label": "checkpoint de preuve"},
 )
 GAMEZEL_PUBLIC_DRAW_COOLDOWN_SECONDS = 2.5
+GAMEZEL_RUNTIME_BASE = os.environ.get("ANTMUX_GAMEZEL_RUNTIME_BASE", "http://127.0.0.1:3217").rstrip("/")
 gamezel_public_draw_sequence = 0
 gamezel_public_draw_last_by_ip: dict[str, float] = {}
+
+
+def _gamezel_runtime_request(
+    path: str,
+    *,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+    cookie: str = "",
+    csrf_token: str = "",
+) -> dict[str, Any]:
+    body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    if cookie:
+        headers["Cookie"] = cookie
+    if csrf_token:
+        headers["X-CSRF-Token"] = csrf_token
+    req = urllib.request.Request(
+        GAMEZEL_RUNTIME_BASE + path,
+        data=body,
+        method=method,
+        headers=headers,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8.0) as response:
+            raw = response.read()
+            return json.loads(raw.decode("utf-8")) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        detail = f"GAMEZEL HTTP {exc.code}"
+        try:
+            parsed = json.loads(raw.decode("utf-8")) if raw else {}
+            detail = str(parsed.get("message") or parsed.get("error") or detail)
+        except Exception:
+            pass
+        raise HTTPException(status_code=exc.code, detail=detail) from exc
+    except urllib.error.URLError as exc:
+        raise HTTPException(status_code=503, detail="GAMEZEL runtime unavailable") from exc
+
+
+async def gamezel_runtime_request(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    return await asyncio.to_thread(_gamezel_runtime_request, *args, **kwargs)
 
 
 def normalize_zel_public_state(raw: Any) -> dict[str, Any]:
@@ -920,6 +971,53 @@ async def gamezel_public_presence() -> dict[str, Any]:
             for player_id, seat in GAMEZEL_PUBLIC_SEATS.items()
         ],
     }
+
+
+@app.get("/api/gamezel/operator-session")
+async def gamezel_operator_session(request: Request) -> dict[str, Any]:
+    data = await gamezel_runtime_request(
+        "/api/operator/session/status",
+        cookie=request.headers.get("cookie", ""),
+    )
+    return {
+        "configured": bool(data.get("configured")),
+        "authenticated": bool(data.get("authenticated")),
+        "authType": data.get("authType"),
+        "csrfToken": data.get("csrfToken"),
+        "expiresAt": data.get("expiresAt"),
+    }
+
+
+@app.get("/api/gamezel/batch/status")
+async def gamezel_batch_status(request: Request) -> dict[str, Any]:
+    return await gamezel_runtime_request(
+        "/api/operator/game/batch/status",
+        cookie=request.headers.get("cookie", ""),
+    )
+
+
+@app.post("/api/gamezel/batch/play")
+async def gamezel_batch_play(body: GamezelBatchRequest, request: Request) -> dict[str, Any]:
+    if type(body.games) is not int or not 1 <= body.games <= 10000:
+        raise HTTPException(status_code=422, detail="games must be an integer between 1 and 10000")
+    raw_players = body.players if body.players is not None else list(GAMEZEL_PUBLIC_SEATS.keys())
+    normalized: list[str] = []
+    for raw in raw_players:
+        player_id = str(raw or "").strip().upper()
+        if player_id not in GAMEZEL_PUBLIC_SEATS:
+            raise HTTPException(status_code=422, detail="players must contain only P1, P2, P3, P4")
+        if player_id not in normalized:
+            normalized.append(player_id)
+    if not normalized:
+        raise HTTPException(status_code=422, detail="select at least one player")
+
+    return await gamezel_runtime_request(
+        "/api/operator/game/batch/play",
+        method="POST",
+        payload={"games": body.games, "players": normalized},
+        cookie=request.headers.get("cookie", ""),
+        csrf_token=request.headers.get("x-csrf-token", ""),
+    )
 
 
 @app.post("/api/gamezel/draw")
