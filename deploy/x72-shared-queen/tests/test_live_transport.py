@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.ant_birth import build_ant_birth
 from app.live_transport import (
     LiveTransportStore,
     create_live_transport_router,
@@ -18,6 +20,26 @@ ANT_ID = "ANT-000000000001"
 MATERIAL_ID = "MAT-MATH-AAAAAAAAAAAAAAAAAAAAAAAA"
 MATERIAL_H256 = "a" * 64
 TOKEN = "transport-test-token"
+
+
+def seed_ant_registry(data_dir: Path) -> dict:
+    receipt = build_ant_birth(
+        ANT_ID,
+        "Transport test",
+        "Persistent live carrier identity.",
+        1_800_000_000.0,
+    )
+    db_path = data_dir / "public-journal.db"
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS ants (id TEXT PRIMARY KEY, receipt_json TEXT NOT NULL)"
+        )
+        db.execute(
+            "INSERT OR REPLACE INTO ants(id, receipt_json) VALUES (?, ?)",
+            (ANT_ID, json.dumps(receipt, ensure_ascii=False, separators=(",", ":"))),
+        )
+        db.commit()
+    return receipt
 
 
 def canonical_h256(payload: dict) -> str:
@@ -94,11 +116,13 @@ def test_store_atomic_move_and_replay() -> None:
 
 def test_private_api_attach_state_move() -> None:
     with tempfile.TemporaryDirectory(prefix="antmux-live-transport-api-") as tmp:
+        data_dir = Path(tmp)
+        expected_receipt = seed_ant_registry(data_dir)
         tick = {"value": 200}
         app = FastAPI()
         app.include_router(
             create_live_transport_router(
-                Path(tmp),
+                data_dir,
                 lambda: {
                     "entity_id": "QUEEN-X72-0072",
                     "tick_count": tick["value"],
@@ -124,6 +148,17 @@ def test_private_api_attach_state_move() -> None:
         assert unauthorized.status_code == 401
 
         headers = {"Authorization": f"Bearer {TOKEN}"}
+
+        ant_unauthorized = client.get(f"/api/live-transport/ant/{ANT_ID}")
+        assert ant_unauthorized.status_code == 401
+
+        ant_response = client.get(
+            f"/api/live-transport/ant/{ANT_ID}",
+            headers=headers,
+        )
+        assert ant_response.status_code == 200
+        assert ant_response.json() == expected_receipt
+
         attached = client.post(
             "/api/live-transport/attach",
             json=attach_payload,
@@ -223,11 +258,13 @@ def test_private_api_attach_state_move() -> None:
 
 def test_move_rejects_wrong_from_and_unsafe_flags() -> None:
     with tempfile.TemporaryDirectory(prefix="antmux-live-transport-deny-") as tmp:
+        data_dir = Path(tmp)
+        seed_ant_registry(data_dir)
         tick = {"value": 300}
         app = FastAPI()
         app.include_router(
             create_live_transport_router(
-                Path(tmp),
+                data_dir,
                 lambda: {
                     "entity_id": "QUEEN-X72-0072",
                     "tick_count": tick["value"],
@@ -301,6 +338,7 @@ if __name__ == "__main__":
     test_move_rejects_wrong_from_and_unsafe_flags()
     print("LIVE_TRANSPORT_STORE=PASS")
     print("LIVE_TRANSPORT_AUTH=PASS")
+    print("LIVE_TRANSPORT_REAL_ANT_IDENTITY=PASS")
     print("LIVE_TRANSPORT_STATE_HASH=PASS")
     print("LIVE_TRANSPORT_SINGLE_USE=PASS")
     print("LIVE_TRANSPORT_FAIL_CLOSED=PASS")
