@@ -531,6 +531,7 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
           <span style="color:#7fa4bd">TOURS</span>
           <input id="gamezelBatchRounds" type="number" min="1" max="10000" step="1" value="2" style="width:52px;padding:2px 4px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace">
           <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" disabled title="Commande GAMEZEL réservée à une session VERSO valide">▶ PLAY</button>
+          <button id="gamezelBatchOpenLogin" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" title="Ouvrir la connexion VERSO">VERSO LOGIN</button>
           <span id="gamezelBatchMiniStatus" style="color:#718da1">VERSO…</span>
         </div>
         <div id="gamezelBatchLogin" style="display:none;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 6px;border:1px solid #5b3a13;border-radius:5px;background:#100b04;font:800 9px/1 ui-monospace,Consolas,monospace">
@@ -2057,6 +2058,13 @@ async function gamezelBatchLogin(){
 }
 
 if($('gamezelBatchPlay'))$('gamezelBatchPlay').addEventListener('click',gamezelBatchStart);
+if($('gamezelBatchOpenLogin'))$('gamezelBatchOpenLogin').addEventListener('click',()=>{
+  gamezelBatchPendingStart=false;
+  gamezelBatchShowLogin(true);
+  const input=$('gamezelBatchToken');
+  if(input)setTimeout(()=>input.focus(),0);
+});
+
 if($('gamezelBatchLoginBtn'))$('gamezelBatchLoginBtn').addEventListener('click',gamezelBatchLogin);
 if($('gamezelBatchLoginCancel'))$('gamezelBatchLoginCancel').addEventListener('click',()=>{
   gamezelBatchPendingStart=false;
