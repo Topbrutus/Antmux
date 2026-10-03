@@ -23,6 +23,7 @@ from .noyau_runtime import NoyauConfig, NoyauEngine, NoyauServerAdapter
 from .z3_runtime import Z3RuntimeBridge
 from .public_journal import router as public_journal_router
 from .live_transport import create_live_transport_router
+from .brutobac_public import create_brutobac_public_router
 
 
 BASE36_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -650,6 +651,19 @@ persistence = Persistence(DB_PATH)
 queen = persistence.load_latest() or QueenCore(seed=72)
 app.include_router(
     create_live_transport_router(
+        DATA_DIR,
+        lambda: {
+            "entity_id": queen.entity_id,
+            "tick_count": queen.tick,
+            "generation": queen.generation,
+            "queen_mode": queen.mode,
+            "integrity_match": queen.integrity_match(),
+            "reference_h256": queen.reference_h256(),
+        },
+    )
+)
+app.include_router(
+    create_brutobac_public_router(
         DATA_DIR,
         lambda: {
             "entity_id": queen.entity_id,
