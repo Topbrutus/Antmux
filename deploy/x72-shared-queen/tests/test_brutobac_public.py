@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 from app.ant_birth import build_ant_birth
@@ -36,7 +37,7 @@ def test_public_projection_contains_queen_and_valid_ant_only() -> None:
             1_790_000_000.0,
         )
 
-        with sqlite3.connect(data_dir / "live-transport.db") as db:
+        with closing(sqlite3.connect(data_dir / "live-transport.db")) as db:
             db.execute(
                 "INSERT INTO carrier_ants(ant_id, receipt_json, created_at) VALUES (?, ?, ?)",
                 (ant_id, json.dumps(receipt), 1_790_000_000.0),
