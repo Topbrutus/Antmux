@@ -1,0 +1,108 @@
+name: Audit X72 Live Transport Production
+
+on:
+  push:
+    branches:
+      - astra/prod-live-transport-audit-v01-20261002
+    paths:
+      - '.github/workflows/audit-live-transport-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-live-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only private transport audit on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "python3 - <<'PY'"
+          import json
+          import sqlite3
+          import urllib.request
+          from pathlib import Path
+
+          root = Path.home() / "antmux-x72-queen"
+          token_path = root / "data" / "live-transport-token"
+          journal_db = root / "data" / "public-journal.db"
+
+          if not token_path.is_file():
+              raise SystemExit("LIVE_TRANSPORT_TOKEN_FILE=MISSING")
+          mode = token_path.stat().st_mode & 0o777
+          if mode & 0o077:
+              raise SystemExit(f"LIVE_TRANSPORT_TOKEN_MODE=UNSAFE_{mode:o}")
+          if not journal_db.is_file():
+              raise SystemExit("PUBLIC_JOURNAL_DB=MISSING")
+
+          with sqlite3.connect(journal_db) as db:
+              row = db.execute(
+                  "SELECT id, receipt_json FROM ants ORDER BY created_at DESC LIMIT 1"
+              ).fetchone()
+
+          if row is None:
+              raise SystemExit("PERSISTED_ANT=NONE")
+
+          ant_id, receipt_json = row
+          stored = json.loads(receipt_json)
+          if stored.get("schema") != "ANTMUX-ANT-BIRTH-v1":
+              raise SystemExit("PERSISTED_ANT_SCHEMA=FAIL")
+          if stored.get("ant_id") != ant_id:
+              raise SystemExit("PERSISTED_ANT_IDENTITY=FAIL")
+          if stored.get("role") != "SYNAPSE":
+              raise SystemExit("PERSISTED_ANT_ROLE=FAIL")
+
+          token = token_path.read_text(encoding="utf-8").strip()
+          if len(token) < 16:
+              raise SystemExit("LIVE_TRANSPORT_TOKEN=INVALID")
+
+          req = urllib.request.Request(
+              f"http://127.0.0.1:8720/api/live-transport/ant/{ant_id}",
+              headers={"Authorization": f"Bearer {token}"},
+          )
+          with urllib.request.urlopen(req, timeout=10) as response:
+              private = json.loads(response.read().decode("utf-8"))
+
+          if private != stored:
+              raise SystemExit("PRIVATE_ANT_RECEIPT_MATCH=FAIL")
+
+          with urllib.request.urlopen("http://127.0.0.1:8720/api/health", timeout=10) as response:
+              health = json.loads(response.read().decode("utf-8"))
+
+          if health.get("ok") is not True or health.get("integrity_match") is not True:
+              raise SystemExit("QUEEN_HEALTH=FAIL")
+
+          print("PROD_LIVE_TRANSPORT_TOKEN_FILE=PASS")
+          print(f"PROD_LIVE_TRANSPORT_TOKEN_MODE={mode:o}")
+          print("PROD_PERSISTED_ANT=PASS")
+          print(f"ANT_ID={ant_id}")
+          print(f"ANT_ROLE={private.get('role')}")
+          print(f"ANT_STATE={private.get('state')}")
+          print("PRIVATE_ANT_RECEIPT_MATCH=PASS")
+          print(f"QUEEN_TICK={health.get('tick_count')}")
+          print("PROD_LIVE_TRANSPORT_READ_ONLY_AUDIT=PASS")
+          PY
