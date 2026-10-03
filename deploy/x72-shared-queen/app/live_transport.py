@@ -14,6 +14,8 @@ from typing import Any, Callable
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .ant_birth import build_ant_birth
+
 
 SCHEMA = "ANTMUX-LIVE-FOURMI-TRANSPORT-v0.1"
 AUTHORITY = "QUEEN_SERVER_V0_2"
@@ -185,27 +187,21 @@ class LiveTransportStore:
                 )
                 """
             )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS carrier_ants (
+                    ant_id TEXT PRIMARY KEY,
+                    receipt_json TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                )
+                """
+            )
             db.commit()
 
-    def read_ant_receipt(self, ant_id: str) -> dict[str, Any]:
-        journal_db = self.data_dir / JOURNAL_DB_FILE_NAME
-        if not journal_db.exists():
-            raise HTTPException(status_code=404, detail="ant registry unavailable")
-
+    @staticmethod
+    def _validated_ant_receipt(receipt_json: str, ant_id: str) -> dict[str, Any]:
         try:
-            with closing(sqlite3.connect(journal_db)) as db:
-                row = db.execute(
-                    "SELECT receipt_json FROM ants WHERE id=?",
-                    (ant_id,),
-                ).fetchone()
-        except sqlite3.Error as exc:
-            raise HTTPException(status_code=503, detail="ant registry unavailable") from exc
-
-        if row is None:
-            raise HTTPException(status_code=404, detail="ant birth receipt not found")
-
-        try:
-            receipt = json.loads(row[0])
+            receipt = json.loads(receipt_json)
         except (TypeError, json.JSONDecodeError) as exc:
             raise HTTPException(status_code=503, detail="ant birth receipt malformed") from exc
 
@@ -218,6 +214,66 @@ class LiveTransportStore:
         if receipt.get("role") != "SYNAPSE":
             raise HTTPException(status_code=409, detail="ant role is not SYNAPSE")
         return receipt
+
+    def bootstrap_system_ant(self) -> dict[str, Any]:
+        with closing(sqlite3.connect(self.db_path)) as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT ant_id, receipt_json FROM carrier_ants ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+            if row is not None:
+                db.commit()
+                return self._validated_ant_receipt(row[1], row[0])
+
+            now = time.time()
+            ant_id = "ANT-" + secrets.token_hex(6).upper()
+            receipt = build_ant_birth(
+                ant_id,
+                "Brutus live transport carrier",
+                "Private system carrier for bounded Brutus transport.",
+                now,
+            )
+            db.execute(
+                """
+                INSERT INTO carrier_ants(ant_id, receipt_json, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    ant_id,
+                    json.dumps(receipt, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            db.commit()
+            return receipt
+
+    def read_ant_receipt(self, ant_id: str) -> dict[str, Any]:
+        journal_db = self.data_dir / JOURNAL_DB_FILE_NAME
+        row = None
+
+        if journal_db.exists():
+            try:
+                with closing(sqlite3.connect(journal_db)) as db:
+                    row = db.execute(
+                        "SELECT receipt_json FROM ants WHERE id=?",
+                        (ant_id,),
+                    ).fetchone()
+            except sqlite3.Error as exc:
+                raise HTTPException(status_code=503, detail="ant registry unavailable") from exc
+
+        if row is not None:
+            return self._validated_ant_receipt(row[0], ant_id)
+
+        with closing(sqlite3.connect(self.db_path)) as db:
+            carrier = db.execute(
+                "SELECT receipt_json FROM carrier_ants WHERE ant_id=?",
+                (ant_id,),
+            ).fetchone()
+
+        if carrier is None:
+            raise HTTPException(status_code=404, detail="ant birth receipt not found")
+
+        return self._validated_ant_receipt(carrier[0], ant_id)
 
     def attach(
         self,
@@ -530,6 +586,11 @@ def create_live_transport_router(
             "state_h256": _canonical_h256(payload),
             "integrity_match": True,
         }
+
+    @router.post("/bootstrap-ant")
+    async def bootstrap_ant(request: Request) -> dict[str, Any]:
+        require_token(request)
+        return store.bootstrap_system_ant()
 
     @router.get("/ant/{ant_id}")
     async def ant_receipt(ant_id: str, request: Request) -> dict[str, Any]:
