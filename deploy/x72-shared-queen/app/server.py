@@ -1063,8 +1063,7 @@ async def gamezel_operator_login(
 @app.get("/api/gamezel/batch/status")
 async def gamezel_batch_status(request: Request) -> dict[str, Any]:
     return await gamezel_runtime_request(
-        "/api/operator/game/batch/status",
-        cookie=request.headers.get("cookie", ""),
+        "/api/public/gamezel/batch/status",
     )
 
 
@@ -1102,11 +1101,9 @@ async def gamezel_batch_play(body: GamezelBatchRequest, request: Request) -> dic
         payload["occupants"] = normalized_occupants
 
     return await gamezel_runtime_request(
-        "/api/operator/game/batch/play",
+        "/api/public/gamezel/batch/play",
         method="POST",
         payload=payload,
-        cookie=request.headers.get("cookie", ""),
-        csrf_token=request.headers.get("x-csrf-token", ""),
     )
 
 
