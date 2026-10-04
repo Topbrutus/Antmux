@@ -5261,6 +5261,7 @@ document.querySelectorAll('.gab-tab').forEach(tab => {
 });
 
 // GAB BAD — MATHEMATICAL LINEAGE MAP CONTROLLER
+const LINEAGE_PUBLIC_API_BASE = '/laboratoire/embryon-x72/api/lineage';
 let linGraphCache = null;
 let linSelectedNodeId = null;
 let linCurrentView = 'graph';
@@ -5292,7 +5293,7 @@ async function fetchLineageGraph(){
     if(st === 'BROKEN') q.set('status', 'BROKEN');
     if(st === 'UNTESTED') q.set('status', 'UNTESTED');
 
-    const res = await fetch(`./api/lineage/graph?${q.toString()}`, { cache: 'no-store' });
+    const res = await fetch(`${LINEAGE_PUBLIC_API_BASE}/graph?${q.toString()}`, { cache: 'no-store' });
     if(!res.ok) return;
     const data = await res.json();
     linGraphCache = data;
@@ -5504,7 +5505,7 @@ async function fetchBreakPaths(){
   if(!container) return;
   container.innerHTML = '<p style="color:#728c9f">Chargement des chemins de rupture…</p>';
   try{
-    const res = await fetch('./api/lineage/break-paths', { cache: 'no-store' });
+    const res = await fetch(`${LINEAGE_PUBLIC_API_BASE}/break-paths`, { cache: 'no-store' });
     const data = await res.json();
     const list = data.breakPaths || [];
     if(!list.length){
@@ -5537,7 +5538,7 @@ async function fetchFrontiers(){
   if(!container) return;
   container.innerHTML = '<p style="color:#728c9f">Analyse des frontières de recherche inexplorées…</p>';
   try{
-    const res = await fetch('./api/lineage/frontiers', { cache: 'no-store' });
+    const res = await fetch(`${LINEAGE_PUBLIC_API_BASE}/frontiers`, { cache: 'no-store' });
     const data = await res.json();
     const list = data.frontiers || [];
     if(!list.length){
@@ -5581,7 +5582,7 @@ async function fetchAuditLog(){
   if(!container) return;
   container.innerHTML = '<p style="color:#728c9f">Chargement du journal d’audit…</p>';
   try{
-    const res = await fetch('./api/lineage/audit-log?limit=30', { cache: 'no-store' });
+    const res = await fetch(`${LINEAGE_PUBLIC_API_BASE}/audit-log?limit=30`, { cache: 'no-store' });
     const data = await res.json();
     const events = data.events || [];
     container.innerHTML = events.map(ev => `
