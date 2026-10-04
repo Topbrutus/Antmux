@@ -1,0 +1,70 @@
+name: ASTRA STEP8 GAMEZEL VPS Audit
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-vps-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only GAMEZEL VPS audit
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT=/home/rob/zelstereos-gamezel
+          BRANCH=astra/formula-live-bridge-20261003
+          test -d "$ROOT/.git"
+          echo "SERVICE=$(systemctl is-active zelstereos-gamezel.service || true)"
+          echo "HEAD=$(git -C "$ROOT" rev-parse HEAD)"
+          echo "BRANCH=$(git -C "$ROOT" branch --show-current)"
+          dirty="$(git -C "$ROOT" status --porcelain=v1 --untracked-files=no | wc -l)"
+          echo "TRACKED_DIRTY=$dirty"
+          git -C "$ROOT" remote get-url origin >/dev/null
+          if git -C "$ROOT" ls-remote --exit-code origin "refs/heads/$BRANCH" >/tmp/step8-remote-ref 2>/tmp/step8-remote-err; then
+            echo 'PRIVATE_GIT_REMOTE=PASS'
+            awk '{print "REMOTE_BRANCH_HEAD="$1}' /tmp/step8-remote-ref
+          else
+            echo 'PRIVATE_GIT_REMOTE=FAIL'
+            sed -n '1,3p' /tmp/step8-remote-err | sed -E 's#https?://[^/@]+@#https://REDACTED@#g'
+          fi
+          for bin in codex muse grok; do
+            if command -v "$bin" >/dev/null 2>&1; then
+              printf '%s_BIN=PASS\n' "$(printf '%s' "$bin" | tr '[:lower:]' '[:upper:]')"
+            else
+              printf '%s_BIN=MISS\n' "$(printf '%s' "$bin" | tr '[:lower:]' '[:upper:]')"
+            fi
+          done
+          if test -x "$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"; then echo 'ANTIGRAVITY_PYTHON=PASS'; else echo 'ANTIGRAVITY_PYTHON=MISS'; fi
+          if test -f "$ROOT/agents/antigravity-card-agent.py"; then echo 'ANTIGRAVITY_LEGACY_BRIDGE=PASS'; else echo 'ANTIGRAVITY_LEGACY_BRIDGE=MISS'; fi
+          if test -f "$ROOT/verso/codex-player-adapter.js"; then echo 'CODEX_ADAPTER=PASS'; else echo 'CODEX_ADAPTER=MISS'; fi
+          rm -f /tmp/step8-remote-ref /tmp/step8-remote-err
+          REMOTE
