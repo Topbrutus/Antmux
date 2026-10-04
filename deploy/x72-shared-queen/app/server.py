@@ -1060,7 +1060,8 @@ async def gamezel_operator_login(
     }
 
 
-# GAMEZEL public batch bridge: PLAY does not require a VERSO operator session.\n@app.get("/api/gamezel/batch/status")
+# GAMEZEL public batch bridge: PLAY does not require a VERSO operator session.
+@app.get("/api/gamezel/batch/status")
 async def gamezel_batch_status(request: Request) -> dict[str, Any]:
     return await gamezel_runtime_request(
         "/api/public/gamezel/batch/status",
