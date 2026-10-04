@@ -39,23 +39,29 @@ jobs:
           test -n "$VPS_HOST"
           test -n "$VPS_USER"
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
-          set -euo pipefail
+          set -u
           ROOT=/home/rob/zelstereos-gamezel
           BRANCH=astra/formula-live-bridge-20261003
-          test -d "$ROOT/.git"
-          echo "SERVICE=$(systemctl is-active zelstereos-gamezel.service || true)"
-          echo "HEAD=$(git -C "$ROOT" rev-parse HEAD)"
-          echo "BRANCH=$(git -C "$ROOT" branch --show-current)"
-          dirty="$(git -C "$ROOT" status --porcelain=v1 --untracked-files=no | wc -l)"
-          echo "TRACKED_DIRTY=$dirty"
-          git -C "$ROOT" remote get-url origin >/dev/null
-          if git -C "$ROOT" ls-remote --exit-code origin "refs/heads/$BRANCH" >/tmp/step8-remote-ref 2>/tmp/step8-remote-err; then
-            echo 'PRIVATE_GIT_REMOTE=PASS'
-            awk '{print "REMOTE_BRANCH_HEAD="$1}' /tmp/step8-remote-ref
+          echo "SERVICE=$(systemctl is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          if test -d "$ROOT"; then echo 'ROOT=PASS'; else echo 'ROOT=MISS'; fi
+          if test -d "$ROOT/.git"; then
+            echo 'GIT_CLONE=PASS'
+            echo "HEAD=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+            echo "BRANCH=$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
+            dirty="$(git -C "$ROOT" status --porcelain=v1 --untracked-files=no 2>/dev/null | wc -l)"
+            echo "TRACKED_DIRTY=$dirty"
+            if git -C "$ROOT" remote get-url origin >/dev/null 2>&1 && git -C "$ROOT" ls-remote --exit-code origin "refs/heads/$BRANCH" >/tmp/step8-remote-ref 2>/tmp/step8-remote-err; then
+              echo 'PRIVATE_GIT_REMOTE=PASS'
+              awk '{print "REMOTE_BRANCH_HEAD="$1}' /tmp/step8-remote-ref
+            else
+              echo 'PRIVATE_GIT_REMOTE=FAIL'
+            fi
           else
-            echo 'PRIVATE_GIT_REMOTE=FAIL'
-            sed -n '1,3p' /tmp/step8-remote-err | sed -E 's#https?://[^/@]+@#https://REDACTED@#g'
+            echo 'GIT_CLONE=NO'
           fi
+          for f in server.js verso/codex-player-adapter.js agents/gamezel-autoplayer.mjs agents/antigravity-card-agent.py; do
+            if test -f "$ROOT/$f"; then echo "FILE_$f=PASS"; else echo "FILE_$f=MISS"; fi
+          done
           for bin in codex muse grok; do
             if command -v "$bin" >/dev/null 2>&1; then
               printf '%s_BIN=PASS\n' "$(printf '%s' "$bin" | tr '[:lower:]' '[:upper:]')"
@@ -64,7 +70,6 @@ jobs:
             fi
           done
           if test -x "$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"; then echo 'ANTIGRAVITY_PYTHON=PASS'; else echo 'ANTIGRAVITY_PYTHON=MISS'; fi
-          if test -f "$ROOT/agents/antigravity-card-agent.py"; then echo 'ANTIGRAVITY_LEGACY_BRIDGE=PASS'; else echo 'ANTIGRAVITY_LEGACY_BRIDGE=MISS'; fi
-          if test -f "$ROOT/verso/codex-player-adapter.js"; then echo 'CODEX_ADAPTER=PASS'; else echo 'CODEX_ADAPTER=MISS'; fi
+          if test -x "$HOME/.local/bin/codex"; then echo 'CODEX_LOCAL_BIN=PASS'; else echo 'CODEX_LOCAL_BIN=MISS'; fi
           rm -f /tmp/step8-remote-ref /tmp/step8-remote-err
           REMOTE
