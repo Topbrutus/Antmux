@@ -1061,6 +1061,32 @@ async def gamezel_operator_login(
 
 
 # GAMEZEL public batch bridge: PLAY does not require a VERSO operator session.
+@app.get("/api/lineage/graph")
+async def gamezel_lineage_graph(request: Request) -> dict[str, Any]:
+    query = str(request.url.query)
+    suffix = f"?{query}" if query else ""
+    return await gamezel_runtime_request("/api/lineage/graph" + suffix)
+
+
+@app.get("/api/lineage/frontiers")
+async def gamezel_lineage_frontiers(request: Request) -> dict[str, Any]:
+    query = str(request.url.query)
+    suffix = f"?{query}" if query else ""
+    return await gamezel_runtime_request("/api/lineage/frontiers" + suffix)
+
+
+@app.get("/api/lineage/break-paths")
+async def gamezel_lineage_break_paths() -> dict[str, Any]:
+    return await gamezel_runtime_request("/api/lineage/break-paths")
+
+
+@app.get("/api/lineage/audit-log")
+async def gamezel_lineage_audit_log(request: Request) -> dict[str, Any]:
+    query = str(request.url.query)
+    suffix = f"?{query}" if query else ""
+    return await gamezel_runtime_request("/api/lineage/audit-log" + suffix)
+
+
 @app.get("/api/gamezel/batch/status")
 async def gamezel_batch_status(request: Request) -> dict[str, Any]:
     return await gamezel_runtime_request(
