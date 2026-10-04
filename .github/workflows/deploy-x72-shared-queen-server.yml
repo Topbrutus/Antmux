@@ -7,6 +7,10 @@ on:
         description: 'Type DEPLOY-X72-SHARED-QUEEN to install the shared Queen server'
         required: true
         default: ''
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/x72-shared-queen/app/server.py'
 
 permissions:
   contents: read
@@ -21,7 +25,7 @@ concurrency:
 
 jobs:
   deploy-x72-shared-queen:
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-X72-SHARED-QUEEN'
+    if: (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-X72-SHARED-QUEEN') || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
