@@ -530,16 +530,8 @@ main.screen-5-only .lab-screen-bay:not(#PANEL_5){display:none !important}
           <select class="gamezel-seat-occupant" data-seat="P4" aria-label="Occupant P4" title="Occupant du siège P4" style="max-width:112px;padding:2px 3px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace"><option value="ANTIGRAVITY" selected>ANTIGRAVITY</option><option value="CODEX">CODEX</option></select>
           <span style="color:#7fa4bd">TOURS</span>
           <input id="gamezelBatchRounds" type="number" min="1" max="10000" step="1" value="2" style="width:52px;padding:2px 4px;background:#02060b;color:#dff6ff;border:1px solid #23465f;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace">
-          <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" disabled title="Commande GAMEZEL réservée à une session VERSO valide">▶ PLAY</button>
-          <button id="gamezelBatchOpenLogin" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" title="Ouvrir la connexion VERSO">VERSO LOGIN</button>
-          <span id="gamezelBatchMiniStatus" style="color:#718da1">VERSO…</span>
-        </div>
-        <div id="gamezelBatchLogin" style="display:none;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 6px;border:1px solid #5b3a13;border-radius:5px;background:#100b04;font:800 9px/1 ui-monospace,Consolas,monospace">
-          <span style="color:#e7b45a">VERSO</span>
-          <input id="gamezelBatchToken" type="password" autocomplete="current-password" placeholder="JETON OPÉRATEUR" aria-label="Jeton opérateur VERSO" style="width:150px;padding:3px 5px;background:#02060b;color:#dff6ff;border:1px solid #6a471b;border-radius:3px;font:800 9px/1 ui-monospace,Consolas,monospace">
-          <button id="gamezelBatchLoginBtn" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px">CONNECTER</button>
-          <button id="gamezelBatchLoginCancel" class="sound-btn" type="button" style="padding:3px 6px;font-size:9px" aria-label="Fermer la connexion VERSO">×</button>
-          <span id="gamezelBatchLoginStatus" style="color:#9f7c52">SESSION REQUISE</span>
+          <button id="gamezelBatchPlay" class="sound-btn" type="button" style="padding:3px 8px;font-size:9px" title="Démarrer GAMEZEL">▶ PLAY</button>
+          <span id="gamezelBatchMiniStatus" style="color:#718da1">PRÊT</span>
         </div>
       </div>
       <input id="volume" class="volume" type="range" min="0" max="100" step="1" value="35" aria-label="Volume">
@@ -1921,9 +1913,7 @@ function gamezelBatchEnable(authenticated){
   const play=$('gamezelBatchPlay');
   if(play){
     play.disabled=gamezelBatchRunning;
-    play.title=authenticated
-      ? 'Démarrer le batch GAMEZEL'
-      : 'PLAY ouvrira la connexion VERSO si nécessaire';
+    play.title='Démarrer le batch GAMEZEL';
   }
   if($('gamezelBatchRounds'))$('gamezelBatchRounds').disabled=false;
   document.querySelectorAll('.gamezel-batch-player').forEach(el=>{el.disabled=false;});
@@ -1988,19 +1978,12 @@ async function gamezelBatchStart(){
   if(players.length===0){$('gamezelBatchMiniStatus').textContent='CHOISIR 1–4';return;}
   if(!Number.isInteger(games)||games<1||games>10000){$('gamezelBatchMiniStatus').textContent='TOURS 1–10000';return;}
 
-  if(!gamezelBatchCsrf&&!await gamezelBatchAuth()){
-    gamezelBatchPendingStart=false;
-    gamezelBatchShowLogin(false);
-    if($('gamezelBatchMiniStatus'))$('gamezelBatchMiniStatus').textContent='CONNECTE-TOI AU VERSO';
-    return;
-  }
-
   try{
     await ensureAudio();
     const r=await fetch(GAMEZEL_PUBLIC_API_BASE+'/batch/play',{
       method:'POST',
       credentials:'same-origin',
-      headers:{'Content-Type':'application/json','X-CSRF-Token':gamezelBatchCsrf},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({games,players,occupants}),
       cache:'no-store'
     });
@@ -2073,7 +2056,7 @@ if($('gamezelBatchLoginCancel'))$('gamezelBatchLoginCancel').addEventListener('c
 if($('gamezelBatchToken'))$('gamezelBatchToken').addEventListener('keydown',e=>{
   if(e.key==='Enter'){e.preventDefault();gamezelBatchLogin();}
 });
-gamezelBatchAuth().then(()=>gamezelBatchPoll());
+gamezelBatchPoll();
 
 let volumePreviewTimer=null;
 $('volume').addEventListener('input',e=>{ensureAudio();soundVolume=Number(e.target.value)/100;localStorage.setItem('zel-sound-volume',String(e.target.value));if(soundVolume>0)soundMuted=false;syncSoundUI();clearTimeout(volumePreviewTimer);volumePreviewTimer=setTimeout(()=>tone(330,.08,0,.12),40);});
