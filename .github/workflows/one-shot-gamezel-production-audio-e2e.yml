@@ -1,0 +1,102 @@
+name: One-shot GAMEZEL production audio E2E
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-shot-gamezel-production-audio-e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  production-audio-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Emit one real production GAMEZEL audio cue
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          SERVICE='zelstereos-gamezel.service'
+          PORT=3217
+          DROPIN_DIR="$XDG_RUNTIME_DIR/systemd/user/${SERVICE}.d"
+          DROPIN="$DROPIN_DIR/zz-audio-e2e-test.conf"
+
+          cleanup() {
+            rm -f "$DROPIN" || true
+            rmdir "$DROPIN_DIR" 2>/dev/null || true
+            systemctl --user daemon-reload || true
+            systemctl --user restart "$SERVICE" || true
+            for _ in $(seq 1 20); do
+              if curl --fail --silent --show-error "http://127.0.0.1:${PORT}/api/public/gamezel/presence" >/dev/null 2>&1; then
+                echo 'PRODUCTION_RESTORED=PASS'
+                return
+              fi
+              sleep 0.5
+            done
+            echo 'PRODUCTION_RESTORED=FAIL'
+          }
+          trap cleanup EXIT
+
+          systemctl --user is-active --quiet "$SERVICE"
+          mkdir -p "$DROPIN_DIR"
+          cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment=GAMEZEL_PUBLIC_DRAW_ENABLED=true
+          Environment=GAMEZEL_PUBLIC_DRAW_COOLDOWN_MS=0
+          EOF
+          systemctl --user daemon-reload
+          systemctl --user restart "$SERVICE"
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl --fail --silent --show-error "http://127.0.0.1:${PORT}/api/public/gamezel/presence" > /tmp/gamezel-presence.json 2>/dev/null; then
+              if node -e "const d=require('/tmp/gamezel-presence.json'); process.exit(d.draw_enabled===true ? 0 : 1)"; then
+                ready=1
+                break
+              fi
+            fi
+            sleep 0.5
+          done
+          test "$ready" = '1'
+          echo 'PRODUCTION_DRAW_TEMP_ENABLED=PASS'
+
+          sleep 3
+          curl --fail --silent --show-error -X POST "http://127.0.0.1:${PORT}/api/public/gamezel/draw" \
+            -H 'Content-Type: application/json' \
+            --data '{"player_id":"P1"}' > /tmp/gamezel-production-draw.json
+
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/gamezel-production-draw.json','utf8'));
+          if (!d.ok || d.mode!=='PUBLIC_SAFE' || d.execution!=='NONE' || d.persisted!==false) process.exit(1);
+          console.log('PRODUCTION_DRAW=PASS');
+          console.log('CARD_ID='+d.card.CARD_ID);
+          console.log('SOUND_ID='+(d.draw_audio.SOUND_ID||''));
+          console.log('SPEECH_ID='+(d.speech.SPEECH_ID||''));
+          NODE
+
+          sleep 5
+          REMOTE
