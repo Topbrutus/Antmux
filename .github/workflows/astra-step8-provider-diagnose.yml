@@ -1,0 +1,72 @@
+name: ASTRA STEP8 Provider Diagnose
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-provider-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect CLI contracts without model calls
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          ROOT="$HOME/zelstereos-gamezel"
+          CODEX="$HOME/.local/bin/codex"
+          MUSE="$HOME/.local/bin/muse"
+
+          echo '=== CODEX CONTRACT ==='
+          "$CODEX" --version 2>/dev/null || true
+          codex_help="$($CODEX exec --help 2>&1 || true)"
+          for flag in '--skip-git-repo-check' '--ephemeral' '--ignore-user-config' '--ignore-rules' '--sandbox' '--config' '--output-schema' '-o'; do
+            if printf '%s' "$codex_help" | grep -Fq -- "$flag"; then echo "CODEX_FLAG_${flag}=YES"; else echo "CODEX_FLAG_${flag}=NO"; fi
+          done
+
+          echo '=== MUSE CONTRACT ==='
+          "$MUSE" --version 2>/dev/null || true
+          muse_help="$($MUSE exec --help 2>&1 || true)"
+          for flag in '--json' '--output-schema' '--disable-web-tools' '--disable-write' '--disable-shell' '--approval-mode' '--no-session-log' '--max-model-steps' '--workspace'; do
+            if printf '%s' "$muse_help" | grep -Fq -- "$flag"; then echo "MUSE_FLAG_${flag}=YES"; else echo "MUSE_FLAG_${flag}=NO"; fi
+          done
+
+          echo '=== GROK LOCATION ==='
+          login_grok="$(bash -lc 'command -v grok' 2>/dev/null || true)"
+          if test -n "$login_grok"; then echo "GROK_LOGIN_PATH=$login_grok"; else echo 'GROK_LOGIN_PATH=MISS'; fi
+          find "$HOME" /opt /usr/local -maxdepth 7 -type f \( -name grok -o -name 'grok-build' \) -perm -u+x 2>/dev/null | sed -n '1,10p' | sed "s#$HOME#~#g"
+          if test -f "$ROOT/bin/gamezel-ai-status"; then
+            echo '=== GROK REFERENCES IN STATUS HELPER ==='
+            grep -nEi 'grok|GROK_BIN' "$ROOT/bin/gamezel-ai-status" | sed -E 's#(token|secret|key|password)[^ ]*#REDACTED#Ig' | sed -n '1,20p' || true
+          fi
+          echo '=== P3 UNIT PATHS ==='
+          systemctl --user show zelstereos-gamezel-p3.service -p FragmentPath -p ExecStart -p EnvironmentFiles --no-pager 2>/dev/null | sed "s#$HOME#~#g" || true
+
+          echo '=== ANTIGRAVITY CONFIG PRESENCE ==='
+          echo "ANTIGRAVITY_PYTHON=$(test -x "$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python" && echo YES || echo NO)"
+          echo "GEMINI_KEY_ENV=$(test -n "${GEMINI_API_KEY:-}" && echo YES || echo NO)"
+          REMOTE
