@@ -1,0 +1,164 @@
+name: ASTRA GAMEZEL Server P4 Finalize
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-server-p4-finalize.yml']
+permissions:
+  contents: read
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Patch CLI runner, smoke P4, enable service
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          RUNNER="$ROOT/agents/gamezel-autoplayer.mjs"
+          ENVFILE="$HOME/.config/zelstereos/agents/p4.env"
+          WRAP="$HOME/.local/bin/agy-gamezel"
+          TS="$(date +%s)"
+          cp "$RUNNER" "$RUNNER.pre-cli-$TS"
+          cp "$ENVFILE" "$ENVFILE.pre-cli-$TS"
+          rollback() {
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              cp "$RUNNER.pre-cli-$TS" "$RUNNER" || true
+              cp "$ENVFILE.pre-cli-$TS" "$ENVFILE" || true
+              systemctl --user disable --now zelstereos-gamezel-p4.service >/dev/null 2>&1 || true
+              systemctl --user daemon-reload || true
+              echo "ROLLBACK=PASS"
+            fi
+            exit "$rc"
+          }
+          trap rollback EXIT
+
+          install -d -m 700 "$HOME/.local/bin"
+          cat > "$WRAP" <<'SH'
+          #!/bin/sh
+          exec "$HOME/.local/bin/qemu-x86_64-static" -cpu max "$HOME/.local/bin/agy" "$@"
+          SH
+          chmod 700 "$WRAP"
+          "$WRAP" --version
+
+          RUNNER="$RUNNER" python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path(os.environ['RUNNER'])
+          s=p.read_text()
+          old="""async function runAntigravity(prompt, runtimeDir, env) {
+            const promptPath = path.join(runtimeDir, 'antigravity-prompt.txt');
+            fs.writeFileSync(promptPath, prompt);
+            const python = env.ANTIGRAVITY_PYTHON ||
+              path.join(os.homedir(), '.local/share/gamezel-antigravity-sdk/venv/bin/python');
+            const bridge = env.ANTIGRAVITY_BRIDGE || path.join(__dirname, 'antigravity-card-agent.py');
+            const { stdout, stderr } = await execFileAsync(python, [bridge, '--prompt-file', promptPath], {
+              timeout: Number(env.GAMEZEL_PROVIDER_TIMEOUT_MS || 180000),
+              maxBuffer: 4 * 1024 * 1024,
+              env
+            });
+            const found = extractDecision(parseJsonl(stdout)) || extractDecision(stderr) || extractDecision(stdout);
+            if (!found) throw new Error('Antigravity returned no structured GAMEZEL decision');
+            return normalizeDecision(found);
+          }
+          """
+          new="""export function buildAntigravityArgs(prompt, schemaPath, env = process.env) {
+            return [
+              '-p', prompt,
+              '--output-format', 'json',
+              '--json-schema', schemaPath,
+              '--print-timeout', String(env.ANTIGRAVITY_PRINT_TIMEOUT || '2m'),
+              '--sandbox',
+              '--mode', 'plan'
+            ];
+          }
+
+          async function runAntigravity(prompt, runtimeDir, env) {
+            const schemaPath = path.join(runtimeDir, 'gamezel-decision-schema.json');
+            fs.writeFileSync(schemaPath, JSON.stringify(DECISION_SCHEMA, null, 2));
+            const bin = env.ANTIGRAVITY_BIN || 'agy';
+            const { stdout, stderr } = await execFileAsync(
+              bin,
+              buildAntigravityArgs(prompt, schemaPath, env),
+              {
+                cwd: runtimeDir,
+                timeout: Number(env.GAMEZEL_PROVIDER_TIMEOUT_MS || 180000),
+                maxBuffer: 4 * 1024 * 1024,
+                env
+              }
+            );
+            const found = extractDecision(parseJsonl(stdout)) || extractDecision(stderr) || extractDecision(stdout);
+            if (!found) throw new Error('Antigravity CLI returned no structured GAMEZEL decision');
+            return normalizeDecision(found);
+          }
+          """
+          if old not in s:
+              raise SystemExit('OLD_BLOCK_NOT_FOUND')
+          p.write_text(s.replace(old,new,1))
+          print('RUNNER_PATCH=PASS')
+          PY
+          node --check "$RUNNER"
+
+          ENVFILE="$ENVFILE" WRAP="$WRAP" python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path(os.environ['ENVFILE'])
+          lines=p.read_text().splitlines()
+          updates={
+            'GAMEZEL_AGENT_ENABLED':'true',
+            'GAMEZEL_PROVIDER':'antigravity',
+            'ANTIGRAVITY_BIN':os.environ['WRAP'],
+            'ANTIGRAVITY_PRINT_TIMEOUT':'2m'
+          }
+          out=[]; seen=set()
+          for line in lines:
+              if '=' in line and not line.lstrip().startswith('#'):
+                  k=line.split('=',1)[0]
+                  if k in updates:
+                      out.append(k+'='+updates[k]); seen.add(k); continue
+              out.append(line)
+          for k,v in updates.items():
+              if k not in seen: out.append(k+'='+v)
+          p.write_text('\n'.join(out)+'\n')
+          p.chmod(0o600)
+          print('P4_ENV_PATCH=PASS')
+          PY
+
+          export GAMEZEL_PROVIDER=antigravity
+          export ANTIGRAVITY_BIN="$WRAP"
+          export GAMEZEL_PROVIDER_TIMEOUT_MS=240000
+          export ANTIGRAVITY_PRINT_TIMEOUT=2m
+          cd "$ROOT"
+          node --input-type=module <<'NODE'
+          import { askProvider } from './agents/gamezel-autoplayer.mjs';
+          const state={mode:'TABLE_4',round:999,roundActive:true,activePlayerCount:4,currentTurn:{PLAYER_ID:'P4'},players:[{PLAYER_ID:'P4',PLAYER_NAME:'ANTIGRAVITY',STATUS:'TURN',IN_ROUND:true}],queue:[],proposals:[],recentSignificantEvents:[]};
+          const d=await askProvider('P4',state,{env:process.env});
+          if (!d || !['PLAY','PASS'].includes(d.decision)) throw new Error('invalid P4 smoke decision');
+          console.log('P4_PROVIDER_SMOKE=PASS');
+          console.log('P4_PROVIDER_DECISION='+d.decision);
+          NODE
+
+          systemctl --user daemon-reload
+          systemctl --user enable --now zelstereos-gamezel-p4.service
+          sleep 5
+          test "$(systemctl --user is-active zelstereos-gamezel-p4.service)" = active
+          test "$(systemctl --user is-enabled zelstereos-gamezel-p4.service)" = enabled
+          "$ROOT/bin/gamezel-ai-status" 2>&1 | sed -E 's#(token|secret|key|password)=.*#\1=REDACTED#Ig' | head -n 80
+          echo 'P4_SERVICE=PASS'
+          trap - EXIT
+          rm -f "$RUNNER.pre-cli-$TS" "$ENVFILE.pre-cli-$TS"
+          REMOTE
