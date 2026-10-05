@@ -65,12 +65,15 @@ function promptFor(provider, context) {
   ].join('\n');
 }
 
-function findJson(text) {
+function findJsonObjects(text) {
+  const out = [];
   const source = String(text || '');
-  for (let start = 0; start < source.length; start++) {
+  for (let start = 0; start < source.length; start += 1) {
     if (source[start] !== '{') continue;
-    let depth = 0, inString = false, escaped = false;
-    for (let i = start; i < source.length; i++) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < source.length; i += 1) {
       const ch = source[i];
       if (inString) {
         if (escaped) escaped = false;
@@ -79,14 +82,57 @@ function findJson(text) {
         continue;
       }
       if (ch === '"') { inString = true; continue; }
-      if (ch === '{') depth++;
-      if (ch === '}') depth--;
+      if (ch === '{') depth += 1;
+      if (ch === '}') depth -= 1;
       if (depth === 0) {
-        try { return JSON.parse(source.slice(start, i + 1)); } catch (_) { break; }
+        try { out.push(JSON.parse(source.slice(start, i + 1))); } catch (_) {}
+        break;
       }
     }
   }
+  return out;
+}
+
+function extractDecision(value, seen = new Set()) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    for (const candidate of findJsonObjects(value)) {
+      const found = extractDecision(candidate, seen);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof value !== 'object' || seen.has(value)) return null;
+  seen.add(value);
+  if (typeof value.decision === 'string' && Object.prototype.hasOwnProperty.call(value, 'move_id')) return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = extractDecision(item, seen);
+      if (found) return found;
+    }
+    return null;
+  }
+  for (const nested of Object.values(value)) {
+    const found = extractDecision(nested, seen);
+    if (found) return found;
+  }
   return null;
+}
+
+function parseJsonl(text) {
+  const values = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try { values.push(JSON.parse(trimmed)); } catch (_) { values.push(trimmed); }
+  }
+  return values;
+}
+
+function parseProviderDecision(stdout, stderr) {
+  const found = extractDecision(parseJsonl(stdout)) || extractDecision(parseJsonl(stderr)) || extractDecision(stdout) || extractDecision(stderr);
+  if (!found) throw new Error('NO_STRUCTURED_DECISION');
+  return normalize(found);
 }
 
 function normalize(raw) {
@@ -105,7 +151,13 @@ function classification(err) {
     code,
     trustedDirectoryError: /trusted directory|skip-git-repo-check/i.test(text),
     authRequired: /not logged in|login required|authentication|unauthorized|401|api.?key.*not configured/i.test(text),
-    providerUnavailable: /credit|quota|rate.?limit|429|billing|capacity|timeout|unavailable/i.test(text)
+    providerUnavailable: /credit|quota|rate.?limit|429|billing|capacity|timeout|unavailable/i.test(text),
+    schemaError: /schema|structured output|output-schema/i.test(text),
+    configError: /config|invalid value|failed to parse/i.test(text),
+    modelError: /model.*(?:not found|unsupported|unavailable)|unsupported model/i.test(text),
+    argumentError: /unexpected argument|unknown option|unrecognized option|invalid argument/i.test(text),
+    permissionError: /permission|sandbox|read.?only/i.test(text),
+    networkError: /network|connect|dns|tls|certificate/i.test(text)
   };
 }
 
@@ -123,16 +175,16 @@ async function runExternal(provider, context) {
         '--approval-mode', 'never', '--no-session-log', '--max-model-steps', '1',
         '--workspace', tmp, prompt
       ], { timeout: 120000, maxBuffer: 4 * 1024 * 1024, env: process.env });
-      return normalize(findJson(stdout) || findJson(stderr));
+      return parseProviderDecision(stdout, stderr);
     }
     if (provider === 'GROK') {
-      const bin = process.env.GROK_BIN || 'grok';
+      const bin = process.env.GROK_BIN || path.join(os.homedir(), '.grok', 'bin', 'grok');
       const { stdout, stderr } = await execFileAsync(bin, [
         '--single', prompt, '--json-schema', JSON.stringify(SCHEMA),
         '--max-turns', '1', '--no-subagents', '--disable-web-search',
         '--permission-mode', 'plan', '--cwd', tmp
       ], { timeout: 120000, maxBuffer: 4 * 1024 * 1024, env: process.env });
-      return normalize(findJson(stdout) || findJson(stderr));
+      return parseProviderDecision(stdout, stderr);
     }
     if (provider === 'ANTIGRAVITY') {
       const promptPath = path.join(tmp, 'prompt.txt');
@@ -140,7 +192,7 @@ async function runExternal(provider, context) {
       const python = process.env.ANTIGRAVITY_PYTHON || path.join(os.homedir(), '.local/share/gamezel-antigravity-sdk/venv/bin/python');
       const bridge = process.env.ANTIGRAVITY_PRESIDENT_BRIDGE || path.join(__dirname, 'antigravity-president-agent.py');
       const { stdout, stderr } = await execFileAsync(python, [bridge, '--prompt-file', promptPath], { timeout: 120000, maxBuffer: 4 * 1024 * 1024, env: process.env });
-      return normalize(findJson(stdout) || findJson(stderr));
+      return parseProviderDecision(stdout, stderr);
     }
     throw new Error('UNSUPPORTED_PROVIDER');
   } finally {
