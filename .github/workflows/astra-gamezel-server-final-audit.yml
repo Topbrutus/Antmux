@@ -1,0 +1,84 @@
+name: ASTRA GAMEZEL Server Final Audit
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-server-final-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Audit server-only stack
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          ROOT="$HOME/zelstereos-gamezel"
+          echo '=== SYSTEMD ==='
+          for svc in zelstereos-gamezel.service zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service; do
+            echo "SERVICE=$svc ACTIVE=$(systemctl --user is-active "$svc" 2>/dev/null || true) ENABLED=$(systemctl --user is-enabled "$svc" 2>/dev/null || true)"
+            systemctl --user show "$svc" -p FragmentPath -p EnvironmentFiles -p ExecStart --no-pager 2>/dev/null | sed -E 's#(OPERATOR_TOKEN|TYPESAFE_API_KEY|GEMINI_API_KEY|TOKEN|SECRET|PASSWORD)=[^ ;]*#\1=REDACTED#g' || true
+          done
+          echo '=== RUNTIME FILES ==='
+          for f in server.js agents/gamezel-autoplayer.mjs agents/antigravity-card-agent.py verso/handlers/jev-handler.js bin/gamezel-ai-status bin/gamezel-enable-ai-seat; do
+            if test -f "$ROOT/$f"; then printf '%s %s\n' PASS "$f"; else printf '%s %s\n' MISS "$f"; fi
+          done
+          echo '=== PROVIDER PATHS ==='
+          find "$HOME/.local" -maxdepth 5 -type f \( -iname 'grok' -o -iname 'muse' -o -iname 'agy' -o -iname '*antigravity*' \) -print 2>/dev/null | sed -n '1,60p'
+          echo '=== P4 AGENT SHAPE ==='
+          if test -f "$ROOT/agents/antigravity-card-agent.py"; then
+            grep -nE 'GEMINI|API_KEY|google|antigravity|model|oauth|credential|Client|generate|systemone' "$ROOT/agents/antigravity-card-agent.py" | sed -E 's#(=).+#\1REDACTED#' | head -n 80 || true
+          fi
+          echo '=== PYTHON SDK ==='
+          PY="$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"
+          if test -x "$PY"; then
+            "$PY" - <<'PY'
+          import importlib.metadata as m
+          try: print('SDK_VERSION='+m.version('google-antigravity'))
+          except Exception as e: print('SDK_VERSION=UNKNOWN')
+          mods=['google_antigravity','antigravity']
+          for mod in mods:
+            try:
+              x=__import__(mod)
+              print('IMPORT_'+mod.upper()+'=PASS')
+              print('SYMBOLS_'+mod.upper()+'='+','.join(sorted([s for s in dir(x) if 'auth' in s.lower() or 'client' in s.lower() or 'oauth' in s.lower()])[:30]))
+            except Exception as e: print('IMPORT_'+mod.upper()+'=FAIL:'+type(e).__name__)
+          PY
+          fi
+          echo '=== JEV ==='
+          curl -fsS --max-time 4 http://127.0.0.1:3217/api/jev/status || true
+          echo
+          echo '=== LIVE SOUND ==='
+          LIVE=/var/www/antmux.com/public_html/laboratoire/zelstereos/live
+          for f in state.json events.json audio.json speech.json; do
+            if test -f "$LIVE/$f"; then echo "$f SIZE=$(stat -c%s "$LIVE/$f") MTIME=$(stat -c%Y "$LIVE/$f")"; else echo "$f=MISSING"; fi
+          done
+          a1=$(stat -c%Y "$LIVE/audio.json" 2>/dev/null || echo 0); s1=$(stat -c%Y "$LIVE/speech.json" 2>/dev/null || echo 0); sleep 3; a2=$(stat -c%Y "$LIVE/audio.json" 2>/dev/null || echo 0); s2=$(stat -c%Y "$LIVE/speech.json" 2>/dev/null || echo 0)
+          echo "AUDIO_HEARTBEAT=$([ "$a2" -ge "$a1" ] && echo PASS || echo FAIL)"
+          echo "SPEECH_PRESENT=$([ "$s2" -gt 0 ] && echo PASS || echo FAIL)"
+          echo '=== PORT ==='
+          ss -ltnp 2>/dev/null | grep ':3217' || true
+          echo '=== AI STATUS ==='
+          if test -x "$ROOT/bin/gamezel-ai-status"; then "$ROOT/bin/gamezel-ai-status" 2>&1 | sed -E 's#(token|secret|key|password)=.*#\1=REDACTED#Ig' | head -n 80; fi
+          REMOTE
