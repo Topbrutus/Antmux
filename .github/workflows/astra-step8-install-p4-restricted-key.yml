@@ -1,0 +1,94 @@
+name: ASTRA STEP8 Install P4 Restricted Key
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-install-p4-restricted-key.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astra-step8-install-p4-restricted-key
+  cancel-in-progress: false
+
+jobs:
+  install-p4-key:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install dedicated P4 ForceCommand key atomically
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          AUTH="$HOME/.ssh/authorized_keys"
+          P4BIN="$ROOT/bin/gamezel-p4"
+          PUB='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8fJsurOJ4dRpDmLSZBuSZNmFbnhi665myFVOrL7ZP9 GAMEZEL-P4-ANTIGRAVITY'
+          KEYMAT='AAAAC3NzaC1lZDI1NTE5AAAAIJ8fJsurOJ4dRpDmLSZBuSZNmFbnhi665myFVOrL7ZP9'
+          LINE="restrict,command=\"$P4BIN\" $PUB"
+
+          test -x "$P4BIN"
+          test "$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)" != active
+
+          install -d -m 700 "$HOME/.ssh"
+          touch "$AUTH"
+          chmod 600 "$AUTH"
+          backup="$(mktemp /tmp/authorized_keys.before-p4.XXXXXX)"
+          cp "$AUTH" "$backup"
+          tmp="$(mktemp "$HOME/.ssh/authorized_keys.p4.XXXXXX")"
+
+          rollback() {
+            rc=$?
+            trap - ERR
+            cp "$backup" "$AUTH" || true
+            chmod 600 "$AUTH" || true
+            rm -f "$backup" "$tmp"
+            echo "P4_KEY_INSTALL=ROLLBACK rc=$rc"
+            exit "$rc"
+          }
+          trap rollback ERR
+
+          # Remove any stale copy of this exact dedicated public key, then add one canonical restricted entry.
+          grep -v "$KEYMAT" "$AUTH" > "$tmp" || true
+          printf '%s\n' "$LINE" >> "$tmp"
+          chmod 600 "$tmp"
+          mv "$tmp" "$AUTH"
+
+          count="$(grep -c "$KEYMAT" "$AUTH" || true)"
+          restricted="$(grep "$KEYMAT" "$AUTH" | grep -Ec '^restrict,command=".*/bin/gamezel-p4" ssh-ed25519 ' || true)"
+          echo "P4_KEY_MATCH_COUNT=$count"
+          echo "P4_KEY_RESTRICTED_COUNT=$restricted"
+          test "$count" = 1
+          test "$restricted" = 1
+          test "$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)" != active
+
+          trap - ERR
+          rm -f "$backup"
+          echo 'P4_KEY_INSTALL=PASS'
+          REMOTE
