@@ -1087,6 +1087,12 @@ async def gamezel_lineage_audit_log(request: Request) -> dict[str, Any]:
     return await gamezel_runtime_request("/api/lineage/audit-log" + suffix)
 
 
+@app.get("/api/gamezel/trou-de-cul/spectator")
+async def gamezel_trou_de_cul_spectator() -> dict[str, Any]:
+    return await gamezel_runtime_request(
+        "/api/public/gamezel/trou-de-cul/spectator",
+    )
+
 @app.get("/api/gamezel/batch/status")
 async def gamezel_batch_status(request: Request) -> dict[str, Any]:
     return await gamezel_runtime_request(
