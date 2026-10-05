@@ -1,0 +1,102 @@
+name: ASTRA GAMEZEL P4 Profile Restore
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-p4-profile-restore.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: astra/gamezel-control-20261003
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Restore encrypted P4 profile on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -s .astra-control/p4-auth-transfer.enc.json
+          scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes .astra-control/p4-auth-transfer.enc.json "$VPS_USER@$VPS_HOST:/tmp/gamezel-p4-profile.enc.json"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,base64,gzip,os
+          from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+          from cryptography.hazmat.primitives import serialization,hashes
+          from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          home=Path.home(); root=home/'.gemini'; cfg=home/'.config/gamezel'
+          env=json.loads(Path('/tmp/gamezel-p4-profile.enc.json').read_text())
+          priv=serialization.load_pem_private_key((cfg/'jev_x25519_private.pem').read_bytes(),password=None)
+          peer=X25519PublicKey.from_public_bytes(base64.b64decode(env['ephemeral_public']))
+          key=HKDF(algorithm=hashes.SHA256(),length=32,salt=None,info=b'gamezel-antigravity-auth-v1').derive(priv.exchange(peer))
+          raw=AESGCM(key).decrypt(base64.b64decode(env['nonce']),base64.b64decode(env['ciphertext']),b'GAMEZEL-P4-AUTH-V1')
+          files=json.loads(gzip.decompress(raw)).get('files',{})
+          if not files or len(files)>20: raise RuntimeError('invalid profile bundle')
+          root.mkdir(mode=0o700,parents=True,exist_ok=True)
+          for rel,enc in files.items():
+              rp=Path(rel)
+              if rp.is_absolute() or '..' in rp.parts: raise RuntimeError('unsafe profile path')
+              p=root/rp; p.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+              p.write_bytes(base64.b64decode(enc)); os.chmod(p,0o600)
+          print('P4_PROFILE_FILES_RESTORED='+str(len(files)))
+          PY
+          rm -f /tmp/gamezel-p4-profile.enc.json
+          Q="$HOME/.local/bin/qemu-x86_64-static"; A="$HOME/.local/bin/agy"
+          mkdir -p /tmp/p4-smoke
+          cat > /tmp/p4-smoke/schema.json <<'JSON'
+          {"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SERVER-ALPHA","MOVE-SERVER-BETA"]},"note":{"type":"string","maxLength":160}}}
+          JSON
+          set +e
+          timeout 240s "$Q" -cpu max "$A" -p 'GAMEZEL VPS smoke. Return PLAY with exactly MOVE-SERVER-ALPHA or MOVE-SERVER-BETA. No tools or side effects.' --output-format json --json-schema /tmp/p4-smoke/schema.json --print-timeout 2m --sandbox --mode plan > /tmp/p4-smoke/out 2>/tmp/p4-smoke/err
+          rc=$?
+          set -e
+          RC="$rc" python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          out=Path('/tmp/p4-smoke/out').read_text(errors='replace'); err=Path('/tmp/p4-smoke/err').read_text(errors='replace'); ok=False
+          def walk(x):
+              global ok
+              if isinstance(x,dict):
+                  if x.get('decision')=='PLAY' and x.get('move_id') in {'MOVE-SERVER-ALPHA','MOVE-SERVER-BETA'}: ok=True
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str):
+                  try: walk(json.loads(x))
+                  except: pass
+          try: walk(json.loads(out))
+          except: pass
+          low=(out+'\n'+err).lower()
+          print('P4_SMOKE_RC='+os.environ['RC'])
+          print('P4_STRUCTURED_DECISION='+('YES' if ok else 'NO'))
+          print('P4_AUTH_ERROR='+('YES' if any(s in low for s in ['authentication required','not authenticated','unauthorized']) else 'NO'))
+          print('P4_QUOTA_ERROR='+('YES' if any(s in low for s in ['quota','rate limit','resource exhausted']) else 'NO'))
+          if not ok: print('P4_ERROR_CLASSIFIED=YES')
+          if int(os.environ['RC'])!=0 or not ok: raise SystemExit(3)
+          PY
+          rm -rf /tmp/p4-smoke
+          echo 'P4_SERVER_PROFILE=PASS'
+          REMOTE
