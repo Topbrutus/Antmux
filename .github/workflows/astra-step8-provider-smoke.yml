@@ -1,0 +1,109 @@
+name: ASTRA STEP8 Provider Smoke
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-provider-smoke.yml'
+      - '.astra-control/step8/**'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout control branch
+        uses: actions/checkout@v6
+
+      - name: Validate staged smoke payload
+        run: |
+          set -euo pipefail
+          node --check .astra-control/step8/codex-player-adapter.js
+          node --check .astra-control/step8/provider-smoke.mjs
+          python3 -m py_compile .astra-control/step8/antigravity-president-agent.py
+          grep -q -- '--skip-git-repo-check' .astra-control/step8/codex-player-adapter.js
+          grep -q -- '--sandbox' .astra-control/step8/codex-player-adapter.js
+          echo 'STEP8_SMOKE_PAYLOAD=PASS'
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload isolated smoke payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          STAGE="/tmp/gamezel-step8-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "STAGE=$STAGE" >> "$GITHUB_ENV"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "rm -rf '$STAGE' && mkdir -m 700 -p '$STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            .astra-control/step8/codex-player-adapter.js \
+            .astra-control/step8/provider-smoke.mjs \
+            .astra-control/step8/antigravity-president-agent.py \
+            "$VPS_USER@$VPS_HOST:$STAGE/"
+
+      - name: Run bounded provider smokes
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "STAGE='$STAGE' bash -se" <<'REMOTE'
+          set -u
+          export GAMEZEL_CODEX_BIN="$HOME/.local/bin/codex"
+          export MUSE_BIN="$HOME/.local/bin/muse"
+          export ANTIGRAVITY_PYTHON="$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"
+          export ANTIGRAVITY_PRESIDENT_BRIDGE="$STAGE/antigravity-president-agent.py"
+
+          GROK_BIN="$(bash -lc 'command -v grok' 2>/dev/null || true)"
+          if test -z "$GROK_BIN"; then
+            GROK_BIN="$(find "$HOME/.local" "$HOME/.config" -maxdepth 6 -type f -name grok -perm -u+x 2>/dev/null | head -n 1 || true)"
+          fi
+          if test -n "$GROK_BIN"; then export GROK_BIN; fi
+
+          echo "MAIN_USER_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          echo "CODEX_BIN_PRESENT=$(test -x "$GAMEZEL_CODEX_BIN" && echo yes || echo no)"
+          echo "MUSE_BIN_PRESENT=$(test -x "$MUSE_BIN" && echo yes || echo no)"
+          echo "GROK_BIN_PRESENT=$(test -n "${GROK_BIN:-}" && test -x "$GROK_BIN" && echo yes || echo no)"
+          echo "ANTIGRAVITY_PYTHON_PRESENT=$(test -x "$ANTIGRAVITY_PYTHON" && echo yes || echo no)"
+          echo "P4_KEY_ENV_PRESENT=$(test -n "${GEMINI_API_KEY:-}" && echo yes || echo no)"
+
+          cd "$STAGE"
+          for provider in CODEX MUSE GROK ANTIGRAVITY; do
+            echo "=== ${provider} ==="
+            set +e
+            node provider-smoke.mjs "$provider"
+            rc=$?
+            set -e
+            echo "${provider}_SMOKE_RC=$rc"
+          done
+
+          echo "MAIN_USER_SERVICE_AFTER=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          REMOTE
+
+      - name: Cleanup isolated VPS stage
+        if: always()
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          if [ -n "${STAGE:-}" ]; then
+            ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "rm -rf '$STAGE'" || true
+          fi
