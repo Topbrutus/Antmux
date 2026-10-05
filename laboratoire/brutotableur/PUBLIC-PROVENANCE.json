@@ -1,0 +1,14 @@
+{
+  "schema": "ANTMUX-BRUTOTABLEUR-PUBLIC-VITRINE-v1",
+  "mode": "PUBLIC_READ_ONLY_FROZEN_CAPTURE",
+  "source_repository": "Topbrutus/Brutotableur",
+  "source_commit": "3579b57c477b0822914ecc1cdd55e1ab58da1b56",
+  "source_parent_main": "74cc4b5244d51ff2e12e5861444dccf5206c94bf",
+  "public_route": "/laboratoire/brutotableur/",
+  "private_route": "/laboratoire/brutotableur/private/",
+  "public_interaction": false,
+  "private_route_requires_server_auth": true,
+  "password_or_secret_in_public_payload": false,
+  "proof_scope": "SOFTWARE_VERSION_EVIDENCE_ONLY",
+  "mathematical_proof_claim": false
+}

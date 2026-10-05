@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#030712" />
+  <title>Antmux — Brutotableur · vitrine publique</title>
+  <meta name="description" content="Vitrine publique en lecture seule du Brutotableur. La version interactive est protégée côté serveur." />
+  <style>
+    :root{color-scheme:dark;--bg:#030712;--panel:#07111f;--line:#0d3852;--text:#e5f7ff;--muted:#84a6b8;--cyan:#23d8ff;--gold:#ffc13d}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#092038 0,#030712 42%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+    .shell{width:min(1500px,calc(100% - 32px));margin:0 auto;padding:22px 0 48px}.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:18px}.eyebrow{margin:0 0 6px;color:var(--cyan);font:700 12px/1.4 ui-monospace,monospace;letter-spacing:.14em}.title{margin:0;font-size:clamp(28px,4vw,54px);letter-spacing:-.04em}.lede{margin:8px 0 0;color:var(--muted);max-width:850px;line-height:1.6}.unlock{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 16px;border:1px solid rgba(255,193,61,.6);border-radius:8px;background:rgba(255,193,61,.08);color:#ffe6a8;text-decoration:none;font-weight:900;letter-spacing:.06em}.unlock:hover{background:rgba(255,193,61,.16)}
+    .status{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 20px}.pill{padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:#9edff1;background:rgba(4,31,48,.66);font:700 11px ui-monospace,monospace}.pill.locked{border-color:rgba(255,193,61,.45);color:#ffd36a}.frame{position:relative;border:1px solid #0c405d;background:#020813;border-radius:12px;overflow:hidden}.frame img{display:block;width:100%;height:auto;user-select:none;pointer-events:none}.lockbar{position:absolute;inset:auto 14px 14px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid rgba(35,216,255,.25);border-radius:9px;background:rgba(2,8,19,.92);backdrop-filter:blur(8px);color:#b8d9e7;font-size:13px}.lockbar strong{color:#fff}.meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.card{padding:15px;border:1px solid var(--line);border-radius:10px;background:rgba(7,17,31,.72)}.card b{display:block;color:var(--cyan);font:800 11px ui-monospace,monospace;letter-spacing:.08em;margin-bottom:7px}.card span{color:var(--muted);line-height:1.5;font-size:13px}.back{display:inline-block;margin-top:18px;color:#9edff1;text-decoration:none}.back:hover{color:white}@media(max-width:760px){.meta{grid-template-columns:1fr}.lockbar{position:static;border-width:1px 0 0;border-radius:0}.shell{width:min(100% - 18px,1500px)}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">ANTMUX · BRUTOTABLEUR · VITRINE PUBLIQUE</p>
+        <h1 class="title">Brutotableur</h1>
+        <p class="lede">Vue publique figée et auditable du dictionnaire de formules et cubes 7×7. Cette page ne permet aucune action sur le logiciel.</p>
+      </div>
+      <a class="unlock" href="./private/" rel="nofollow">🔒 DÉBARRER LA VITRINE</a>
+    </header>
+
+    <div class="status" aria-label="Statut de la vitrine">
+      <span class="pill locked">PUBLIC · VERROUILLÉ</span>
+      <span class="pill">LECTURE SEULE</span>
+      <span class="pill">SOURCE BRUTOTABLEUR · 3579b57</span>
+    </div>
+
+    <section class="frame" aria-label="Capture publique du Brutotableur">
+      <img src="./brutotableur-vitrine.png" alt="Capture publique du Brutotableur montrant le dictionnaire des formules, les catégories et les relations." />
+      <div class="lockbar"><span><strong>VITRINE FIGÉE.</strong> Les clics, recherches, exports et modifications sont désactivés pour le public.</span><span>🔒</span></div>
+    </section>
+
+    <section class="meta" aria-label="Provenance">
+      <div class="card"><b>VERSION AFFICHÉE</b><span>Brutotableur finalisation · commit <code>3579b57c477b0822914ecc1cdd55e1ab58da1b56</code>.</span></div>
+      <div class="card"><b>FRONTIÈRE</b><span>La vitrine est publique. L’application interactive doit rester derrière une authentification serveur.</span></div>
+      <div class="card"><b>PORTÉE DE PREUVE</b><span>Cette page prouve la version logicielle publiée et son interface visible; elle ne transforme pas une observation mathématique en preuve.</span></div>
+    </section>
+
+    <a class="back" href="../">← Retour au laboratoire Antmux</a>
+  </main>
+</body>
+</html>
