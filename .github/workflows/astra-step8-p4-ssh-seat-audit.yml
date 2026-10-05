@@ -61,6 +61,8 @@ jobs:
             else
               echo 'P4_BIN_CANONICAL_FORCE_TARGET=NO'
             fi
+            echo '=== P4 WRAPPER SAFE SHAPE ==='
+            sed -E 's#([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|KEY)[A-Za-z0-9_]*)=.*#\1=REDACTED#Ig' "$P4BIN" | sed -n '1,80p'
           fi
 
           if test -f "$AUTH"; then
