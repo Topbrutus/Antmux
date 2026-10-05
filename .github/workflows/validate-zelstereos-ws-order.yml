@@ -61,9 +61,6 @@ jobs:
           PY
           node --check /tmp/zelstereos-inline.js
 
-      - name: Verify ZELSTEREOS formula metadata transport
-        run: node --test laboratoire/zelstereos/tests/*.test.mjs
-
       - name: Verify ordered seven-stage WebSocket transport
         run: |
           set -euo pipefail
@@ -111,3 +108,6 @@ jobs:
             --token runner-zel-order-test
 
           echo 'ZELSTEREOS_WS_VALIDATION=PASS'
+
+      - name: Verify ZELSTEREOS formula metadata transport
+        run: node --test laboratoire/zelstereos/tests/*.test.mjs
