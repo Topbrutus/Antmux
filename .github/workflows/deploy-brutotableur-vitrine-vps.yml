@@ -142,16 +142,17 @@ jobs:
           find "$PRIVATE_STAGE" -type f -exec chmod 0644 {} +
           ln -sfn "$PRIVATE_STAGE" "$HOME/antmux-brutotableur/private-current"
 
-          cat > "$NGINX_DIR/brutotableur-private.conf" <<'EOF_NGINX'
+          # Do not let an unprivileged deploy replace an already-active Nginx snippet.
+          # On first install the root apply script below creates the fail-closed/auth snippet.
+          if [ ! -f "$NGINX_DIR/brutotableur-private.conf" ]; then
+              cat > "$NGINX_DIR/brutotableur-private.conf" <<'EOF_NGINX'
           location ^~ /laboratoire/brutotableur/private/ {
-              auth_basic "Brutotableur privé";
-              auth_basic_user_file /etc/nginx/.htpasswd-brutotableur;
-              alias /var/www/antmux.com/private/brutotableur/;
-              index index.html;
+              return 404;
               add_header Cache-Control "private, no-store" always;
               add_header X-Robots-Tag "noindex, nofollow" always;
           }
           EOF_NGINX
+          fi
 
           cat > "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh" <<'EOF_ROOT'
           #!/usr/bin/env bash
@@ -268,9 +269,15 @@ jobs:
               sudo -n nginx -t
               sudo -n bash "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh"
           else
-              printf 'SUDO_NONINTERACTIVE=FAIL\n' >&2
-              printf 'BLOCKER=ROOT_NGINX_FAIL_CLOSED_REQUIRED\n' >&2
-              exit 31
+              printf 'SUDO_NONINTERACTIVE=UNAVAILABLE\n'
+              current_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
+              if [ "$current_code" = '401' ] || [ "$current_code" = '404' ]; then
+                  printf 'ROOT_APPLY=NOT_REQUIRED_ALREADY_FAIL_CLOSED\n'
+              else
+                  printf 'BLOCKER=ONE_TIME_ROOT_NGINX_APPLY_REQUIRED current_http=%s\n' "$current_code" >&2
+                  printf 'NEXT_ACTION=sudo bash %s\n' "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh" >&2
+                  exit 31
+              fi
           fi
 
           rm -rf "$REMOTE_STAGE"
