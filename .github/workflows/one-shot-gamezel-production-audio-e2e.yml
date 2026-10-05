@@ -41,8 +41,9 @@ jobs:
           set -euo pipefail
           SERVICE='zelstereos-gamezel.service'
           PORT=3217
-          DROPIN_DIR="$XDG_RUNTIME_DIR/systemd/user/${SERVICE}.d"
+          DROPIN_DIR="$HOME/.config/systemd/user/${SERVICE}.d"
           DROPIN="$DROPIN_DIR/zz-audio-e2e-test.conf"
+          test ! -e "$DROPIN"
 
           cleanup() {
             rm -f "$DROPIN" || true
@@ -69,6 +70,11 @@ jobs:
           EOF
           systemctl --user daemon-reload
           systemctl --user restart "$SERVICE"
+
+          MAINPID="$(systemctl --user show "$SERVICE" -p MainPID --value)"
+          test "$MAINPID" -gt 1
+          tr '\0' '\n' < "/proc/$MAINPID/environ" | grep -Fxq 'GAMEZEL_PUBLIC_DRAW_ENABLED=true'
+          echo 'PRODUCTION_PROCESS_ENV=PASS'
 
           ready=0
           for _ in $(seq 1 30); do
