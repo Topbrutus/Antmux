@@ -47,22 +47,25 @@ jobs:
           ROOT="$HOME/zelstereos-gamezel"
           AUTH="$HOME/.ssh/authorized_keys"
           P4BIN="$ROOT/bin/gamezel-p4"
+          PLAYERBIN="$ROOT/bin/gamezel-player"
           ENTRY="$ROOT/bin/zel-player.mjs"
 
           echo "MAIN_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
           echo "P4_SERVICE=$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)"
           test -x "$P4BIN" && echo 'P4_PLAYER_BIN=PASS' || echo 'P4_PLAYER_BIN=MISS'
+          test -x "$PLAYERBIN" && echo 'GAMEZEL_PLAYER_BIN=PASS' || echo 'GAMEZEL_PLAYER_BIN=MISS'
           test -f "$ENTRY" && echo 'ZEL_PLAYER_ENTRY=PASS' || echo 'ZEL_PLAYER_ENTRY=MISS'
 
           if test -f "$P4BIN"; then
             echo "P4_BIN_BLOB=$(git hash-object "$P4BIN" 2>/dev/null || sha256sum "$P4BIN" | awk '{print $1}')"
-            if grep -Eq 'zel-player\.mjs.*--player[ =]+P4|--player[ =]+P4.*zel-player\.mjs' "$P4BIN"; then
-              echo 'P4_BIN_CANONICAL_FORCE_TARGET=YES'
-            else
-              echo 'P4_BIN_CANONICAL_FORCE_TARGET=NO'
-            fi
             echo '=== P4 WRAPPER SAFE SHAPE ==='
             sed -E 's#([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|KEY)[A-Za-z0-9_]*)=.*#\1=REDACTED#Ig' "$P4BIN" | sed -n '1,80p'
+          fi
+
+          if test -f "$PLAYERBIN"; then
+            echo "GAMEZEL_PLAYER_BLOB=$(git hash-object "$PLAYERBIN" 2>/dev/null || sha256sum "$PLAYERBIN" | awk '{print $1}')"
+            echo '=== GAMEZEL PLAYER SAFE SHAPE ==='
+            sed -E 's#([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|KEY)[A-Za-z0-9_]*)=.*#\1=REDACTED#Ig' "$PLAYERBIN" | sed -n '1,120p'
           fi
 
           if test -f "$AUTH"; then
