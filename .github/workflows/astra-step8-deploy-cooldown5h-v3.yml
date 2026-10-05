@@ -1,0 +1,189 @@
+name: ASTRA STEP8 Deploy Cooldown 5h v3
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-deploy-cooldown5h-v3.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astra-step8-deploy-cooldown5h
+  cancel-in-progress: false
+
+jobs:
+  deploy-cooldown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout control branch
+        uses: actions/checkout@v4
+        with:
+          ref: astra/gamezel-control-20261003
+
+      - name: Correct transfer escaping in working copy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.astra-control/step8/apply-provider-cooldown5h.py')
+          s = p.read_text(encoding='utf-8')
+          old = r"JSON.stringify(state) + '\n'"
+          new = r"JSON.stringify(state) + '\\n'"
+          if s.count(old) != 1:
+              raise SystemExit(f'escape marker count={s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          print('TRANSFER_ESCAPE_FIX=PASS')
+          PY
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage corrected patch on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            .astra-control/step8/apply-provider-cooldown5h.py \
+            "$VPS_USER@$VPS_HOST:/tmp/gamezel-apply-provider-cooldown5h.py"
+
+      - name: Verify candidate then deploy with rollback
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          RUNNER="$ROOT/agents/gamezel-autoplayer.mjs"
+          PATCH=/tmp/gamezel-apply-provider-cooldown5h.py
+          EXPECTED_PRE_BLOB='a3ef9df798e88de36a5ee2edf07c68f60064b906'
+          EXPECTED_CANDIDATE_BLOB='f5d04d3b24f9cf31eb75d32a56afcc6ffeea7a0b'
+          CANDIDATE="$(mktemp /tmp/gamezel-autoplayer.cooldown5h.candidate.XXXXXX.mjs)"
+          STATE_DIR="$(mktemp -d /tmp/gamezel-cooldown5h-smoke.XXXXXX)"
+          BACKUP=""
+
+          cleanup_predeploy() {
+            rm -f "$CANDIDATE" "$PATCH"
+            rm -rf "$STATE_DIR"
+          }
+          trap cleanup_predeploy EXIT
+
+          test -f "$RUNNER"
+          test -f "$PATCH"
+          actual_pre="$(git hash-object "$RUNNER")"
+          echo "RUNNER_PRE_BLOB=$actual_pre"
+          test "$actual_pre" = "$EXPECTED_PRE_BLOB"
+          test "$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p2.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p3.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)" != active
+
+          cp "$RUNNER" "$CANDIDATE"
+          python3 "$PATCH" "$CANDIDATE"
+          node --check "$CANDIDATE"
+          candidate_blob="$(git hash-object "$CANDIDATE")"
+          echo "CANDIDATE_BLOB=$candidate_blob"
+          test "$candidate_blob" = "$EXPECTED_CANDIDATE_BLOB"
+
+          CANDIDATE="$CANDIDATE" STATE_DIR="$STATE_DIR" node --input-type=module <<'NODE'
+          import { pathToFileURL } from 'node:url';
+          const mod = await import(pathToFileURL(process.env.CANDIDATE).href + '?smoke=' + Date.now());
+          if (mod.PROVIDER_NO_RESPONSE_COOLDOWN_MS !== 18000000) throw new Error('wrong cooldown duration');
+          const state = {
+            roundActive: true,
+            round: 7,
+            currentTurn: { PLAYER_ID: 'P2' },
+            players: [{ PLAYER_ID: 'P2', PLAYER_NAME: 'MUSE', STATUS: 'ACTIVE', IN_ROUND: true }]
+          };
+          let passCount = 0;
+          let decideCalls = 0;
+          const cli = async (args) => {
+            if (args[0] === 'status') return structuredClone(state);
+            if (args[0] === 'pass') { passCount++; return { SUCCESS: true, ACTION: 'PASS' }; }
+            if (args[0] === 'heartbeat' || args[0] === 'join') return { SUCCESS: true };
+            if (args[0] === 'play') throw new Error('card must not be created during silence smoke');
+            throw new Error('unexpected cli: ' + args[0]);
+          };
+          const decide = async () => { decideCalls++; throw new Error('synthetic provider silence'); };
+          const env = { ...process.env, GAMEZEL_AGENT_STATE_DIR: process.env.STATE_DIR };
+          const t0 = 1000000;
+          const first = await mod.runTurnOnce({ playerId: 'P2', cli, decide, env, now: () => t0 });
+          if (first.action !== 'NO_RESPONSE_COOLDOWN') throw new Error('first silence did not enter cooldown');
+          if (first.cooldown_until !== t0 + 18000000) throw new Error('wrong first cooldown boundary');
+          if (decideCalls !== 1 || passCount !== 1) throw new Error('wrong first silence call counts');
+          const second = await mod.runTurnOnce({ playerId: 'P2', cli, decide, env, now: () => t0 + 3600000 });
+          if (second.action !== 'COOLDOWN_PASS') throw new Error('sleeping seat did not technical-pass');
+          if (decideCalls !== 1) throw new Error('provider was called during five-hour sleep');
+          if (passCount !== 2) throw new Error('sleeping seat did not advance turn technically');
+          console.log('VPS_COOLDOWN_SMOKE=PASS');
+          NODE
+
+          BACKUP="$(mktemp /tmp/gamezel-autoplayer.before-cooldown5h.XXXXXX)"
+          cp "$RUNNER" "$BACKUP"
+          rollback() {
+            rc=$?
+            trap - ERR EXIT
+            echo "COOLDOWN_DEPLOY=ROLLBACK rc=$rc"
+            cp "$BACKUP" "$RUNNER" || true
+            chmod --reference="$BACKUP" "$RUNNER" 2>/dev/null || true
+            node --check "$RUNNER" >/dev/null 2>&1 || true
+            systemctl --user restart zelstereos-gamezel-p2.service >/dev/null 2>&1 || true
+            systemctl --user restart zelstereos-gamezel-p3.service >/dev/null 2>&1 || true
+            rm -f "$BACKUP" "$CANDIDATE" "$PATCH"
+            rm -rf "$STATE_DIR"
+            exit "$rc"
+          }
+          trap rollback ERR
+
+          cp "$CANDIDATE" "$RUNNER"
+          chmod --reference="$BACKUP" "$RUNNER" 2>/dev/null || true
+          node --check "$RUNNER"
+          test "$(git hash-object "$RUNNER")" = "$EXPECTED_CANDIDATE_BLOB"
+
+          systemctl --user restart zelstereos-gamezel-p2.service
+          sleep 3
+          test "$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p2.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p3.service 2>/dev/null || true)" = active
+          echo 'P2_RESTART=PASS'
+
+          systemctl --user restart zelstereos-gamezel-p3.service
+          sleep 3
+          test "$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p2.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p3.service 2>/dev/null || true)" = active
+          test "$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)" != active
+          echo 'P3_RESTART=PASS'
+          echo 'P4_REMAINS_INACTIVE=PASS'
+
+          if test -x "$ROOT/bin/gamezel-ai-status"; then
+            "$ROOT/bin/gamezel-ai-status" 2>&1 | sed -E 's#(token|secret|key|password)=.*#\1=REDACTED#Ig' | sed -n '1,40p'
+          fi
+
+          trap - ERR EXIT
+          rm -f "$BACKUP" "$CANDIDATE" "$PATCH"
+          rm -rf "$STATE_DIR"
+          echo "RUNNER_POST_BLOB=$(git hash-object "$RUNNER")"
+          echo 'COOLDOWN_DEPLOY=PASS'
+          REMOTE
