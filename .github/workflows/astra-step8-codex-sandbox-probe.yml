@@ -1,0 +1,71 @@
+name: ASTRA STEP8 Codex Sandbox Probe
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-codex-sandbox-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Probe Codex sandbox without a model call
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          CODEX="$HOME/.local/bin/codex"
+          TMP="$(mktemp -d /tmp/codex-sandbox-probe.XXXXXX)"
+          trap 'rm -rf "$TMP"' EXIT
+
+          classify() {
+            f="$1"; p="$2"
+            test -f "$f" || : > "$f"
+            grep -Eqi 'landlock' "$f" && echo "${p}_LANDLOCK=YES" || echo "${p}_LANDLOCK=NO"
+            grep -Eqi 'bwrap|bubblewrap' "$f" && echo "${p}_BWRAP=YES" || echo "${p}_BWRAP=NO"
+            grep -Eqi 'permission denied|operation not permitted|eperm|eacces' "$f" && echo "${p}_PERMISSION=YES" || echo "${p}_PERMISSION=NO"
+            grep -Eqi 'unsupported|not supported' "$f" && echo "${p}_UNSUPPORTED=YES" || echo "${p}_UNSUPPORTED=NO"
+          }
+
+          echo "CODEX_VERSION=$($CODEX --version 2>/dev/null || true)"
+          help="$($CODEX sandbox linux --help 2>&1 || true)"
+          echo "SANDBOX_HELP_PRESENT=$(test -n "$help" && echo YES || echo NO)"
+          echo "LEGACY_FEATURE_VISIBLE=$(printf '%s' "$help" | grep -Eqi 'enable|feature' && echo YES || echo NO)"
+
+          set +e
+          "$CODEX" sandbox linux /bin/true >"$TMP/default.out" 2>"$TMP/default.err"
+          rc=$?
+          set -e
+          echo "CODEX_SANDBOX_DEFAULT_RC=$rc"
+          classify "$TMP/default.err" CODEX_SANDBOX_DEFAULT
+
+          set +e
+          "$CODEX" sandbox linux --enable use_legacy_landlock /bin/true >"$TMP/legacy.out" 2>"$TMP/legacy.err"
+          rc=$?
+          set -e
+          echo "CODEX_SANDBOX_LEGACY_RC=$rc"
+          classify "$TMP/legacy.err" CODEX_SANDBOX_LEGACY
+          REMOTE
