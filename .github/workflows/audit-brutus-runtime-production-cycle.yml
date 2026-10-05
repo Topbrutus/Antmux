@@ -1,0 +1,154 @@
+name: Audit Brutus Runtime Production Cycle
+
+on:
+  push:
+    branches:
+      - astra/prod-brutus-runtime-cycle-20261005
+    paths:
+      - '.github/workflows/audit-brutus-runtime-production-cycle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit-production-runtime-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only verify persisted state and consumption
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/antmux-x72-queen"
+          PYTHONPATH="$HOME/antmux-x72-queen:$HOME/antmux-x72-queen/vendor" python3 - <<'PY'
+          import json
+          import sqlite3
+          import urllib.request
+          from contextlib import closing
+          from pathlib import Path
+
+          ANT_ID = "ANT-9F7FC681CD80"
+          MATERIAL_ID = "MAT-MATH-40810E00ADDA4053DEDFCE4E"
+          AUTHORIZATION_ID = "LTA-T241672151-FE1491B4DDF37CA7ACCE"
+          EXPECTED_POSITION = "W:GENESIS-B"
+          EXPECTED_ANT_MOVE = "RME-T241672168-ANT-MOVE-238C2ECF1232AD0D"
+          EXPECTED_MATERIAL_MOVE = "MMOVE-T241672168-CA046644A567AB753F48"
+
+          receipt_path = Path('/tmp/brutus-production-runtime-receipt.json')
+          if not receipt_path.is_file():
+              raise SystemExit('RECEIPT_FILE=FAIL')
+          receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+          if receipt.get('SCHEMA') != 'BRUTUS-PRODUCTION-LIVE-TRANSPORT-RECEIPT-v0.1':
+              raise SystemExit('RECEIPT_SCHEMA=FAIL')
+          if receipt.get('ANT_ID') != ANT_ID:
+              raise SystemExit('RECEIPT_ANT=FAIL')
+          if receipt.get('MATERIAL_ID') != MATERIAL_ID:
+              raise SystemExit('RECEIPT_MATERIAL=FAIL')
+          if receipt.get('AUTHORIZATION_ID') != AUTHORIZATION_ID:
+              raise SystemExit('RECEIPT_AUTHORIZATION=FAIL')
+          if receipt.get('FROM') != 'W:GENESIS-A' or receipt.get('TO') != EXPECTED_POSITION:
+              raise SystemExit('RECEIPT_ROUTE=FAIL')
+          if receipt.get('ANT_MOVE_EVENT_ID') != EXPECTED_ANT_MOVE:
+              raise SystemExit('RECEIPT_ANT_MOVE=FAIL')
+          if receipt.get('MATERIAL_MOVE_ID') != EXPECTED_MATERIAL_MOVE:
+              raise SystemExit('RECEIPT_MATERIAL_MOVE=FAIL')
+          if receipt.get('MATERIAL_MOVEMENT_VERIFIED') is not True:
+              raise SystemExit('RECEIPT_MOVEMENT=FAIL')
+          if receipt.get('AUTHORIZATION_CONSUMED') is not True:
+              raise SystemExit('RECEIPT_CONSUMPTION=FAIL')
+          if receipt.get('PROOF_REF') is not None:
+              raise SystemExit('RECEIPT_PROOF_BOUNDARY=FAIL')
+          if receipt.get('WHEEL_INGRESS_AUTHORIZATION') is not False:
+              raise SystemExit('RECEIPT_WHEEL_BOUNDARY=FAIL')
+
+          db_path = Path.home() / 'antmux-x72-queen' / 'data' / 'live-transport.db'
+          if not db_path.is_file():
+              raise SystemExit('TRANSPORT_DB=FAIL')
+
+          with closing(sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)) as db:
+              state = db.execute(
+                  '''
+                  SELECT material_h256, ant_id, position, binding_state,
+                         attached_tick, updated_tick, last_move_tick,
+                         last_command_id, last_authorization_id, state_version
+                  FROM transport_state WHERE material_id=?
+                  ''',
+                  (MATERIAL_ID,),
+              ).fetchone()
+              if state is None:
+                  raise SystemExit('PERSISTED_STATE=FAIL_NONE')
+              rows = db.execute(
+                  '''
+                  SELECT command_id, authorization_id, authorization_h256,
+                         ant_id, material_id, material_h256,
+                         from_position, to_position,
+                         requested_at_tick, executed_at_tick
+                  FROM move_commands WHERE authorization_id=?
+                  ''',
+                  (AUTHORIZATION_ID,),
+              ).fetchall()
+
+          if state[1] != ANT_ID:
+              raise SystemExit('PERSISTED_ANT=FAIL')
+          if state[2] != EXPECTED_POSITION:
+              raise SystemExit('PERSISTED_POSITION=FAIL')
+          if state[3] != 'ATTACHED':
+              raise SystemExit('PERSISTED_BINDING=FAIL')
+          if state[8] != AUTHORIZATION_ID:
+              raise SystemExit('PERSISTED_LAST_AUTHORIZATION=FAIL')
+          if int(state[9]) != 2:
+              raise SystemExit(f'PERSISTED_STATE_VERSION=FAIL_{state[9]}')
+          if len(rows) != 1:
+              raise SystemExit(f'PERSISTED_CONSUMPTION_COUNT=FAIL_{len(rows)}')
+          row = rows[0]
+          if row[1] != AUTHORIZATION_ID or row[3] != ANT_ID or row[4] != MATERIAL_ID:
+              raise SystemExit('PERSISTED_CONSUMPTION_IDENTITY=FAIL')
+          if row[6] != 'W:GENESIS-A' or row[7] != EXPECTED_POSITION:
+              raise SystemExit('PERSISTED_CONSUMPTION_ROUTE=FAIL')
+
+          with urllib.request.urlopen('http://127.0.0.1:8720/api/health', timeout=10) as response:
+              health = json.loads(response.read().decode('utf-8'))
+          if health.get('ok') is not True or health.get('integrity_match') is not True:
+              raise SystemExit('QUEEN_HEALTH=FAIL')
+
+          print('RECEIPT_SCHEMA=PASS')
+          print('PERSISTED_STATE=PASS')
+          print('PERSISTED_POSITION=' + state[2])
+          print('PERSISTED_BINDING=' + state[3])
+          print('PERSISTED_STATE_VERSION=' + str(state[9]))
+          print('LAST_MOVE_TICK=' + str(state[6]))
+          print('LAST_COMMAND_ID=' + str(state[7]))
+          print('LAST_AUTHORIZATION_ID=' + str(state[8]))
+          print('PERSISTED_CONSUMPTION_COUNT=1')
+          print('CONSUMPTION_REQUESTED_TICK=' + str(row[8]))
+          print('CONSUMPTION_EXECUTED_TICK=' + str(row[9]))
+          print('QUEEN_TICK=' + str(health['tick_count']))
+          print('QUEEN_INTEGRITY=PASS')
+          print('PROOF_REF=NULL')
+          print('WHEEL_INGRESS_AUTHORIZATION=FALSE')
+          print('BRUTUS_RUNTIME_PRODUCTION_AUDIT=PASS')
+          PY
+          REMOTE
