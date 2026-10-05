@@ -1,0 +1,48 @@
+name: ASTRA GAMEZEL P4 Live Diagnose
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-p4-live-diagnose.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Diagnose P4 provider turn
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          echo '=== P4 NON-WAIT LOG ==='
+          journalctl --user -u zelstereos-gamezel-p4.service --since '20 minutes ago' -o cat --no-pager | grep -Ev '"action":"WAIT_(TURN|ROUND)"' | sed -E 's#(token|secret|key|password)=([^ ]+)#\1=REDACTED#Ig' | tail -n 120 || true
+          echo '=== P4 COOLDOWN ==='
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,time
+          p=Path.home()/'.gamezel-agent-state/p4-provider-cooldown.json'
+          if not p.exists(): print('P4_COOLDOWN=NONE')
+          else:
+              try:
+                  d=json.loads(p.read_text())
+                  print('P4_COOLDOWN=PRESENT')
+                  print('P4_COOLDOWN_REASON='+str(d.get('reason')))
+                  print('P4_COOLDOWN_REMAINING_MS='+str(max(0,int(d.get('sleep_until',0))-int(time.time()*1000))))
+              except Exception as e: print('P4_COOLDOWN=INVALID')
+          PY
+          echo '=== SERVICE ENV KEYS ==='
+          systemctl --user show zelstereos-gamezel-p4.service -p EnvironmentFiles -p ExecStart --no-pager
+          grep -E '^(GAMEZEL_|ANTIGRAVITY_)' "$HOME/.config/zelstereos/agents/p4.env" | sed -E 's#(TOKEN|SECRET|KEY|PASSWORD)[^=]*=.*#\1=REDACTED#Ig'
+          REMOTE
