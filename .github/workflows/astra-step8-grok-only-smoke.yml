@@ -1,0 +1,60 @@
+name: ASTRA STEP8 Grok Only Smoke
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-grok-only-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run bounded Grok probe with sanitized classification
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          GROK="$HOME/.grok/bin/grok"
+          TMP="$(mktemp -d /tmp/gamezel-grok-smoke.XXXXXX)"
+          trap 'rm -rf "$TMP"' EXIT
+          echo "GROK_BIN=$(test -x "$GROK" && echo YES || echo NO)"
+          "$GROK" --version 2>/dev/null | head -n 1 || true
+          SCHEMA='{"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SMOKE-ALPHA","MOVE-SMOKE-BETA"]},"note":{"type":"string","maxLength":200}}}'
+          PROMPT='Choose one bounded GAMEZEL move. Return PLAY with exactly MOVE-SMOKE-ALPHA or MOVE-SMOKE-BETA using the supplied schema. No tools, web, shell, filesystem, or side effects.'
+          rc=0
+          "$GROK" --single "$PROMPT" --json-schema "$SCHEMA" --max-turns 1 --no-subagents --disable-web-search --permission-mode plan --cwd "$TMP" >"$TMP/out" 2>"$TMP/err" || rc=$?
+          echo "GROK_RC=$rc"
+          combined="$TMP/combined"; cat "$TMP/out" "$TMP/err" > "$combined"
+          if grep -Eqi 'not logged in|login required|authentication|unauthorized|401|sign.?in|log.?in|credential|oauth|device.*auth|authorization' "$combined"; then echo 'GROK_AUTH=YES'; else echo 'GROK_AUTH=NO'; fi
+          if grep -Eqi 'quota|credit|rate.?limit|429|billing|capacity|resource.*exhausted' "$combined"; then echo 'GROK_QUOTA=YES'; else echo 'GROK_QUOTA=NO'; fi
+          if grep -Eqi 'schema|json-schema|structured output' "$combined"; then echo 'GROK_SCHEMA=YES'; else echo 'GROK_SCHEMA=NO'; fi
+          if grep -Eqi 'unexpected argument|unknown option|unrecognized option|invalid argument' "$combined"; then echo 'GROK_ARGUMENT=YES'; else echo 'GROK_ARGUMENT=NO'; fi
+          if grep -Eqi 'network|connection|connect error|dns|tls|certificate' "$combined"; then echo 'GROK_NETWORK=YES'; else echo 'GROK_NETWORK=NO'; fi
+          if grep -Eq '"decision"[[:space:]]*:[[:space:]]*"PLAY"' "$TMP/out" && grep -Eq 'MOVE-SMOKE-(ALPHA|BETA)' "$TMP/out"; then echo 'GROK_STRUCTURED_DECISION=YES'; else echo 'GROK_STRUCTURED_DECISION=NO'; fi
+          echo "GROK_ERROR_BYTES=$(wc -c < "$TMP/err" | tr -d ' ')"
+          echo "MAIN_USER_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          exit 0
+          REMOTE
