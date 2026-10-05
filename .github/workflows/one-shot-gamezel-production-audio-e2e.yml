@@ -29,7 +29,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Emit one real production GAMEZEL audio cue
+      - name: Exercise real P1 production gateway
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -40,69 +40,30 @@ jobs:
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
           set -euo pipefail
           SERVICE='zelstereos-gamezel.service'
-          PORT=3217
-          DROPIN_DIR="$HOME/.config/systemd/user/${SERVICE}.d"
-          DROPIN="$DROPIN_DIR/zz-audio-e2e-test.conf"
-          test ! -e "$DROPIN"
-
-          cleanup() {
-            rm -f "$DROPIN" || true
-            rmdir "$DROPIN_DIR" 2>/dev/null || true
-            systemctl --user daemon-reload || true
-            systemctl --user restart "$SERVICE" || true
-            for _ in $(seq 1 20); do
-              if curl --fail --silent --show-error "http://127.0.0.1:${PORT}/api/public/gamezel/presence" >/dev/null 2>&1; then
-                echo 'PRODUCTION_RESTORED=PASS'
-                return
-              fi
-              sleep 0.5
-            done
-            echo 'PRODUCTION_RESTORED=FAIL'
-          }
-          trap cleanup EXIT
-
+          P1="$HOME/zelstereos-gamezel/bin/gamezel-p1"
           systemctl --user is-active --quiet "$SERVICE"
-          mkdir -p "$DROPIN_DIR"
-          cat > "$DROPIN" <<'EOF'
-          [Service]
-          Environment=GAMEZEL_PUBLIC_DRAW_ENABLED=true
-          Environment=GAMEZEL_PUBLIC_DRAW_COOLDOWN_MS=0
-          EOF
-          systemctl --user daemon-reload
-          systemctl --user restart "$SERVICE"
+          test -x "$P1"
 
-          MAINPID="$(systemctl --user show "$SERVICE" -p MainPID --value)"
-          test "$MAINPID" -gt 1
-          tr '\0' '\n' < "/proc/$MAINPID/environ" | grep -Fxq 'GAMEZEL_PUBLIC_DRAW_ENABLED=true'
-          echo 'PRODUCTION_PROCESS_ENV=PASS'
-
-          ready=0
-          for _ in $(seq 1 30); do
-            if curl --fail --silent --show-error "http://127.0.0.1:${PORT}/api/public/gamezel/presence" > /tmp/gamezel-presence.json 2>/dev/null; then
-              if node -e "const d=require('/tmp/gamezel-presence.json'); process.exit(d.draw_enabled===true ? 0 : 1)"; then
-                ready=1
-                break
-              fi
-            fi
-            sleep 0.5
-          done
-          test "$ready" = '1'
-          echo 'PRODUCTION_DRAW_TEMP_ENABLED=PASS'
-
-          sleep 3
-          curl --fail --silent --show-error -X POST "http://127.0.0.1:${PORT}/api/public/gamezel/draw" \
-            -H 'Content-Type: application/json' \
-            --data '{"player_id":"P1"}' > /tmp/gamezel-production-draw.json
-
+          "$P1" join --json > /tmp/gamezel-p1-join.json
           node - <<'NODE'
           const fs=require('fs');
-          const d=JSON.parse(fs.readFileSync('/tmp/gamezel-production-draw.json','utf8'));
-          if (!d.ok || d.mode!=='PUBLIC_SAFE' || d.execution!=='NONE' || d.persisted!==false) process.exit(1);
-          console.log('PRODUCTION_DRAW=PASS');
-          console.log('CARD_ID='+d.card.CARD_ID);
-          console.log('SOUND_ID='+(d.draw_audio.SOUND_ID||''));
-          console.log('SPEECH_ID='+(d.speech.SPEECH_ID||''));
+          const d=JSON.parse(fs.readFileSync('/tmp/gamezel-p1-join.json','utf8'));
+          if (d.ok !== true || d.PLAYER_ID !== 'P1') process.exit(1);
+          console.log('P1_JOIN_GATEWAY=PASS');
+          console.log('JOIN_ACTION='+(d.action||''));
+          console.log('JOIN_PLAYER='+(d.PLAYER_NAME||''));
           NODE
 
+          "$P1" heartbeat --json > /tmp/gamezel-p1-heartbeat.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/gamezel-p1-heartbeat.json','utf8'));
+          if (d.ok !== true || d.PLAYER_ID !== 'P1') process.exit(1);
+          console.log('P1_HEARTBEAT_GATEWAY=PASS');
+          console.log('HEARTBEAT_ACTION='+(d.action||''));
+          NODE
+
+          systemctl --user is-active --quiet "$SERVICE"
+          echo 'PRODUCTION_GAMEZEL_SERVICE_ACTIVE=PASS'
           sleep 5
           REMOTE
