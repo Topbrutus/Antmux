@@ -42,7 +42,9 @@ jobs:
           echo "KERNEL=$(uname -r)"
           if test -r /proc/sys/kernel/unprivileged_userns_clone; then echo "UNPRIVILEGED_USERNS=$(cat /proc/sys/kernel/unprivileged_userns_clone)"; else echo 'UNPRIVILEGED_USERNS=UNKNOWN'; fi
           if test -r /proc/sys/user/max_user_namespaces; then echo "MAX_USER_NAMESPACES=$(cat /proc/sys/user/max_user_namespaces)"; else echo 'MAX_USER_NAMESPACES=UNKNOWN'; fi
-          for bin in systemd-run unshare bwrap podman docker firejail; do
+          if test -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then echo "APPARMOR_RESTRICT_USERNS=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)"; else echo 'APPARMOR_RESTRICT_USERNS=UNKNOWN'; fi
+          if test -r /sys/module/apparmor/parameters/enabled; then echo "APPARMOR_ENABLED=$(cat /sys/module/apparmor/parameters/enabled)"; else echo 'APPARMOR_ENABLED=UNKNOWN'; fi
+          for bin in systemd-run unshare bwrap podman docker firejail aa-status aa-exec; do
             key="$(printf '%s' "$bin" | tr '[:lower:]-' '[:upper:]_')"
             if command -v "$bin" >/dev/null 2>&1; then echo "${key}=YES"; else echo "${key}=NO"; fi
           done
