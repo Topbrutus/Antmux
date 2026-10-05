@@ -1,0 +1,84 @@
+name: ASTRA STEP8 P4 SSH Seat Audit
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-p4-ssh-seat-audit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astra-step8-p4-ssh-seat-audit
+  cancel-in-progress: false
+
+jobs:
+  audit-p4-ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only P4 restricted SSH seat audit
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          AUTH="$HOME/.ssh/authorized_keys"
+          P4BIN="$ROOT/bin/gamezel-p4"
+          ENTRY="$ROOT/bin/zel-player.mjs"
+
+          echo "MAIN_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          echo "P4_SERVICE=$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)"
+          test -x "$P4BIN" && echo 'P4_PLAYER_BIN=PASS' || echo 'P4_PLAYER_BIN=MISS'
+          test -f "$ENTRY" && echo 'ZEL_PLAYER_ENTRY=PASS' || echo 'ZEL_PLAYER_ENTRY=MISS'
+
+          if test -f "$P4BIN"; then
+            echo "P4_BIN_BLOB=$(git hash-object "$P4BIN" 2>/dev/null || sha256sum "$P4BIN" | awk '{print $1}')"
+            if grep -Eq 'zel-player\.mjs.*--player[ =]+P4|--player[ =]+P4.*zel-player\.mjs' "$P4BIN"; then
+              echo 'P4_BIN_CANONICAL_FORCE_TARGET=YES'
+            else
+              echo 'P4_BIN_CANONICAL_FORCE_TARGET=NO'
+            fi
+          fi
+
+          if test -f "$AUTH"; then
+            total="$(grep -Eic 'zel-player\.mjs.*--player[ =]+P4|gamezel-p4|PLAYER_ID=P4|--player[ =]+P4' "$AUTH" || true)"
+            forced="$(grep -Ei 'zel-player\.mjs.*--player[ =]+P4|gamezel-p4|PLAYER_ID=P4|--player[ =]+P4' "$AUTH" | grep -Eic 'command=|restrict|no-pty|no-port-forwarding|no-agent-forwarding|no-X11-forwarding' || true)"
+            echo "P4_AUTHORIZED_KEY_MATCHES=$total"
+            echo "P4_RESTRICTED_KEY_MATCHES=$forced"
+          else
+            echo 'P4_AUTHORIZED_KEY_MATCHES=0'
+            echo 'P4_RESTRICTED_KEY_MATCHES=0'
+          fi
+
+          if test -x "$P4BIN"; then
+            out="$($P4BIN status --json 2>/dev/null || true)"
+            if printf '%s' "$out" | grep -q '"PLAYER_ID"'; then
+              echo 'P4_LOCAL_CLI_STATUS=PASS'
+            else
+              echo 'P4_LOCAL_CLI_STATUS=NO_DATA'
+            fi
+          fi
+          REMOTE
