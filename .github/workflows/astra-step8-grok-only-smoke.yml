@@ -54,6 +54,23 @@ jobs:
           echo "AUTHORIZED_KEYS_LINES=$(wc -l < "$AUTHORIZED" | tr -d ' ')"
           REMOTE
 
+      - name: Inspect Grok login CLI safely
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          GROK="$HOME/.grok/bin/grok"
+          echo '=== GROK VERSION ==='
+          "$GROK" --version 2>&1 | head -n 2
+          echo '=== GROK TOP HELP ==='
+          "$GROK" --help 2>&1 | sed -n '1,120p'
+          echo '=== GROK LOGIN HELP ==='
+          "$GROK" login --help 2>&1 | sed -n '1,120p' || true
+          REMOTE
+
       - name: Run bounded Grok probe with sanitized classification
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
