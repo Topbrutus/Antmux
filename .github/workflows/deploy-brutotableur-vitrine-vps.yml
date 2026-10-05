@@ -168,15 +168,39 @@ jobs:
 
           test "$(hostname)" = 'server1.antmux.com'
           test -d "$SOURCE_PRIVATE"
-          test -f "$SOURCE_SNIPPET"
-          test -f "$SOURCE_HTPASSWD"
-          mkdir -p "$BACKUP" "$DEST_PRIVATE"
-          rm -rf "$DEST_PRIVATE"/*
-          cp -a "$SOURCE_PRIVATE/." "$DEST_PRIVATE/"
-          chown -R root:root "$DEST_PRIVATE"
-          find "$DEST_PRIVATE" -type d -exec chmod 0755 {} +
-          find "$DEST_PRIVATE" -type f -exec chmod 0644 {} +
-          install -o root -g www-data -m 0640 "$SOURCE_HTPASSWD" "$DEST_HTPASSWD"
+          mkdir -p "$BACKUP"
+
+          if test -s "$SOURCE_HTPASSWD"; then
+              mkdir -p "$DEST_PRIVATE"
+              rm -rf "$DEST_PRIVATE"/*
+              cp -a "$SOURCE_PRIVATE/." "$DEST_PRIVATE/"
+              chown -R root:root "$DEST_PRIVATE"
+              find "$DEST_PRIVATE" -type d -exec chmod 0755 {} +
+              find "$DEST_PRIVATE" -type f -exec chmod 0644 {} +
+              install -o root -g www-data -m 0640 "$SOURCE_HTPASSWD" "$DEST_HTPASSWD"
+              cat > "$SOURCE_SNIPPET" <<'EOF_AUTH'
+          location ^~ /laboratoire/brutotableur/private/ {
+              auth_basic "Brutotableur prive";
+              auth_basic_user_file /etc/nginx/.htpasswd-brutotableur;
+              alias /var/www/antmux.com/private/brutotableur/;
+              index index.html;
+              add_header Cache-Control "private, no-store" always;
+              add_header X-Robots-Tag "noindex, nofollow" always;
+          }
+          EOF_AUTH
+              EXPECTED_PRIVATE_CODE=401
+              PRIVATE_MODE=AUTH_BASIC
+          else
+              cat > "$SOURCE_SNIPPET" <<'EOF_CLOSED'
+          location ^~ /laboratoire/brutotableur/private/ {
+              return 404;
+              add_header Cache-Control "private, no-store" always;
+              add_header X-Robots-Tag "noindex, nofollow" always;
+          }
+          EOF_CLOSED
+              EXPECTED_PRIVATE_CODE=404
+              PRIVATE_MODE=FAIL_CLOSED_404
+          fi
 
           ACTIVE_CONFIG="$(python3 - <<'PY'
           from pathlib import Path
@@ -233,10 +257,21 @@ jobs:
           systemctl reload nginx
           curl --fail --silent --show-error https://antmux.com/laboratoire/brutotableur/ >/dev/null
           code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
-          test "$code" = '401'
-          printf 'BRUTOTABLEUR_PRIVATE_AUTH=PASS\n'
+          test "$code" = "$EXPECTED_PRIVATE_CODE"
+          printf 'BRUTOTABLEUR_PRIVATE_MODE=%s\n' "$PRIVATE_MODE"
+          printf 'BRUTOTABLEUR_PRIVATE_HTTP=%s\n' "$code"
           EOF_ROOT
           chmod 0755 "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh"
+
+          if sudo -n true 2>/dev/null; then
+              printf 'SUDO_NONINTERACTIVE=PASS\n'
+              sudo -n nginx -t
+              sudo -n bash "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh"
+          else
+              printf 'SUDO_NONINTERACTIVE=FAIL\n' >&2
+              printf 'BLOCKER=ROOT_NGINX_FAIL_CLOSED_REQUIRED\n' >&2
+              exit 31
+          fi
 
           rm -rf "$REMOTE_STAGE"
           printf 'PUBLIC_VITRINE_DEPLOYED=PASS\n'
