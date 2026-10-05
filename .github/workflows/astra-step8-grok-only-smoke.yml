@@ -54,7 +54,7 @@ jobs:
           echo "AUTHORIZED_KEYS_LINES=$(wc -l < "$AUTHORIZED" | tr -d ' ')"
           REMOTE
 
-      - name: Inspect Grok login CLI safely
+      - name: Inspect Grok auth state metadata safely
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -62,13 +62,19 @@ jobs:
           set -euo pipefail
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
-          GROK="$HOME/.grok/bin/grok"
-          echo '=== GROK VERSION ==='
-          "$GROK" --version 2>&1 | head -n 2
-          echo '=== GROK TOP HELP ==='
-          "$GROK" --help 2>&1 | sed -n '1,120p'
-          echo '=== GROK LOGIN HELP ==='
-          "$GROK" login --help 2>&1 | sed -n '1,120p' || true
+          echo "REMOTE_USER=$(id -un)"
+          echo "HOME_PATH=$HOME"
+          echo "XDG_CONFIG_HOME_SET=$(test -n "${XDG_CONFIG_HOME:-}" && echo YES || echo NO)"
+          echo '=== ~/.grok metadata ==='
+          if test -d "$HOME/.grok"; then
+            find "$HOME/.grok" -maxdepth 2 -type f -printf '%P|mode=%m|bytes=%s|mtime=%T@\n' | sort | sed -n '1,120p'
+          else
+            echo 'NO_GROK_DIR'
+          fi
+          echo '=== ~/.config grok/xai metadata ==='
+          if test -d "$HOME/.config"; then
+            find "$HOME/.config" -maxdepth 3 -type f \( -ipath '*grok*' -o -ipath '*xai*' \) -printf '%P|mode=%m|bytes=%s|mtime=%T@\n' | sort | sed -n '1,120p'
+          fi
           REMOTE
 
       - name: Run bounded Grok probe with sanitized classification
@@ -80,19 +86,8 @@ jobs:
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
           set -u
           GROK="$HOME/.grok/bin/grok"
-          AUTH="$HOME/.grok/auth.json"
           TMP="$(mktemp -d /tmp/gamezel-grok-smoke.XXXXXX)"
           trap 'rm -rf "$TMP"' EXIT
-          echo "REMOTE_USER=$(id -un)"
-          echo "HOME_PATH=$HOME"
-          echo "GROK_HOME_SET=$(test -n "${GROK_HOME:-}" && echo YES || echo NO)"
-          echo "GROK_AUTH_FILE=$(test -f "$AUTH" && echo YES || echo NO)"
-          if test -f "$AUTH"; then
-            echo "GROK_AUTH_OWNER=$(stat -c '%U' "$AUTH" 2>/dev/null || echo UNKNOWN)"
-            echo "GROK_AUTH_MODE=$(stat -c '%a' "$AUTH" 2>/dev/null || echo UNKNOWN)"
-            echo "GROK_AUTH_BYTES=$(stat -c '%s' "$AUTH" 2>/dev/null || echo UNKNOWN)"
-            echo "GROK_AUTH_MTIME=$(stat -c '%Y' "$AUTH" 2>/dev/null || echo UNKNOWN)"
-          fi
           echo "GROK_BIN=$(test -x "$GROK" && echo YES || echo NO)"
           "$GROK" --version 2>/dev/null | head -n 1 || true
           SCHEMA='{"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SMOKE-ALPHA","MOVE-SMOKE-BETA"]},"note":{"type":"string","maxLength":200}}}'
