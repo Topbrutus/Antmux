@@ -1,0 +1,258 @@
+{
+  "schema": "GAMEZEL-LEGACY-AUDIO-ARCHIVE-v1",
+  "archivedCount": 36,
+  "mappings": [
+    {
+      "SOUND_ID": "SFX01",
+      "EVENT_TYPE": "CARD_VALIDATING",
+      "OLD_FILE": "assets/sfx/SFX01_robot_mechanical.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX01_robot_mechanical.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX001_CARD_VALIDATING.mp3"
+    },
+    {
+      "SOUND_ID": "SFX02",
+      "EVENT_TYPE": "POLICY_BLOCKED",
+      "OLD_FILE": "assets/sfx/SFX02_hud_alarm.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX02_hud_alarm.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX002_POLICY_BLOCKED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX03",
+      "EVENT_TYPE": "CARD_RUNNING",
+      "OLD_FILE": "assets/sfx/SFX03_robot_mechanical.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX03_robot_mechanical.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX003_CARD_RUNNING_L2.mp3"
+    },
+    {
+      "SOUND_ID": "SFX04",
+      "EVENT_TYPE": "PLAYER_JOINED",
+      "OLD_FILE": "assets/sfx/SFX04_footstep_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX04_footstep_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX004_PLAYER_JOINED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX05",
+      "EVENT_TYPE": "PLAYER_LEFT_TABLE",
+      "OLD_FILE": "assets/sfx/SFX05_footstep_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX05_footstep_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX005_PLAYER_LEFT_TABLE.mp3"
+    },
+    {
+      "SOUND_ID": "SFX06",
+      "EVENT_TYPE": "CARD_CREATED",
+      "OLD_FILE": "assets/sfx/SFX06_keypad_interface.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX06_keypad_interface.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX006_CARD_CREATED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX07",
+      "EVENT_TYPE": "ROUND_STARTED",
+      "OLD_FILE": "assets/sfx/SFX07_impact_transition.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX07_impact_transition.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX007_ROUND_STARTED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX08",
+      "EVENT_TYPE": "FORMULA_COUNTERTESTED",
+      "OLD_FILE": "assets/sfx/SFX08_matrix_digital.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX08_matrix_digital.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX008_FORMULA_COUNTERTESTED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX09",
+      "EVENT_TYPE": "FORMULA_DERIVED",
+      "OLD_FILE": "assets/sfx/SFX09_matrix_digital.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX09_matrix_digital.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX009_FORMULA_DERIVED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX10",
+      "EVENT_TYPE": "PROPOSAL_CREATED",
+      "OLD_FILE": "assets/sfx/SFX10_matrix_digital.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX10_matrix_digital.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX010_PROPOSAL_CREATED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX11",
+      "EVENT_TYPE": "GAME_MODE_CHANGED",
+      "OLD_FILE": "assets/sfx/SFX11_dark_transition.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX11_dark_transition.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX011_GAME_MODE_CHANGED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX12",
+      "EVENT_TYPE": "PLAYER_TURN",
+      "OLD_FILE": "assets/sfx/SFX12_scanner_hud.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX12_scanner_hud.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX012_PLAYER_TURN.mp3"
+    },
+    {
+      "SOUND_ID": "SFX13",
+      "EVENT_TYPE": "CARD_SUCCEEDED",
+      "OLD_FILE": "assets/sfx/SFX13_music_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX13_music_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX013_CARD_SUCCEEDED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX14",
+      "EVENT_TYPE": "FORMULA_SURVIVED",
+      "OLD_FILE": "assets/sfx/SFX14_music_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX14_music_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX014_FORMULA_SURVIVED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX15",
+      "EVENT_TYPE": "FORMULA_VALIDATED",
+      "OLD_FILE": "assets/sfx/SFX15_music_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX15_music_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX015_FORMULA_VALIDATED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX16",
+      "EVENT_TYPE": "FORMULA_PROMOTED",
+      "OLD_FILE": "assets/sfx/SFX16_music_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX16_music_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX016_FORMULA_PROMOTED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX17",
+      "EVENT_TYPE": "BAD_PLAY",
+      "OLD_FILE": "assets/sfx/SFX17_body_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX17_body_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX017_BAD_PLAY.mp3"
+    },
+    {
+      "SOUND_ID": "SFX18",
+      "EVENT_TYPE": "FORMULA_BROKEN",
+      "OLD_FILE": "assets/sfx/SFX18_crash_stunt.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX18_crash_stunt.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX018_FORMULA_BROKEN.mp3"
+    },
+    {
+      "SOUND_ID": "SFX19",
+      "EVENT_TYPE": "CARD_PLAYED",
+      "OLD_FILE": "assets/sfx/SFX19_drum_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX19_drum_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX019_CARD_PLAYED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX20",
+      "EVENT_TYPE": "PLAYER_PLAYED",
+      "OLD_FILE": "assets/sfx/SFX20_drum_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX20_drum_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX020_PLAYER_PLAYED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX21",
+      "EVENT_TYPE": "QUEUE_ADVANCE",
+      "OLD_FILE": "assets/sfx/SFX21_drum_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX21_drum_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX021_QUEUE_ADVANCE.mp3"
+    },
+    {
+      "SOUND_ID": "SFX22",
+      "EVENT_TYPE": "CARD_COUNTERED",
+      "OLD_FILE": "assets/sfx/SFX22_drum_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX22_drum_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX022_CARD_COUNTERED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX23",
+      "EVENT_TYPE": "GREAT_PLAY",
+      "OLD_FILE": "assets/sfx/SFX23_drum_hit.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX23_drum_hit.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX023_GREAT_PLAY.mp3"
+    },
+    {
+      "SOUND_ID": "SFX24",
+      "EVENT_TYPE": "CARD_RUNNING",
+      "OLD_FILE": "assets/sfx/SFX24_engine_mechanical.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX24_engine_mechanical.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX024_CARD_RUNNING.mp3"
+    },
+    {
+      "SOUND_ID": "SFX25",
+      "EVENT_TYPE": "CARD_QUEUED",
+      "OLD_FILE": "assets/sfx/SFX25_tool_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX25_tool_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX025_CARD_QUEUED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX26",
+      "EVENT_TYPE": "PROPOSAL_ACCEPTED",
+      "OLD_FILE": "assets/sfx/SFX26_tool_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX26_tool_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX026_PROPOSAL_ACCEPTED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX27",
+      "EVENT_TYPE": "CARD_READY",
+      "OLD_FILE": "assets/sfx/SFX27_tool_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX27_tool_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX027_CARD_READY.mp3"
+    },
+    {
+      "SOUND_ID": "SFX28",
+      "EVENT_TYPE": "PLAYER_PASS",
+      "OLD_FILE": "assets/sfx/SFX28_tool_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX28_tool_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX028_PLAYER_PASS.mp3"
+    },
+    {
+      "SOUND_ID": "SFX29",
+      "EVENT_TYPE": "ROUND_ENDED",
+      "OLD_FILE": "assets/sfx/SFX29_tool_impact.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX29_tool_impact.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX029_ROUND_ENDED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX30",
+      "EVENT_TYPE": "PLAYER_HEARTBEAT",
+      "OLD_FILE": "assets/sfx/SFX30_interface_click.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX30_interface_click.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX030_PLAYER_HEARTBEAT.mp3"
+    },
+    {
+      "SOUND_ID": "SFX31",
+      "EVENT_TYPE": "CARD_DRAWN",
+      "OLD_FILE": "assets/sfx/SFX31_interface_click.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX31_interface_click.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX031_CARD_DRAWN.mp3"
+    },
+    {
+      "SOUND_ID": "SFX32",
+      "EVENT_TYPE": "STAGE_CYCLE",
+      "OLD_FILE": "assets/sfx/SFX32_web_interface.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX32_web_interface.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX032_STAGE_CYCLE.mp3"
+    },
+    {
+      "SOUND_ID": "SFX33",
+      "EVENT_TYPE": "PLAYER_TIMEOUT",
+      "OLD_FILE": "assets/sfx/SFX33_web_interface.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX33_web_interface.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX033_PLAYER_TIMEOUT.mp3"
+    },
+    {
+      "SOUND_ID": "SFX34",
+      "EVENT_TYPE": "CRITICAL_RESULT",
+      "OLD_FILE": "assets/sfx/SFX34_whoosh_boom.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX34_whoosh_boom.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX034_CRITICAL_RESULT.mp3"
+    },
+    {
+      "SOUND_ID": "SFX35",
+      "EVENT_TYPE": "CARD_FAILED",
+      "OLD_FILE": "assets/sfx/SFX35_low_boom.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX35_low_boom.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX035_CARD_FAILED.mp3"
+    },
+    {
+      "SOUND_ID": "SFX36",
+      "EVENT_TYPE": "DISCOVERY",
+      "OLD_FILE": "assets/sfx/SFX36_whoosh_boom.mp3",
+      "LEGACY_FILE": "assets/sfx/legacy/SFX36_whoosh_boom.mp3",
+      "NEW_FILE": "assets/sfx/gamezel/SFX036_DISCOVERY.mp3"
+    }
+  ]
+}
