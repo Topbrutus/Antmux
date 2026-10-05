@@ -1,0 +1,87 @@
+name: ASTRA STEP8 Antigravity Auth Introspect
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-antigravity-auth-introspect.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect Antigravity SDK auth surface safely
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          PY="$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"
+          test -x "$PY"
+          "$PY" - <<'PY'
+          import inspect
+          import pathlib
+          import re
+          from google.antigravity import LocalAgentConfig
+          import google.antigravity as ga
+
+          print('SDK_MODULE=' + str(pathlib.Path(ga.__file__).resolve()))
+          try:
+              print('LOCAL_AGENT_CONFIG_SIGNATURE=' + str(inspect.signature(LocalAgentConfig)))
+          except Exception as e:
+              print('LOCAL_AGENT_CONFIG_SIGNATURE_ERROR=' + type(e).__name__)
+
+          fields = []
+          mf = getattr(LocalAgentConfig, 'model_fields', None)
+          if isinstance(mf, dict):
+              fields.extend(mf.keys())
+          df = getattr(LocalAgentConfig, '__dataclass_fields__', None)
+          if isinstance(df, dict):
+              fields.extend(df.keys())
+          anns = getattr(LocalAgentConfig, '__annotations__', None)
+          if isinstance(anns, dict):
+              fields.extend(anns.keys())
+          fields = sorted(set(map(str, fields)))
+          print('CONFIG_FIELDS=' + ','.join(fields))
+          auth_fields = [f for f in fields if re.search(r'auth|oauth|token|credential|key|project|account', f, re.I)]
+          print('AUTH_RELATED_FIELDS=' + ','.join(auth_fields))
+
+          try:
+              srcfile = inspect.getsourcefile(LocalAgentConfig)
+              print('CONFIG_SOURCE_FILE=' + str(pathlib.Path(srcfile).resolve()) if srcfile else 'CONFIG_SOURCE_FILE=UNKNOWN')
+              if srcfile:
+                  text = pathlib.Path(srcfile).read_text(encoding='utf-8', errors='replace').splitlines()
+                  pats = re.compile(r'api_key|oauth|credential|token|google\.auth|application_default|refresh|account', re.I)
+                  hits = []
+                  for i, line in enumerate(text, 1):
+                      if pats.search(line):
+                          clean = re.sub(r'([A-Za-z0-9_\-]{20,})', '<redacted-long-literal>', line.rstrip())
+                          hits.append(f'{i}:{clean}')
+                  print('AUTH_SOURCE_HIT_COUNT=' + str(len(hits)))
+                  for h in hits[:120]:
+                      print('AUTH_SOURCE_HIT=' + h)
+          except Exception as e:
+              print('SOURCE_INSPECTION_ERROR=' + type(e).__name__)
+          PY
+          REMOTE
