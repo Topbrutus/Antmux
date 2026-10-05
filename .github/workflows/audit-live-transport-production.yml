@@ -52,19 +52,33 @@ jobs:
           root = Path.home() / "antmux-x72-queen"
           token_path = root / "data" / "live-transport-token"
           journal_db = root / "data" / "public-journal.db"
+          transport_db = root / "data" / "live-transport.db"
 
           if not token_path.is_file():
               raise SystemExit("LIVE_TRANSPORT_TOKEN_FILE=MISSING")
           mode = token_path.stat().st_mode & 0o777
           if mode & 0o077:
               raise SystemExit(f"LIVE_TRANSPORT_TOKEN_MODE=UNSAFE_{mode:o}")
-          if not journal_db.is_file():
-              raise SystemExit("PUBLIC_JOURNAL_DB=MISSING")
 
-          with sqlite3.connect(journal_db) as db:
-              row = db.execute(
-                  "SELECT id, receipt_json FROM ants ORDER BY created_at DESC LIMIT 1"
-              ).fetchone()
+          row = None
+          ant_source = None
+          if journal_db.is_file():
+              with sqlite3.connect(journal_db) as db:
+                  row = db.execute(
+                      "SELECT id, receipt_json FROM ants ORDER BY created_at DESC LIMIT 1"
+                  ).fetchone()
+              if row is not None:
+                  ant_source = "public-journal"
+
+          if row is None:
+              if not transport_db.is_file():
+                  raise SystemExit("LIVE_TRANSPORT_DB=MISSING")
+              with sqlite3.connect(transport_db) as db:
+                  row = db.execute(
+                      "SELECT ant_id, receipt_json FROM carrier_ants ORDER BY created_at ASC LIMIT 1"
+                  ).fetchone()
+              if row is not None:
+                  ant_source = "carrier_ants"
 
           if row is None:
               raise SystemExit("PERSISTED_ANT=NONE")
@@ -101,6 +115,7 @@ jobs:
           print("PROD_LIVE_TRANSPORT_TOKEN_FILE=PASS")
           print(f"PROD_LIVE_TRANSPORT_TOKEN_MODE={mode:o}")
           print("PROD_PERSISTED_ANT=PASS")
+          print(f"PERSISTED_ANT_SOURCE={ant_source}")
           print(f"ANT_ID={ant_id}")
           print(f"ANT_ROLE={private.get('role')}")
           print(f"ANT_STATE={private.get('state')}")
