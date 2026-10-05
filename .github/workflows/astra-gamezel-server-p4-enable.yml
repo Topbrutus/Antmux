@@ -1,0 +1,140 @@
+name: ASTRA GAMEZEL Server P4 Enable
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-server-p4-enable.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install modern runner and enable P4 on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          RUNNER="$ROOT/agents/gamezel-autoplayer.mjs"
+          P4ENV="$HOME/.config/zelstereos/agents/p4.env"
+          WRAP="$HOME/.local/bin/gamezel-agy"
+          QEMU="$HOME/.local/bin/qemu-x86_64-static"
+          AGY="$HOME/.local/bin/agy"
+          test -d "$ROOT"
+          test -x "$QEMU"
+          test -x "$AGY"
+
+          cat > "$WRAP" <<EOF
+          #!/bin/sh
+          exec "$QEMU" -cpu max "$AGY" "\$@"
+          EOF
+          chmod 700 "$WRAP"
+          "$WRAP" --version | head -n 1
+
+          tmp="$(mktemp)"
+          curl -fsSL 'https://raw.githubusercontent.com/Topbrutus/zelstereos/main/agents/gamezel-autoplayer.mjs' -o "$tmp"
+          node --check "$tmp"
+          grep -q 'PROVIDER_NO_RESPONSE_COOLDOWN_MS = 5 \* 60 \* 60 \* 1000' "$tmp"
+          grep -q 'buildAntigravityArgs' "$tmp"
+
+          # One-shot compatibility checks for already-active P2/P3 on an inactive table.
+          for seat in p2 p3; do
+            envf="$HOME/.config/zelstereos/agents/$seat.env"
+            test -f "$envf"
+            set -a; . "$envf"; set +a
+            GAMEZEL_AGENT_ENABLED=true timeout 30s node "$tmp" --once > "/tmp/${seat}-modern-runner.out" 2>&1 || {
+              cat "/tmp/${seat}-modern-runner.out"; exit 20;
+            }
+            grep -Eq 'WAIT_ROUND|WAIT_TURN|PASS|PLAY|COOLDOWN' "/tmp/${seat}-modern-runner.out"
+            echo "${seat^^}_MODERN_RUNNER=PASS"
+            rm -f "/tmp/${seat}-modern-runner.out"
+          done
+
+          backup="$RUNNER.server-before-modern.$(date +%s)"
+          cp -p "$RUNNER" "$backup"
+          install -m 755 "$tmp" "$RUNNER"
+          rm -f "$tmp"
+
+          mkdir -p "$(dirname "$P4ENV")"
+          touch "$P4ENV"
+          chmod 600 "$P4ENV"
+          upsert() {
+            k="$1"; v="$2"; f="$3"
+            if grep -q "^${k}=" "$f"; then
+              sed -i "s#^${k}=.*#${k}=${v}#" "$f"
+            else
+              printf '%s=%s\n' "$k" "$v" >> "$f"
+            fi
+          }
+          upsert GAMEZEL_AGENT_ENABLED true "$P4ENV"
+          upsert GAMEZEL_PLAYER_ID P4 "$P4ENV"
+          upsert GAMEZEL_PROVIDER antigravity "$P4ENV"
+          upsert ANTIGRAVITY_BIN "$WRAP" "$P4ENV"
+          upsert ANTIGRAVITY_PRINT_TIMEOUT 2m "$P4ENV"
+          upsert GAMEZEL_AGENT_POLL_MS 10000 "$P4ENV"
+          upsert GAMEZEL_PROVIDER_TIMEOUT_MS 180000 "$P4ENV"
+          upsert GAMEZEL_APP_ROOT "$ROOT" "$P4ENV"
+          upsert GAMEZEL_AGENT_STATE_DIR "$HOME/.local/state/gamezel-agent/p4" "$P4ENV"
+          upsert GAMEZEL_AGENT_RUNTIME_DIR "$HOME/.local/state/gamezel-agent/p4-runtime" "$P4ENV"
+          mkdir -p "$HOME/.local/state/gamezel-agent/p4" "$HOME/.local/state/gamezel-agent/p4-runtime"
+
+          systemctl --user daemon-reload
+          systemctl --user restart zelstereos-gamezel-p2.service
+          systemctl --user restart zelstereos-gamezel-p3.service
+          systemctl --user enable --now zelstereos-gamezel-p4.service
+          sleep 5
+          for svc in zelstereos-gamezel.service zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service; do
+            a="$(systemctl --user is-active "$svc")"
+            echo "SERVICE_${svc}=ACTIVE:$a"
+            test "$a" = active
+          done
+          p4e="$(systemctl --user is-enabled zelstereos-gamezel-p4.service)"
+          echo "P4_ENABLED=$p4e"
+          test "$p4e" = enabled
+          journalctl --user -u zelstereos-gamezel-p4.service -n 20 --no-pager | sed -E 's#(token|secret|key|password)=[^ ]+#\1=REDACTED#Ig' | tail -n 20
+          echo 'SERVER_P4_ENABLE=PASS'
+          REMOTE
+
+      - name: Real JEV server test
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          pid="$(systemctl --user show -p MainPID --value zelstereos-gamezel.service)"
+          test "$pid" -gt 0
+          token="$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^OPERATOR_TOKEN=//p' | head -n 1)"
+          test -n "$token"
+          out="$(curl -fsS --max-time 30 -X POST -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:3217/api/jev/test)"
+          OUT="$out" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['OUT'])
+          print('JEV_REAL_TEST_OK='+str(bool(d.get('ok'))).upper())
+          print('JEV_REAL_TEST_MODEL='+str(d.get('model') or d.get('MODEL') or 'jev-latest'))
+          if not d.get('ok'): raise SystemExit(2)
+          PY
+          unset token out
+          echo 'SERVER_JEV_TEST=PASS'
+          REMOTE
