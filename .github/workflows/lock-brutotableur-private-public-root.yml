@@ -79,6 +79,26 @@ jobs:
           printf 'BACKUP=%s\n' "$BACKUP"
           REMOTE
 
+      - name: Report server authentication readiness
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          if test -s "$HOME/.config/antmux/brutotableur.htpasswd"; then
+            echo 'BRUTOTABLEUR_HTPASSWD_PRESENT=YES'
+          else
+            echo 'BRUTOTABLEUR_HTPASSWD_PRESENT=NO'
+          fi
+          if test -s "$HOME/antmux-brutotableur/nginx/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh"; then
+            echo 'BRUTOTABLEUR_ROOT_APPLY_READY=YES'
+          else
+            echo 'BRUTOTABLEUR_ROOT_APPLY_READY=NO'
+          fi
+          REMOTE
+
       - name: Verify live route is safe
         run: |
           set -euo pipefail
