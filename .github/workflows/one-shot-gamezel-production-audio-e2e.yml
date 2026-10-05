@@ -29,7 +29,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Exercise real P1 production gateway
+      - name: Start a real TABLE_4 round on production VPS
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -39,31 +39,29 @@ jobs:
           test -n "$VPS_USER"
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
           set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
           SERVICE='zelstereos-gamezel.service'
-          P1="$HOME/zelstereos-gamezel/bin/gamezel-p1"
           systemctl --user is-active --quiet "$SERVICE"
-          test -x "$P1"
 
-          "$P1" join --json > /tmp/gamezel-p1-join.json
-          node - <<'NODE'
+          for seat in 1 2 3 4; do
+            cmd="$ROOT/bin/gamezel-p${seat}"
+            test -x "$cmd"
+            "$cmd" join --json > "/tmp/gamezel-p${seat}-join.json"
+            node - "$seat" "/tmp/gamezel-p${seat}-join.json" <<'NODE'
           const fs=require('fs');
-          const d=JSON.parse(fs.readFileSync('/tmp/gamezel-p1-join.json','utf8'));
-          if (d.ok !== true || d.PLAYER_ID !== 'P1') process.exit(1);
-          console.log('P1_JOIN_GATEWAY=PASS');
-          console.log('JOIN_ACTION='+(d.action||''));
-          console.log('JOIN_PLAYER='+(d.PLAYER_NAME||''));
+          const seat=String(process.argv[2]);
+          const d=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));
+          if (d.ok !== true || d.PLAYER_ID !== `P${seat}`) process.exit(1);
+          console.log(`P${seat}_JOIN=PASS`);
           NODE
+          done
 
-          "$P1" heartbeat --json > /tmp/gamezel-p1-heartbeat.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const d=JSON.parse(fs.readFileSync('/tmp/gamezel-p1-heartbeat.json','utf8'));
-          if (d.ok !== true || d.PLAYER_ID !== 'P1') process.exit(1);
-          console.log('P1_HEARTBEAT_GATEWAY=PASS');
-          console.log('HEARTBEAT_ACTION='+(d.action||''));
-          NODE
+          START="$ROOT/bin/gamezel-start-round"
+          test -x "$START"
+          "$START" > /tmp/gamezel-start-round.out
+          echo 'ROUND_START_COMMAND=PASS'
 
           systemctl --user is-active --quiet "$SERVICE"
           echo 'PRODUCTION_GAMEZEL_SERVICE_ACTIVE=PASS'
-          sleep 5
+          sleep 6
           REMOTE
