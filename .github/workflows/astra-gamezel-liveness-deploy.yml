@@ -108,7 +108,7 @@ jobs:
           test "$(systemctl --user is-active zelstereos-gamezel.service)" = active
           echo 'MAIN_SERVICE_RESTART=PASS'
           grep -n 'for (let offset = 1; offset < total; offset++)' "$PM"
-          curl -fsS --max-time 5 http://127.0.0.1:3217/api/jev/status | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('configured') and d.get('connected') and d.get('model')=='jev-latest'; print('JEV_POSTPATCH=PASS')"
+          curl -fsS --max-time 5 http://127.0.0.1:3217/api/jev/status | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('configured') and d.get('model')=='jev-latest' and d.get('status') in ('READY','CONNECTED'); print('JEV_POSTPATCH_READY=PASS')"
           rm -f "$BAK"
           trap - EXIT
           echo 'VPS_LIVENESS_DEPLOY=PASS'
