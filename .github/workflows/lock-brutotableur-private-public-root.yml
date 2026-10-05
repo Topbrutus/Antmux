@@ -1,0 +1,93 @@
+name: Lock Brutotableur Public Private Path
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/lock-brutotableur-private-public-root.yml'
+      - 'laboratoire/brutotableur/private-locked.html'
+  pull_request:
+    paths:
+      - '.github/workflows/lock-brutotableur-private-public-root.yml'
+      - 'laboratoire/brutotableur/private-locked.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brutotableur-public-private-lock
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate locked fallback
+        run: |
+          set -euo pipefail
+          test -f laboratoire/brutotableur/private-locked.html
+          grep -Fq 'BRUTOTABLEUR_PRIVATE_SAFE_STUB' laboratoire/brutotableur/private-locked.html
+
+  deploy-lock:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Replace public interactive copy with locked fallback
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            laboratoire/brutotableur/private-locked.html \
+            "$VPS_USER@$VPS_HOST:/tmp/brutotableur-private-locked-${{ github.run_id }}.html"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT='/var/www/antmux.com/public_html/laboratoire/brutotableur/private'
+          SRC='/tmp/brutotableur-private-locked-${{ github.run_id }}.html'
+          BACKUP="$HOME/antmux-brutotableur/public-private-backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+          mkdir -p "$BACKUP"
+          if [ -d "$ROOT" ]; then cp -a "$ROOT/." "$BACKUP/" || true; fi
+          rm -rf "$ROOT"
+          install -d -m 0755 "$ROOT"
+          install -m 0644 "$SRC" "$ROOT/index.html"
+          rm -f "$SRC"
+          printf 'PUBLIC_PRIVATE_FALLBACK=LOCKED\n'
+          printf 'BACKUP=%s\n' "$BACKUP"
+          REMOTE
+
+      - name: Verify live route is safe
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error -o /tmp/private.html -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
+          if [ "$code" = '401' ]; then
+            echo 'BRUTOTABLEUR_PRIVATE=AUTH_LOCKED'
+          elif [ "$code" = '200' ] && grep -Fq 'BRUTOTABLEUR_PRIVATE_SAFE_STUB' /tmp/private.html; then
+            echo 'BRUTOTABLEUR_PRIVATE=SAFE_STUB'
+          else
+            echo "Unsafe Brutotableur private route: HTTP $code" >&2
+            exit 1
+          fi
