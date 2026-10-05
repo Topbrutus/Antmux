@@ -1,0 +1,54 @@
+name: ASTRA GAMEZEL Liveness Runtime Audit
+
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-liveness-runtime-audit.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Audit runtime git state and liveness code
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          test -d "$ROOT"
+          echo 'RUNTIME_ROOT=PASS'
+          if test -d "$ROOT/.git"; then
+            echo 'GIT_REPO=YES'
+            echo "HEAD=$(git -C "$ROOT" rev-parse HEAD)"
+            echo "BRANCH=$(git -C "$ROOT" branch --show-current)"
+            echo 'STATUS_BEGIN'
+            git -C "$ROOT" status --short
+            echo 'STATUS_END'
+          else
+            echo 'GIT_REPO=NO'
+          fi
+          echo 'PLAYER_MANAGER_LIVENESS_LINES_BEGIN'
+          grep -nE 'offset <(=)? total|Search only the other seats|_advanceTurnAfter' "$ROOT/verso/player-manager.js" || true
+          echo 'PLAYER_MANAGER_LIVENESS_LINES_END'
+          for svc in zelstereos-gamezel.service zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service; do
+            echo "SERVICE=$svc ACTIVE=$(systemctl --user is-active "$svc" 2>/dev/null || true) ENABLED=$(systemctl --user is-enabled "$svc" 2>/dev/null || true)"
+          done
+          REMOTE
