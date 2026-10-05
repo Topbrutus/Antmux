@@ -1,0 +1,115 @@
+name: ASTRA GAMEZEL Liveness Deploy
+
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-liveness-deploy.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Patch live PlayerManager with rollback and regression test
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=10 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          PM="$ROOT/verso/player-manager.js"
+          TS="$(date +%s)"
+          BAK="$PM.pre-liveness-$TS"
+          test -f "$PM"
+
+          STATUS="$($ROOT/bin/gamezel-p1 status --json)"
+          STATUS="$STATUS" python3 - <<'PY'
+          import json, os
+          d=json.loads(os.environ['STATUS'])
+          active=bool(d.get('roundActive') if 'roundActive' in d else d.get('round_active'))
+          if active:
+              raise SystemExit('REFUSE_PATCH_LIVE_ROUND_ACTIVE')
+          print('ROUND_PREPATCH=INACTIVE')
+          PY
+
+          cp "$PM" "$BAK"
+          rollback() {
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              cp "$BAK" "$PM" || true
+              systemctl --user restart zelstereos-gamezel.service || true
+              echo 'ROLLBACK=PASS'
+            fi
+            exit "$rc"
+          }
+          trap rollback EXIT
+
+          PM="$PM" python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path(os.environ['PM'])
+          s=p.read_text(encoding='utf-8')
+          old='    for (let offset = 1; offset <= total; offset++) {'
+          new=('    // Search only the other seats. Including offset === total would wrap back to\n'
+               '    // the current player and can create an infinite self-turn when every other\n'
+               '    // seat has already PASSED.\n'
+               '    for (let offset = 1; offset < total; offset++) {')
+          count=s.count(old)
+          if count != 1:
+              raise SystemExit(f'PATCH_TARGET_COUNT={count}')
+          p.write_text(s.replace(old,new,1), encoding='utf-8')
+          print('LIVENESS_PATCH=PASS')
+          PY
+
+          node --check "$PM"
+          echo 'NODE_CHECK=PASS'
+
+          cd "$ROOT"
+          node --input-type=module <<'NODE'
+          import { PlayerManager } from './verso/player-manager.js';
+          const pm = new PlayerManager({ enableTimer: false });
+          try {
+            for (const id of ['P1','P2','P3','P4']) pm.joinTable(id, { now: 1700000600000 });
+            pm.startRound({ now: 1700000600000 });
+            pm.passTurn('P1', { now: 1700000600001 });
+            pm.passTurn('P2', { now: 1700000600002 });
+            if (pm.getGameStatus().currentTurn?.PLAYER_ID !== 'P3') throw new Error('expected P3');
+            pm.recordActivity('P3', 'PLAY_CARD', { now: 1700000600003 });
+            if (pm.getGameStatus().currentTurn?.PLAYER_ID !== 'P4') throw new Error('expected P4 first cycle');
+            pm.passTurn('P4', { now: 1700000600004 });
+            if (pm.getGameStatus().currentTurn?.PLAYER_ID !== 'P3') throw new Error('expected P3 as last non-passed seat');
+            pm.recordActivity('P3', 'PLAY_CARD', { now: 1700000600005 });
+            const after=pm.getGameStatus();
+            if (after.currentTurn?.PLAYER_ID !== 'P4') throw new Error('self-turn liveness regression');
+            console.log('VPS_LIVENESS_REGRESSION=PASS');
+          } finally {
+            pm.destroy();
+          }
+          NODE
+
+          systemctl --user restart zelstereos-gamezel.service
+          sleep 4
+          test "$(systemctl --user is-active zelstereos-gamezel.service)" = active
+          echo 'MAIN_SERVICE_RESTART=PASS'
+          grep -n 'for (let offset = 1; offset < total; offset++)' "$PM"
+          curl -fsS --max-time 5 http://127.0.0.1:3217/api/jev/status | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('configured') and d.get('connected') and d.get('model')=='jev-latest'; print('JEV_POSTPATCH=PASS')"
+          rm -f "$BAK"
+          trap - EXIT
+          echo 'VPS_LIVENESS_DEPLOY=PASS'
+          REMOTE
