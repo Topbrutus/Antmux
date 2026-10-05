@@ -61,9 +61,6 @@ jobs:
           PY
           node --check /tmp/zelstereos-inline.js
 
-      - name: Verify ZELSTEREOS formula metadata transport
-        run: node --test laboratoire/zelstereos/tests/*.test.mjs
-
       - name: Verify ordered seven-stage WebSocket transport
         run: |
           set -euo pipefail
@@ -72,6 +69,7 @@ jobs:
 
           ANTMUX_X72_DATA_DIR=/tmp/zelstereos-ws-order-data \
           ANTMUX_ZEL_INGEST_TOKEN=runner-zel-order-test \
+          ANTMUX_GAMEZEL_RUNTIME_BASE=http://127.0.0.1:9321 \
           python -m uvicorn app.server:app \
             --app-dir deploy/x72-shared-queen \
             --host 127.0.0.1 \
@@ -110,3 +108,6 @@ jobs:
             --token runner-zel-order-test
 
           echo 'ZELSTEREOS_WS_VALIDATION=PASS'
+
+      - name: Verify ZELSTEREOS formula metadata transport
+        run: node --test laboratoire/zelstereos/tests/*.test.mjs
