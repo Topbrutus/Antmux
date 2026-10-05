@@ -1,0 +1,97 @@
+name: ASTRA STEP8 Codex Brain Only Smoke
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-codex-brain-only-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run isolated no-tools Codex decision smoke
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          CODEX="$HOME/.local/bin/codex"
+          TMP="$(mktemp -d /tmp/gamezel-codex-brain.XXXXXX)"
+          trap 'rm -rf "$TMP"' EXIT
+          echo "MAIN_USER_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          echo "CODEX_BIN=$(test -x "$CODEX" && echo YES || echo NO)"
+          "$CODEX" --version 2>/dev/null | head -n 1 || true
+
+          cat >"$TMP/schema.json" <<'JSON'
+          {"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SMOKE-ALPHA","MOVE-SMOKE-BETA"]},"note":{"type":"string","maxLength":200}}}
+          JSON
+          PROMPT='You are a bounded GAMEZEL decision engine. Choose exactly one supplied move: MOVE-SMOKE-ALPHA or MOVE-SMOKE-BETA. Return PLAY and the selected move_id using the output schema. Do not call any tool, shell, filesystem, web, app, plugin, agent, hook, or external resource.'
+
+          rc=0
+          cd "$TMP"
+          "$CODEX" exec \
+            --skip-git-repo-check \
+            --ephemeral \
+            --ignore-user-config \
+            --ignore-rules \
+            --sandbox danger-full-access \
+            --config 'approval_policy="never"' \
+            --config 'web_search="disabled"' \
+            --config 'features.shell_tool=false' \
+            --config 'features.unified_exec=false' \
+            --config 'features.shell_snapshot=false' \
+            --config 'features.apps=false' \
+            --config 'features.multi_agent=false' \
+            --config 'features.hooks=false' \
+            --config 'features.remote_plugin=false' \
+            --config 'features.goals=false' \
+            --config 'features.memories=false' \
+            --output-schema "$TMP/schema.json" \
+            -o "$TMP/decision.json" \
+            "$PROMPT" >"$TMP/out" 2>"$TMP/err" || rc=$?
+
+          echo "CODEX_RC=$rc"
+          grep -Eqi 'not logged in|login required|authentication|unauthorized|401' "$TMP/err" && echo 'CODEX_AUTH=YES' || echo 'CODEX_AUTH=NO'
+          grep -Eqi 'quota|credit|rate.?limit|429|billing|capacity|resource.*exhausted' "$TMP/err" && echo 'CODEX_QUOTA=YES' || echo 'CODEX_QUOTA=NO'
+          grep -Eqi 'shell|exec_command|apply_patch|tool call|tool_call' "$TMP/out" "$TMP/err" && echo 'CODEX_TOOL_ACTIVITY_TEXT=YES' || echo 'CODEX_TOOL_ACTIVITY_TEXT=NO'
+          grep -Eqi 'permission denied|operation not permitted|bubblewrap|bwrap|sandbox' "$TMP/err" && echo 'CODEX_SANDBOX_ERROR=YES' || echo 'CODEX_SANDBOX_ERROR=NO'
+
+          python3 - "$TMP/decision.json" <<'PY'
+          import json, os, sys
+          p=sys.argv[1]
+          ok=False
+          if os.path.exists(p):
+              try:
+                  d=json.load(open(p, encoding='utf-8'))
+                  ok=str(d.get('decision','')).upper()=='PLAY' and d.get('move_id') in {'MOVE-SMOKE-ALPHA','MOVE-SMOKE-BETA'}
+              except Exception:
+                  pass
+          print('CODEX_STRUCTURED_LEGAL=' + ('YES' if ok else 'NO'))
+          PY
+          echo "TMP_FILE_COUNT=$(find "$TMP" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          echo "MAIN_USER_SERVICE_AFTER=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          exit 0
+          REMOTE
