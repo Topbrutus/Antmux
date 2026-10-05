@@ -1241,17 +1241,42 @@ async def stream_zelstereos(websocket: WebSocket) -> None:
     async with zel_state_condition:
         initial_replay_version = zel_state_version if zel_state is not None else None
         last_version = max(0, zel_state_version - 1) if zel_state is not None else 0
+
+    # Baseline the GAMEZEL audio cursor at connect time. Existing cues are never replayed
+    # into a reconnecting browser; only cues created after this connection are forwarded.
+    audio_sequence = 0
+    audio_initialized = False
+    try:
+        audio_state = await gamezel_runtime_request("/api/public/audio/state")
+        raw_sequence = audio_state.get("sequence", 0) if isinstance(audio_state, dict) else 0
+        if type(raw_sequence) is int and raw_sequence >= 0:
+            audio_sequence = raw_sequence
+            audio_initialized = True
+    except Exception:
+        # GAMEZEL audio is fail-soft: ZEL state transport must remain available even if
+        # the loopback audio runtime is temporarily unavailable. Initialization retries below.
+        pass
+
     try:
         while True:
-            async with zel_state_condition:
-                await zel_state_condition.wait_for(lambda: zel_state_version > last_version)
-                pending = [
-                    (version, dict(payload))
-                    for version, payload in zel_state_history
-                    if version > last_version
-                ]
-                if not pending and zel_state is not None and zel_state_version > last_version:
-                    pending = [(zel_state_version, dict(zel_state))]
+            pending = []
+            try:
+                async with zel_state_condition:
+                    if zel_state_version <= last_version:
+                        await asyncio.wait_for(
+                            zel_state_condition.wait_for(lambda: zel_state_version > last_version),
+                            timeout=0.25,
+                        )
+                    pending = [
+                        (version, dict(payload))
+                        for version, payload in zel_state_history
+                        if version > last_version
+                    ]
+                    if not pending and zel_state is not None and zel_state_version > last_version:
+                        pending = [(zel_state_version, dict(zel_state))]
+            except TimeoutError:
+                pending = []
+
             for version, payload in pending:
                 stream_payload = dict(payload)
                 stream_payload["transport_event_version"] = version
@@ -1262,6 +1287,48 @@ async def stream_zelstereos(websocket: WebSocket) -> None:
                 if initial_replay_version == version:
                     initial_replay_version = None
                 last_version = version
+
+            if not audio_initialized:
+                try:
+                    audio_state = await gamezel_runtime_request("/api/public/audio/state")
+                    raw_sequence = audio_state.get("sequence", 0) if isinstance(audio_state, dict) else 0
+                    if type(raw_sequence) is int and raw_sequence >= 0:
+                        audio_sequence = raw_sequence
+                        audio_initialized = True
+                except Exception:
+                    continue
+
+            try:
+                audio_batch = await gamezel_runtime_request(
+                    f"/api/public/audio/events?limit=100&sinceSequence={audio_sequence}&live=1"
+                )
+                events = audio_batch.get("events", []) if isinstance(audio_batch, dict) else []
+                ordered_events = sorted(
+                    (cue for cue in events if isinstance(cue, dict)),
+                    key=lambda cue: int(cue.get("SEQUENCE", cue.get("sequence", 0)) or 0),
+                )
+                for cue in ordered_events:
+                    raw_cue_sequence = cue.get("SEQUENCE", cue.get("sequence", 0))
+                    if isinstance(raw_cue_sequence, bool):
+                        continue
+                    try:
+                        cue_sequence = int(raw_cue_sequence)
+                    except (TypeError, ValueError):
+                        continue
+                    if cue_sequence <= audio_sequence:
+                        continue
+                    await websocket.send_json({
+                        "type": "GAMEZEL_AUDIO_CUE",
+                        "mode": "PUBLIC_SAFE",
+                        "read_only": True,
+                        "cue": cue,
+                    })
+                    audio_sequence = cue_sequence
+            except WebSocketDisconnect:
+                raise
+            except Exception:
+                # Audio forwarding is deliberately fail-soft and retries on the next cycle.
+                pass
     except WebSocketDisconnect:
         return
 
