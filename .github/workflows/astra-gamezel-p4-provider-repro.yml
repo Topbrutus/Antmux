@@ -1,0 +1,60 @@
+name: ASTRA GAMEZEL P4 Provider Repro
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-p4-provider-repro.yml']
+permissions:
+  contents: read
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Reproduce P4 provider decisions only
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=20 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          set -a
+          . "$HOME/.config/zelstereos/agents/p4.env"
+          set +a
+          export GAMEZEL_PROVIDER_TIMEOUT_MS=240000
+          cd "$ROOT"
+          node --input-type=module <<'NODE'
+          import { askProvider } from './agents/gamezel-autoplayer.mjs';
+          const state={mode:'TABLE_4',round:15,roundActive:true,activePlayerCount:4,currentTurn:{PLAYER_ID:'P4',PLAYER_NAME:'ANTIGRAVITY'},players:[
+            {PLAYER_ID:'P1',PLAYER_NAME:'ASTRA',STATUS:'WAITING',IN_ROUND:true},
+            {PLAYER_ID:'P2',PLAYER_NAME:'MUSE',STATUS:'WAITING',IN_ROUND:true},
+            {PLAYER_ID:'P3',PLAYER_NAME:'GROK',STATUS:'WAITING',IN_ROUND:true},
+            {PLAYER_ID:'P4',PLAYER_NAME:'ANTIGRAVITY',STATUS:'TURN',IN_ROUND:true}],
+            queue:[],proposals:[{CARD_ID:'CARD-TEST-SAMPLE',CARD_TYPE:'TEST',TITLE:'Independent verification',STATUS:'SUCCEEDED'}],
+            recentSignificantEvents:[{TYPE:'CARD_FINISHED',CARD_ID:'CARD-TEST-SAMPLE',PLAYER_ID:'P3',RESULT_STATUS:'SUCCEEDED'}]};
+          let pass=0, fail=0;
+          for (let i=1;i<=3;i++) {
+            try {
+              const d=await askProvider('P4',state,{env:process.env});
+              console.log(`TRY_${i}=PASS DECISION=${d.decision} TYPE=${d.card_type} TARGET=${d.target}`);
+              pass++;
+            } catch (e) {
+              console.log(`TRY_${i}=FAIL ERROR=${String(e?.message||e).replace(/[\r\n]/g,' ').slice(0,300)}`);
+              fail++;
+            }
+          }
+          console.log(`P4_REPRO_PASS=${pass}`);
+          console.log(`P4_REPRO_FAIL=${fail}`);
+          if (pass===0) process.exit(2);
+          NODE
+          REMOTE
