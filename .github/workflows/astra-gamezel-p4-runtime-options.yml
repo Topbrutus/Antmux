@@ -1,0 +1,72 @@
+name: ASTRA GAMEZEL P4 Runtime Options
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-p4-runtime-options.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Audit emulation and SDK auth surfaces
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          AGY="$HOME/.local/bin/agy"
+          echo '=== CPU ==='
+          grep -m1 '^flags' /proc/cpuinfo | tr ' ' '\n' | grep -E 'pclmul|avx|sse4' | tr '\n' ' '; echo
+          echo '=== AGY FILE ==='
+          file "$AGY" || true
+          readlink -f "$AGY" || true
+          echo '=== EMULATORS ==='
+          for x in qemu-x86_64 qemu-x86_64-static docker podman nerdctl proot; do p=$(command -v "$x" 2>/dev/null || true); echo "$x=${p:-MISSING}"; done
+          echo '=== SDK AUTH SURFACE ==='
+          PY="$HOME/.local/share/gamezel-antigravity-sdk/venv/bin/python"
+          if test -x "$PY"; then
+            "$PY" - <<'PY'
+          import inspect
+          try:
+              import google.antigravity as ga
+              print('IMPORT_GOOGLE_ANTIGRAVITY=PASS')
+              for name in ['Agent','LocalAgentConfig']:
+                  obj=getattr(ga,name,None)
+                  print(name+'_PRESENT='+str(obj is not None))
+                  if obj is not None:
+                      try: print(name+'_SIG='+str(inspect.signature(obj)))
+                      except Exception as e: print(name+'_SIG_ERR='+type(e).__name__)
+                      try:
+                          src=inspect.getsource(obj)
+                          lines=[ln.strip() for ln in src.splitlines() if any(k in ln.lower() for k in ['api_key','credential','oauth','project','location','vertex','token'])]
+                          print(name+'_AUTH_LINES='+' || '.join(lines[:30]))
+                      except Exception as e: print(name+'_SRC_ERR='+type(e).__name__)
+          except Exception as e:
+              print('IMPORT_GOOGLE_ANTIGRAVITY=FAIL:'+type(e).__name__+':'+str(e)[:200])
+          PY
+          fi
+          echo '=== AGY INSTALL TREE ==='
+          target=$(readlink -f "$AGY" 2>/dev/null || echo "$AGY")
+          d=$(dirname "$target")
+          find "$d" -maxdepth 2 -type f -printf '%p %s\n' 2>/dev/null | head -n 80
+          REMOTE
