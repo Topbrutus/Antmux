@@ -1,0 +1,64 @@
+name: ASTRA GAMEZEL P4 QEMU Smoke
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-p4-qemu-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install static qemu on runner
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-user-static
+          test -x /usr/bin/qemu-x86_64-static
+          /usr/bin/qemu-x86_64-static --version | head -n 1
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy emulator and smoke AGY
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes /usr/bin/qemu-x86_64-static "$VPS_USER@$VPS_HOST:.local/bin/qemu-x86_64-static"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          Q="$HOME/.local/bin/qemu-x86_64-static"
+          A="$HOME/.local/bin/agy"
+          chmod 700 "$Q"
+          echo "QEMU_BYTES=$(stat -c%s "$Q")"
+          set +e
+          timeout 30s "$Q" -cpu max "$A" --version > /tmp/qagy.out 2>/tmp/qagy.err
+          rc=$?
+          set -e
+          echo "QEMU_AGY_VERSION_RC=$rc"
+          sed -n '1,3p' /tmp/qagy.out | sed -E 's#([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+)#REDACTED_EMAIL#g'
+          python3 - <<'PY'
+          from pathlib import Path
+          e=Path('/tmp/qagy.err').read_text(errors='replace')
+          print('QEMU_AGY_ERR_BYTES='+str(len(e.encode())))
+          print('QEMU_AGY_CPU_ERROR='+('YES' if any(x in e.lower() for x in ['pclmul','illegal instruction','sigill']) else 'NO'))
+          print('QEMU_AGY_ERR_HEAD='+e[:300].replace('\n',' | '))
+          PY
+          rm -f /tmp/qagy.out /tmp/qagy.err
+          REMOTE
