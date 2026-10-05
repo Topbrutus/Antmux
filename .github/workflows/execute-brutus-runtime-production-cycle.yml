@@ -1,0 +1,403 @@
+name: Execute Brutus Runtime Production Cycle
+
+on:
+  push:
+    branches:
+      - astra/prod-brutus-runtime-cycle-20261005
+    paths:
+      - '.github/workflows/execute-brutus-runtime-production-cycle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  brutus-runtime-production-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Execute one fresh Brutus HTTP adapter runtime cycle
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+
+          QUEEN_HOME="$HOME/antmux-x72-queen"
+          TOKEN_FILE="$QUEEN_HOME/data/live-transport-token"
+          BRUTUS_DIR="/tmp/brutus-production-runtime-cycle"
+          BRUTUS_SHA="c9653ecfa0c06f8a4ec4605d19670586366b55ec"
+
+          test -s "$TOKEN_FILE"
+          mode="$(stat -c '%a' "$TOKEN_FILE")"
+          test "$mode" = "600"
+
+          rm -rf "$BRUTUS_DIR"
+          git clone -q https://github.com/Topbrutus/Brutus.git "$BRUTUS_DIR"
+          cd "$BRUTUS_DIR"
+          git checkout -q "$BRUTUS_SHA"
+          test "$(git rev-parse HEAD)" = "$BRUTUS_SHA"
+
+          export ANTMUX_LIVE_TRANSPORT_TOKEN="$(cat "$TOKEN_FILE")"
+          test -n "$ANTMUX_LIVE_TRANSPORT_TOKEN"
+
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { createMathInputPacket } from './src/math-input-bus.mjs';
+          import { crystallizeMathInputItem } from './src/math-crystal-candidate.mjs';
+          import {
+            admitMathCrystalToFourmi,
+            computeMathMaterialAdmissionRequestH256
+          } from './src/fourmi-math-material-admission.mjs';
+          import {
+            createLiveFourmiTransportAuthorization
+          } from './src/live-fourmi-transport-authorization.mjs';
+          import {
+            createAntmuxLiveTransportAdapter,
+            createAntmuxLiveTransportRuntimeBindings
+          } from './src/antmux-live-transport-adapter.mjs';
+          import {
+            createOneStepLiveTransportRuntime
+          } from './src/one-step-live-transport-runtime.mjs';
+
+          const BRUTUS_SHA = 'c9653ecfa0c06f8a4ec4605d19670586366b55ec';
+          const BASE_URL = 'http://127.0.0.1:8720';
+          const TOKEN = process.env.ANTMUX_LIVE_TRANSPORT_TOKEN;
+          const ANT_ID = 'ANT-9F7FC681CD80';
+          const OLD_MATERIAL_ID = 'MAT-MATH-ED5FB0A15F49E6386DFC0F3E';
+          const OLD_MATERIAL_H256 = '391b53d02d51ce6d9d9dbcb7c730983f721689d260f5841b31fc5321ca9bfb6d';
+          const EXPECTED_FROM = 'W:GENESIS-A';
+          const TO = 'W:GENESIS-B';
+          const FORMULA = 'z_P(21^k)=4*21^(k-1)';
+          const PROVENANCE_H256 = '8999c203856cc171821fd59adc0a42db40a667d5acd7b39b37278accf9ea8045';
+
+          if (!TOKEN) throw new Error('transport token unavailable');
+
+          const authHeaders = {
+            Authorization: `Bearer ${TOKEN}`,
+            Accept: 'application/json'
+          };
+
+          const oldStateResponse = await fetch(
+            `${BASE_URL}/api/live-transport/state/${ANT_ID}/${OLD_MATERIAL_ID}`,
+            { headers: authHeaders, redirect: 'error' }
+          );
+          if (!oldStateResponse.ok) {
+            throw new Error(`old production state HTTP ${oldStateResponse.status}`);
+          }
+          const oldState = await oldStateResponse.json();
+          if (oldState.schema !== 'ANTMUX-LIVE-FOURMI-TRANSPORT-v0.1') {
+            throw new Error('old production state schema mismatch');
+          }
+          if (oldState.authority !== 'QUEEN_SERVER_V0_2' || oldState.integrity_match !== true) {
+            throw new Error('old production state authority/integrity mismatch');
+          }
+          if (oldState.ant_id !== ANT_ID) throw new Error('old production ANT mismatch');
+          if (oldState.material?.material_id !== OLD_MATERIAL_ID) {
+            throw new Error('old production material mismatch');
+          }
+          if (oldState.material?.material_h256 !== OLD_MATERIAL_H256) {
+            throw new Error('old production material hash mismatch');
+          }
+          if (oldState.material?.binding_state !== 'ATTACHED') {
+            throw new Error('old production material not ATTACHED');
+          }
+          if (oldState.position !== EXPECTED_FROM) {
+            throw new Error(`current production position mismatch: ${oldState.position}`);
+          }
+          if (!Number.isSafeInteger(oldState.tick) || oldState.tick < 0) {
+            throw new Error('old production Queen tick invalid');
+          }
+
+          const admissionTick = oldState.tick;
+
+          const packet = createMathInputPacket({
+            packetId: 'MIP-PROD-RUNTIME-CYCLE-20261005',
+            source: {
+              SYSTEM: 'ZELSTEREOS_PUBLIC_SAFE',
+              ADAPTER: 'PROD_BRUTUS_RUNTIME_CYCLE',
+              ADAPTER_VERSION: '0.1',
+              SOURCE_RUN_ID: 'prod-runtime-cycle-20261005',
+              SOURCE_ENDPOINT: '/laboratoire/zelstereos',
+              ACCESS_MODE: 'READ_ONLY',
+              SOURCE_STATE: 'PASS'
+            },
+            sourceSnapshot: {
+              source: 'ZELSTEREOS_PUBLIC_SAFE',
+              formula_id: 'F1',
+              relation: FORMULA,
+              source_commit: 'aa08bd336662',
+              source_status: 'PASS',
+              source_mode: 'PUBLIC_SAFE',
+              test_count: 18,
+              global_error_exact: '0',
+              observed_parameter: 'k',
+              observed_parameter_value: 3,
+              observed_value: 1764,
+              provenance_hash: PROVENANCE_H256,
+              compiler_kind: 'ZP_POWER_FAMILY'
+            },
+            summary: {
+              CANONICAL_FORMULAS: 1,
+              AUTHENTICATED_FORMULAS: 1,
+              TESTING_FORMULAS: 0,
+              REJECTED_FORMULAS: 0,
+              CANDIDATE_FORMULAS: 0,
+              TRACES_TOTAL: 18,
+              PROOFS_TOTAL: 18,
+              PROOFS_VALID: 18,
+              PROOFS_INVALID: 0,
+              RECONSTRUCTED_SUPPORTS: 18,
+              FAILED_SUPPORTS: 0,
+              TRACKER_SOURCES: 1,
+              RECYCLE_EMITTED: 0
+            },
+            items: [{
+              ITEM_ID: 'PROD-ZEL-F1-RUNTIME-20261005',
+              KIND: 'FORMULA_CAPSULE',
+              EXPRESSION: FORMULA,
+              SOURCE_STATUS: 'SOURCE_PASS',
+              BINDINGS: ['k=3', 'observed_value=1764'],
+              EVIDENCE: {
+                SOURCE_TRACE_REF: null,
+                SOURCE_PROOF_REF: null,
+                SOURCE_HASH_REF: PROVENANCE_H256,
+                SUPPORT_COUNT: 18,
+                TEST_COUNT: 18,
+                REPLAY_STATUS: 'EXACT_WITNESS_REPLAY'
+              },
+              PROVENANCE: {
+                source: 'ZELSTEREOS_PUBLIC_SAFE',
+                formula_id: 'F1',
+                source_commit: 'aa08bd336662',
+                source_mode: 'PUBLIC_SAFE',
+                source_read_only: true,
+                global_error_exact: '0',
+                provenance_hash: PROVENANCE_H256,
+                compiler_kind: 'ZP_POWER_FAMILY',
+                executable_at_source: true
+              }
+            }]
+          });
+
+          const crystal = crystallizeMathInputItem(packet, 'PROD-ZEL-F1-RUNTIME-20261005');
+
+          const admissionRequest = {
+            SCHEMA: 'BRUTUS-MATH-MATERIAL-ADMISSION-REQUEST-v0.1',
+            VERSION: '0.1',
+            REQUEST_ID: 'MMA-PROD-RUNTIME-CYCLE-20261005',
+            ANT_ID,
+            TICK: admissionTick,
+            CLOCK_AUTHORITY: 'QUEEN_SERVER_V0_2',
+            PARENT_CRYSTAL_ID: crystal.CRYSTAL_ID,
+            PARENT_CRYSTAL_H256: crystal.CRYSTAL_H256,
+            PURPOSE: 'FOURMI_TRANSPORT_ADMISSION',
+            AUTHORIZATION: {
+              POLICY: 'BRUTUS-MATH-MATERIAL-ADMISSION-v0.1',
+              DECISION: 'APPROVED',
+              APPROVER: 'BRUTUS_CONTROL_PLANE'
+            },
+            TRACE_ID: 'TRACE-PROD-RUNTIME-MATERIAL-20261005',
+            PROOF_REF: null,
+            SIGNATURE_METHOD: 'BRUTUS-CANONICAL-JSON-SHA256-v0.1',
+            SIGNATURE_H256: '0'.repeat(64),
+            EXECUTABLE: false,
+            GATE_AUTHORITY: false,
+            ROUTING_AUTHORIZATION: 'UNDECIDED',
+            WHEEL_INGRESS_AUTHORIZATION: false
+          };
+          admissionRequest.SIGNATURE_H256 =
+            computeMathMaterialAdmissionRequestH256(admissionRequest);
+
+          const material = admitMathCrystalToFourmi({
+            crystal,
+            packet,
+            request: admissionRequest
+          });
+
+          if (material.MATERIAL_ID === OLD_MATERIAL_ID) {
+            throw new Error('new material unexpectedly equals consumed production material');
+          }
+          if (material.PROOF_REF !== null || material.WHEEL_INGRESS_AUTHORIZATION !== false) {
+            throw new Error('material proof/wheel boundary mismatch');
+          }
+
+          const adapter = createAntmuxLiveTransportAdapter({
+            baseUrl: BASE_URL,
+            token: TOKEN,
+            antId: ANT_ID,
+            material
+          });
+
+          const antReceipt = await adapter.readAntBirthReceipt();
+          if (antReceipt.ant_id !== ANT_ID || antReceipt.role !== 'SYNAPSE') {
+            throw new Error('persisted ant receipt mismatch');
+          }
+
+          const attached = await adapter.attachMaterial({
+            position: EXPECTED_FROM,
+            traceId: 'TRACE-PROD-RUNTIME-ATTACH-20261005'
+          });
+          if (attached.transportState.POSITION !== EXPECTED_FROM) {
+            throw new Error('fresh material attach position mismatch');
+          }
+          if (attached.transportState.MATERIAL.MATERIAL_ID !== material.MATERIAL_ID) {
+            throw new Error('fresh material attach ID mismatch');
+          }
+
+          const issuedAtTick = attached.transportState.TICK;
+          const grant = createLiveFourmiTransportAuthorization({
+            antBirthReceipt: antReceipt,
+            material,
+            issuedAtTick,
+            validFromTick: issuedAtTick,
+            expiresAtTick: issuedAtTick + 65536,
+            from: EXPECTED_FROM,
+            to: TO,
+            traceId: 'TRACE-PROD-RUNTIME-GRANT-20261005',
+            authorization: {
+              POLICY: 'BRUTUS-LIVE-FOURMI-TRANSPORT-v0.1',
+              DECISION: 'APPROVED',
+              APPROVER: 'BRUTUS_CONTROL_PLANE'
+            }
+          });
+
+          const bindings = createAntmuxLiveTransportRuntimeBindings(adapter);
+          const runtime = createOneStepLiveTransportRuntime({
+            ...bindings,
+            retryPolicy: {
+              maxAttempts: 1,
+              baseDelayMs: 0,
+              maxDelayMs: 0,
+              sleep: async () => {}
+            }
+          });
+
+          const result = await runtime.runCycle({
+            authorization: grant,
+            material
+          });
+
+          if (result.STATUS !== 'COMPLETED_ONE_AUTHORIZED_MOVE') {
+            throw new Error('runtime status mismatch');
+          }
+          if (result.PRE_STATE.POSITION !== EXPECTED_FROM || result.POST_STATE.POSITION !== TO) {
+            throw new Error('runtime position transition mismatch');
+          }
+          if (result.POST_CLOCK_TICK <= result.PRE_CLOCK_TICK) {
+            throw new Error('runtime Queen tick did not advance');
+          }
+          if (result.CARRIER_OBSERVATION.BINDING_STATE !== 'ATTACHED') {
+            throw new Error('carrier observation not ATTACHED');
+          }
+          if (result.ANT_MOVE.EVENT_TYPE !== 'ANT_MOVE') {
+            throw new Error('ANT_MOVE missing');
+          }
+          if (result.MATERIAL_MOVE.MOVEMENT.MATERIAL_MOVEMENT_VERIFIED !== true) {
+            throw new Error('MATERIAL_MOVE not verified');
+          }
+          if (result.AUTHORIZATION_CONSUMPTION.CONSUMED !== true) {
+            throw new Error('authorization consumption missing');
+          }
+          if (result.MATERIAL_MOVE.PROOF_REF !== null) {
+            throw new Error('unexpected PROOF_REF');
+          }
+          if (result.MATERIAL_MOVE.WHEEL_INGRESS_AUTHORIZATION !== false) {
+            throw new Error('wheel ingress must remain closed');
+          }
+
+          const receipt = {
+            SCHEMA: 'BRUTUS-PRODUCTION-LIVE-TRANSPORT-RECEIPT-v0.1',
+            BRUTUS_MAIN_SHA: BRUTUS_SHA,
+            SOURCE: 'ANTMUX_QUEEN_PRODUCTION',
+            FORMULA: FORMULA,
+            SOURCE_STATUS: 'SOURCE_PASS',
+            ANT_ID,
+            PREVIOUS_MATERIAL_ID: OLD_MATERIAL_ID,
+            CRYSTAL_ID: crystal.CRYSTAL_ID,
+            MATERIAL_ID: material.MATERIAL_ID,
+            MATERIAL_H256: material.MATERIAL_H256,
+            AUTHORIZATION_ID: grant.AUTHORIZATION_ID,
+            FROM: EXPECTED_FROM,
+            TO,
+            ATTACH_TICK: attached.transportState.TICK,
+            PRE_TICK: result.PRE_CLOCK_TICK,
+            POST_TICK: result.POST_CLOCK_TICK,
+            CARRIER_OBSERVATION_ID: result.CARRIER_OBSERVATION.OBSERVATION_ID,
+            ANT_MOVE_EVENT_ID: result.ANT_MOVE.EVENT_ID,
+            ANT_MOVE_H256: result.ANT_MOVE.SIGNATURE_H256,
+            MATERIAL_MOVE_ID: result.MATERIAL_MOVE.MOVE_ID,
+            MATERIAL_MOVE_H256: result.MATERIAL_MOVE.MOVE_H256,
+            CONSUMPTION_ID: result.AUTHORIZATION_CONSUMPTION.CONSUMPTION_ID,
+            CONSUMPTION_H256: result.AUTHORIZATION_CONSUMPTION.SIGNATURE_H256,
+            MATERIAL_MOVEMENT_VERIFIED: true,
+            AUTHORIZATION_CONSUMED: true,
+            PROOF_REF: null,
+            WHEEL_INGRESS_AUTHORIZATION: false
+          };
+
+          fs.writeFileSync(
+            '/tmp/brutus-production-runtime-receipt.json',
+            JSON.stringify(receipt, null, 2) + '\n',
+            { encoding: 'utf8', mode: 0o600 }
+          );
+
+          console.log('BRUTUS_HTTP_ADAPTER=PASS');
+          console.log('BRUTUS_ONE_STEP_RUNTIME=PASS');
+          console.log('ANT_ID=' + ANT_ID);
+          console.log('NEW_CRYSTAL_ID=' + crystal.CRYSTAL_ID);
+          console.log('NEW_MATERIAL_ID=' + material.MATERIAL_ID);
+          console.log('NEW_AUTHORIZATION_ID=' + grant.AUTHORIZATION_ID);
+          console.log('PRE_POSITION=' + result.PRE_STATE.POSITION);
+          console.log('POST_POSITION=' + result.POST_STATE.POSITION);
+          console.log('PRE_TICK=' + result.PRE_CLOCK_TICK);
+          console.log('POST_TICK=' + result.POST_CLOCK_TICK);
+          console.log('CARRIER_OBSERVATION=PASS');
+          console.log('ANT_MOVE=' + result.ANT_MOVE.EVENT_ID);
+          console.log('MATERIAL_MOVE=' + result.MATERIAL_MOVE.MOVE_ID);
+          console.log('MATERIAL_MOVEMENT_VERIFIED=PASS');
+          console.log('AUTHORIZATION_CONSUMED=PASS');
+          console.log('PROOF_REF=NULL');
+          console.log('WHEEL_INGRESS_AUTHORIZATION=FALSE');
+          console.log('BRUTUS_PRODUCTION_RUNTIME_CYCLE=PASS');
+          NODE
+
+          unset ANTMUX_LIVE_TRANSPORT_TOKEN
+          test -s /tmp/brutus-production-runtime-receipt.json
+          REMOTE
+
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+            "$VPS_USER@$VPS_HOST:/tmp/brutus-production-runtime-receipt.json" \
+            ./brutus-production-runtime-receipt.json
+
+          test -s ./brutus-production-runtime-receipt.json
+          ! grep -Eqi 'Bearer |ANTMUX_LIVE_TRANSPORT_TOKEN|PRIVATE KEY' ./brutus-production-runtime-receipt.json
+
+      - name: Upload sanitized production receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: brutus-production-runtime-receipt
+          path: brutus-production-runtime-receipt.json
+          if-no-files-found: error
+          retention-days: 30
