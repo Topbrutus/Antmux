@@ -1,0 +1,36 @@
+name: ASTRA GAMEZEL VPS Round Tools Inspect
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-vps-round-tools-inspect.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect round helpers
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          echo '=== START ROUND ==='
+          sed -n '1,220p' "$ROOT/bin/gamezel-start-round" 2>/dev/null || true
+          echo '=== P1 WRAPPER ==='
+          sed -n '1,220p' "$ROOT/bin/gamezel-p1" 2>/dev/null || true
+          echo '=== ROUND ROUTES ==='
+          grep -RInE 'start-round|round/start|ROUND_ENDED|end.?round|roundActive' "$ROOT" --exclude='agent.md' --exclude='AGENTS.md' --exclude-dir=node_modules --exclude-dir=.git | head -n 120 || true
+          REMOTE
