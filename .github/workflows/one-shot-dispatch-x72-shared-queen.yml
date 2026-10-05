@@ -1,0 +1,27 @@
+name: One-shot dispatch X72 Shared Queen deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-shot-dispatch-x72-shared-queen.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch official X72 deploy workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-x72-shared-queen-server.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f confirm=DEPLOY-X72-SHARED-QUEEN
+          echo 'OFFICIAL_X72_DEPLOY_DISPATCHED=PASS'
