@@ -1,0 +1,63 @@
+name: ASTRA GAMEZEL P4 QEMU Auth Check
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-p4-qemu-authcheck.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect emulated CLI auth surface
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          Q="$HOME/.local/bin/qemu-x86_64-static"; A="$HOME/.local/bin/agy"
+          echo '=== HELP KEYWORDS ==='
+          timeout 40s "$Q" -cpu max "$A" --help 2>&1 | grep -Ei 'auth|login|oauth|remote|model|account|print|json' | head -n 80 || true
+          echo '=== BOUNDED NO-AUTH PROBE ==='
+          cat > /tmp/p4-probe-schema.json <<'JSON'
+          {"type":"object","additionalProperties":false,"required":["decision"],"properties":{"decision":{"type":"string","enum":["PASS"]}}}
+          JSON
+          set +e
+          timeout 90s "$Q" -cpu max "$A" -p 'Return only PASS in the supplied schema. No tools or side effects.' --output-format json --json-schema /tmp/p4-probe-schema.json --print-timeout 45s --sandbox --mode plan > /tmp/p4-probe.out 2>/tmp/p4-probe.err
+          rc=$?
+          set -e
+          echo "PROBE_RC=$rc"
+          python3 - <<'PY'
+          import re,json
+          from pathlib import Path
+          out=Path('/tmp/p4-probe.out').read_text(errors='replace'); err=Path('/tmp/p4-probe.err').read_text(errors='replace')
+          s=(out+'\n'+err)
+          low=s.lower()
+          print('AUTH_NEEDED='+('YES' if any(x in low for x in ['login','authenticate','authentication','oauth','sign in','unauthorized']) else 'NO'))
+          print('BROWSER_FLOW='+('YES' if 'http' in low or 'browser' in low else 'NO'))
+          safe=re.sub(r'https?://\S+','REDACTED_URL',s[:1000])
+          safe=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+','REDACTED_EMAIL',safe)
+          safe=re.sub(r'(?i)(token|secret|key|password)\s*[:=]\s*\S+',r'\1=REDACTED',safe)
+          print('PROBE_HEAD='+safe.replace('\n',' | '))
+          PY
+          rm -f /tmp/p4-probe-schema.json /tmp/p4-probe.out /tmp/p4-probe.err
+          REMOTE
