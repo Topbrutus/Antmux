@@ -1,0 +1,127 @@
+name: One-shot GAMEZEL runtime deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-shot-gamezel-runtime-deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gamezel-runtime-one-shot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_SHA: 8a83b58ac857f5563a5b65601b76c80c80265a83
+
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Fast-forward GAMEZEL runtime with rollback
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "TARGET_SHA='$TARGET_SHA' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          SERVICE="zelstereos-gamezel.service"
+          cd "$ROOT"
+
+          test "$(git rev-parse --is-inside-work-tree)" = "true"
+          test "$(git branch --show-current)" = "main"
+          git diff --quiet
+          git diff --cached --quiet
+          systemctl --user is-active --quiet "$SERVICE"
+
+          OLD_HEAD="$(git rev-parse HEAD)"
+          git fetch origin main
+          NEW_HEAD="$(git rev-parse FETCH_HEAD)"
+          test "$NEW_HEAD" = "$TARGET_SHA"
+          git merge-base --is-ancestor "$OLD_HEAD" "$NEW_HEAD"
+
+          rollback() {
+            echo "GAMEZEL_RUNTIME_DEPLOY=ROLLBACK"
+            git reset --hard "$OLD_HEAD" || true
+            systemctl --user restart "$SERVICE" || true
+          }
+          trap rollback ERR
+
+          git merge --ff-only "$NEW_HEAD"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          grep -Fq 'TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()' server.js
+          node --check server.js
+
+          systemctl --user restart "$SERVICE"
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet "$SERVICE" && curl --fail --silent --show-error http://127.0.0.1:3217/api/public/gamezel/state >/tmp/gamezel-state.json; then
+              break
+            fi
+            sleep 1
+          done
+          systemctl --user is-active --quiet "$SERVICE"
+          curl --fail --silent --show-error http://127.0.0.1:3217/api/public/gamezel/state >/tmp/gamezel-state.json
+
+          presence="$(curl --fail --silent --show-error http://127.0.0.1:3217/api/public/gamezel/presence)"
+          draw_enabled="$(printf '%s' "$presence" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).draw_enabled?'true':'false'))")"
+          if test "$draw_enabled" = "true"; then
+            curl --fail --silent --show-error -X POST http://127.0.0.1:3217/api/public/gamezel/draw \
+              -H 'Content-Type: application/json' \
+              --data '{"player_id":"P1"}' >/tmp/gamezel-safe-draw.json
+            echo "GAMEZEL_SAFE_DRAW=TRIGGERED"
+          else
+            echo "GAMEZEL_SAFE_DRAW=DISABLED"
+          fi
+
+          trap - ERR
+          echo "GAMEZEL_RUNTIME_DEPLOY=PASS"
+          echo "OLD_HEAD=$OLD_HEAD"
+          echo "NEW_HEAD=$(git rev-parse HEAD)"
+          REMOTE
+
+      - name: Verify public mirror heartbeat and timestamp stability
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/live/state.json -o /tmp/state-a.json
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/live/audio.json -o /tmp/audio-a.json
+          sleep 11
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/live/state.json -o /tmp/state-b.json
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/live/audio.json -o /tmp/audio-b.json
+          python - <<'PY'
+          import json
+          sa=json.load(open('/tmp/state-a.json',encoding='utf-8'))
+          sb=json.load(open('/tmp/state-b.json',encoding='utf-8'))
+          aa=json.load(open('/tmp/audio-a.json',encoding='utf-8'))
+          ab=json.load(open('/tmp/audio-b.json',encoding='utf-8'))
+          assert int(sb['generated_at']) > int(sa['generated_at']), (sa.get('generated_at'), sb.get('generated_at'))
+          a={c.get('EVENT_ID'):c for c in aa.get('cues',[]) if c.get('EVENT_ID')}
+          b={c.get('EVENT_ID'):c for c in ab.get('cues',[]) if c.get('EVENT_ID')}
+          common=sorted(set(a)&set(b))
+          changed=[eid for eid in common if a[eid].get('TIMESTAMP') != b[eid].get('TIMESTAMP')]
+          assert not changed, changed[:10]
+          print(f"GAMEZEL_PUBLIC_MIRROR_HEARTBEAT=PASS")
+          print(f"GAMEZEL_AUDIO_COMMON_CUES={len(common)}")
+          print(f"GAMEZEL_AUDIO_TIMESTAMP_CHANGED={len(changed)}")
+          PY
