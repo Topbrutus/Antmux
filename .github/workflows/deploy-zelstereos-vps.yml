@@ -9,6 +9,7 @@ on:
       - 'laboratoire/zelstereos/index.html'
       - 'laboratoire/zelstereos/api/state'
       - 'laboratoire/zelstereos/assets/sfx/**'
+      - 'laboratoire/zelstereos/assets/voices/**'
       - 'laboratoire/index.html'
   workflow_dispatch:
     inputs:
@@ -52,6 +53,10 @@ jobs:
           test -f laboratoire/zelstereos/assets/sfx/VOICE_P2_MUSE_PLAY.mp3
           test -f laboratoire/zelstereos/assets/sfx/VOICE_P3_GROK_PLAY.mp3
           test -f laboratoire/zelstereos/assets/sfx/VOICE_P4_ANTIGRAVITY_PLAY.mp3
+          test "$(find laboratoire/zelstereos/assets/sfx/gamezel -maxdepth 1 -type f -name 'SFX*.mp3' | wc -l)" -eq 84
+          test "$(find laboratoire/zelstereos/assets/sfx/legacy -maxdepth 1 -type f -name 'SFX*.mp3' | wc -l)" -eq 36
+          test "$(find laboratoire/zelstereos/assets/voices/gamezel -maxdepth 1 -type f -name 'SFX*.mp3' | wc -l)" -eq 16
+          test -f laboratoire/zelstereos/assets/sfx/legacy/archive-mapping.json
           grep -Fq '<title>ANTMUX / ZELSTÉRÉOS — Public Safe Live</title>' laboratoire/zelstereos/index.html
           grep -Fq 'id="tabScreen1"' laboratoire/zelstereos/index.html
           grep -Fq 'id="tabScreen5"' laboratoire/zelstereos/index.html
@@ -67,13 +72,21 @@ jobs:
           assert m['count']==36
           assert [c['id'] for c in m['clips']]==[f'SFX{i:02d}' for i in range(1,37)]
           assert all((root/c['file']).is_file() and (root/c['file']).stat().st_size>1000 for c in m['clips'])
+          all_mp3 = sorted(root.rglob('*.mp3')) + sorted((root.parent/'voices').rglob('*.mp3'))
+          assert len(all_mp3) == 176, len(all_mp3)
+          for audio in all_mp3:
+              data = audio.read_bytes()
+              assert len(data) > 1000, audio
+              assert data.startswith(b'ID3') or (len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0), audio
           print('ZELSTEREOS_SFX36_PAYLOAD=PASS')
+          print('ZELSTEREOS_AUDIO176_PAYLOAD=PASS')
           PY
           rm -rf _zelstereos_deploy
-          mkdir -p _zelstereos_deploy/api _zelstereos_deploy/assets/sfx
+          mkdir -p _zelstereos_deploy/api _zelstereos_deploy/assets/sfx _zelstereos_deploy/assets/voices
           cp laboratoire/zelstereos/index.html _zelstereos_deploy/index.html
           cp laboratoire/zelstereos/api/state _zelstereos_deploy/api/state
           cp -a laboratoire/zelstereos/assets/sfx/. _zelstereos_deploy/assets/sfx/
+          cp -a laboratoire/zelstereos/assets/voices/. _zelstereos_deploy/assets/voices/
           cp laboratoire/index.html _zelstereos_deploy/laboratoire-index.html
           (cd _zelstereos_deploy && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 
@@ -130,6 +143,7 @@ jobs:
           mkdir -p "$BACKUP_ROOT"
           if test -f "$TARGET_ROOT/index.html"; then cp -a "$TARGET_ROOT/index.html" "$BACKUP_ROOT/index.html"; fi
           if test -d "$TARGET_ROOT/assets/sfx"; then mkdir -p "$BACKUP_ROOT/assets"; cp -a "$TARGET_ROOT/assets/sfx" "$BACKUP_ROOT/assets/sfx"; fi
+          if test -d "$TARGET_ROOT/assets/voices"; then mkdir -p "$BACKUP_ROOT/assets"; cp -a "$TARGET_ROOT/assets/voices" "$BACKUP_ROOT/assets/voices"; fi
           if test -f "$LAB_ROOT/index.html"; then cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.html"; fi
           install -d -m 0755 "$TARGET_ROOT/api" "$TARGET_ROOT/assets"
           install -m 0644 "$REMOTE_STAGE/index.html" "$TARGET_ROOT/index.html"
@@ -138,6 +152,10 @@ jobs:
           cp -a "$REMOTE_STAGE/assets/sfx" "$TARGET_ROOT/assets/sfx"
           find "$TARGET_ROOT/assets/sfx" -type d -exec chmod 0755 {} +
           find "$TARGET_ROOT/assets/sfx" -type f -exec chmod 0644 {} +
+          rm -rf "$TARGET_ROOT/assets/voices"
+          cp -a "$REMOTE_STAGE/assets/voices" "$TARGET_ROOT/assets/voices"
+          find "$TARGET_ROOT/assets/voices" -type d -exec chmod 0755 {} +
+          find "$TARGET_ROOT/assets/voices" -type f -exec chmod 0644 {} +
           install -m 0644 "$REMOTE_STAGE/laboratoire-index.html" "$LAB_ROOT/index.html"
           rm -rf "$REMOTE_STAGE"
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
@@ -179,4 +197,18 @@ jobs:
             curl --fail --silent --show-error --location --range 0-63 "https://antmux.com/laboratoire/zelstereos/assets/sfx/$f" -o /dev/null
           done < /tmp/zelstereos-sfx-files.txt
           echo 'ZELSTEREOS_SFX36_PUBLIC=PASS'
+          check_public_audio() {
+            rel="$1"
+            ctype="$(curl --fail --silent --show-error --location --head "https://antmux.com/laboratoire/zelstereos/assets/$rel" | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type"{v=tolower($2)} END{print v}')"
+            case "$ctype" in
+              audio/*) ;;
+              *) echo "BAD_AUDIO_CONTENT_TYPE $rel $ctype" >&2; exit 1 ;;
+            esac
+          }
+          find laboratoire/zelstereos/assets -type f -name '*.mp3' -printf '%P\n' | sort > /tmp/zelstereos-all-audio-files.txt
+          test "$(wc -l < /tmp/zelstereos-all-audio-files.txt)" -eq 176
+          while IFS= read -r f; do
+            check_public_audio "$f"
+          done < /tmp/zelstereos-all-audio-files.txt
+          echo 'ZELSTEREOS_AUDIO176_PUBLIC=PASS'
           echo 'ZELSTEREOS_PUBLIC_DEPLOY=PASS'
