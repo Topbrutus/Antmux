@@ -18,7 +18,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      TARGET_SHA: 8a83b58ac857f5563a5b65601b76c80c80265a83
+      TARGET_ZEL_SHA: 8a83b58ac857f5563a5b65601b76c80c80265a83
+      EXPECTED_SERVER_SHA256: 7c462c14d21e12294a3f9eca8ce54b17960851f31211c9662a1df2fe6268e82e
 
     steps:
       - name: Configure pinned SSH identity
@@ -36,7 +37,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Fast-forward GAMEZEL runtime with rollback
+      - name: Patch GAMEZEL runtime with backup and rollback
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -44,34 +45,52 @@ jobs:
           set -euo pipefail
           test -n "$VPS_HOST"
           test -n "$VPS_USER"
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "TARGET_SHA='$TARGET_SHA' bash -se" <<'REMOTE'
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            "TARGET_ZEL_SHA='$TARGET_ZEL_SHA' EXPECTED_SERVER_SHA256='$EXPECTED_SERVER_SHA256' bash -se" <<'REMOTE'
           set -euo pipefail
           ROOT="$HOME/zelstereos-gamezel"
           SERVICE="zelstereos-gamezel.service"
           cd "$ROOT"
 
-          test "$(git rev-parse --is-inside-work-tree)" = "true"
-          test "$(git branch --show-current)" = "main"
-          git diff --quiet
-          git diff --cached --quiet
+          test -f server.js
+          test -w server.js
           systemctl --user is-active --quiet "$SERVICE"
 
-          OLD_HEAD="$(git rev-parse HEAD)"
-          git fetch origin main
-          NEW_HEAD="$(git rev-parse FETCH_HEAD)"
-          test "$NEW_HEAD" = "$TARGET_SHA"
-          git merge-base --is-ancestor "$OLD_HEAD" "$NEW_HEAD"
+          OLD_LINE='    TIMESTAMP: cue.TIMESTAMP || cue.CREATED_AT || Date.now()'
+          NEW_LINE='    TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()'
+          old_count="$(grep -Fxc "$OLD_LINE" server.js || true)"
+          new_count="$(grep -Fxc "$NEW_LINE" server.js || true)"
+          test "$old_count" = "1"
+          test "$new_count" = "0"
+
+          STAMP="$(date -u +%Y%m%d-%H%M%S)"
+          BACKUP_ROOT="$HOME/zelstereos-gamezel-backups/$STAMP-$TARGET_ZEL_SHA"
+          mkdir -p "$BACKUP_ROOT"
+          cp -a server.js "$BACKUP_ROOT/server.js"
+          OLD_SHA256="$(sha256sum server.js | awk '{print $1}')"
 
           rollback() {
             echo "GAMEZEL_RUNTIME_DEPLOY=ROLLBACK"
-            git reset --hard "$OLD_HEAD" || true
+            cp -a "$BACKUP_ROOT/server.js" server.js || true
             systemctl --user restart "$SERVICE" || true
           }
           trap rollback ERR
 
-          git merge --ff-only "$NEW_HEAD"
-          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-          grep -Fq 'TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()' server.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('server.js')
+          s = p.read_text(encoding='utf-8')
+          old = "    TIMESTAMP: cue.TIMESTAMP || cue.CREATED_AT || Date.now()"
+          new = "    TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()"
+          if s.count(old) != 1:
+              raise SystemExit(f'expected exactly one old timestamp mapping, found {s.count(old)}')
+          if new in s:
+              raise SystemExit('new timestamp mapping already present unexpectedly')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          grep -Fqx "$NEW_LINE" server.js
+          test "$(sha256sum server.js | awk '{print $1}')" = "$EXPECTED_SERVER_SHA256"
           node --check server.js
 
           systemctl --user restart "$SERVICE"
@@ -97,8 +116,10 @@ jobs:
 
           trap - ERR
           echo "GAMEZEL_RUNTIME_DEPLOY=PASS"
-          echo "OLD_HEAD=$OLD_HEAD"
-          echo "NEW_HEAD=$(git rev-parse HEAD)"
+          echo "SOURCE_ZEL_SHA=$TARGET_ZEL_SHA"
+          echo "OLD_SERVER_SHA256=$OLD_SHA256"
+          echo "NEW_SERVER_SHA256=$(sha256sum server.js | awk '{print $1}')"
+          echo "BACKUP_ROOT=$BACKUP_ROOT"
           REMOTE
 
       - name: Verify public mirror heartbeat and timestamp stability
@@ -121,7 +142,7 @@ jobs:
           common=sorted(set(a)&set(b))
           changed=[eid for eid in common if a[eid].get('TIMESTAMP') != b[eid].get('TIMESTAMP')]
           assert not changed, changed[:10]
-          print(f"GAMEZEL_PUBLIC_MIRROR_HEARTBEAT=PASS")
-          print(f"GAMEZEL_AUDIO_COMMON_CUES={len(common)}")
-          print(f"GAMEZEL_AUDIO_TIMESTAMP_CHANGED={len(changed)}")
+          print('GAMEZEL_PUBLIC_MIRROR_HEARTBEAT=PASS')
+          print(f'GAMEZEL_AUDIO_COMMON_CUES={len(common)}')
+          print(f'GAMEZEL_AUDIO_TIMESTAMP_CHANGED={len(changed)}')
           PY
