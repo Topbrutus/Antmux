@@ -1,0 +1,60 @@
+name: ASTRA STEP8 Runner Diff Diagnose
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-runner-diff-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only runner lineage probe
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          F="$HOME/zelstereos-gamezel/agents/gamezel-autoplayer.mjs"
+          test -f "$F"
+          echo "RUNNER_BLOB=$(git hash-object "$F")"
+          echo "RUNNER_LINES=$(wc -l < "$F")"
+          echo '=== PROVIDER MARKERS ==='
+          grep -nE 'runAntigravity|ANTIGRAVITY_BIN|antigravity-card-agent|GEMINI_API_KEY|buildAntigravityArgs|runMuse|runGrok|askProvider' "$F" || true
+          echo '=== COOLDOWN MARKERS ==='
+          grep -nE 'PROVIDER_NO_RESPONSE_COOLDOWN|providerCooldown|COOLDOWN_|NO_RESPONSE' "$F" || true
+          echo '=== RUNTURNONCE ==='
+          awk '
+            /export async function runTurnOnce/ {show=1; n=0}
+            show {print NR ":" $0; n++}
+            show && n>=90 {exit}
+          ' "$F"
+          echo '=== SERVICES ==='
+          printf 'MAIN=%s\n' "$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          printf 'P2=%s\n' "$(systemctl --user is-active zelstereos-gamezel-p2.service 2>/dev/null || true)"
+          printf 'P3=%s\n' "$(systemctl --user is-active zelstereos-gamezel-p3.service 2>/dev/null || true)"
+          printf 'P4=%s\n' "$(systemctl --user is-active zelstereos-gamezel-p4.service 2>/dev/null || true)"
+          REMOTE
