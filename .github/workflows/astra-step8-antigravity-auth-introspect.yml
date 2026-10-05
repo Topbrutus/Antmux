@@ -46,6 +46,7 @@ jobs:
           from google.antigravity import LocalAgentConfig
           import google.antigravity as ga
 
+          root = pathlib.Path(ga.__file__).resolve().parent
           print('SDK_MODULE=' + str(pathlib.Path(ga.__file__).resolve()))
           try:
               print('LOCAL_AGENT_CONFIG_SIGNATURE=' + str(inspect.signature(LocalAgentConfig)))
@@ -54,34 +55,34 @@ jobs:
 
           fields = []
           mf = getattr(LocalAgentConfig, 'model_fields', None)
-          if isinstance(mf, dict):
-              fields.extend(mf.keys())
+          if isinstance(mf, dict): fields.extend(mf.keys())
           df = getattr(LocalAgentConfig, '__dataclass_fields__', None)
-          if isinstance(df, dict):
-              fields.extend(df.keys())
+          if isinstance(df, dict): fields.extend(df.keys())
           anns = getattr(LocalAgentConfig, '__annotations__', None)
-          if isinstance(anns, dict):
-              fields.extend(anns.keys())
+          if isinstance(anns, dict): fields.extend(anns.keys())
           fields = sorted(set(map(str, fields)))
           print('CONFIG_FIELDS=' + ','.join(fields))
           auth_fields = [f for f in fields if re.search(r'auth|oauth|token|credential|key|project|account', f, re.I)]
           print('AUTH_RELATED_FIELDS=' + ','.join(auth_fields))
 
-          try:
-              srcfile = inspect.getsourcefile(LocalAgentConfig)
-              print('CONFIG_SOURCE_FILE=' + str(pathlib.Path(srcfile).resolve()) if srcfile else 'CONFIG_SOURCE_FILE=UNKNOWN')
-              if srcfile:
-                  text = pathlib.Path(srcfile).read_text(encoding='utf-8', errors='replace').splitlines()
-                  pats = re.compile(r'api_key|oauth|credential|token|google\.auth|application_default|refresh|account', re.I)
-                  hits = []
-                  for i, line in enumerate(text, 1):
+          pats = re.compile(r'oauth_creds|google_accounts|refresh_token|application_default_credentials|google\.auth|device.?auth|oauth|credential|api_key', re.I)
+          hits = []
+          for path in root.rglob('*.py'):
+              try:
+                  for i, line in enumerate(path.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
                       if pats.search(line):
-                          clean = re.sub(r'([A-Za-z0-9_\-]{20,})', '<redacted-long-literal>', line.rstrip())
-                          hits.append(f'{i}:{clean}')
-                  print('AUTH_SOURCE_HIT_COUNT=' + str(len(hits)))
-                  for h in hits[:120]:
-                      print('AUTH_SOURCE_HIT=' + h)
-          except Exception as e:
-              print('SOURCE_INSPECTION_ERROR=' + type(e).__name__)
+                          rel = path.relative_to(root)
+                          clean = re.sub(r'([A-Za-z0-9_\-]{24,})', '<redacted-long-literal>', line.rstrip())
+                          hits.append(f'{rel}:{i}:{clean}')
+              except Exception:
+                  pass
+          print('PACKAGE_AUTH_HIT_COUNT=' + str(len(hits)))
+          for h in hits[:200]:
+              print('PACKAGE_AUTH_HIT=' + h)
+
+          cli_session_terms = [h for h in hits if re.search(r'oauth_creds|google_accounts|refresh_token|device.?auth', h, re.I)]
+          print('CLI_SESSION_COMPAT_HIT_COUNT=' + str(len(cli_session_terms)))
+          for h in cli_session_terms[:80]:
+              print('CLI_SESSION_COMPAT_HIT=' + h)
           PY
           REMOTE
