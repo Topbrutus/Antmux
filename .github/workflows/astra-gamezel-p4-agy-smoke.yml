@@ -1,0 +1,87 @@
+name: ASTRA GAMEZEL P4 AGY Smoke
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-p4-agy-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Bounded P4 CLI smoke
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          AGY="$HOME/.local/bin/agy"
+          echo "AGY_EXISTS=$(test -x "$AGY" && echo YES || echo NO)"
+          if ! test -x "$AGY"; then exit 2; fi
+          set +e
+          "$AGY" --version > /tmp/agy-version.out 2>&1
+          vrc=$?
+          set -e
+          echo "AGY_VERSION_RC=$vrc"
+          sed -n '1,3p' /tmp/agy-version.out | sed -E 's#([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+)#REDACTED_EMAIL#g'
+          cat > /tmp/gamezel-p4-schema.json <<'JSON'
+          {"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SERVER-ALPHA","MOVE-SERVER-BETA"]},"note":{"type":"string","maxLength":160}}}
+          JSON
+          set +e
+          timeout 150s "$AGY" -p 'GAMEZEL bounded VPS smoke. Return PLAY with exactly MOVE-SERVER-ALPHA or MOVE-SERVER-BETA. No tools, shell, files, network, or side effects.' --output-format json --json-schema /tmp/gamezel-p4-schema.json --print-timeout 2m --sandbox --mode plan > /tmp/agy-smoke.out 2>/tmp/agy-smoke.err
+          rc=$?
+          set -e
+          echo "AGY_SMOKE_RC=$rc"
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          out=Path('/tmp/agy-smoke.out').read_text(errors='replace')
+          err=Path('/tmp/agy-smoke.err').read_text(errors='replace')
+          def red(s):
+              s=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+','REDACTED_EMAIL',s)
+              s=re.sub(r'(?i)(token|secret|key|password)\s*[:=]\s*\S+',r'\1=REDACTED',s)
+              return s
+          ok=False
+          try:
+              d=json.loads(out)
+              candidates=[d]
+              for k in ('result','response','output'):
+                  if isinstance(d,dict) and k in d:
+                      x=d[k]
+                      if isinstance(x,dict): candidates.append(x)
+                      elif isinstance(x,str):
+                          try: candidates.append(json.loads(x))
+                          except: pass
+              ok=any(isinstance(x,dict) and x.get('decision')=='PLAY' and x.get('move_id') in {'MOVE-SERVER-ALPHA','MOVE-SERVER-BETA'} for x in candidates)
+          except Exception:
+              pass
+          print('AGY_STRUCTURED_DECISION='+('YES' if ok else 'NO'))
+          low=(out+'\n'+err).lower()
+          print('AGY_AUTH_ERROR='+('YES' if any(x in low for x in ['login required','not authenticated','authentication required','unauthorized']) else 'NO'))
+          print('AGY_CPU_ERROR='+('YES' if any(x in low for x in ['pclmul','illegal instruction','sigill']) else 'NO'))
+          print('AGY_QUOTA_ERROR='+('YES' if any(x in low for x in ['quota','rate limit','resource exhausted']) else 'NO'))
+          print('AGY_STDERR_BYTES='+str(len(err.encode())))
+          if not ok:
+              print('AGY_ERR_HEAD='+red(err[:500]).replace('\n',' | '))
+          PY
+          rm -f /tmp/agy-version.out /tmp/agy-smoke.out /tmp/agy-smoke.err /tmp/gamezel-p4-schema.json
+          REMOTE
