@@ -1,0 +1,44 @@
+name: ASTRA GAMEZEL P4 Enable Diagnose
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-gamezel-p4-enable-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Diagnose VPS preflight
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          ROOT="$HOME/zelstereos-gamezel"; Q="$HOME/.local/bin/qemu-x86_64-static"; A="$HOME/.local/bin/agy"
+          echo "ROOT_GIT=$(test -d "$ROOT/.git" && echo YES || echo NO)"
+          echo "QEMU=$(test -x "$Q" && echo YES || echo NO)"
+          echo "AGY=$(test -x "$A" && echo YES || echo NO)"
+          "$Q" -cpu max "$A" --version >/tmp/agv 2>/tmp/age; echo "AGY_VERSION_RC=$?"; head -n1 /tmp/agv; head -n2 /tmp/age
+          git -C "$ROOT" remote -v | sed -E 's#(https://)[^/@]+@#\1REDACTED@#g'
+          git -C "$ROOT" fetch origin main >/tmp/gfo 2>/tmp/gfe; echo "GIT_FETCH_RC=$?"; sed -n '1,8p' /tmp/gfe
+          git -C "$ROOT" rev-parse origin/main:agents/gamezel-autoplayer.mjs 2>/dev/null | sed 's/^/RUNNER_BLOB=/' || echo 'RUNNER_BLOB=MISS'
+          for seat in p2 p3; do f="$HOME/.config/zelstereos/agents/$seat.env"; echo "ENV_${seat^^}=$(test -f "$f" && echo YES || echo NO)"; done
+          rm -f /tmp/agv /tmp/age /tmp/gfo /tmp/gfe
+          REMOTE
