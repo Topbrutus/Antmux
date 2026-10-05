@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import json
+import os
 import threading
 import urllib.parse
 import urllib.request
@@ -65,7 +66,11 @@ class FakeGamezelAudioHandler(BaseHTTPRequestHandler):
         self.send_error(404)
 
 
-def start_fake_gamezel_audio_runtime(port: int = 9321) -> tuple[ThreadingHTTPServer, threading.Thread]:
+def start_fake_gamezel_audio_runtime(port: int | None = None) -> tuple[ThreadingHTTPServer, threading.Thread]:
+    if port is None:
+        runtime_base = os.environ.get("ANTMUX_GAMEZEL_RUNTIME_BASE", "http://127.0.0.1:3217")
+        parsed_runtime = urllib.parse.urlparse(runtime_base)
+        port = parsed_runtime.port or 3217
     global FAKE_AUDIO_SEQUENCE
     with FAKE_AUDIO_LOCK:
         FAKE_AUDIO_SEQUENCE = 40
