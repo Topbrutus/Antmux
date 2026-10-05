@@ -1,0 +1,271 @@
+name: Deploy Brutotableur Vitrine to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-brutotableur-vitrine-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/brutotableur/**'
+      - 'deploy/brutotableur-private/**'
+  pull_request:
+    paths:
+      - '.github/workflows/deploy-brutotableur-vitrine-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/brutotableur/**'
+      - 'deploy/brutotableur-private/**'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-BRUTOTABLEUR-VITRINE'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brutotableur-vitrine-vps
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate vitrine contract
+        run: |
+          set -euo pipefail
+          test -f laboratoire/brutotableur/index.html
+          test -f laboratoire/brutotableur/brutotableur-vitrine.png
+          test -f laboratoire/brutotableur/PUBLIC-PROVENANCE.json
+          test -f laboratoire/brutotableur/README.md
+          test -f deploy/brutotableur-private/index.html
+          grep -Fq 'DÉBARRER LA VITRINE' laboratoire/brutotableur/index.html
+          grep -Fq 'PUBLIC · VERROUILLÉ' laboratoire/brutotableur/index.html
+          grep -Fq 'BRUTOTABLEUR · VITRINE PUBLIQUE' laboratoire/index.html
+          grep -Fq '/laboratoire/brutotableur/private/' deploy/brutotableur-private/index.html
+          python3 - <<'PY'
+          import json, pathlib
+          p=json.loads(pathlib.Path('laboratoire/brutotableur/PUBLIC-PROVENANCE.json').read_text())
+          assert p['public_interaction'] is False
+          assert p['private_route_requires_server_auth'] is True
+          assert p['password_or_secret_in_public_payload'] is False
+          assert p['mathematical_proof_claim'] is False
+          print('BRUTOTABLEUR_VITRINE_CONTRACT=PASS')
+          PY
+
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-BRUTOTABLEUR-VITRINE'))
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REMOTE_STAGE: /tmp/antmux-brutotableur-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Assemble payload
+        run: |
+          set -euo pipefail
+          rm -rf _brutotableur_deploy
+          mkdir -p _brutotableur_deploy/public _brutotableur_deploy/private
+          cp laboratoire/index.html _brutotableur_deploy/laboratoire-index.html
+          cp laboratoire/brutotableur/index.html _brutotableur_deploy/public/
+          cp laboratoire/brutotableur/brutotableur-vitrine.png _brutotableur_deploy/public/
+          cp laboratoire/brutotableur/PUBLIC-PROVENANCE.json _brutotableur_deploy/public/
+          cp laboratoire/brutotableur/README.md _brutotableur_deploy/public/
+          cp -a deploy/brutotableur-private/. _brutotableur_deploy/private/
+          cd _brutotableur_deploy
+          { printf '%s\0' laboratoire-index.html; find public private -type f -print0; } | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r _brutotableur_deploy/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Deploy public vitrine and stage private app
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          LAB_ROOT='/var/www/antmux.com/public_html/laboratoire'
+          PUBLIC_ROOT="$LAB_ROOT/brutotableur"
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          PRIVATE_STAGE="$HOME/antmux-brutotableur/private-stage/${{ github.sha }}"
+          NGINX_DIR="$HOME/antmux-brutotableur/nginx"
+          BACKUP="$HOME/antmux-brutotableur/backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+          mkdir -p "$BACKUP" "$PRIVATE_STAGE" "$NGINX_DIR"
+          test -f "$LAB_ROOT/index.html" && cp -a "$LAB_ROOT/index.html" "$BACKUP/laboratoire-index.html" || true
+          if [ -d "$PUBLIC_ROOT" ]; then cp -a "$PUBLIC_ROOT/." "$BACKUP/" || true; fi
+
+          install -d -m 0755 "$PUBLIC_ROOT"
+          install -m 0644 laboratoire-index.html "$LAB_ROOT/index.html"
+          install -m 0644 public/index.html "$PUBLIC_ROOT/index.html"
+          install -m 0644 public/brutotableur-vitrine.png "$PUBLIC_ROOT/brutotableur-vitrine.png"
+          install -m 0644 public/PUBLIC-PROVENANCE.json "$PUBLIC_ROOT/PUBLIC-PROVENANCE.json"
+          install -m 0644 public/README.md "$PUBLIC_ROOT/README.md"
+
+          rm -rf "$PRIVATE_STAGE"
+          mkdir -p "$PRIVATE_STAGE"
+          cp -a private/. "$PRIVATE_STAGE/"
+          find "$PRIVATE_STAGE" -type d -exec chmod 0755 {} +
+          find "$PRIVATE_STAGE" -type f -exec chmod 0644 {} +
+          ln -sfn "$PRIVATE_STAGE" "$HOME/antmux-brutotableur/private-current"
+
+          cat > "$NGINX_DIR/brutotableur-private.conf" <<'EOF_NGINX'
+          location ^~ /laboratoire/brutotableur/private/ {
+              auth_basic "Brutotableur privé";
+              auth_basic_user_file /etc/nginx/.htpasswd-brutotableur;
+              alias /var/www/antmux.com/private/brutotableur/;
+              index index.html;
+              add_header Cache-Control "private, no-store" always;
+              add_header X-Robots-Tag "noindex, nofollow" always;
+          }
+          EOF_NGINX
+
+          cat > "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh" <<'EOF_ROOT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          SOURCE_HOME='/home/rob'
+          SOURCE_ROOT="$SOURCE_HOME/antmux-brutotableur"
+          SOURCE_PRIVATE="$SOURCE_ROOT/private-current"
+          SOURCE_SNIPPET="$SOURCE_ROOT/nginx/brutotableur-private.conf"
+          SOURCE_HTPASSWD="$SOURCE_HOME/.config/antmux/brutotableur.htpasswd"
+          DEST_PRIVATE='/var/www/antmux.com/private/brutotableur'
+          DEST_HTPASSWD='/etc/nginx/.htpasswd-brutotableur'
+          INCLUDE_LINE="include $SOURCE_SNIPPET;"
+          BACKUP="$SOURCE_ROOT/nginx-backups/$(date -u +%Y%m%d-%H%M%S)"
+
+          test "$(hostname)" = 'server1.antmux.com'
+          test -d "$SOURCE_PRIVATE"
+          test -f "$SOURCE_SNIPPET"
+          test -f "$SOURCE_HTPASSWD"
+          mkdir -p "$BACKUP" "$DEST_PRIVATE"
+          rm -rf "$DEST_PRIVATE"/*
+          cp -a "$SOURCE_PRIVATE/." "$DEST_PRIVATE/"
+          chown -R root:root "$DEST_PRIVATE"
+          find "$DEST_PRIVATE" -type d -exec chmod 0755 {} +
+          find "$DEST_PRIVATE" -type f -exec chmod 0644 {} +
+          install -o root -g www-data -m 0640 "$SOURCE_HTPASSWD" "$DEST_HTPASSWD"
+
+          ACTIVE_CONFIG="$(python3 - <<'PY'
+          from pathlib import Path
+          found=[]
+          root=Path('/etc/nginx/sites-enabled')
+          if not root.exists(): raise SystemExit('SITES_ENABLED_NOT_FOUND')
+          for entry in root.iterdir():
+              try: real=entry.resolve()
+              except Exception: continue
+              if not real.is_file(): continue
+              text=real.read_text(encoding='utf-8', errors='ignore')
+              if 'server_name' in text and ('antmux.com' in text or 'www.antmux.com' in text):
+                  if str(real) not in found: found.append(str(real))
+          if len(found)!=1: raise SystemExit(f'ANTMUX_ACTIVE_CONFIG_COUNT={len(found)}')
+          print(found[0])
+          PY
+          )"
+          cp -a "$ACTIVE_CONFIG" "$BACKUP/$(basename "$ACTIVE_CONFIG").bak"
+
+          python3 - "$ACTIVE_CONFIG" "$INCLUDE_LINE" <<'PY'
+          import re,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); include=sys.argv[2]
+          text=p.read_text(encoding='utf-8',errors='ignore')
+          if include in text:
+              print('BRUTOTABLEUR_NGINX_INCLUDE=ALREADY_PRESENT')
+              raise SystemExit(0)
+          def close_brace(data,i):
+              depth=0
+              for j in range(i,len(data)):
+                  if data[j]=='{': depth+=1
+                  elif data[j]=='}':
+                      depth-=1
+                      if depth==0:return j
+              return -1
+          targets=[]; pos=0
+          while True:
+              m=re.search(r'(?m)^\s*server\s*\{',text[pos:])
+              if not m: break
+              start=pos+m.start(); op=text.find('{',start); cl=close_brace(text,op)
+              if cl<0: raise SystemExit('MALFORMED_SERVER_BLOCK')
+              block=text[start:cl+1]
+              if 'server_name' in block and 'antmux.com' in block and re.search(r'(?m)^\s*listen\s+[^;]*\b443\b',block):
+                  targets.append((start,cl))
+              pos=cl+1
+          if len(targets)!=1: raise SystemExit(f'HTTPS_ANTMUX_SERVER_BLOCK_COUNT={len(targets)}')
+          cl=targets[0][1]
+          text=text[:cl]+f'\n    # Brutotableur private authenticated app\n    {include}\n'+text[cl:]
+          p.write_text(text,encoding='utf-8')
+          print('BRUTOTABLEUR_NGINX_INCLUDE=APPLIED')
+          PY
+
+          nginx -t
+          systemctl reload nginx
+          curl --fail --silent --show-error https://antmux.com/laboratoire/brutotableur/ >/dev/null
+          code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
+          test "$code" = '401'
+          printf 'BRUTOTABLEUR_PRIVATE_AUTH=PASS\n'
+          EOF_ROOT
+          chmod 0755 "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh"
+
+          rm -rf "$REMOTE_STAGE"
+          printf 'PUBLIC_VITRINE_DEPLOYED=PASS\n'
+          printf 'PRIVATE_APP_STAGED=%s\n' "$PRIVATE_STAGE"
+          printf 'ROOT_APPLY_SCRIPT=%s\n' "$NGINX_DIR/APPLY_BRUTOTABLEUR_PRIVATE_AS_ROOT.sh"
+          REMOTE
+
+      - name: Verify public vitrine and fail-closed private route
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutotableur/ -o /tmp/brutotableur-public.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutotableur/PUBLIC-PROVENANCE.json -o /tmp/brutotableur-provenance.json
+          grep -Fq 'BRUTOTABLEUR · VITRINE PUBLIQUE' /tmp/lab.html
+          grep -Fq 'DÉBARRER LA VITRINE' /tmp/brutotableur-public.html
+          grep -Fq 'PUBLIC · VERROUILLÉ' /tmp/brutotableur-public.html
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/brutotableur-provenance.json', encoding='utf-8'))
+          assert p['public_interaction'] is False
+          assert p['private_route_requires_server_auth'] is True
+          print('BRUTOTABLEUR_PUBLIC_VITRINE=PASS')
+          PY
+          code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
+          if [ "$code" = '401' ]; then
+            echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PASS_LOCKED'
+          elif [ "$code" = '404' ]; then
+            echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PENDING_ROOT_APPLY_FAIL_CLOSED'
+          else
+            echo "Unsafe private route status: $code" >&2
+            exit 1
+          fi
