@@ -1,0 +1,92 @@
+name: ASTRA STEP8 Muse Smoke
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-muse-only-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run bounded Muse President smoke
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          MUSE="$HOME/.local/bin/muse"
+          TMP="$(mktemp -d /tmp/gamezel-muse-smoke.XXXXXX)"
+          trap 'rm -rf "$TMP"' EXIT
+          echo "MUSE_BIN=$(test -x "$MUSE" && echo YES || echo NO)"
+          "$MUSE" --version 2>/dev/null | head -n 1 || true
+
+          cat >"$TMP/schema.json" <<'JSON'
+          {"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SMOKE-ALPHA","MOVE-SMOKE-BETA"]},"note":{"type":"string","maxLength":200}}}
+          JSON
+          PROMPT='Choose one bounded GAMEZEL move. Return PLAY with exactly MOVE-SMOKE-ALPHA or MOVE-SMOKE-BETA using the supplied schema. No tools, web, shell, filesystem, or side effects.'
+          rc=0
+          "$MUSE" exec --json --output-schema "$TMP/schema.json" --disable-web-tools --disable-write --disable-shell --approval-mode never --no-session-log --max-model-steps 1 --workspace "$TMP" "$PROMPT" >"$TMP/out" 2>"$TMP/err" || rc=$?
+          echo "MUSE_RC=$rc"
+          cat "$TMP/out" "$TMP/err" >"$TMP/combined"
+
+          grep -Eqi 'not logged in|login required|authentication|unauthorized|401|sign.?in|log.?in|credential|oauth|device.*auth|authorization' "$TMP/combined" && echo 'MUSE_AUTH=YES' || echo 'MUSE_AUTH=NO'
+          grep -Eqi 'quota|credit|rate.?limit|429|billing|capacity|resource.*exhausted' "$TMP/combined" && echo 'MUSE_QUOTA=YES' || echo 'MUSE_QUOTA=NO'
+          grep -Eqi 'schema|output-schema|structured output' "$TMP/combined" && echo 'MUSE_SCHEMA_MENTION=YES' || echo 'MUSE_SCHEMA_MENTION=NO'
+          grep -Eqi 'unexpected argument|unknown option|unrecognized option|invalid argument' "$TMP/combined" && echo 'MUSE_ARGUMENT=YES' || echo 'MUSE_ARGUMENT=NO'
+          grep -Eqi 'network|connection|connect error|dns|tls|certificate' "$TMP/combined" && echo 'MUSE_NETWORK=YES' || echo 'MUSE_NETWORK=NO'
+
+          python3 - "$TMP/out" <<'PY'
+          import json, sys
+          p=sys.argv[1]
+          found=[]
+          def walk(v):
+              if isinstance(v, dict):
+                  if isinstance(v.get('decision'), str) and ('move_id' in v or 'moveId' in v):
+                      found.append(v)
+                  for x in v.values(): walk(x)
+              elif isinstance(v, list):
+                  for x in v: walk(x)
+              elif isinstance(v, str) and '{' in v:
+                  try: walk(json.loads(v))
+                  except Exception: pass
+          for line in open(p, encoding='utf-8', errors='replace'):
+              line=line.strip()
+              if not line: continue
+              try: walk(json.loads(line))
+              except Exception: pass
+          legal=False
+          if found:
+              d=found[-1]
+              move=d.get('move_id', d.get('moveId'))
+              legal=str(d.get('decision','')).upper()=='PLAY' and move in {'MOVE-SMOKE-ALPHA','MOVE-SMOKE-BETA'}
+          print('MUSE_STRUCTURED_DECISION=' + ('YES' if found else 'NO'))
+          print('MUSE_LEGAL_DECISION=' + ('YES' if legal else 'NO'))
+          PY
+          echo "MUSE_ERROR_BYTES=$(wc -c < "$TMP/err" | tr -d ' ')"
+          echo "MAIN_USER_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          exit 0
+          REMOTE
