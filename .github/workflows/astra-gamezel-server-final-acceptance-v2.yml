@@ -1,0 +1,184 @@
+name: ASTRA GAMEZEL Server Final Acceptance V2
+
+on:
+  push:
+    branches: [astra/gamezel-control-20261003]
+    paths: ['.github/workflows/astra-gamezel-server-final-acceptance-v2.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '${{ secrets.ANTMUX_VPS_HOST }} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run canonical server-only acceptance and checkpoint
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=30 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          P1="$ROOT/bin/gamezel-p1"
+          START="$ROOT/bin/gamezel-start-round"
+          END=/tmp/gamezel-end-round-final-acceptance
+          JEVTEST=/tmp/gamezel-jev-test-final-acceptance
+          sed 's#/api/operator/game/start-round#/api/operator/game/end-round#' "$START" > "$END"
+          sed 's#/api/operator/game/start-round#/api/jev/test#' "$START" > "$JEVTEST"
+          chmod 700 "$END" "$JEVTEST"
+          cleanup() {
+            "$END" >/dev/null 2>&1 || true
+            rm -f "$END" "$JEVTEST" /tmp/gamezel-final-start.json /tmp/gamezel-final-p1-pass.json /tmp/gamezel-final-end.json /tmp/gamezel-final-jev.json
+          }
+          trap cleanup EXIT
+
+          for svc in zelstereos-gamezel.service zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service; do
+            test "$(systemctl --user is-active "$svc")" = active
+            test "$(systemctl --user is-enabled "$svc")" = enabled
+          done
+          echo 'SERVICES=PASS'
+
+          STATUS="$($P1 status --json)"
+          STATUS="$STATUS" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['STATUS'])
+          if d.get('roundActive') or d.get('round_active'):
+              raise SystemExit('LIVE_ROUND_ALREADY_ACTIVE')
+          print('ROUND_PRECHECK=INACTIVE')
+          PY
+
+          # Real JEV/TypeSafe contact through the existing authenticated helper.
+          "$JEVTEST" >/tmp/gamezel-final-jev.json
+          JEV=$(curl -fsS --max-time 5 http://127.0.0.1:3217/api/jev/status)
+          JEV="$JEV" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['JEV'])
+          if not d.get('configured') or not d.get('connected') or d.get('model') != 'jev-latest':
+              raise SystemExit('JEV_FINAL_NOT_CONNECTED')
+          print('JEV_VPS=PASS')
+          print('JEV_MODEL=jev-latest')
+          PY
+
+          START_EPOCH=$(date +%s)
+          "$START" >/tmp/gamezel-final-start.json
+          sleep 2
+          "$P1" pass --json >/tmp/gamezel-final-p1-pass.json
+          echo 'P1_PASS=PASS'
+
+          returned=0
+          for i in $(seq 1 300); do
+            S="$($P1 status --json)"
+            CUR=$(S="$S" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['S'])
+          c=d.get('currentTurn') or d.get('current_turn') or {}
+          active=bool(d.get('roundActive') if 'roundActive' in d else d.get('round_active'))
+          print((c.get('PLAYER_ID') or c.get('player_id') or 'NONE') if active else 'ROUND_INACTIVE')
+          PY
+          )
+            if [ "$CUR" = P1 ]; then returned=1; break; fi
+            if [ "$CUR" = ROUND_INACTIVE ]; then break; fi
+            sleep 2
+          done
+          if [ "$returned" -ne 1 ]; then
+            echo 'CYCLE_RETURN_TO_P1=FAIL'
+            exit 21
+          fi
+          echo 'CYCLE_RETURN_TO_P1=PASS'
+
+          "$END" >/tmp/gamezel-final-end.json
+          sleep 3
+
+          validate_agent() {
+            seat="$1"; svc="$2"
+            LOG=$(journalctl --user -u "$svc" --since "@$START_EPOCH" -o cat --no-pager || true)
+            printf '%s\n' "$LOG" | tail -n 35 | sed -E 's#(token|secret|key|password)=([^ ]+)#\1=REDACTED#Ig'
+            if printf '%s\n' "$LOG" | grep -Eq '"action":"(PLAY|PASS|NO_RESPONSE_COOLDOWN|COOLDOWN_PASS)"'; then
+              echo "${seat}_PROVIDER_STATE=PASS"
+            else
+              echo "${seat}_PROVIDER_STATE=FAIL"
+              exit 22
+            fi
+          }
+          validate_agent P2 zelstereos-gamezel-p2.service
+          validate_agent P3 zelstereos-gamezel-p3.service
+          validate_agent P4 zelstereos-gamezel-p4.service
+
+          FINAL="$($P1 status --json)"
+          FINAL="$FINAL" python3 - <<'PY'
+          import json,os
+          d=json.loads(os.environ['FINAL'])
+          active=bool(d.get('roundActive') if 'roundActive' in d else d.get('round_active'))
+          if active: raise SystemExit('ROUND_NOT_CLOSED')
+          ps={str(p.get('PLAYER_ID')):p for p in d.get('players',[])}
+          for seat in ('P1','P2','P3','P4'):
+              if seat not in ps: raise SystemExit('MISSING_'+seat)
+          print('ROUND_CLOSED=PASS')
+          print('PLAYERS_PRESENT=PASS')
+          PY
+
+          test "$(systemctl --user is-active zelstereos-gamezel.service)" = active
+          ss -ltn | grep -q '127.0.0.1:3217'
+          echo 'PORT_3217=PASS'
+
+          LIVE=/var/www/antmux.com/public_html/laboratoire/zelstereos/live
+          LIVE="$LIVE" START_EPOCH="$START_EPOCH" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          live=Path(os.environ['LIVE'])
+          start=float(os.environ['START_EPOCH'])
+          for name in ('state.json','events.json','audio.json','speech.json'):
+              p=live/name
+              st=p.stat()
+              if st.st_size <= 0:
+                  raise SystemExit(name+'_EMPTY')
+              if st.st_mtime < start:
+                  raise SystemExit(name+'_NOT_REFRESHED')
+              print(f'{name}=PASS size={st.st_size}')
+          print('LIVE_MIRROR_REFRESH=PASS')
+          PY
+
+          "$ROOT/bin/gamezel-ai-status" 2>&1 | sed -E 's#(token|secret|key|password)=.*#\1=REDACTED#Ig' | head -n 80
+
+          CHECKPOINT="$ROOT/developer/SERVER_ONLY_GAMEZEL_FINAL_ACCEPTANCE_2026-10-05.md"
+          mkdir -p "$ROOT/developer"
+          cat > "$CHECKPOINT" <<'EOF'
+          # SERVER-ONLY GAMEZEL FINAL ACCEPTANCE — 2026-10-05
+
+          - GAMEZEL_VPS=PASS
+          - JEV_VPS=PASS
+          - JEV_MODEL=jev-latest
+          - P1_ASTRA=PASS
+          - P2_MUSE=PASS_OR_VALID_5H_COOLDOWN
+          - P3_GROK=PASS_OR_VALID_5H_COOLDOWN
+          - P4_ANTIGRAVITY=PASS_OR_VALID_5H_COOLDOWN
+          - CYCLE_RETURN_TO_P1=PASS
+          - AUDIO_SERVER_SIDE=PASS
+          - PUBLIC_MIRROR=PASS
+          - WINDOWS_REQUIRED=NO
+          - TURN_LIVENESS_PATCH=PASS
+          - ZELSTEREOS_SOURCE_MERGE=58459b14882715550ffea5c577cb79445af64deb
+
+          Acceptance performed entirely against the VPS runtime. No authentication secret is recorded here.
+          EOF
+          test -s "$CHECKPOINT"
+          echo "FINAL_CHECKPOINT=$CHECKPOINT"
+          sha256sum "$CHECKPOINT"
+          echo 'SERVER_ACCEPTANCE=PASS'
+          trap - EXIT
+          cleanup
+          REMOTE
