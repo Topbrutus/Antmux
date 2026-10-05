@@ -38,8 +38,19 @@ jobs:
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
           set -u
           GROK="$HOME/.grok/bin/grok"
+          AUTH="$HOME/.grok/auth.json"
           TMP="$(mktemp -d /tmp/gamezel-grok-smoke.XXXXXX)"
           trap 'rm -rf "$TMP"' EXIT
+          echo "REMOTE_USER=$(id -un)"
+          echo "HOME_PATH=$HOME"
+          echo "GROK_HOME_SET=$(test -n "${GROK_HOME:-}" && echo YES || echo NO)"
+          echo "GROK_AUTH_FILE=$(test -f "$AUTH" && echo YES || echo NO)"
+          if test -f "$AUTH"; then
+            echo "GROK_AUTH_OWNER=$(stat -c '%U' "$AUTH" 2>/dev/null || echo UNKNOWN)"
+            echo "GROK_AUTH_MODE=$(stat -c '%a' "$AUTH" 2>/dev/null || echo UNKNOWN)"
+            echo "GROK_AUTH_BYTES=$(stat -c '%s' "$AUTH" 2>/dev/null || echo UNKNOWN)"
+            echo "GROK_AUTH_MTIME=$(stat -c '%Y' "$AUTH" 2>/dev/null || echo UNKNOWN)"
+          fi
           echo "GROK_BIN=$(test -x "$GROK" && echo YES || echo NO)"
           "$GROK" --version 2>/dev/null | head -n 1 || true
           SCHEMA='{"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SMOKE-ALPHA","MOVE-SMOKE-BETA"]},"note":{"type":"string","maxLength":200}}}'
