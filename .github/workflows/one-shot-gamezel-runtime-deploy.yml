@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TARGET_ZEL_SHA: 8a83b58ac857f5563a5b65601b76c80c80265a83
-      EXPECTED_SERVER_SHA256: 7c462c14d21e12294a3f9eca8ce54b17960851f31211c9662a1df2fe6268e82e
 
     steps:
       - name: Configure pinned SSH identity
@@ -37,7 +36,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Patch GAMEZEL runtime with backup and rollback
+      - name: Patch exactly one timestamp mapping with rollback
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -46,7 +45,7 @@ jobs:
           test -n "$VPS_HOST"
           test -n "$VPS_USER"
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
-            "TARGET_ZEL_SHA='$TARGET_ZEL_SHA' EXPECTED_SERVER_SHA256='$EXPECTED_SERVER_SHA256' bash -se" <<'REMOTE'
+            "TARGET_ZEL_SHA='$TARGET_ZEL_SHA' bash -se" <<'REMOTE'
           set -euo pipefail
           ROOT="$HOME/zelstereos-gamezel"
           SERVICE="zelstereos-gamezel.service"
@@ -60,6 +59,8 @@ jobs:
           NEW_LINE='    TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()'
           old_count="$(grep -Fxc "$OLD_LINE" server.js || true)"
           new_count="$(grep -Fxc "$NEW_LINE" server.js || true)"
+          echo "GAMEZEL_TIMESTAMP_OLD_COUNT=$old_count"
+          echo "GAMEZEL_TIMESTAMP_NEW_COUNT_BEFORE=$new_count"
           test "$old_count" = "1"
           test "$new_count" = "0"
 
@@ -76,22 +77,29 @@ jobs:
           }
           trap rollback ERR
 
-          python3 - <<'PY'
+          python3 - "$BACKUP_ROOT/server.js" <<'PY'
           from pathlib import Path
-          p = Path('server.js')
-          s = p.read_text(encoding='utf-8')
-          old = "    TIMESTAMP: cue.TIMESTAMP || cue.CREATED_AT || Date.now()"
-          new = "    TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()"
-          if s.count(old) != 1:
-              raise SystemExit(f'expected exactly one old timestamp mapping, found {s.count(old)}')
-          if new in s:
-              raise SystemExit('new timestamp mapping already present unexpectedly')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          import sys
+          current = Path('server.js')
+          backup = Path(sys.argv[1])
+          old = b"    TIMESTAMP: cue.TIMESTAMP || cue.CREATED_AT || Date.now()"
+          new = b"    TIMESTAMP: cue.STARTED_AT ?? cue.TIMESTAMP ?? cue.CREATED_AT ?? Date.now()"
+          original = backup.read_bytes()
+          if original.count(old) != 1:
+              raise SystemExit(f'backup old mapping count={original.count(old)}')
+          if original.count(new) != 0:
+              raise SystemExit(f'backup new mapping count={original.count(new)}')
+          expected = original.replace(old, new, 1)
+          current.write_bytes(expected)
+          if current.read_bytes() != expected:
+              raise SystemExit('patched server.js differs from exact one-replacement expectation')
+          print('GAMEZEL_EXACT_ONE_REPLACEMENT=PASS')
           PY
 
-          grep -Fqx "$NEW_LINE" server.js
-          test "$(sha256sum server.js | awk '{print $1}')" = "$EXPECTED_SERVER_SHA256"
+          test "$(grep -Fxc "$OLD_LINE" server.js || true)" = "0"
+          test "$(grep -Fxc "$NEW_LINE" server.js || true)" = "1"
           node --check server.js
+          NEW_SHA256="$(sha256sum server.js | awk '{print $1}')"
 
           systemctl --user restart "$SERVICE"
           for _ in $(seq 1 20); do
@@ -118,13 +126,14 @@ jobs:
           echo "GAMEZEL_RUNTIME_DEPLOY=PASS"
           echo "SOURCE_ZEL_SHA=$TARGET_ZEL_SHA"
           echo "OLD_SERVER_SHA256=$OLD_SHA256"
-          echo "NEW_SERVER_SHA256=$(sha256sum server.js | awk '{print $1}')"
+          echo "NEW_SERVER_SHA256=$NEW_SHA256"
           echo "BACKUP_ROOT=$BACKUP_ROOT"
           REMOTE
 
       - name: Verify public mirror heartbeat and timestamp stability
         run: |
           set -euo pipefail
+          sleep 2
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/live/state.json -o /tmp/state-a.json
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/zelstereos/live/audio.json -o /tmp/audio-a.json
           sleep 11
@@ -145,4 +154,8 @@ jobs:
           print('GAMEZEL_PUBLIC_MIRROR_HEARTBEAT=PASS')
           print(f'GAMEZEL_AUDIO_COMMON_CUES={len(common)}')
           print(f'GAMEZEL_AUDIO_TIMESTAMP_CHANGED={len(changed)}')
+          if common:
+              print('GAMEZEL_AUDIO_TIMESTAMP_STABILITY=PASS')
+          else:
+              print('GAMEZEL_AUDIO_TIMESTAMP_STABILITY=NO_CUE_AVAILABLE')
           PY
