@@ -29,6 +29,31 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      - name: Authorize WSL rob public key safely
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          PUB='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIg0w95Qpl3nMNKeM54yNygrRYRM1aXnbey2giBpRTmW rob@antmux-2026'
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "PUB='$PUB' bash -s" <<'REMOTE'
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          AUTHORIZED="$HOME/.ssh/authorized_keys"
+          touch "$AUTHORIZED"
+          chmod 600 "$AUTHORIZED"
+          BACKUP="$HOME/.ssh/authorized_keys.astra_step8_$(date +%Y%m%dT%H%M%S)"
+          cp -p "$AUTHORIZED" "$BACKUP"
+          if grep -qxF "$PUB" "$AUTHORIZED"; then
+            echo 'WSL_ROB_KEY=ALREADY_PRESENT'
+          else
+            printf '%s\n' "$PUB" >> "$AUTHORIZED"
+            echo 'WSL_ROB_KEY=ADDED'
+          fi
+          echo "AUTHORIZED_KEYS_MODE=$(stat -c '%a' "$AUTHORIZED")"
+          echo "AUTHORIZED_KEYS_LINES=$(wc -l < "$AUTHORIZED" | tr -d ' ')"
+          REMOTE
+
       - name: Run bounded Grok probe with sanitized classification
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
