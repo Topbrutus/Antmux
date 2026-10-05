@@ -1,0 +1,100 @@
+name: ASTRA STEP8 Codex Grok Diagnose
+
+on:
+  push:
+    branches:
+      - astra/gamezel-control-20261003
+    paths:
+      - '.github/workflows/astra-step8-codex-grok-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Classify bounded live failures without raw provider output
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          TMP="$(mktemp -d /tmp/gamezel-step8-diag.XXXXXX)"
+          trap 'rm -rf "$TMP"' EXIT
+          CODEX="$HOME/.local/bin/codex"
+          GROK="$HOME/.grok/bin/grok"
+
+          cat > "$TMP/schema.json" <<'JSON'
+          {"type":"object","additionalProperties":false,"required":["decision","move_id","note"],"properties":{"decision":{"type":"string","enum":["PLAY"]},"move_id":{"type":"string","enum":["MOVE-SMOKE-ALPHA","MOVE-SMOKE-BETA"]},"note":{"type":"string","maxLength":200}}}
+          JSON
+          PROMPT='Return one bounded GAMEZEL decision as JSON matching the supplied schema. Choose exactly MOVE-SMOKE-ALPHA or MOVE-SMOKE-BETA. Do not use tools, shell, filesystem, web, or side effects.'
+
+          classify_file() {
+            f="$1"; prefix="$2"
+            test -f "$f" || : > "$f"
+            grep -Eqi 'trusted directory|skip-git-repo-check' "$f" && echo "${prefix}_TRUSTED_DIR=YES" || echo "${prefix}_TRUSTED_DIR=NO"
+            grep -Eqi 'not logged in|login required|authentication required|unauthorized|401|sign.?in|log.?in|credential|oauth|device.*auth' "$f" && echo "${prefix}_AUTH=YES" || echo "${prefix}_AUTH=NO"
+            grep -Eqi 'quota|credit|rate.?limit|429|billing|capacity|resource.*exhausted' "$f" && echo "${prefix}_QUOTA=YES" || echo "${prefix}_QUOTA=NO"
+            grep -Eqi 'landlock|seccomp|permission denied|operation not permitted|read-only file system|sandbox.*(fail|error|denied|unavailable)' "$f" && echo "${prefix}_SANDBOX_RUNTIME=YES" || echo "${prefix}_SANDBOX_RUNTIME=NO"
+            grep -Eqi 'schema|structured output|output-schema' "$f" && echo "${prefix}_SCHEMA=YES" || echo "${prefix}_SCHEMA=NO"
+            grep -Eqi 'unexpected argument|unknown option|unrecognized option|invalid argument' "$f" && echo "${prefix}_ARGUMENT=YES" || echo "${prefix}_ARGUMENT=NO"
+            grep -Eqi 'network|connection|connect error|dns|tls|certificate' "$f" && echo "${prefix}_NETWORK=YES" || echo "${prefix}_NETWORK=NO"
+            bytes="$(wc -c < "$f" | tr -d ' ')"; echo "${prefix}_ERROR_BYTES=$bytes"
+          }
+
+          echo '=== CODEX EXACT ==='
+          set +e
+          "$CODEX" exec --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules --sandbox read-only \
+            --config 'approval_policy="never"' --config 'web_search="disabled"' \
+            --output-schema "$TMP/schema.json" -o "$TMP/codex-exact.json" "$PROMPT" >"$TMP/codex-exact.out" 2>"$TMP/codex-exact.err"
+          rc=$?
+          set -e
+          echo "CODEX_EXACT_RC=$rc"
+          classify_file "$TMP/codex-exact.err" CODEX_EXACT
+          echo "CODEX_EXACT_OUTPUT=$(test -s "$TMP/codex-exact.json" && echo YES || echo NO)"
+
+          echo '=== CODEX MINIMAL READONLY ==='
+          set +e
+          "$CODEX" exec --skip-git-repo-check --ephemeral --sandbox read-only \
+            --output-schema "$TMP/schema.json" -o "$TMP/codex-min.json" "$PROMPT" >"$TMP/codex-min.out" 2>"$TMP/codex-min.err"
+          rc=$?
+          set -e
+          echo "CODEX_MIN_RC=$rc"
+          classify_file "$TMP/codex-min.err" CODEX_MIN
+          echo "CODEX_MIN_OUTPUT=$(test -s "$TMP/codex-min.json" && echo YES || echo NO)"
+
+          echo '=== GROK BOUNDED ==='
+          if test -x "$GROK"; then
+            set +e
+            "$GROK" --single "$PROMPT" --json-schema "$(cat "$TMP/schema.json")" --max-turns 1 --no-subagents --disable-web-search --permission-mode plan --cwd "$TMP" >"$TMP/grok.out" 2>"$TMP/grok.err"
+            rc=$?
+            set -e
+            echo "GROK_RC=$rc"
+            classify_file "$TMP/grok.err" GROK
+            cat "$TMP/grok.out" >> "$TMP/grok-all" 2>/dev/null || true
+            classify_file "$TMP/grok-all" GROK_OUT
+          else
+            echo 'GROK_RC=127'
+            echo 'GROK_BINARY=MISS'
+          fi
+
+          echo "MAIN_USER_SERVICE=$(systemctl --user is-active zelstereos-gamezel.service 2>/dev/null || true)"
+          REMOTE
