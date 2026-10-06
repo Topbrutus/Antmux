@@ -1,0 +1,68 @@
+name: Probe BrutoBac Big Return Live
+
+on:
+  push:
+    branches:
+      - astra/brutotableur-to-brutobac-20261006
+    paths:
+      - '.github/workflows/probe-brutobac-big-return-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe-live-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Probe public Nginx path with server-local transport token
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          TOKEN_FILE="$HOME/antmux-x72-queen/data/live-transport-token"
+          test -s "$TOKEN_FILE"
+          TOKEN="$(cat "$TOKEN_FILE")"
+          URL='https://antmux.com/laboratoire/embryon-x72/api/live-transport/bootstrap-ant'
+
+          unauth_code="$(curl --silent --show-error --output /tmp/brutobac-noauth.json --write-out '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' --data '{}')"
+          test "$unauth_code" = '401'
+
+          auth_code="$(curl --silent --show-error --output /tmp/brutobac-auth.json --write-out '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" --data '{}')"
+          test "$auth_code" = '200'
+
+          python3 - <<'PY'
+          import json
+          payload = json.load(open('/tmp/brutobac-auth.json', encoding='utf-8'))
+          assert payload.get('schema') == 'ANTMUX-ANT-BIRTH-v1', payload
+          assert payload.get('role') == 'SYNAPSE', payload
+          assert payload.get('state') == 'SINGING_TO_MEET', payload
+          ant_id = str(payload.get('ant_id') or '')
+          assert ant_id.startswith('ANT-') and len(ant_id) == 16, payload
+          print(f'BRUTOBAC_BIG_RETURN_GATE=PASS ant_id={ant_id} role=SYNAPSE state=SINGING_TO_MEET')
+          PY
+          printf 'BRUTOBAC_BIG_RETURN_AUTH=PASS\n'
+          printf 'BRUTOBAC_BIG_RETURN_PUBLIC_ROUTE=PASS\n'
+          REMOTE
