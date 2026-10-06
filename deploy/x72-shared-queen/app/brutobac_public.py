@@ -10,6 +10,8 @@ from typing import Any, Callable, Iterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
+from .star_dust import create_star_dust_router, read_public_star_dust_state
+
 
 PUBLIC_SCHEMA = "BRUTUS-AQUARIUM-EVENT-v1"
 PUBLIC_SOURCE = "ANTMUX_BRUTOBAC_PUBLIC"
@@ -183,6 +185,38 @@ def build_public_events(
         },
     ]
 
+    dust_state = read_public_star_dust_state(Path(data_dir))
+    if dust_state is not None:
+        events.append(
+            {
+                "schema": PUBLIC_SCHEMA,
+                "event_type": "RESOURCE_STATE",
+                "tick": tick,
+                "carrier_ant_id": dust_state["carrier_ant_id"],
+                "position": dust_state["position"],
+                "state_version": dust_state["state_version"],
+                "material": dust_state["material"],
+                "resource": {
+                    "quantity": dust_state["quantity"],
+                    "produced_total": dust_state["produced_total"],
+                    "consumed_total": dust_state["consumed_total"],
+                    "source_total": dust_state["source_total"],
+                    "dust_per_transit": dust_state["dust_per_transit"],
+                    "unit": dust_state["material"]["unit"],
+                },
+                "metadata": {
+                    "source": PUBLIC_SOURCE,
+                    "authority_mode": "READ_ONLY_MIRROR",
+                    "resource_source": dust_state["source"],
+                    "binding_state": dust_state["binding_state"],
+                    "transport_state_version": dust_state["transport_state_version"],
+                    "last_move_tick": dust_state["last_move_tick"],
+                    "resource_state_h256": dust_state["state_h256"],
+                    "integrity_match": dust_state["integrity_match"],
+                },
+            }
+        )
+
     for state in _transport_rows(Path(data_dir)):
         receipt = _ant_receipt(Path(data_dir), state["ant_id"])
         if receipt is None:
@@ -235,11 +269,13 @@ def _event_signature(event: dict[str, Any]) -> tuple[Any, ...]:
     return (
         event.get("event_type"),
         event.get("ant_id"),
+        event.get("carrier_ant_id"),
         event.get("role"),
         event.get("state"),
         event.get("position"),
         event.get("state_version"),
         json.dumps(event.get("material"), sort_keys=True, separators=(",", ":")),
+        json.dumps(event.get("resource"), sort_keys=True, separators=(",", ":")),
         json.dumps(event.get("metadata"), sort_keys=True, separators=(",", ":")),
     )
 
@@ -249,6 +285,7 @@ def create_brutobac_public_router(
     get_queen_snapshot: Callable[[], dict[str, Any]],
 ) -> APIRouter:
     router = APIRouter(prefix=ROUTER_PREFIX, tags=["brutobac-public-readonly"])
+    router.include_router(create_star_dust_router(Path(data_dir), get_queen_snapshot))
 
     @router.get("/")
     async def ui_index() -> FileResponse:
@@ -279,13 +316,15 @@ def create_brutobac_public_router(
                 events = build_public_events(Path(data_dir), get_queen_snapshot)
 
                 # SYSTEM_STATUS is the authoritative heartbeat and carries the
-                # current Queen tick. Entity states are emitted only on change.
+                # current Queen tick. Entity/resource states emit only on change.
                 for event in events:
                     if event.get("event_type") == "SYSTEM_STATUS":
                         yield f"data: {json.dumps(event, ensure_ascii=False, separators=(',', ':'))}\n\n"
                         continue
 
-                    key = str(event.get("ant_id") or "UNKNOWN")
+                    material = event.get("material")
+                    material_id = material.get("material_id") if isinstance(material, dict) else None
+                    key = str(event.get("ant_id") or material_id or event.get("event_type") or "UNKNOWN")
                     signature = _event_signature(event)
                     if previous.get(key) != signature:
                         previous[key] = signature

@@ -16,7 +16,7 @@
     .cluster{display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:auto}
     .pill,.back{backdrop-filter:blur(15px);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 11px;font:800 11px/1.15 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em}
     .back{color:var(--text);text-decoration:none}.pill.ok{color:var(--ok)}.pill.dusty{color:var(--gold)}.pill.wait{color:var(--muted)}
-    .legend{position:fixed;z-index:10;right:14px;bottom:14px;max-width:460px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(15px);font:700 10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);pointer-events:none}
+    .legend{position:fixed;z-index:10;right:14px;bottom:14px;max-width:520px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(15px);font:700 10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);pointer-events:none}
     .legend strong{color:var(--text)}
     @media(max-width:760px){.bar{align-items:flex-start}.cluster:last-child{justify-content:flex-end}.legend{left:14px;max-width:none}.pill,.back{font-size:9px;padding:7px 9px}}
   </style>
@@ -36,16 +36,16 @@
     </div>
   </div>
 
-  <div class="legend"><strong>MONDE FOURMI :</strong> miroir live en lecture seule du Queen Server. <strong>POUSSIÈRE :</strong> sortie locale du Brotoculateur sur 127.0.0.1:8780. La pluie est une représentation visuelle seulement : elle ne modifie jamais l’état autoritaire de la Reine.</div>
+  <div class="legend"><strong>MONDE FOURMI :</strong> miroir live en lecture seule du Queen Server. <strong>POUSSIÈRE :</strong> ressource autoritaire du registre Fourmi. Le Brotoculateur l’alimente; une Fourmi peut la transporter avec le moteur live et la consommer seulement à sa position. La vitrine n’a aucun droit d’écriture.</div>
 
   <script>
   (() => {
     'use strict';
-    const DUST_SOURCE = 'http://127.0.0.1:8780/api/status';
+    const DUST_SOURCE = '/laboratoire/embryon-x72/api/brutobac/dust/state';
     const layer = document.getElementById('dust-layer');
     const status = document.getElementById('dustStatus');
     const count = document.getElementById('dustCount');
-    let lastDust = null;
+    let lastProduced = null;
     let serial = 0;
 
     const unit = seed => {
@@ -74,26 +74,31 @@
 
     async function readDust() {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1300);
+      const timeout = setTimeout(() => controller.abort(), 1600);
       try {
-        const response = await fetch(DUST_SOURCE, { cache: 'no-store', mode: 'cors', signal: controller.signal });
+        const response = await fetch(DUST_SOURCE, { cache: 'no-store', signal: controller.signal });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const data = await response.json();
+        if (data.integrity_match !== true) throw new Error('integrity mismatch');
+        const quantity = Math.max(0, Number(data.quantity ?? 0));
+        const produced = Math.max(0, Number(data.produced_total ?? 0));
         const perTransit = Math.max(1, Number(data.dust_per_transit ?? 39));
-        const exactDust = Number(data.dust_slots);
-        const bigCrystals = Math.max(0, Number(data.big_crystals ?? 0));
-        const dust = Math.max(0, Number.isFinite(exactDust) ? exactDust : bigCrystals * perTransit);
-        count.textContent = new Intl.NumberFormat('fr-CA').format(dust);
-        status.textContent = 'POUSSIÈRE BROTOCULATEUR · LIVE';
-        status.className = 'pill ok';
-        if (lastDust === null) {
-          if (dust > 0) shower(Math.min(perTransit, dust), dust + perTransit);
-        } else if (dust > lastDust) {
-          shower(Math.min(dust - lastDust, perTransit * 4), dust);
+        count.textContent = new Intl.NumberFormat('fr-CA').format(quantity);
+        if (Number(data.state_version ?? 0) > 0) {
+          status.textContent = 'POUSSIÈRE · REINE AUTORITAIRE';
+          status.className = 'pill ok';
+        } else {
+          status.textContent = 'POUSSIÈRE · PONT BROTOCULATEUR EN ATTENTE';
+          status.className = 'pill wait';
         }
-        lastDust = dust;
+        if (lastProduced === null) {
+          if (produced > 0) shower(Math.min(perTransit, produced), produced + perTransit);
+        } else if (produced > lastProduced) {
+          shower(Math.min(produced - lastProduced, perTransit * 4), produced);
+        }
+        lastProduced = produced;
       } catch (_) {
-        status.textContent = 'POUSSIÈRE · SOURCE LOCALE EN ATTENTE';
+        status.textContent = 'POUSSIÈRE · REINE INJOIGNABLE';
         status.className = 'pill wait';
       } finally {
         clearTimeout(timeout);
