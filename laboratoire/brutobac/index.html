@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#030609" />
+  <title>Antmux — BrutoBac · Fourmi Aquarium 3D</title>
+  <style>
+    :root{color-scheme:dark;--bg:#030609;--panel:rgba(4,10,15,.84);--line:rgba(113,226,255,.26);--text:#eefbff;--muted:#8ca8b6;--cyan:#6ee7ff;--gold:#ffd979;--ok:#8de3ac}
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}
+    #world{position:absolute;inset:0;width:100%;height:100%;border:0;background:#020406}
+    #dust-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:6}
+    .dust{position:absolute;top:-24px;border-radius:50%;background:radial-gradient(circle,#fff 0 14%,#dffbff 24%,#8be8ff 45%,rgba(94,219,255,.16) 72%,transparent 76%);filter:drop-shadow(0 0 5px rgba(143,233,255,.82));animation:dustfall var(--dur) linear var(--delay) forwards;opacity:.92}
+    @keyframes dustfall{0%{transform:translate3d(0,-5vh,0) scale(.55);opacity:0}8%{opacity:.94}72%{opacity:.78}100%{transform:translate3d(var(--drift),108vh,0) scale(1.15);opacity:0}}
+    .bar{position:fixed;z-index:10;left:14px;right:14px;top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
+    .cluster{display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:auto}
+    .pill,.back{backdrop-filter:blur(15px);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 11px;font:800 11px/1.15 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em}
+    .back{color:var(--text);text-decoration:none}.pill.ok{color:var(--ok)}.pill.dusty{color:var(--gold)}.pill.wait{color:var(--muted)}
+    .legend{position:fixed;z-index:10;right:14px;bottom:14px;max-width:460px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(15px);font:700 10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);pointer-events:none}
+    .legend strong{color:var(--text)}
+    @media(max-width:760px){.bar{align-items:flex-start}.cluster:last-child{justify-content:flex-end}.legend{left:14px;max-width:none}.pill,.back{font-size:9px;padding:7px 9px}}
+  </style>
+</head>
+<body>
+  <iframe id="world" title="BrutoBac — monde Fourmi 3D" src="/laboratoire/embryon-x72/api/brutobac/" allow="fullscreen"></iframe>
+  <div id="dust-layer" aria-hidden="true"></div>
+
+  <div class="bar">
+    <div class="cluster">
+      <a class="back" href="../">← LABORATOIRE</a>
+      <span class="pill ok">BRUTOBAC · QUEEN SERVER LIVE</span>
+    </div>
+    <div class="cluster">
+      <span id="dustStatus" class="pill wait">POUSSIÈRE · EN ATTENTE</span>
+      <span id="dustCount" class="pill dusty">0</span>
+    </div>
+  </div>
+
+  <div class="legend"><strong>MONDE FOURMI :</strong> miroir live en lecture seule du Queen Server. <strong>POUSSIÈRE :</strong> sortie locale du Brotoculateur sur 127.0.0.1:8780. La pluie est une représentation visuelle seulement : elle ne modifie jamais l’état autoritaire de la Reine.</div>
+
+  <script>
+  (() => {
+    'use strict';
+    const DUST_SOURCE = 'http://127.0.0.1:8780/api/status';
+    const layer = document.getElementById('dust-layer');
+    const status = document.getElementById('dustStatus');
+    const count = document.getElementById('dustCount');
+    let lastDust = null;
+    let serial = 0;
+
+    const unit = seed => {
+      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
+
+    function shower(amount, baseSeed) {
+      const n = Math.min(156, Math.max(0, Number(amount) || 0));
+      for (let i = 0; i < n; i += 1) {
+        const seed = baseSeed + i * 17 + serial * 131;
+        const p = document.createElement('i');
+        p.className = 'dust';
+        const size = 2.2 + unit(seed + 1) * 5.8;
+        p.style.left = (unit(seed + 2) * 100).toFixed(3) + '%';
+        p.style.width = size.toFixed(2) + 'px';
+        p.style.height = size.toFixed(2) + 'px';
+        p.style.setProperty('--dur', (2.8 + unit(seed + 3) * 4.8).toFixed(2) + 's');
+        p.style.setProperty('--delay', (unit(seed + 4) * .8).toFixed(2) + 's');
+        p.style.setProperty('--drift', ((unit(seed + 5) - .5) * 180).toFixed(1) + 'px');
+        p.addEventListener('animationend', () => p.remove(), { once: true });
+        layer.appendChild(p);
+      }
+      serial += 1;
+    }
+
+    async function readDust() {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1300);
+      try {
+        const response = await fetch(DUST_SOURCE, { cache: 'no-store', mode: 'cors', signal: controller.signal });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        const perTransit = Math.max(1, Number(data.dust_per_transit ?? 39));
+        const exactDust = Number(data.dust_slots);
+        const bigCrystals = Math.max(0, Number(data.big_crystals ?? 0));
+        const dust = Math.max(0, Number.isFinite(exactDust) ? exactDust : bigCrystals * perTransit);
+        count.textContent = new Intl.NumberFormat('fr-CA').format(dust);
+        status.textContent = 'POUSSIÈRE BROTOCULATEUR · LIVE';
+        status.className = 'pill ok';
+        if (lastDust === null) {
+          if (dust > 0) shower(Math.min(perTransit, dust), dust + perTransit);
+        } else if (dust > lastDust) {
+          shower(Math.min(dust - lastDust, perTransit * 4), dust);
+        }
+        lastDust = dust;
+      } catch (_) {
+        status.textContent = 'POUSSIÈRE · SOURCE LOCALE EN ATTENTE';
+        status.className = 'pill wait';
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    readDust();
+    setInterval(readDust, 1000);
+  })();
+  </script>
+</body>
+</html>
