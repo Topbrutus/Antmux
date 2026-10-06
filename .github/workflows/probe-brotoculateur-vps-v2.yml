@@ -1,0 +1,55 @@
+name: Probe Brotoculateur VPS readiness v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-brotoculateur-vps-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Probe without exposing credentials
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          printf 'HOSTNAME=%s\n' "$(hostname)"
+          printf 'USER=%s\n' "$(whoami)"
+          printf 'PYTHON3=%s\n' "$(python3 --version 2>&1 || true)"
+          printf 'NGINX_ACTIVE=%s\n' "$(systemctl is-active nginx 2>/dev/null || true)"
+          if sudo -n true 2>/dev/null; then echo 'SUDO_NONINTERACTIVE=YES'; else echo 'SUDO_NONINTERACTIVE=NO'; fi
+          found='NO'
+          for d in "$HOME/Brotoculateur" "$HOME/brotoculateur" "$HOME/apps/Brotoculateur" "$HOME/apps/brotoculateur"; do
+            if test -d "$d/.git"; then
+              printf 'BROTO_REPO_PRESENT=YES path=%s\n' "$d"
+              printf 'BROTO_HEAD=%s\n' "$(git -C "$d" rev-parse HEAD 2>/dev/null || true)"
+              found='YES'
+              break
+            fi
+          done
+          test "$found" = 'YES' || echo 'BROTO_REPO_PRESENT=NO'
+          if timeout 15 git ls-remote git@github.com:Topbrutus/Brotoculateur.git HEAD >/dev/null 2>&1; then echo 'VPS_PRIVATE_REPO_ACCESS=YES'; else echo 'VPS_PRIVATE_REPO_ACCESS=NO'; fi
+          if ss -ltn 2>/dev/null | grep -Eq '[:.]8777[[:space:]]'; then echo 'PORT_8777=IN_USE'; else echo 'PORT_8777=FREE'; fi
+          REMOTE
