@@ -1,0 +1,19 @@
+{
+  "schema": "antmux-brotoculateur-public-vitrine/v1",
+  "generated_at": "2026-10-05",
+  "source_repository": "Topbrutus/Brotoculateur",
+  "source_branch": "astra/vps-migration-20261005",
+  "source_commit": "d15088f16b04e02b3291847bd7db4983c21df2f4",
+  "source_ui_file": "src/brotoculateur/static/dashboard.html",
+  "source_screenshot_sha256": "2e24e952a2d8ebc8035b7f2a025a316f5630e898df737c80f81c3973222131b1",
+  "local_verification": {
+    "unit_tests": "24/24 PASS",
+    "ui_http_status": 200,
+    "capture_generated_from_running_app": true
+  },
+  "public_interaction": false,
+  "private_backend_exposed": false,
+  "private_route_mode": "SAFE_STUB_OWNER_HANDOFF",
+  "password_or_secret_in_public_payload": false,
+  "mathematical_proof_claim": false
+}

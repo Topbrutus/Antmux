@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Antmux · Brotoculateur · vitrine publique</title>
+<style>
+:root{color-scheme:dark;--bg:#050505;--panel:#0d0d0d;--panel2:#141414;--line:#2b2b2b;--text:#f4f4f4;--muted:#9a9a9a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.shell{max-width:1500px;margin:auto;padding:22px}.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:18px}
+h1{margin:0 0 7px;font-size:24px;letter-spacing:.08em}.sub{color:var(--muted);font-size:12px;line-height:1.55}
+.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:11px}.lock{background:#eee;color:#080808;text-decoration:none;font-weight:800}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+img{display:block;width:100%;height:auto;border:1px solid #252525;border-radius:10px;background:#080808}.k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+h2{font-size:16px;margin:7px 0 12px}.facts{display:grid;gap:9px}.fact{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px}
+.fact b{display:block;font-size:11px;margin-bottom:5px}.fact span{font-size:11px;color:var(--muted);line-height:1.45}.note{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.55}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{display:inline-block;padding:10px 13px;border-radius:9px;border:1px solid var(--line);text-decoration:none;color:var(--text);font-size:11px;font-weight:800}.btn.primary{background:#eee;color:#080808}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.top{flex-direction:column}}
+</style>
+</head>
+<body><div class="shell">
+<header class="top">
+  <div>
+    <div class="k">ANTMUX · BRUTUS · VITRINE PUBLIQUE</div>
+    <h1>BROTOCULATEUR / BRUTOCALCULATEUR</h1>
+    <div class="sub">Capture fidèle de l'atelier courant · Brutus Workshop // 7 tableaux · lecture publique seulement</div>
+  </div>
+  <a class="badge lock" href="./private/">DÉBARRER LA VITRINE</a>
+</header>
+
+<div class="grid">
+  <section class="panel">
+    <div class="k">CAPTURE DE L'APPLICATION RÉELLE</div>
+    <h2>Atelier Brutus — vue figée</h2>
+    <img src="./brotoculateur-vitrine.png" alt="Capture publique figée du Brotoculateur">
+    <p class="note">La capture provient de l'application Brotoculateur démarrée localement et vérifiée avant publication. Cette page n'exécute aucun calcul et n'expose aucun backend privé.</p>
+  </section>
+
+  <aside class="panel">
+    <div class="k">CONTRAT PUBLIC</div>
+    <h2>PUBLIC · VERROUILLÉ</h2>
+    <div class="facts">
+      <div class="fact"><b>Mode</b><span>Vitrine figée, aucune interaction visiteur.</span></div>
+      <div class="fact"><b>Atelier</b><span>7 tableaux · 5 axes canoniques · 7 postes Brutus.</span></div>
+      <div class="fact"><b>Structureur</b><span>Cible affichée : 620 · voie PUR : Z1 à Z39.</span></div>
+      <div class="fact"><b>Backend</b><span>Non publié. Le moteur privé reste séparé de la vitrine.</span></div>
+      <div class="fact"><b>Provenance</b><span>Commit source et hash de capture publiés dans PUBLIC-PROVENANCE.json.</span></div>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="./private/">ACCÈS PROPRIÉTAIRE</a>
+      <a class="btn" href="./PUBLIC-PROVENANCE.json">PROVENANCE</a>
+      <a class="btn" href="../">RETOUR LABORATOIRE</a>
+    </div>
+    <p class="note">Une observation numérique ou une interface fonctionnelle ne constitue pas, à elle seule, une preuve mathématique.</p>
+  </aside>
+</div>
+</div></body>
+</html>
