@@ -5937,6 +5937,35 @@ const gzSpeechHistory = [];
 let gzActiveSpeechTimeout = null;
 let gzSpeechEventSource = null;
 
+function gamezelSpeakDynamicSpeech(text, language = 'fr-CA', playerId = 'P1') {
+  if (!text || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return false;
+  try {
+    const utterance = new SpeechSynthesisUtterance(String(text));
+    utterance.lang = String(language || 'fr-CA');
+    const profiles = {
+      P1: { rate: 1.28, pitch: 1.12 },
+      P2: { rate: 1.08, pitch: 1.00 },
+      P3: { rate: 1.16, pitch: 0.90 },
+      P4: { rate: 0.98, pitch: 0.80 }
+    };
+    const profile = profiles[String(playerId || 'P1').toUpperCase()] || profiles.P1;
+    utterance.rate = profile.rate;
+    utterance.pitch = profile.pitch;
+    utterance.volume = Math.max(0, Math.min(1, typeof soundVolume === 'number' ? soundVolume : 1));
+
+    const voices = window.speechSynthesis.getVoices();
+    const wanted = utterance.lang.toLowerCase();
+    const exact = voices.find(v => String(v.lang || '').toLowerCase() === wanted);
+    const french = voices.find(v => /^fr(?:-|_)/i.test(String(v.lang || '')));
+    if (exact || french) utterance.voice = exact || french;
+
+    window.speechSynthesis.speak(utterance);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function receivePublicSpeech(speech) {
   if (!speech || typeof speech !== 'object') return;
   const speechId = speech.SPEECH_ID;
@@ -6015,7 +6044,16 @@ function receivePublicSpeech(speech) {
   // 3. Audio Playback rule:
   // ONLY Panel 1 triggers audio playback (AUDIO MASTER).
   // Panels 2..5 display visual feedback only!
-  if (audioMaster === 'PANEL_1' && speech.FILE) {
+  let dynamicSpeechPlayed = false;
+  if (audioMaster === 'PANEL_1' && speech.DYNAMIC_TTS === true && text) {
+    dynamicSpeechPlayed = gamezelSpeakDynamicSpeech(
+      text,
+      speech.LANGUAGE || speech.language || 'fr-CA',
+      pid
+    );
+  }
+
+  if (!dynamicSpeechPlayed && audioMaster === 'PANEL_1' && speech.FILE) {
     gamezelPublicAudioReceive({
       TYPE: 'PLAYER_VOICE',
       EVENT_ID: speechId,
