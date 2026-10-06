@@ -1,0 +1,150 @@
+name: Astra read-only observer
+
+on:
+  push:
+    branches:
+      - astra-observer-20261006
+    paths:
+      - '.github/workflows/astra-readonly-observer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read VPS sources without mutation
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "python3 -" > observer-raw.json <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from urllib.request import Request, urlopen
+
+          def get_json(url, host=None):
+              headers = {"Host": host} if host else {}
+              req = Request(url, headers=headers, method="GET")
+              with urlopen(req, timeout=5) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          out = {
+              "observed_at": datetime.now(timezone.utc).isoformat(),
+              "brotoculateur": None,
+              "fourmis": None,
+              "fourmis_source": None,
+              "errors": [],
+          }
+
+          try:
+              out["brotoculateur"] = get_json("http://127.0.0.1:8780/api/status")
+          except Exception as exc:
+              out["errors"].append("brotoculateur:" + type(exc).__name__ + ":" + str(exc)[:180])
+
+          ant_candidates = [
+              ("http://127.0.0.1/laboratoire/embryon-x72/api/brutobac/snapshot", "antmux.com"),
+              ("http://127.0.0.1/api/brutobac/snapshot", "antmux.com"),
+              ("http://127.0.0.1:8777/api/brutobac/snapshot", None),
+              ("http://127.0.0.1:8777/laboratoire/embryon-x72/api/brutobac/snapshot", None),
+          ]
+          for url, host in ant_candidates:
+              try:
+                  out["fourmis"] = get_json(url, host=host)
+                  out["fourmis_source"] = url
+                  break
+              except Exception as exc:
+                  out["errors"].append("fourmis:" + url + ":" + type(exc).__name__)
+
+          print(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+          PY
+
+      - name: Build sanitized Astra snapshot
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          raw = json.loads(Path("observer-raw.json").read_text(encoding="utf-8"))
+          broto = raw.get("brotoculateur") or {}
+          ants = raw.get("fourmis")
+
+          def digest(value):
+              payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+              return hashlib.sha256(payload).hexdigest()
+
+          crystal = {
+              "state": broto.get("state"),
+              "run_id": broto.get("run_id"),
+              "processed_packets": broto.get("processed_packets"),
+              "unique_values": broto.get("unique_values"),
+              "total_packets": broto.get("total_packets"),
+              "brutomagique": broto.get("brutomagique"),
+              "structureur39": broto.get("structureur39"),
+              "crystal_separator": broto.get("crystal_separator"),
+          }
+          math = {
+              "formula_ids": broto.get("formula_ids", []),
+              "seed_profiles": broto.get("seed_profiles", []),
+              "top_values": (broto.get("top_values") or [])[:40],
+              "round_index": broto.get("round_index"),
+              "round_seeds": broto.get("round_seeds", []),
+          }
+          result = {
+              "schema": "ASTRA-READONLY-OBSERVER-v0.1",
+              "observed_at": raw.get("observed_at"),
+              "authority": {
+                  "crystals_math": "BROTOCULATEUR_LOCAL_API",
+                  "ants": "QUEEN_SERVER_PUBLIC_READ_ONLY_MIRROR" if ants is not None else None,
+                  "ants_source": raw.get("fourmis_source"),
+              },
+              "crystals": crystal,
+              "math": math,
+              "ants": ants,
+              "errors": raw.get("errors", []),
+          }
+          result["hashes"] = {
+              "crystals_sha256": digest(crystal),
+              "math_sha256": digest(math),
+              "ants_sha256": digest(ants) if ants is not None else None,
+          }
+          Path("astra-live-status.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True),
+              encoding="utf-8",
+          )
+
+          print("OBSERVER_SCHEMA=" + result["schema"])
+          print("BROTOCULATEUR_READ=" + ("YES" if broto else "NO"))
+          print("FOURMIS_READ=" + ("YES" if ants is not None else "NO"))
+          print("FORMULA_COUNT=" + str(len(math["formula_ids"])))
+          print("ERROR_COUNT=" + str(len(result["errors"])))
+          PY
+
+      - name: Upload observer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-readonly-observer
+          path: astra-live-status.json
+          if-no-files-found: error
+          retention-days: 7
