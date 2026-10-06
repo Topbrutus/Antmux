@@ -6,6 +6,7 @@ on:
       - astra-observer-20261006
     paths:
       - '.github/workflows/astra-readonly-observer.yml'
+      - '.astra-observer/request.json'
   workflow_dispatch:
 
 permissions:
