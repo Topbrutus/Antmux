@@ -1,0 +1,57 @@
+name: ASTRA GAMEZEL Public Proof 2026-10-05
+
+on:
+  push:
+    branches: [astra/gamezel-runtime-sync-20261005]
+    paths:
+      - '.github/workflows/astra-gamezel-public-proof-20261005.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probe public spectator bridge and live audio surfaces
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+
+          urls = [
+            ('spectator', 'https://antmux.com/laboratoire/embryon-x72/api/gamezel/trou-de-cul/spectator'),
+            ('audio', 'https://antmux.com/laboratoire/zelstereos/live/audio.json'),
+            ('speech', 'https://antmux.com/laboratoire/zelstereos/live/speech.json'),
+          ]
+          for name, url in urls:
+              req = urllib.request.Request(url, headers={'Cache-Control':'no-cache', 'User-Agent':'ASTRA-GAMEZEL-PROOF/1'})
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      body = r.read().decode('utf-8', errors='replace')
+                      print(f'{name.upper()}_HTTP={r.status}')
+                      try:
+                          d = json.loads(body)
+                      except Exception:
+                          print(f'{name.upper()}_JSON=NO')
+                          print(f'{name.upper()}_BODY_PREFIX={body[:120]!r}')
+                          continue
+                      print(f'{name.upper()}_JSON=YES')
+                      if name == 'spectator':
+                          print('SPECTATOR_SPEECH_LANGUAGE=' + str(d.get('speech_language')))
+                          print('SPECTATOR_ACTIVE=' + str(d.get('active')))
+                          print('SPECTATOR_HAS_HANDS=' + str('hands' in d))
+                      else:
+                          for key in ('sequence','audio_sequence','seq','player_id','PLAYER_ID','language','LANGUAGE','text','TEXT','status'):
+                              if key in d:
+                                  val = d.get(key)
+                                  if key.lower() in ('text',):
+                                      val = str(val)[:120]
+                                  print(f'{name.upper()}_{key.upper()}={val}')
+              except urllib.error.HTTPError as e:
+                  print(f'{name.upper()}_HTTP={e.code}')
+                  print(f'{name.upper()}_ERROR_PREFIX={e.read().decode("utf-8", errors="replace")[:160]!r}')
+              except Exception as e:
+                  print(f'{name.upper()}_ERROR={type(e).__name__}:{e}')
+          PY
