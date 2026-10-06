@@ -1,0 +1,41 @@
+name: BrutoBac crystal feed CI
+
+on:
+  push:
+    branches:
+      - astra/brutotableur-to-brutobac-20261006
+    paths:
+      - 'laboratoire/brutobac/**'
+      - '.github/workflows/brutobac-crystal-feed-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify crystal source contract
+        run: |
+          set -euo pipefail
+          grep -Fq "const CRYSTAL_SOURCE = '/laboratoire/brutotableur/api/crystals/feed?limit=100';" laboratoire/brutobac/index.html
+          grep -Fq 'BROTOCULATEUR → BRUTOTABLEUR → BRUTOBAC' laboratoire/brutobac/index.html
+          ! grep -Fq "const DUST_SOURCE = 'http://127.0.0.1:8780/api/status';" laboratoire/brutobac/index.html
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('laboratoire/brutobac/PUBLIC-PROVENANCE.json').read_text(encoding='utf-8'))
+          assert p['schema'] == 'ANTMUX-BRUTOBAC-PUBLIC-VITRINE-v2'
+          assert p['crystal_source_component'] == 'BRUTOTABLEUR_CRYSTAL_REGISTRY'
+          assert p['crystal_producer'] == 'BROTOCULATEUR'
+          assert p['crystal_transport_chain'] == [
+              'BROTOCULATEUR_OUTBOX_JSONL',
+              'BRUTOTABLEUR_CRYSTAL_REGISTRY',
+              'BRUTOBAC_PUBLIC_READ_ONLY_FEED',
+          ]
+          assert p['fail_closed_when_crystal_source_unavailable'] is True
+          assert p['crystal_mutation_from_vitrine'] is False
+          PY
