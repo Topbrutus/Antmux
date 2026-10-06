@@ -1,4 +1,4 @@
-name: ASTRA GAMEZEL Runtime Preflight 2026-10-05
+name: ASTRA GAMEZEL Private Source Probe 2026-10-05
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  preflight:
+  probe:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -26,7 +26,7 @@ jobs:
           printf '%s\n' "$VPS_HOST ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Read GAMEZEL runtime layout only
+      - name: Probe private canonical repository access from VPS
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -36,32 +36,22 @@ jobs:
           echo "::add-mask::$VPS_USER"
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
           set -u
-          ROOT="$HOME/zelstereos-gamezel"
-          echo "PREFLIGHT_HOST=$(hostname)"
-          echo "PREFLIGHT_USER=$(id -un)"
-          if [ -d "$ROOT" ]; then echo "ROOT_EXISTS=YES"; else echo "ROOT_EXISTS=NO"; fi
-          if [ -d "$ROOT/.git" ]; then
-            echo "ROOT_GIT=YES"
-            echo "ROOT_HEAD=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo UNKNOWN)"
-            echo "ROOT_BRANCH=$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
-            if git -C "$ROOT" remote get-url origin >/dev/null 2>&1; then echo "ROOT_ORIGIN=CONFIGURED"; else echo "ROOT_ORIGIN=MISSING"; fi
+          export GIT_TERMINAL_PROMPT=0
+          if command -v gh >/dev/null 2>&1; then
+            echo "GH_BIN=YES"
+            if timeout 10 gh auth status >/dev/null 2>&1; then echo "GH_AUTH=YES"; else echo "GH_AUTH=NO"; fi
           else
-            echo "ROOT_GIT=NO"
+            echo "GH_BIN=NO"
           fi
-          if [ -f "$ROOT/server.js" ]; then
-            echo "SERVER_JS=YES"
-            if grep -q 'publishTrouDeCulSpeech' "$ROOT/server.js"; then echo "SERVER_TDC_SPEECH=YES"; else echo "SERVER_TDC_SPEECH=NO"; fi
+          if timeout 12 git ls-remote git@github.com:Topbrutus/zelstereos.git HEAD >/dev/null 2>&1; then
+            echo "GITHUB_SSH_PRIVATE_ZEL=YES"
           else
-            echo "SERVER_JS=NO"
+            echo "GITHUB_SSH_PRIVATE_ZEL=NO"
           fi
-          if [ -f "$ROOT/verso/trou-de-cul-engine.js" ]; then echo "TDC_ENGINE=YES"; else echo "TDC_ENGINE=NO"; fi
-          for unit in zelstereos-gamezel.service zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service; do
-            active="$(systemctl --user is-active "$unit" 2>/dev/null || true)"
-            enabled="$(systemctl --user is-enabled "$unit" 2>/dev/null || true)"
-            echo "UNIT=$unit ACTIVE=$active ENABLED=$enabled"
-          done
-          code="$(curl -sS -o /tmp/tdc-preflight.json -w '%{http_code}' --max-time 3 http://127.0.0.1:3217/api/public/gamezel/trou-de-cul/spectator 2>/dev/null || true)"
-          echo "LOCAL_TDC_HTTP=$code"
-          if command -v git >/dev/null 2>&1; then echo "GIT_BIN=YES"; else echo "GIT_BIN=NO"; fi
-          echo "PREFLIGHT=PASS"
+          if timeout 12 git ls-remote https://github.com/Topbrutus/zelstereos.git HEAD >/dev/null 2>&1; then
+            echo "GITHUB_HTTPS_PRIVATE_ZEL=YES"
+          else
+            echo "GITHUB_HTTPS_PRIVATE_ZEL=NO"
+          fi
+          echo "SOURCE_PROBE=PASS"
           REMOTE
