@@ -1,4 +1,4 @@
-name: ASTRA GAMEZEL Private Source Probe 2026-10-05
+name: ASTRA GAMEZEL Runtime Deploy 2026-10-05
 
 on:
   push:
@@ -9,49 +9,244 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: astra-gamezel-runtime-deploy-20261005
+  cancel-in-progress: false
+
 jobs:
-  probe:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
+      - name: Checkout deployment branch
+        uses: actions/checkout@v6
+
       - name: Configure pinned SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
         run: |
           set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          test -n "${VPS_HOST:-}"
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
           printf '%s\n' "$VPS_HOST ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Probe private canonical repository access from VPS
+      - name: Reassemble and decrypt private canonical payload
+        run: |
+          set -euo pipefail
+          cat deploy/gamezel-private/chunks/00 \
+              deploy/gamezel-private/chunks/01 \
+              deploy/gamezel-private/chunks/02 \
+              deploy/gamezel-private/chunks/03 \
+              deploy/gamezel-private/chunks/04 \
+              deploy/gamezel-private/chunks/05 \
+              deploy/gamezel-private/chunks/06 \
+              deploy/gamezel-private/chunks/07 \
+              | tr -d '\r\n' > /tmp/gamezel-runtime.enc.b64
+          base64 -d /tmp/gamezel-runtime.enc.b64 > /tmp/gamezel-runtime.enc
+          test "$(sha256sum /tmp/gamezel-runtime.enc | awk '{print $1}')" = '66d217b5d73cd5afd4ac57745a1faac5784f16bf50bbc2b97a693e859c3b3de0'
+          python3 -m pip install --quiet cryptography
+          python3 - <<'PY'
+          import base64, hashlib
+          from pathlib import Path
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+          pkg = Path('/tmp/gamezel-runtime.enc').read_bytes()
+          assert pkg[:5] == b'GZEL1'
+          eph = pkg[5:37]
+          salt = pkg[37:53]
+          nonce = pkg[53:65]
+          ciphertext = pkg[65:]
+
+          key = serialization.load_ssh_private_key(Path.home().joinpath('.ssh/id_ed25519').read_bytes(), password=None)
+          assert isinstance(key, ed25519.Ed25519PrivateKey)
+          seed = key.private_bytes(
+              serialization.Encoding.Raw,
+              serialization.PrivateFormat.Raw,
+              serialization.NoEncryption(),
+          )
+          h = bytearray(hashlib.sha512(seed).digest()[:32])
+          h[0] &= 248
+          h[31] &= 127
+          h[31] |= 64
+          xpriv = x25519.X25519PrivateKey.from_private_bytes(bytes(h))
+          shared = xpriv.exchange(x25519.X25519PublicKey.from_public_bytes(eph))
+          aes_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b'antmux-gamezel-runtime-v1').derive(shared)
+          plain = AESGCM(aes_key).decrypt(nonce, ciphertext, b'GAMEZEL_RUNTIME_5c840dd')
+          digest = hashlib.sha256(plain).hexdigest()
+          assert digest == '686f1c490d70dcc8d98c55bc7610a01a49a6b0dcb1213a2347689a3155ab8123', digest
+          Path('/tmp/gamezel-runtime-payload.zip').write_bytes(plain)
+          print('PRIVATE_PAYLOAD_DECRYPT=PASS')
+          print('PRIVATE_PAYLOAD_SHA256=' + digest)
+          PY
+
+          rm -rf _gamezel_runtime_payload
+          mkdir -p _gamezel_runtime_payload
+          unzip -q /tmp/gamezel-runtime-payload.zip -d _gamezel_runtime_payload
+          (cd _gamezel_runtime_payload && sha256sum -c SHA256SUMS)
+          node --check _gamezel_runtime_payload/server.js
+          node --check _gamezel_runtime_payload/verso/trou-de-cul-engine.js
+          node --test _gamezel_runtime_payload/tests/trou-de-cul-engine.test.mjs
+          grep -q 'publishTrouDeCulSpeech' _gamezel_runtime_payload/server.js
+          grep -q 'DYNAMIC_TTS: true' _gamezel_runtime_payload/server.js
+          grep -q "language: 'fr-CA'" _gamezel_runtime_payload/verso/trou-de-cul-engine.js
+          echo 'RUNNER_PAYLOAD_VALIDATION=PASS'
+
+      - name: Upload staged runtime payload
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
         run: |
           set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
           echo "::add-mask::$VPS_HOST"
           echo "::add-mask::$VPS_USER"
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
-          set -u
-          export GIT_TERMINAL_PROMPT=0
-          if command -v gh >/dev/null 2>&1; then
-            echo "GH_BIN=YES"
-            if timeout 10 gh auth status >/dev/null 2>&1; then echo "GH_AUTH=YES"; else echo "GH_AUTH=NO"; fi
-          else
-            echo "GH_BIN=NO"
+          REMOTE_STAGE="/tmp/gamezel-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "REMOTE_STAGE=$REMOTE_STAGE" >> "$GITHUB_ENV"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r _gamezel_runtime_payload/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Install runtime atomically and prove live route
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          REMOTE_STAGE: ${{ env.REMOTE_STAGE }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=10 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "REMOTE_STAGE='$REMOTE_STAGE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/zelstereos-gamezel"
+          CENTRAL='zelstereos-gamezel.service'
+          AUTONOMOUS=(zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service)
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          BACKUP="$HOME/zelstereos-gamezel-backups/$TS-5c840dd"
+          ENGINE_PREEXISTED=0
+          TEST_PREEXISTED=0
+
+          test "$(hostname)" = 'server1.antmux.com'
+          test -d "$ROOT"
+          test -f "$ROOT/server.js"
+          test -f "$ROOT/verso/dialogue-director.js"
+          test -f "$REMOTE_STAGE/server.js"
+          test -f "$REMOTE_STAGE/verso/trou-de-cul-engine.js"
+          test -f "$REMOTE_STAGE/tests/trou-de-cul-engine.test.mjs"
+          (cd "$REMOTE_STAGE" && sha256sum -c SHA256SUMS)
+
+          for unit in "${AUTONOMOUS[@]}"; do
+            systemctl --user disable --now "$unit" >/dev/null 2>&1 || true
+          done
+
+          if [ -x "$ROOT/bin/gamezel-p1" ]; then
+            STATUS="$($ROOT/bin/gamezel-p1 status --json 2>/dev/null || true)"
+            if [ -n "$STATUS" ]; then
+              STATUS="$STATUS" python3 - <<'PY'
+          import json, os
+          d=json.loads(os.environ['STATUS'])
+          active=bool(d.get('roundActive') if 'roundActive' in d else d.get('round_active'))
+          if active:
+              raise SystemExit('REFUSE_DEPLOY_ACTIVE_ROUND')
+          print('ROUND_PREDEPLOY=INACTIVE')
+          PY
+            fi
           fi
-          if timeout 12 git ls-remote git@github.com:Topbrutus/zelstereos.git HEAD >/dev/null 2>&1; then
-            echo "GITHUB_SSH_PRIVATE_ZEL=YES"
-          else
-            echo "GITHUB_SSH_PRIVATE_ZEL=NO"
+
+          mkdir -p "$BACKUP" "$ROOT/verso" "$ROOT/tests"
+          cp -a "$ROOT/server.js" "$BACKUP/server.js"
+          if [ -f "$ROOT/verso/trou-de-cul-engine.js" ]; then
+            ENGINE_PREEXISTED=1
+            cp -a "$ROOT/verso/trou-de-cul-engine.js" "$BACKUP/trou-de-cul-engine.js"
           fi
-          if timeout 12 git ls-remote https://github.com/Topbrutus/zelstereos.git HEAD >/dev/null 2>&1; then
-            echo "GITHUB_HTTPS_PRIVATE_ZEL=YES"
-          else
-            echo "GITHUB_HTTPS_PRIVATE_ZEL=NO"
+          if [ -f "$ROOT/tests/trou-de-cul-engine.test.mjs" ]; then
+            TEST_PREEXISTED=1
+            cp -a "$ROOT/tests/trou-de-cul-engine.test.mjs" "$BACKUP/trou-de-cul-engine.test.mjs"
           fi
-          echo "SOURCE_PROBE=PASS"
+
+          rollback() {
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              echo "DEPLOY_FAILURE_RC=$rc"
+              systemctl --user stop "$CENTRAL" >/dev/null 2>&1 || true
+              cp -a "$BACKUP/server.js" "$ROOT/server.js" || true
+              if [ "$ENGINE_PREEXISTED" -eq 1 ]; then
+                cp -a "$BACKUP/trou-de-cul-engine.js" "$ROOT/verso/trou-de-cul-engine.js" || true
+              else
+                rm -f "$ROOT/verso/trou-de-cul-engine.js" || true
+              fi
+              if [ "$TEST_PREEXISTED" -eq 1 ]; then
+                cp -a "$BACKUP/trou-de-cul-engine.test.mjs" "$ROOT/tests/trou-de-cul-engine.test.mjs" || true
+              else
+                rm -f "$ROOT/tests/trou-de-cul-engine.test.mjs" || true
+              fi
+              systemctl --user restart "$CENTRAL" >/dev/null 2>&1 || true
+              for unit in "${AUTONOMOUS[@]}"; do
+                systemctl --user disable --now "$unit" >/dev/null 2>&1 || true
+              done
+              echo 'ROLLBACK=ATTEMPTED'
+            fi
+            rm -rf "$REMOTE_STAGE" >/dev/null 2>&1 || true
+            exit "$rc"
+          }
+          trap rollback EXIT
+
+          systemctl --user stop "$CENTRAL"
+          install -m 0644 "$REMOTE_STAGE/server.js" "$ROOT/server.js"
+          install -m 0644 "$REMOTE_STAGE/verso/trou-de-cul-engine.js" "$ROOT/verso/trou-de-cul-engine.js"
+          install -m 0644 "$REMOTE_STAGE/tests/trou-de-cul-engine.test.mjs" "$ROOT/tests/trou-de-cul-engine.test.mjs"
+
+          node --check "$ROOT/server.js"
+          node --check "$ROOT/verso/trou-de-cul-engine.js"
+          (cd "$ROOT" && node --test tests/trou-de-cul-engine.test.mjs)
+          grep -q 'publishTrouDeCulSpeech' "$ROOT/server.js"
+          grep -q 'DYNAMIC_TTS: true' "$ROOT/server.js"
+          grep -q "language: 'fr-CA'" "$ROOT/verso/trou-de-cul-engine.js"
+          echo 'VPS_SOURCE_VALIDATION=PASS'
+
+          systemctl --user restart "$CENTRAL"
+          for _ in $(seq 1 30); do
+            if systemctl --user is-active --quiet "$CENTRAL" && curl -fsS --max-time 3 http://127.0.0.1:3217/api/public/gamezel/trou-de-cul/spectator > /tmp/tdc-live.json; then
+              break
+            fi
+            sleep 1
+          done
+          test "$(systemctl --user is-active "$CENTRAL")" = active
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/tdc-live.json', encoding='utf-8'))
+          assert d.get('speech_language') == 'fr-CA', d
+          assert 'hands' in d, d
+          print('TROU_DE_CUL_LOCAL_HTTP=200')
+          print('SPEECH_LANGUAGE=fr-CA')
+          print('LIVE_ACTIVE=' + str(d.get('active')))
+          PY
+
+          for unit in "${AUTONOMOUS[@]}"; do
+            if systemctl --user is-active --quiet "$unit"; then
+              echo "AUTONOMOUS_ACTIVE=$unit" >&2
+              exit 1
+            fi
+            enabled="$(systemctl --user is-enabled "$unit" 2>/dev/null || true)"
+            case "$enabled" in
+              disabled|masked|static|not-found) ;;
+              *) echo "AUTONOMOUS_ENABLED=$unit:$enabled" >&2; exit 1 ;;
+            esac
+            echo "AUTONOMOUS_SAFE=$unit:$enabled"
+          done
+
+          echo 'CENTRAL_SERVICE=active'
+          echo 'RUNTIME_DEPLOY=PASS'
+          rm -rf "$REMOTE_STAGE"
+          trap - EXIT
           REMOTE
