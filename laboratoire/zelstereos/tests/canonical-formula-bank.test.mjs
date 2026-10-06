@@ -146,6 +146,9 @@ test("lemniscate verifier preserves x-y periodicity and z progression", async ()
   const def = loadDefinitions().find(x => x.formula_id === "AM-024");
   assert.equal((await def.verify()).ok, true);
   assert.equal(def.accepts({ n: -547, alpha: 0.75 }), true);
+  assert.equal(def.accepts({ n: Number.MAX_SAFE_INTEGER, alpha: 0.75 }), true);
+  assert.equal(def.accepts({ n: Number.MAX_SAFE_INTEGER + 1, alpha: 0.75 }), false);
+  assert.equal(def.accepts({ n: 9007199254740992, alpha: 0.75 }), false);
   assert.equal(def.accepts({ n: 1.2, alpha: 0.75 }), false);
 });
 
