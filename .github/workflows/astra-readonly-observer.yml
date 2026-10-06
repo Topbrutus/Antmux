@@ -51,15 +51,24 @@ jobs:
           out = {
               "observed_at": datetime.now(timezone.utc).isoformat(),
               "brotoculateur": None,
+              "brotoculateur_source": None,
               "fourmis": None,
               "fourmis_source": None,
               "errors": [],
           }
 
-          try:
-              out["brotoculateur"] = get_json("http://127.0.0.1:8780/api/status")
-          except Exception as exc:
-              out["errors"].append("brotoculateur:" + type(exc).__name__ + ":" + str(exc)[:180])
+          broto_candidates = [
+              "http://127.0.0.1:8778/api/status",
+              "http://127.0.0.1:8780/api/status",
+              "http://127.0.0.1:8777/api/status",
+          ]
+          for url in broto_candidates:
+              try:
+                  out["brotoculateur"] = get_json(url)
+                  out["brotoculateur_source"] = url
+                  break
+              except Exception as exc:
+                  out["errors"].append("brotoculateur:" + url + ":" + type(exc).__name__)
 
           ant_candidates = [
               ("http://127.0.0.1/laboratoire/embryon-x72/api/brutobac/snapshot", "antmux.com"),
@@ -112,10 +121,11 @@ jobs:
               "round_seeds": broto.get("round_seeds", []),
           }
           result = {
-              "schema": "ASTRA-READONLY-OBSERVER-v0.1",
+              "schema": "ASTRA-READONLY-OBSERVER-v0.2",
               "observed_at": raw.get("observed_at"),
               "authority": {
-                  "crystals_math": "BROTOCULATEUR_LOCAL_API",
+                  "crystals_math": "BROTOCULATEUR_LOCAL_API" if broto else None,
+                  "crystals_math_source": raw.get("brotoculateur_source"),
                   "ants": "QUEEN_SERVER_PUBLIC_READ_ONLY_MIRROR" if ants is not None else None,
                   "ants_source": raw.get("fourmis_source"),
               },
@@ -136,6 +146,7 @@ jobs:
 
           print("OBSERVER_SCHEMA=" + result["schema"])
           print("BROTOCULATEUR_READ=" + ("YES" if broto else "NO"))
+          print("BROTOCULATEUR_SOURCE=" + str(raw.get("brotoculateur_source")))
           print("FOURMIS_READ=" + ("YES" if ants is not None else "NO"))
           print("FORMULA_COUNT=" + str(len(math["formula_ids"])))
           print("ERROR_COUNT=" + str(len(result["errors"])))
