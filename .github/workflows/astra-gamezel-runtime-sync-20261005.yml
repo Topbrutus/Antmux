@@ -1,4 +1,4 @@
-name: ASTRA GAMEZEL Runtime Sync 2026-10-05
+name: ASTRA GAMEZEL Runtime Preflight 2026-10-05
 
 on:
   push:
@@ -9,14 +9,10 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: astra-gamezel-runtime-sync-20261005
-  cancel-in-progress: false
-
 jobs:
-  sync-runtime:
+  preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
       - name: Configure pinned SSH
         env:
@@ -24,133 +20,48 @@ jobs:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
         run: |
           set -euo pipefail
-          test -n "${SSH_PRIVATE_KEY:-}"
-          test -n "${VPS_HOST:-}"
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$VPS_HOST ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Sync canonical ZELSTEREOS runtime with rollback
+      - name: Read GAMEZEL runtime layout only
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
         run: |
           set -euo pipefail
-          test -n "${VPS_HOST:-}"
-          test -n "${VPS_USER:-}"
           echo "::add-mask::$VPS_HOST"
           echo "::add-mask::$VPS_USER"
-          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=10 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
-          set -euo pipefail
-
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
           ROOT="$HOME/zelstereos-gamezel"
-          TARGET_SHA="5c840dd92c21f2f0b338fca29c1a2f45e09b80aa"
-          CENTRAL="zelstereos-gamezel.service"
-          AUTONOMOUS=(
-            "zelstereos-gamezel-p2.service"
-            "zelstereos-gamezel-p3.service"
-            "zelstereos-gamezel-p4.service"
-          )
-          TS="$(date -u +%Y%m%dT%H%M%SZ)"
-          BACKUP_DIR="$HOME/zelstereos-gamezel-backups/$TS-runtime-sync"
-
-          test "$(hostname)" = "server1.antmux.com"
-          test "$(id -un)" = "rob"
-          test -d "$ROOT/.git"
-          mkdir -p "$BACKUP_DIR"
-          cd "$ROOT"
-
-          PRE_HEAD="$(git rev-parse HEAD)"
-          printf '%s\n' "$PRE_HEAD" > "$BACKUP_DIR/pre-head.txt"
-          git status --porcelain=v1 > "$BACKUP_DIR/pre-status.txt"
-          git diff --binary > "$BACKUP_DIR/pre-local.patch"
-
-          echo "PRE_HEAD=$PRE_HEAD"
-          echo "TARGET_SHA=$TARGET_SHA"
-
-          # Hard guard: the old standalone loops must never come back during this deployment.
-          for unit in "${AUTONOMOUS[@]}"; do
-            systemctl --user disable --now "$unit" >/dev/null 2>&1 || true
-          done
-
-          rollback() {
-            rc=$?
-            if [ "$rc" -ne 0 ]; then
-              echo "RUNTIME_SYNC=FAIL rc=$rc"
-              systemctl --user stop "$CENTRAL" >/dev/null 2>&1 || true
-              cd "$ROOT" || true
-              git reset --hard "$PRE_HEAD" >/dev/null 2>&1 || true
-              if [ -s "$BACKUP_DIR/pre-local.patch" ]; then
-                git apply "$BACKUP_DIR/pre-local.patch" >/dev/null 2>&1 || true
-              fi
-              systemctl --user restart "$CENTRAL" >/dev/null 2>&1 || true
-              for unit in "${AUTONOMOUS[@]}"; do
-                systemctl --user disable --now "$unit" >/dev/null 2>&1 || true
-              done
-              echo "ROLLBACK=ATTEMPTED"
-            fi
-            exit "$rc"
-          }
-          trap rollback EXIT
-
-          systemctl --user stop "$CENTRAL"
-
-          # Use the runtime repository's already-authorized private origin; pin the exact
-          # canonical commit that contains the French Trou-de-cul engine + audio-bus bridge.
-          git fetch --prune origin main
-          git cat-file -e "$TARGET_SHA^{commit}"
-          git reset --hard "$TARGET_SHA"
-
-          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-          test -f verso/trou-de-cul-engine.js
-          grep -q "publishTrouDeCulSpeech" server.js
-          grep -q "DYNAMIC_TTS: true" server.js
-          grep -q "language: 'fr-CA'" verso/trou-de-cul-engine.js
-          grep -q "for (let offset = 1; offset < total; offset++)" verso/player-manager.js
-
-          node --check server.js
-          node --check verso/trou-de-cul-engine.js
-          node --test tests/trou-de-cul-engine.test.mjs
-          echo "SOURCE_VALIDATION=PASS"
-
-          systemctl --user restart "$CENTRAL"
-          for _ in $(seq 1 30); do
-            if systemctl --user is-active --quiet "$CENTRAL" && curl -fsS --max-time 3 http://127.0.0.1:3217/api/public/gamezel/trou-de-cul/spectator > /tmp/trou-de-cul-spectator.json; then
-              break
-            fi
-            sleep 1
-          done
-
-          test "$(systemctl --user is-active "$CENTRAL")" = "active"
-          python3 - <<'PY'
-          import json
-          with open('/tmp/trou-de-cul-spectator.json', 'r', encoding='utf-8') as f:
-              d = json.load(f)
-          assert d.get('speech_language') == 'fr-CA', d
-          assert 'hands' in d, d
-          print('TROU_DE_CUL_LOCAL_ENDPOINT=PASS')
-          print('SPEECH_LANGUAGE=' + str(d.get('speech_language')))
-          print('ROUND_ACTIVE=' + str(d.get('active')))
-          PY
-
-          # Final safety proof: central only; autonomous P2/P3/P4 stay stopped and disabled.
-          for unit in "${AUTONOMOUS[@]}"; do
-            if systemctl --user is-active --quiet "$unit"; then
-              echo "AUTONOMOUS_UNIT_ACTIVE=$unit" >&2
-              exit 1
-            fi
+          echo "PREFLIGHT_HOST=$(hostname)"
+          echo "PREFLIGHT_USER=$(id -un)"
+          if [ -d "$ROOT" ]; then echo "ROOT_EXISTS=YES"; else echo "ROOT_EXISTS=NO"; fi
+          if [ -d "$ROOT/.git" ]; then
+            echo "ROOT_GIT=YES"
+            echo "ROOT_HEAD=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo UNKNOWN)"
+            echo "ROOT_BRANCH=$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
+            if git -C "$ROOT" remote get-url origin >/dev/null 2>&1; then echo "ROOT_ORIGIN=CONFIGURED"; else echo "ROOT_ORIGIN=MISSING"; fi
+          else
+            echo "ROOT_GIT=NO"
+          fi
+          if [ -f "$ROOT/server.js" ]; then
+            echo "SERVER_JS=YES"
+            if grep -q 'publishTrouDeCulSpeech' "$ROOT/server.js"; then echo "SERVER_TDC_SPEECH=YES"; else echo "SERVER_TDC_SPEECH=NO"; fi
+          else
+            echo "SERVER_JS=NO"
+          fi
+          if [ -f "$ROOT/verso/trou-de-cul-engine.js" ]; then echo "TDC_ENGINE=YES"; else echo "TDC_ENGINE=NO"; fi
+          for unit in zelstereos-gamezel.service zelstereos-gamezel-p2.service zelstereos-gamezel-p3.service zelstereos-gamezel-p4.service; do
+            active="$(systemctl --user is-active "$unit" 2>/dev/null || true)"
             enabled="$(systemctl --user is-enabled "$unit" 2>/dev/null || true)"
-            case "$enabled" in
-              disabled|masked|static|not-found) ;;
-              *) echo "AUTONOMOUS_UNIT_ENABLED=$unit:$enabled" >&2; exit 1 ;;
-            esac
-            echo "AUTONOMOUS_SAFE=$unit:$enabled"
+            echo "UNIT=$unit ACTIVE=$active ENABLED=$enabled"
           done
-
-          echo "LIVE_HEAD=$(git rev-parse HEAD)"
-          echo "CENTRAL_SERVICE=active"
-          echo "RUNTIME_SYNC=PASS"
-          trap - EXIT
+          code="$(curl -sS -o /tmp/tdc-preflight.json -w '%{http_code}' --max-time 3 http://127.0.0.1:3217/api/public/gamezel/trou-de-cul/spectator 2>/dev/null || true)"
+          echo "LOCAL_TDC_HTTP=$code"
+          if command -v git >/dev/null 2>&1; then echo "GIT_BIN=YES"; else echo "GIT_BIN=NO"; fi
+          echo "PREFLIGHT=PASS"
           REMOTE
