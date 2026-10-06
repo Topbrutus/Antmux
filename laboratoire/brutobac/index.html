@@ -79,8 +79,10 @@
         const response = await fetch(DUST_SOURCE, { cache: 'no-store', mode: 'cors', signal: controller.signal });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const data = await response.json();
-        const dust = Math.max(0, Number(data.dust_slots ?? 0));
-        const perTransit = Math.max(0, Number(data.dust_per_transit ?? 39));
+        const perTransit = Math.max(1, Number(data.dust_per_transit ?? 39));
+        const exactDust = Number(data.dust_slots);
+        const bigCrystals = Math.max(0, Number(data.big_crystals ?? 0));
+        const dust = Math.max(0, Number.isFinite(exactDust) ? exactDust : bigCrystals * perTransit);
         count.textContent = new Intl.NumberFormat('fr-CA').format(dust);
         status.textContent = 'POUSSIÈRE BROTOCULATEUR · LIVE';
         status.className = 'pill ok';
