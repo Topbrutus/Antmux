@@ -16,7 +16,7 @@
     .cluster{display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:auto}
     .pill,.back{backdrop-filter:blur(15px);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 11px;font:800 11px/1.15 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em}
     .back{color:var(--text);text-decoration:none}.pill.ok{color:var(--ok)}.pill.dusty{color:var(--gold)}.pill.wait{color:var(--muted)}
-    .legend{position:fixed;z-index:10;right:14px;bottom:14px;max-width:460px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(15px);font:700 10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);pointer-events:none}
+    .legend{position:fixed;z-index:10;right:14px;bottom:14px;max-width:520px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(15px);font:700 10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);pointer-events:none}
     .legend strong{color:var(--text)}
     @media(max-width:760px){.bar{align-items:flex-start}.cluster:last-child{justify-content:flex-end}.legend{left:14px;max-width:none}.pill,.back{font-size:9px;padding:7px 9px}}
   </style>
@@ -31,21 +31,21 @@
       <span class="pill ok">BRUTOBAC · QUEEN SERVER LIVE</span>
     </div>
     <div class="cluster">
-      <span id="dustStatus" class="pill wait">POUSSIÈRE · EN ATTENTE</span>
-      <span id="dustCount" class="pill dusty">0</span>
+      <span id="crystalStatus" class="pill wait">CRISTAUX · EN ATTENTE</span>
+      <span id="crystalCount" class="pill dusty">0</span>
     </div>
   </div>
 
-  <div class="legend"><strong>MONDE FOURMI :</strong> miroir live en lecture seule du Queen Server. <strong>POUSSIÈRE :</strong> sortie locale du Brotoculateur sur 127.0.0.1:8780. La pluie est une représentation visuelle seulement : elle ne modifie jamais l’état autoritaire de la Reine.</div>
+  <div class="legend"><strong>MONDE FOURMI :</strong> miroir live en lecture seule du Queen Server. <strong>CRISTAUX :</strong> flux BrutoTableur, alimenté par l’outbox du Brotoculateur. Chaîne d’autorité : <strong>BROTOCULATEUR → BRUTOTABLEUR → BRUTOBAC</strong>. La pluie reste une représentation visuelle et ne modifie jamais la Reine.</div>
 
   <script>
   (() => {
     'use strict';
-    const DUST_SOURCE = 'http://127.0.0.1:8780/api/status';
+    const CRYSTAL_SOURCE = '/laboratoire/brutotableur/api/crystals/feed?limit=100';
     const layer = document.getElementById('dust-layer');
-    const status = document.getElementById('dustStatus');
-    const count = document.getElementById('dustCount');
-    let lastDust = null;
+    const status = document.getElementById('crystalStatus');
+    const count = document.getElementById('crystalCount');
+    let lastRegistrySeq = null;
     let serial = 0;
 
     const unit = seed => {
@@ -72,36 +72,46 @@
       serial += 1;
     }
 
-    async function readDust() {
+    function visualWeight(records) {
+      return records.reduce((sum, record) => {
+        const coverage = Math.max(1, Number(record?.crystal?.COVERAGE ?? 1));
+        return sum + Math.min(39, coverage);
+      }, 0);
+    }
+
+    async function readCrystals() {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1300);
+      const timeout = setTimeout(() => controller.abort(), 1800);
       try {
-        const response = await fetch(DUST_SOURCE, { cache: 'no-store', mode: 'cors', signal: controller.signal });
+        const response = await fetch(CRYSTAL_SOURCE, { cache: 'no-store', signal: controller.signal });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const data = await response.json();
-        const perTransit = Math.max(1, Number(data.dust_per_transit ?? 39));
-        const exactDust = Number(data.dust_slots);
-        const bigCrystals = Math.max(0, Number(data.big_crystals ?? 0));
-        const dust = Math.max(0, Number.isFinite(exactDust) ? exactDust : bigCrystals * perTransit);
-        count.textContent = new Intl.NumberFormat('fr-CA').format(dust);
-        status.textContent = 'POUSSIÈRE BROTOCULATEUR · LIVE';
+        if (data.schema !== 'BRUTOTABLEUR-CRYSTAL-FEED-v1') throw new Error('schema mismatch');
+        const records = Array.isArray(data.crystals) ? data.crystals : [];
+        const total = Math.max(0, Number(data.crystal_count ?? 0));
+        const newestSeq = records.reduce((max, record) => Math.max(max, Number(record?.registry_seq ?? 0)), 0);
+
+        count.textContent = new Intl.NumberFormat('fr-CA').format(total);
+        status.textContent = 'CRISTAUX BRUTOTABLEUR · LIVE';
         status.className = 'pill ok';
-        if (lastDust === null) {
-          if (dust > 0) shower(Math.min(perTransit, dust), dust + perTransit);
-        } else if (dust > lastDust) {
-          shower(Math.min(dust - lastDust, perTransit * 4), dust);
+
+        if (lastRegistrySeq === null) {
+          if (records.length) shower(Math.min(39, visualWeight(records.slice(0, 1))), newestSeq || total);
+        } else if (newestSeq > lastRegistrySeq) {
+          const fresh = records.filter(record => Number(record?.registry_seq ?? 0) > lastRegistrySeq);
+          shower(visualWeight(fresh), newestSeq);
         }
-        lastDust = dust;
+        lastRegistrySeq = Math.max(lastRegistrySeq ?? 0, newestSeq);
       } catch (_) {
-        status.textContent = 'POUSSIÈRE · SOURCE LOCALE EN ATTENTE';
+        status.textContent = 'CRISTAUX · BRUTOTABLEUR EN ATTENTE';
         status.className = 'pill wait';
       } finally {
         clearTimeout(timeout);
       }
     }
 
-    readDust();
-    setInterval(readDust, 1000);
+    readCrystals();
+    setInterval(readCrystals, 1000);
   })();
   </script>
 </body>
