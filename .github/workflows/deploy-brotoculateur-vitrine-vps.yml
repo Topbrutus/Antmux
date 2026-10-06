@@ -1,0 +1,154 @@
+name: Deploy Brotoculateur Vitrine to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-brotoculateur-vitrine-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/brotoculateur/**'
+  pull_request:
+    paths:
+      - '.github/workflows/deploy-brotoculateur-vitrine-vps.yml'
+      - 'laboratoire/index.html'
+      - 'laboratoire/brotoculateur/**'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY-BROTOCULATEUR-VITRINE'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-vitrine-vps
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate public contract
+        run: |
+          set -euo pipefail
+          test -f laboratoire/brotoculateur/index.html
+          test -f laboratoire/brotoculateur/private/index.html
+          test -f laboratoire/brotoculateur/brotoculateur-vitrine.png
+          test -f laboratoire/brotoculateur/PUBLIC-PROVENANCE.json
+          test -f laboratoire/brotoculateur/README.md
+          grep -Fq 'DÉBARRER LA VITRINE' laboratoire/brotoculateur/index.html
+          grep -Fq 'PUBLIC · VERROUILLÉ' laboratoire/brotoculateur/index.html
+          grep -Fq 'BROTOCULATEUR / BRUTOCALCULATEUR' laboratoire/brotoculateur/index.html
+          grep -Fq 'BROTOCULATEUR · VITRINE PUBLIQUE' laboratoire/index.html
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          root=pathlib.Path('laboratoire/brotoculateur')
+          p=json.loads((root/'PUBLIC-PROVENANCE.json').read_text(encoding='utf-8'))
+          assert p['public_interaction'] is False
+          assert p['private_backend_exposed'] is False
+          assert p['password_or_secret_in_public_payload'] is False
+          assert p['mathematical_proof_claim'] is False
+          got=hashlib.sha256((root/'brotoculateur-vitrine.png').read_bytes()).hexdigest()
+          assert got == p['source_screenshot_sha256']
+          print('BROTOCULATEUR_VITRINE_CONTRACT=PASS')
+          PY
+
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-BROTOCULATEUR-VITRINE'))
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REMOTE_STAGE: /tmp/antmux-brotoculateur-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Assemble payload
+        run: |
+          set -euo pipefail
+          rm -rf _brotoculateur_deploy
+          mkdir -p _brotoculateur_deploy/public
+          cp laboratoire/index.html _brotoculateur_deploy/laboratoire-index.html
+          cp -a laboratoire/brotoculateur/. _brotoculateur_deploy/public/
+          cd _brotoculateur_deploy
+          { printf '%s\0' laboratoire-index.html; find public -type f -print0; } | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r _brotoculateur_deploy/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Deploy canonical and alias vitrines
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          LAB_ROOT='/var/www/antmux.com/public_html/laboratoire'
+          CANON="$LAB_ROOT/brotoculateur"
+          ALIAS="$LAB_ROOT/brutocalculateur"
+          REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP="$HOME/antmux-brotoculateur/backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
+
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+          mkdir -p "$BACKUP"
+          test -f "$LAB_ROOT/index.html" && cp -a "$LAB_ROOT/index.html" "$BACKUP/laboratoire-index.html" || true
+          if [ -d "$CANON" ]; then cp -a "$CANON" "$BACKUP/brotoculateur" || true; fi
+          if [ -d "$ALIAS" ]; then cp -a "$ALIAS" "$BACKUP/brutocalculateur" || true; fi
+
+          install -d -m 0755 "$CANON" "$ALIAS"
+          install -m 0644 laboratoire-index.html "$LAB_ROOT/index.html"
+
+          for target in "$CANON" "$ALIAS"; do
+            rm -rf "$target/private"
+            install -d -m 0755 "$target/private"
+            install -m 0644 public/index.html "$target/index.html"
+            install -m 0644 public/private/index.html "$target/private/index.html"
+            install -m 0644 public/brotoculateur-vitrine.png "$target/brotoculateur-vitrine.png"
+            install -m 0644 public/PUBLIC-PROVENANCE.json "$target/PUBLIC-PROVENANCE.json"
+            install -m 0644 public/README.md "$target/README.md"
+          done
+
+          rm -rf "$REMOTE_STAGE"
+          echo 'BROTOCULATEUR_PUBLIC_DEPLOY=PASS'
+          REMOTE
+
+      - name: Verify public vitrines
+        run: |
+          set -euo pipefail
+          for base in brotoculateur brutocalculateur; do
+            curl --fail --silent --show-error --location "https://antmux.com/laboratoire/$base/" -o "/tmp/$base.html"
+            curl --fail --silent --show-error --location "https://antmux.com/laboratoire/$base/private/" -o "/tmp/$base-private.html"
+            grep -Fq 'BROTOCULATEUR / BRUTOCALCULATEUR' "/tmp/$base.html"
+            grep -Fq 'PUBLIC · VERROUILLÉ' "/tmp/$base.html"
+            grep -Fq 'Brotoculateur privé non exposé au Web public' "/tmp/$base-private.html"
+          done
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab.html
+          grep -Fq 'BROTOCULATEUR · VITRINE PUBLIQUE' /tmp/lab.html
+          echo 'BROTOCULATEUR_VPS_VERIFY=PASS'
