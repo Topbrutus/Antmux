@@ -135,6 +135,12 @@ jobs:
           install -m 0644 public/PUBLIC-PROVENANCE.json "$PUBLIC_ROOT/PUBLIC-PROVENANCE.json"
           install -m 0644 public/README.md "$PUBLIC_ROOT/README.md"
 
+          # Unprivileged fail-closed shadow: prevent the global try_files fallback
+          # from exposing the site root for the private prefix before Nginx auth exists.
+          SHADOW_PRIVATE="$PUBLIC_ROOT/private"
+          rm -rf "$SHADOW_PRIVATE"
+          install -d -m 000 "$SHADOW_PRIVATE"
+
           rm -rf "$PRIVATE_STAGE"
           mkdir -p "$PRIVATE_STAGE"
           cp -a private/. "$PRIVATE_STAGE/"
@@ -271,7 +277,7 @@ jobs:
           else
               printf 'SUDO_NONINTERACTIVE=UNAVAILABLE\n'
               current_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
-              if [ "$current_code" = '401' ] || [ "$current_code" = '404' ]; then
+              if [ "$current_code" = '401' ] || [ "$current_code" = '403' ] || [ "$current_code" = '404' ]; then
                   printf 'ROOT_APPLY=NOT_REQUIRED_ALREADY_FAIL_CLOSED\n'
               else
                   printf 'BLOCKER=ONE_TIME_ROOT_NGINX_APPLY_REQUIRED current_http=%s\n' "$current_code" >&2
@@ -305,6 +311,8 @@ jobs:
           code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
           if [ "$code" = '401' ]; then
             echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PASS_LOCKED'
+          elif [ "$code" = '403' ]; then
+            echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PASS_FAIL_CLOSED_403'
           elif [ "$code" = '404' ]; then
             echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PENDING_ROOT_APPLY_FAIL_CLOSED'
           else
