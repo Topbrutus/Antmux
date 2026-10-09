@@ -1,0 +1,132 @@
+name: Astra VPS Formula Output Check
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-vps-formula-output-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-formulas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read formula outputs only
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'python3 -' <<'PY'
+          from pathlib import Path
+          import os, re, json, time, sqlite3
+
+          home = Path.home()
+          roots = [
+              home/'antmux-brotoculateur',
+              home/'antmux-brutobac',
+              home/'antmux-brutotableur',
+              home/'antmux-x72-queen',
+              home/'chateau-astra',
+          ]
+          key_re = re.compile(r'(formula[_ -]?id|provenance[_ -]?hash|relation|canonical|canonique|authenticated|authentifi|zel|formula|formule)', re.I)
+          secret_re = re.compile(r'(secret|token|password|passwd|credential|private[_ -]?key|api[_ -]?key|cookie|authorization)', re.I)
+          exts = {'.json','.jsonl','.txt','.md','.log','.csv'}
+          now=time.time()
+          hits=[]
+          file_meta=[]
+
+          def safe_text(p, limit=6_000_000):
+              try:
+                  st=p.stat()
+                  if st.st_size>limit: return None
+                  return p.read_text(encoding='utf-8',errors='replace')
+              except Exception:
+                  return None
+
+          for root in roots:
+              if not root.exists():
+                  continue
+              for p in root.rglob('*'):
+                  try:
+                      if not p.is_file(): continue
+                      st=p.stat()
+                  except OSError:
+                      continue
+                  name=str(p.relative_to(root))
+                  lname=name.lower()
+                  if secret_re.search(lname):
+                      continue
+                  interesting_name = any(x in lname for x in ('formula','formule','outbox','result','latest','status','crystal','cristal','zel','canonical','canonique','relation'))
+                  if interesting_name:
+                      file_meta.append((st.st_mtime, st.st_size, root.name, name))
+                  if p.suffix.lower() not in exts:
+                      continue
+                  # Focus on recent/current text or specifically named output files.
+                  if now-st.st_mtime > 14*86400 and not interesting_name:
+                      continue
+                  txt=safe_text(p)
+                  if not txt or not key_re.search(txt):
+                      continue
+                  # Emit matching lines only, heavily redacted by keyword exclusion.
+                  lines=txt.splitlines()
+                  for idx,line in enumerate(lines[-5000:], max(1,len(lines)-4999)):
+                      if key_re.search(line) and not secret_re.search(line):
+                          s=line.strip()
+                          if len(s)>1200: s=s[:1200]+'…'
+                          hits.append((st.st_mtime,root.name,name,idx,s))
+                          if len(hits)>=300:
+                              break
+                  if len(hits)>=300:
+                      break
+              if len(hits)>=300:
+                  break
+
+          print('=== FORMULA_OUTPUT_FILES_RECENT ===')
+          for mt,sz,root,name in sorted(file_meta, reverse=True)[:120]:
+              print(f'FILE age_s={int(now-mt)} bytes={sz} root={root} path={name}')
+
+          print('=== FORMULA_OUTPUT_MATCHES ===')
+          for mt,root,name,lineno,line in sorted(hits, reverse=True)[:300]:
+              print(f'MATCH age_s={int(now-mt)} root={root} path={name} line={lineno} :: {line}')
+
+          qdb=home/'antmux-x72-queen'/'data'/'queen.db'
+          print('=== QUEEN_DB_LATEST ===')
+          if qdb.exists():
+              try:
+                  con=sqlite3.connect('file:'+str(qdb)+'?mode=ro', uri=True, timeout=10)
+                  cols=[r[1] for r in con.execute('PRAGMA table_info(checkpoints)').fetchall()]
+                  print('COLUMNS='+','.join(cols))
+                  rows=con.execute('SELECT rowid,* FROM checkpoints ORDER BY rowid DESC LIMIT 8').fetchall()
+                  for row in rows:
+                      vals=[]
+                      for v in row:
+                          if isinstance(v,(bytes,bytearray)):
+                              vals.append(f'<BLOB {len(v)} bytes>')
+                          else:
+                              s=str(v)
+                              if secret_re.search(s): s='<REDACTED>'
+                              if len(s)>800: s=s[:800]+'…'
+                              vals.append(s.replace('\n',' '))
+                      print('ROW='+' | '.join(vals))
+                  con.close()
+              except Exception as e:
+                  print('DB_ERROR='+type(e).__name__+':'+str(e)[:300])
+          print('=== END_FORMULA_OUTPUT_CHECK ===')
+          PY
