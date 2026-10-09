@@ -1,0 +1,143 @@
+name: Astra VPS Read Status
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-vps-read-status.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  read-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read VPS state only
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' > vps-read-status.txt <<'REMOTE'
+          set -u
+          echo '=== ASTRA_VPS_READ_STATUS ==='
+          printf 'UTC='; date -u +'%Y-%m-%dT%H:%M:%SZ'
+          printf 'HOST='; hostname
+          printf 'UPTIME='; uptime -p 2>/dev/null || true
+          printf 'LOAD='; cat /proc/loadavg 2>/dev/null || true
+          echo '--- MEMORY_BYTES ---'
+          free -b 2>/dev/null || true
+          echo '--- DISK_ROOT ---'
+          df -B1 / 2>/dev/null || true
+          echo '--- TOP_PROCESSES_BY_RSS ---'
+          ps -eo pid=,etimes=,pcpu=,pmem=,rss=,comm= --sort=-rss 2>/dev/null | head -n 30 || true
+          echo '--- RELEVANT_SERVICES ---'
+          systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null | grep -Ei 'bruto|broto|antmux|queen|x72|tableur|bac|cryst' || true
+          echo '--- RELEVANT_PROCESSES ---'
+          ps -eo pid=,etimes=,pcpu=,pmem=,rss=,comm= 2>/dev/null | grep -Ei 'bruto|broto|antmux|queen|x72|tableur|bac|cryst|node|python' || true
+          echo '--- LISTENING_PORTS_RELEVANT ---'
+          ss -ltn 2>/dev/null | grep -E ':(80|443|5173|5174|8778|8780|8788)([[:space:]]|$)' || true
+
+          python3 - <<'PY'
+          import json, re, urllib.request, urllib.error
+
+          probes = [
+              ('BROTOCULATEUR_8778', 'http://127.0.0.1:8778/api/status'),
+              ('BROTOCULATEUR_BRIDGE_8780', 'http://127.0.0.1:8780/api/status'),
+              ('BRUTOBAC_SNAPSHOT_HTTPS', 'https://antmux.com/laboratoire/embryon-x72/api/brutobac/snapshot'),
+              ('BRUTOBAC_PUBLIC', 'https://antmux.com/laboratoire/brutobac/'),
+              ('BRUTOTABLEUR_PUBLIC', 'https://antmux.com/laboratoire/brutotableur/'),
+          ]
+          include = re.compile(r'(cryst|dust|formula|count|event|slot|queue|tick|entity|record|total|status|state|time|generated|updated|created|hash|relation|mode|version)', re.I)
+          exclude = re.compile(r'(secret|token|pass|auth|cookie|private|credential|api[_-]?key)', re.I)
+
+          def safe_flatten(obj, prefix='', depth=0):
+              if depth > 5:
+                  return
+              if isinstance(obj, dict):
+                  for k, v in obj.items():
+                      key = f'{prefix}.{k}' if prefix else str(k)
+                      if exclude.search(key):
+                          continue
+                      if isinstance(v, (dict, list)):
+                          if include.search(key) and isinstance(v, list):
+                              print(f'{key}.__len__={len(v)}')
+                          safe_flatten(v, key, depth+1)
+                      elif include.search(key):
+                          s = str(v).replace('\n', ' ')
+                          if len(s) > 500:
+                              s = s[:500] + '…'
+                          print(f'{key}={s}')
+              elif isinstance(obj, list):
+                  for i, v in enumerate(obj[:100]):
+                      safe_flatten(v, f'{prefix}[{i}]', depth+1)
+
+          for name, url in probes:
+              print(f'--- {name} ---')
+              try:
+                  req = urllib.request.Request(url, headers={'User-Agent':'Astra-VPS-Read-Status/1.0'})
+                  with urllib.request.urlopen(req, timeout=8) as r:
+                      raw = r.read(2_000_000)
+                      print(f'HTTP={r.status}')
+                      print(f'BYTES={len(raw)}')
+                      ctype = r.headers.get('content-type','')
+                      print(f'CONTENT_TYPE={ctype}')
+                      if 'json' in ctype.lower() or raw.lstrip().startswith((b'{', b'[')):
+                          try:
+                              data = json.loads(raw.decode('utf-8', errors='replace'))
+                              safe_flatten(data)
+                          except Exception as e:
+                              print(f'JSON_PARSE_ERROR={type(e).__name__}')
+              except urllib.error.HTTPError as e:
+                  print(f'HTTP={e.code}')
+              except Exception as e:
+                  print(f'ERROR={type(e).__name__}:{e}')
+
+          print('--- BRUTOTABLEUR_FILES ---')
+          from pathlib import Path
+          paths = [
+              Path('/var/www/antmux.com/public_html/laboratoire/brutotableur'),
+              Path.home() / 'antmux-brutotableur' / 'private-current',
+          ]
+          for p in paths:
+              print(f'PATH={p}')
+              print(f'EXISTS={p.exists()}')
+              if p.exists():
+                  files = [x for x in p.rglob('*') if x.is_file()]
+                  total = sum(x.stat().st_size for x in files)
+                  newest = max((x.stat().st_mtime for x in files), default=0)
+                  print(f'FILE_COUNT={len(files)}')
+                  print(f'TOTAL_BYTES={total}')
+                  print(f'NEWEST_MTIME_EPOCH={newest}')
+          PY
+          echo '=== END_ASTRA_VPS_READ_STATUS ==='
+          REMOTE
+          cat vps-read-status.txt
+
+      - name: Upload read-only report
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-vps-read-status
+          path: vps-read-status.txt
+          if-no-files-found: error
+          retention-days: 3
