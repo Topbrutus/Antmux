@@ -1,0 +1,85 @@
+name: Astra VPS Read Status Detail
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-vps-read-status-detail.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect Bruto runtimes read only
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          echo '=== PORT_OWNERS ==='
+          ss -ltnp 2>/dev/null | grep -E ':(5173|5174|8778|8780|8788)([[:space:]]|$)' || true
+          echo '=== PORT_8788_PROBES ==='
+          for path in /api/status /health /; do
+            code=$(curl -sS -o /tmp/astra8788.$$ -w '%{http_code}' --max-time 5 "http://127.0.0.1:8788${path}" || true)
+            bytes=$(wc -c </tmp/astra8788.$$ 2>/dev/null || echo 0)
+            printf 'PATH=%s HTTP=%s BYTES=%s\n' "$path" "$code" "$bytes"
+            if [ "$path" = '/api/status' ] && [ "$code" = '200' ]; then
+              python3 - /tmp/astra8788.$$ <<'PY'
+          import json,re,sys
+          p=sys.argv[1]
+          try: d=json.load(open(p,encoding='utf-8'))
+          except Exception as e: print('STATUS_JSON_PARSE=FAIL:'+type(e).__name__); raise SystemExit
+          inc=re.compile(r'(cryst|dust|formula|count|event|slot|queue|tick|entity|record|total|status|state|time|generated|updated|created|hash|relation|mode|version)',re.I)
+          exc=re.compile(r'(secret|token|pass|auth|cookie|private|credential|api[_-]?key)',re.I)
+          def walk(v,prefix='',depth=0):
+              if depth>6:return
+              if isinstance(v,dict):
+                  for k,x in v.items():
+                      q=f'{prefix}.{k}' if prefix else str(k)
+                      if exc.search(q): continue
+                      if isinstance(x,(dict,list)):
+                          if isinstance(x,list) and inc.search(q): print(q+'.__len__='+str(len(x)))
+                          walk(x,q,depth+1)
+                      elif inc.search(q):
+                          s=str(x).replace('\n',' ')[:500]
+                          print(q+'='+s)
+              elif isinstance(v,list):
+                  for i,x in enumerate(v[:100]): walk(x,f'{prefix}[{i}]',depth+1)
+          walk(d)
+          PY
+            fi
+            rm -f /tmp/astra8788.$$
+          done
+          echo '=== PROCESS_IDENTITY ==='
+          for pid in $(pgrep -f 'python|node' 2>/dev/null | head -n 80); do
+            [ -d "/proc/$pid" ] || continue
+            comm=$(cat "/proc/$pid/comm" 2>/dev/null || true)
+            cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)
+            age=$(ps -p "$pid" -o etimes= 2>/dev/null | xargs || true)
+            cpu=$(ps -p "$pid" -o pcpu= 2>/dev/null | xargs || true)
+            rss=$(ps -p "$pid" -o rss= 2>/dev/null | xargs || true)
+            script=$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -E '\.(py|js|mjs|cjs|ts|tsx)$' | head -n 1 || true)
+            printf 'PID=%s COMM=%s AGE_S=%s CPU_PCT=%s RSS_KB=%s CWD=%s SCRIPT=%s\n' "$pid" "$comm" "$age" "$cpu" "$rss" "$cwd" "$script"
+          done
+          echo '=== BRUTO_PATHS ==='
+          find "$HOME" -maxdepth 4 \( -iname '*brutobac*' -o -iname '*brotoculat*' -o -iname '*brutotableur*' -o -iname '*queen*' \) -print 2>/dev/null | head -n 200 || true
+          echo '=== END_DETAIL ==='
+          REMOTE
