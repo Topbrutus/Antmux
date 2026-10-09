@@ -1,0 +1,70 @@
+name: Astra VPS Latest Formula Key Check
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-vps-latest-formula-key-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect last Queen checkpoints for formula outputs
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'python3 -' <<'PY'
+          from pathlib import Path
+          import sqlite3,json,re
+          qdb=Path.home()/'antmux-x72-queen'/'data'/'queen.db'
+          terms=re.compile(r'(formula|formule|canonical|canonique|provenance|relation|zel|crystal|cristal)',re.I)
+          con=sqlite3.connect('file:'+str(qdb)+'?mode=ro',uri=True,timeout=10)
+          rows=con.execute('SELECT id,created_at,state_json FROM checkpoints ORDER BY id DESC LIMIT 50').fetchall()
+          hits=[]
+          event_types={}
+          def walk(v,p=''):
+              if isinstance(v,dict):
+                  for k,x in v.items():
+                      q=f'{p}.{k}' if p else k
+                      if terms.search(q):
+                          s=str(x)
+                          if len(s)>400:s=s[:400]+'…'
+                          hits.append((qid,q,s))
+                      walk(x,q)
+              elif isinstance(v,list):
+                  for i,x in enumerate(v): walk(x,f'{p}[{i}]')
+          for qid,created,s in rows:
+              try:d=json.loads(s)
+              except Exception:continue
+              for ev in d.get('events',[]) if isinstance(d,dict) else []:
+                  et=str(ev.get('event_type',''))
+                  event_types[et]=event_types.get(et,0)+1
+                  if terms.search(et):
+                      hits.append((qid,'event_type',et))
+              walk(d)
+          print('LATEST_ID='+str(rows[0][0] if rows else 'NONE'))
+          print('CHECKPOINTS_SCANNED='+str(len(rows)))
+          print('FORMULA_RELATED_HIT_COUNT='+str(len(hits)))
+          for x in hits[:200]: print('HIT id=%s key=%s value=%s'%x)
+          print('EVENT_TYPES='+json.dumps(event_types,sort_keys=True))
+          con.close()
+          PY
