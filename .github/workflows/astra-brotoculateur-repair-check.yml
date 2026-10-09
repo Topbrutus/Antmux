@@ -1,0 +1,52 @@
+name: Astra Brotoculateur Repair Check
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-brotoculateur-repair-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect Brotoculateur only
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'SH'
+          set -u
+          echo '=== PORTS ==='
+          ss -ltnp 2>/dev/null | grep -E ':(8778|8780)\b' || true
+          echo '=== PROCESSES ==='
+          ps -eo pid,ppid,etime,%cpu,%mem,args --sort=-%cpu | grep -Ei 'brotoc|brutocalcul|8778|8780' | grep -v grep || true
+          echo '=== SYSTEMD CANDIDATES ==='
+          systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -Ei 'brotoc|brutocalcul' || true
+          echo '=== SYSTEMD RUNNING/FAILED ==='
+          systemctl --no-pager --type=service --all 2>/dev/null | grep -Ei 'brotoc|brutocalcul' || true
+          echo '=== DIRECTORY ==='
+          ls -la "$HOME/antmux-brotoculateur" 2>/dev/null || true
+          echo '=== LIKELY START FILES ==='
+          find "$HOME/antmux-brotoculateur" -maxdepth 3 -type f \( -name '*.service' -o -name '*.sh' -o -name '*.py' -o -name 'package.json' -o -name 'README.md' \) -print 2>/dev/null | head -80
+          echo '=== RECENT LOGS ==='
+          journalctl --no-pager -n 80 2>/dev/null | grep -Ei 'brotoc|brutocalcul|8778|8780' | tail -40 || true
+          echo '=== END ==='
+          SH
