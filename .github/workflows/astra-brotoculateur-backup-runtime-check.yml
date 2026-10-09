@@ -1,0 +1,53 @@
+name: Astra Brotoculateur Backup Runtime Check
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-brotoculateur-backup-runtime-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Inspect saved Brotoculateur runtime
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'SH'
+          set -euo pipefail
+          ROOT="$HOME/antmux-brotoculateur/backups/20261006-012645-ce7efcdf5c111980591c33945f64b112ef415cfe"
+          echo '=== BROTOCULATEUR BACKUP ==='
+          find "$ROOT/brotoculateur" -maxdepth 4 -type f -printf '%P | %s bytes\n' 2>/dev/null | sort | head -120
+          echo '=== BRUTOCALCULATEUR BACKUP ==='
+          find "$ROOT/brutocalculateur" -maxdepth 4 -type f -printf '%P | %s bytes\n' 2>/dev/null | sort | head -120
+          echo '=== START MARKERS ==='
+          find "$ROOT" -maxdepth 5 -type f \( -name 'pyproject.toml' -o -name 'run_ui.py' -o -name 'dashboard.py' -o -name 'package.json' -o -name '*.service' \) -print 2>/dev/null | sort
+          echo '=== CANONICAL SHA CANDIDATES ==='
+          for f in \
+            "$ROOT/brotoculateur/pyproject.toml" \
+            "$ROOT/brotoculateur/src/brotoculateur/engine.py" \
+            "$ROOT/brotoculateur/src/brotoculateur/orchestrator.py" \
+            "$ROOT/brotoculateur/src/brotoculateur/research.py" \
+            "$ROOT/brotoculateur/src/brotoculateur/dashboard.py"; do
+            if [ -f "$f" ]; then sha256sum "$f"; fi
+          done
+          SH
