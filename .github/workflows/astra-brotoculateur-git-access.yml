@@ -1,0 +1,47 @@
+name: Astra Brotoculateur Git Access Check
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-brotoculateur-git-access.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify canonical Brotoculateur source is reachable from VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'SH'
+          set -euo pipefail
+          echo "PYTHON=$(python3 --version 2>&1)"
+          echo "GIT=$(git --version 2>&1)"
+          if git ls-remote git@github.com:Topbrutus/Brotoculateur.git HEAD >/tmp/brotoculateur-head 2>/tmp/brotoculateur-git-error; then
+            echo "BROTO_REPO_ACCESS=YES"
+            awk '{print "BROTO_HEAD="$1}' /tmp/brotoculateur-head
+          else
+            echo "BROTO_REPO_ACCESS=NO"
+            sed -E 's/(token|password|secret)=[^ ]+/\1=***REDACTED***/Ig' /tmp/brotoculateur-git-error | tail -10
+          fi
+          df -h "$HOME" | tail -1
+          SH
