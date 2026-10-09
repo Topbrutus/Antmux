@@ -1,0 +1,125 @@
+name: Astra VPS Crystal Inventory
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-vps-crystal-inventory.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read encoded crystal/state inventory
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'python3 -' <<'PY'
+          from pathlib import Path
+          import json, re, sqlite3, os, time
+
+          roots = {
+              'BRUTOBAC': Path.home()/'antmux-brutobac',
+              'BROTOCULATEUR': Path.home()/'antmux-brotoculateur',
+              'BRUTOTABLEUR': Path.home()/'antmux-brutotableur',
+              'QUEEN': Path.home()/'antmux-x72-queen',
+          }
+          include = re.compile(r'(cryst|dust|formula|count|event|slot|queue|tick|entity|record|total|status|state|time|generated|updated|created|hash|relation|mode|version|processed|pending|output|input)', re.I)
+          exclude = re.compile(r'(secret|token|pass|auth|cookie|private[_-]?key|credential|api[_-]?key)', re.I)
+
+          def safe_flatten(obj,prefix='',depth=0,out=None):
+              out=[] if out is None else out
+              if depth>6 or len(out)>=250: return out
+              if isinstance(obj,dict):
+                  for k,v in obj.items():
+                      q=f'{prefix}.{k}' if prefix else str(k)
+                      if exclude.search(q): continue
+                      if isinstance(v,(dict,list)):
+                          if isinstance(v,list) and include.search(q): out.append((q+'.__len__',len(v)))
+                          safe_flatten(v,q,depth+1,out)
+                      elif include.search(q):
+                          s=str(v).replace('\n',' ')
+                          out.append((q,s[:400]))
+              elif isinstance(obj,list):
+                  for i,v in enumerate(obj[:100]): safe_flatten(v,f'{prefix}[{i}]',depth+1,out)
+              return out
+
+          now=time.time()
+          for label,root in roots.items():
+              print(f'=== {label} ===')
+              print('ROOT='+str(root))
+              print('EXISTS='+str(root.exists()))
+              if not root.exists(): continue
+              files=[]
+              total=0
+              for p in root.rglob('*'):
+                  try:
+                      if p.is_file():
+                          st=p.stat(); total+=st.st_size; files.append((st.st_mtime,st.st_size,p))
+                  except OSError: pass
+              print('FILE_COUNT='+str(len(files)))
+              print('TOTAL_BYTES='+str(total))
+              for mt,sz,p in sorted(files,reverse=True)[:25]:
+                  rel=p.relative_to(root)
+                  print(f'RECENT age_s={int(now-mt)} bytes={sz} path={rel}')
+
+              candidates=[]
+              for mt,sz,p in sorted(files,reverse=True):
+                  if sz>5_000_000: continue
+                  n=p.name.lower()
+                  if p.suffix.lower() in ('.json','.jsonl') and any(x in n for x in ('status','state','cryst','latest','manifest','snapshot','formula','result','registry','counter','progress','outbox')):
+                      candidates.append((mt,sz,p))
+                  if len(candidates)>=20: break
+              for mt,sz,p in candidates:
+                  print('JSON_FILE='+str(p.relative_to(root)))
+                  try:
+                      if p.suffix.lower()=='.jsonl':
+                          lines=p.read_text(encoding='utf-8',errors='replace').splitlines()
+                          print('JSONL_LINES='+str(len(lines)))
+                          samples=lines[-3:]
+                          for idx,line in enumerate(samples):
+                              try:
+                                  d=json.loads(line)
+                                  for k,v in safe_flatten(d)[:60]: print(f'J{idx}.{k}={v}')
+                              except Exception: pass
+                      else:
+                          d=json.loads(p.read_text(encoding='utf-8',errors='replace'))
+                          for k,v in safe_flatten(d)[:120]: print(f'J.{k}={v}')
+                  except Exception as e:
+                      print('JSON_READ_ERROR='+type(e).__name__)
+
+          qdb=Path.home()/'antmux-x72-queen'/'data'/'queen.db'
+          print('=== QUEEN_DB_READONLY ===')
+          print('PATH='+str(qdb))
+          print('EXISTS='+str(qdb.exists()))
+          if qdb.exists():
+              try:
+                  con=sqlite3.connect('file:'+str(qdb)+'?mode=ro',uri=True)
+                  tables=[r[0] for r in con.execute("select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name")]
+                  print('TABLES='+','.join(tables))
+                  for t in tables:
+                      if re.fullmatch(r'[A-Za-z0-9_]+',t):
+                          try: print(f'TABLE_COUNT {t}='+str(con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]))
+                          except Exception: pass
+                  con.close()
+              except Exception as e: print('DB_ERROR='+type(e).__name__+':'+str(e)[:200])
+          print('=== END_CRYSTAL_INVENTORY ===')
+          PY
