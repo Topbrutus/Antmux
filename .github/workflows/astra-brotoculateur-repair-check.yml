@@ -47,6 +47,8 @@ jobs:
           echo '=== LIKELY START FILES ==='
           find "$HOME/antmux-brotoculateur" -maxdepth 3 -type f \( -name '*.service' -o -name '*.sh' -o -name '*.py' -o -name 'package.json' -o -name 'README.md' \) -print 2>/dev/null | head -80
           echo '=== RECENT LOGS ==='
-          journalctl --no-pager -n 80 2>/dev/null | grep -Ei 'brotoc|brutocalcul|8778|8780' | tail -40 || true
+          journalctl --no-pager -n 120 2>/dev/null | grep -Ei 'brotoc|brutocalcul|8778|8780' | tail -60 || true
           echo '=== END ==='
           SH
+
+      # Inspection only: no restart, no kill, no file modification on VPS.
