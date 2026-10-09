@@ -1,0 +1,62 @@
+name: Astra VPS New Formulas Only
+
+on:
+  push:
+    branches:
+      - astra/vps-read-status-20261009
+    paths:
+      - '.github/workflows/astra-vps-new-formulas-only.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Count actual formula output keys
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'python3 -' <<'PY'
+          from pathlib import Path
+          import sqlite3,json,re
+          db=Path.home()/'antmux-x72-queen'/'data'/'queen.db'
+          con=sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True,timeout=10)
+          rows=con.execute('SELECT id,state_json FROM checkpoints ORDER BY id DESC LIMIT 50').fetchall()
+          exact=re.compile(r'(formula[_-]?id|formula|formule|canonical|canonique|provenance[_-]?hash|authenticated|authentifi|zel)',re.I)
+          found=[]
+          def walk(v,p=''):
+              if isinstance(v,dict):
+                  for k,x in v.items():
+                      q=f'{p}.{k}' if p else str(k)
+                      if exact.search(str(k)):
+                          s=str(x)
+                          if len(s)>500:s=s[:500]+'…'
+                          found.append((rid,q,s))
+                      walk(x,q)
+              elif isinstance(v,list):
+                  for i,x in enumerate(v): walk(x,f'{p}[{i}]')
+          for rid,s in rows:
+              try:d=json.loads(s)
+              except Exception:continue
+              walk(d)
+          print('LATEST_ID='+str(rows[0][0] if rows else 'NONE'))
+          print('CHECKPOINTS_SCANNED='+str(len(rows)))
+          print('ACTUAL_FORMULA_KEY_HITS='+str(len(found)))
+          for h in found[:100]: print('HIT id=%s key=%s value=%s'%h)
+          con.close()
+          PY
