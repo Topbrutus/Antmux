@@ -26,7 +26,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Inspect Brotoculateur only
+      - name: Locate Brotoculateur runtime only
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -34,21 +34,18 @@ jobs:
           set -euo pipefail
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'SH'
           set -u
-          echo '=== PORTS ==='
-          ss -ltnp 2>/dev/null | grep -E ':(8778|8780)\b' || true
-          echo '=== PROCESSES ==='
-          ps -eo pid,ppid,etime,%cpu,%mem,args --sort=-%cpu | grep -Ei 'brotoc|brutocalcul|8778|8780' | grep -v grep || true
-          echo '=== SYSTEMD CANDIDATES ==='
-          systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -Ei 'brotoc|brutocalcul' || true
-          echo '=== SYSTEMD RUNNING/FAILED ==='
-          systemctl --no-pager --type=service --all 2>/dev/null | grep -Ei 'brotoc|brutocalcul' || true
-          echo '=== DIRECTORY ==='
-          ls -la "$HOME/antmux-brotoculateur" 2>/dev/null || true
-          echo '=== LIKELY START FILES ==='
-          find "$HOME/antmux-brotoculateur" -maxdepth 3 -type f \( -name '*.service' -o -name '*.sh' -o -name '*.py' -o -name 'package.json' -o -name 'README.md' \) -print 2>/dev/null | head -80
-          echo '=== RECENT LOGS ==='
-          journalctl --no-pager -n 120 2>/dev/null | grep -Ei 'brotoc|brutocalcul|8778|8780' | tail -60 || true
+          echo '=== MATCHING PATHS ==='
+          for root in "$HOME" /opt /srv /var/www; do
+            [ -e "$root" ] || continue
+            find "$root" -maxdepth 5 \( -iname '*brotoc*' -o -iname '*brutocalcul*' \) -print 2>/dev/null | head -160
+          done
+          echo '=== NGINX REFERENCES ==='
+          grep -RniE 'brotoculateur|brutocalculateur|8778|8780' /etc/nginx 2>/dev/null | head -120 || true
+          echo '=== SYSTEMD DEFINITIONS ==='
+          grep -RniE 'brotoculateur|brutocalculateur|8778|8780' /etc/systemd/system /lib/systemd/system 2>/dev/null | head -120 || true
+          echo '=== HOME REPO MARKERS ==='
+          find "$HOME" -maxdepth 4 -type f \( -name 'package.json' -o -name 'pyproject.toml' -o -name 'requirements.txt' -o -name '*.service' -o -name '*.py' \) -print 2>/dev/null | grep -Ei 'brotoc|brutocalcul' | head -120 || true
+          echo '=== GIT REPOS NAMED BROTO ==='
+          find "$HOME" /opt /srv -maxdepth 5 -type d -name .git -print 2>/dev/null | sed 's#/.git$##' | grep -Ei 'brotoc|brutocalcul' | head -80 || true
           echo '=== END ==='
           SH
-
-      # Inspection only: no restart, no kill, no file modification on VPS.
