@@ -96,7 +96,7 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          import re
+          import re, base64
 
           p=Path('/var/www/antmux.com/public_html/index.html')
           text=p.read_text(encoding='utf-8')
@@ -108,12 +108,7 @@ jobs:
 
           start='<!-- ANTMUX-FORMULES-ENTRY-v0.1 -->'
           end='<!-- /ANTMUX-FORMULES-ENTRY-v0.1 -->'
-          block='''<!-- ANTMUX-FORMULES-ENTRY-v0.1 -->
-<section id="antmux-formules-entry" aria-label="Formules publiées" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99998;width:min(680px,calc(100vw - 28px));padding:12px 15px;border:1px solid rgba(119,220,255,.46);border-radius:16px;background:rgba(5,10,15,.9);box-shadow:0 10px 38px rgba(0,0,0,.45);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;gap:14px;font-family:Arial,sans-serif">
-  <div style="min-width:0"><div style="font-size:9px;font-weight:900;letter-spacing:.15em;color:#77dcff">PUBLICATIONS · ZENODO</div><div style="font-size:13px;font-weight:800;color:#fff;margin-top:3px">12 formules documentées · Gabriel St-Pierre</div><div style="font-size:10px;color:#8fa0ad;margin-top:2px">Brutus · Pell · ANTMUX-X72 · relations et constructions publiées</div></div>
-  <a href="/formules/" style="flex:none;display:inline-flex;align-items:center;padding:10px 14px;border-radius:999px;background:#fff;color:#080b10;text-decoration:none;font-size:10px;font-weight:900;letter-spacing:.09em">FORMULES PUBLIÉES →</a>
-</section>
-<!-- /ANTMUX-FORMULES-ENTRY-v0.1 -->'''
+          block=base64.b64decode('PCEtLSBBTlRNVVgtRk9STVVMRVMtRU5UUlktdjAuMSAtLT4KPHNlY3Rpb24gaWQ9ImFudG11eC1mb3JtdWxlcy1lbnRyeSIgYXJpYS1sYWJlbD0iRm9ybXVsZXMgcHVibGnDqWVzIiBzdHlsZT0icG9zaXRpb246Zml4ZWQ7bGVmdDo1MCU7Ym90dG9tOjE4cHg7dHJhbnNmb3JtOnRyYW5zbGF0ZVgoLTUwJSk7ei1pbmRleDo5OTk5ODt3aWR0aDptaW4oNjgwcHgsY2FsYygxMDB2dyAtIDI4cHgpKTtwYWRkaW5nOjEycHggMTVweDtib3JkZXI6MXB4IHNvbGlkIHJnYmEoMTE5LDIyMCwyNTUsLjQ2KTtib3JkZXItcmFkaXVzOjE2cHg7YmFja2dyb3VuZDpyZ2JhKDUsMTAsMTUsLjkpO2JveC1zaGFkb3c6MCAxMHB4IDM4cHggcmdiYSgwLDAsMCwuNDUpO2JhY2tkcm9wLWZpbHRlcjpibHVyKDEycHgpO2Rpc3BsYXk6ZmxleDthbGlnbi1pdGVtczpjZW50ZXI7anVzdGlmeS1jb250ZW50OnNwYWNlLWJldHdlZW47Z2FwOjE0cHg7Zm9udC1mYW1pbHk6QXJpYWwsc2Fucy1zZXJpZiI+CiAgPGRpdiBzdHlsZT0ibWluLXdpZHRoOjAiPjxkaXYgc3R5bGU9ImZvbnQtc2l6ZTo5cHg7Zm9udC13ZWlnaHQ6OTAwO2xldHRlci1zcGFjaW5nOi4xNWVtO2NvbG9yOiM3N2RjZmYiPlBVQkxJQ0FUSU9OUyDCtyBaRU5PRE88L2Rpdj48ZGl2IHN0eWxlPSJmb250LXNpemU6MTNweDtmb250LXdlaWdodDo4MDA7Y29sb3I6I2ZmZjttYXJnaW4tdG9wOjNweCI+MTIgZm9ybXVsZXMgZG9jdW1lbnTDqWVzIMK3IEdhYnJpZWwgU3QtUGllcnJlPC9kaXY+PGRpdiBzdHlsZT0iZm9udC1zaXplOjEwcHg7Y29sb3I6IzhmYTBhZDttYXJnaW4tdG9wOjJweCI+QnJ1dHVzIMK3IFBlbGwgwrcgQU5UTVVYLVg3MiDCtyByZWxhdGlvbnMgZXQgY29uc3RydWN0aW9ucyBwdWJsacOpZXM8L2Rpdj48L2Rpdj4KICA8YSBocmVmPSIvZm9ybXVsZXMvIiBzdHlsZT0iZmxleDpub25lO2Rpc3BsYXk6aW5saW5lLWZsZXg7YWxpZ24taXRlbXM6Y2VudGVyO3BhZGRpbmc6MTBweCAxNHB4O2JvcmRlci1yYWRpdXM6OTk5cHg7YmFja2dyb3VuZDojZmZmO2NvbG9yOiMwODBiMTA7dGV4dC1kZWNvcmF0aW9uOm5vbmU7Zm9udC1zaXplOjEwcHg7Zm9udC13ZWlnaHQ6OTAwO2xldHRlci1zcGFjaW5nOi4wOWVtIj5GT1JNVUxFUyBQVUJMScOJRVMg4oaSPC9hPgo8L3NlY3Rpb24+CjwhLS0gL0FOVE1VWC1GT1JNVUxFUy1FTlRSWS12MC4xIC0tPg==').decode('utf-8')
           if start in text:
               pattern=re.escape(start)+r'.*?'+re.escape(end)
               text,n=re.subn(pattern,block,text,count=1,flags=re.S)
