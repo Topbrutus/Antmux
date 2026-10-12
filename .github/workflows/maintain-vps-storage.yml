@@ -1,0 +1,106 @@
+name: Maintain VPS Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type CLEAN-VPS-STORAGE to prune bounded X72 backups'
+        required: true
+        default: ''
+  schedule:
+    - cron: '17 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: antmux-vps-storage-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    if: github.event_name == 'schedule' || inputs.confirm == 'CLEAN-VPS-STORAGE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Prune bounded X72 backups and recover public exporter
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+          echo '--- STORAGE BEFORE ---'
+          df -h /
+          du -sh "$HOME/antmux-x72-queen-backups" 2>/dev/null || true
+          REMOTE
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s -- "$HOME/antmux-x72-queen-backups"' < deploy/vps-storage/prune_x72_backups.sh
+
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          journalctl --user --vacuum-size=128M >/dev/null 2>&1 || true
+          systemctl --user reset-failed brutus-public.service >/dev/null 2>&1 || true
+          need_restart=0
+          if ! systemctl --user is-active --quiet brutus-public.service; then
+            need_restart=1
+          elif ! test -s /var/www/antmux.com/public_html/brutus/public-state.json; then
+            need_restart=1
+          else
+            age=$(( $(date +%s) - $(stat -c %Y /var/www/antmux.com/public_html/brutus/public-state.json) ))
+            if [ "$age" -gt 120 ]; then need_restart=1; fi
+          fi
+          if [ "$need_restart" -eq 1 ]; then
+            systemctl --user restart brutus-public.service
+          fi
+          ok=0
+          for _ in $(seq 1 30); do
+            if systemctl --user is-active --quiet brutus-public.service && test -s /var/www/antmux.com/public_html/brutus/public-state.json; then
+              age=$(( $(date +%s) - $(stat -c %Y /var/www/antmux.com/public_html/brutus/public-state.json) ))
+              if [ "$age" -le 120 ]; then ok=1; break; fi
+            fi
+            sleep 2
+          done
+          test "$ok" -eq 1
+          python3 - <<'PY'
+          import json
+          p='/var/www/antmux.com/public_html/brutus/public-state.json'
+          d=json.load(open(p,encoding='utf-8'))
+          b=d.get('brotoculateur') or {}
+          print('PUBLIC_STATE_GENERATED_AT='+str(d.get('generated_at')))
+          print('BROTO_STATE='+str(b.get('state')))
+          print('BROTO_PROCESSED='+str(b.get('processed_packets')))
+          print('BROTO_CRYSTALS='+str(b.get('crystals')))
+          PY
+          echo '--- STORAGE AFTER ---'
+          df -h /
+          du -sh "$HOME/antmux-x72-queen-backups" 2>/dev/null || true
+          systemctl --user show brutus-public.service -p ActiveState -p SubState -p NRestarts --no-pager
+          REMOTE

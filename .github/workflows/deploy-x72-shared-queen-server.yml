@@ -128,6 +128,7 @@ jobs:
           cp -a deploy/x72-shared-queen/frontend _x72_shared_queen_deploy/
           cp laboratoire/fourmiliere/index.html _x72_shared_queen_deploy/public/fourmiliere/index.html
           cp laboratoire/index.html _x72_shared_queen_deploy/public/laboratoire-index.html
+          cp deploy/vps-storage/prune_x72_backups.sh _x72_shared_queen_deploy/prune_x72_backups.sh
           cp -a _x72_runner_vendor _x72_shared_queen_deploy/vendor
           printf '%s' "$ZEL_INGEST_TOKEN" > _x72_shared_queen_deploy/zel-ingest-token
           chmod 600 _x72_shared_queen_deploy/zel-ingest-token
@@ -282,10 +283,15 @@ jobs:
               | xargs -0 grep -HnE 'antmux\.com|embryon-x72|server_name|proxy_pass|location' 2>/dev/null || true
           fi
 
-          section "backup"
-          mkdir -p "$BACKUP_ROOT/frontend"
-          cp -a "$TARGET_ROOT/." "$BACKUP_ROOT/frontend/"
-          if [ -d "$FOURMILIERE_ROOT" ]; then cp -a "$FOURMILIERE_ROOT" "$BACKUP_ROOT/fourmiliere.before"; fi
+          section "bounded backup retention"
+          bash "$REMOTE_STAGE/prune_x72_backups.sh" "$HOME/antmux-x72-queen-backups"
+
+          section "backup changed public files only"
+          mkdir -p "$BACKUP_ROOT/frontend" "$BACKUP_ROOT/fourmiliere.before"
+          for file in app.js index.html; do
+            if [ -f "$TARGET_ROOT/$file" ]; then cp -a "$TARGET_ROOT/$file" "$BACKUP_ROOT/frontend/$file.before"; fi
+          done
+          if [ -f "$FOURMILIERE_ROOT/index.html" ]; then cp -a "$FOURMILIERE_ROOT/index.html" "$BACKUP_ROOT/fourmiliere.before/index.html"; fi
           if [ -f "$LAB_ROOT/index.html" ]; then cp -a "$LAB_ROOT/index.html" "$BACKUP_ROOT/laboratoire-index.before.html"; fi
           printf 'BACKUP_ROOT=%s\n' "$BACKUP_ROOT"
 
