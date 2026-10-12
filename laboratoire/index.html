@@ -1,190 +1,53 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#080b10" />
-  <title>Antmux — Laboratoire public</title>
-  <meta name="description" content="Laboratoire public Antmux : expériences, contrats, mesures, preuves et démonstrations reproductibles." />
+  <title>Antmux â€” Laboratoire</title>
+  <meta name="description" content="Laboratoire public Antmux : Horloge de la Vie et NinoScreen." />
   <link rel="stylesheet" href="../styles.css" />
   <style>
-    .lab-status { display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:7px 11px; border-radius:999px; border:1px solid rgba(141,227,172,.3); color:var(--ok); font-size:.72rem; font-weight:800; letter-spacing:.1em; }
-    .lab-card h2 { margin-bottom:10px; }
-    .lab-card p { color:var(--muted); line-height:1.65; }
-    .lab-meta { display:grid; gap:8px; margin:18px 0 0; padding:0; list-style:none; color:var(--muted); font-size:.86rem; }
-    .lab-meta strong { color:var(--text); }
-    .lab-links { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
-    .lab-links a { text-decoration:none; }
-    .screen-shortcut { display:inline-flex; align-items:center; justify-content:center; min-width:74px; padding:9px 11px; border-radius:8px; border:1px solid rgba(0,232,255,.34); background:rgba(0,232,255,.06); color:var(--cyan); font-size:.72rem; font-weight:900; letter-spacing:.06em; text-decoration:none; }
-    .screen-shortcut:hover { border-color:rgba(0,232,255,.8); background:rgba(0,232,255,.13); color:#fff; }
-    .safety { border-color:rgba(110,215,255,.28); }
-    .safety strong { color:var(--cyan); }
-    @media (max-width:820px) { .lab-card { min-height:auto; } }
+    .lab-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:28px}
+    .lab-card{display:flex;flex-direction:column;min-height:250px}
+    .lab-card h2{margin:8px 0 12px}
+    .lab-card p{color:var(--muted);line-height:1.65}
+    .lab-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:auto;padding-top:22px}
+    .lab-status{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:7px 11px;border-radius:999px;border:1px solid rgba(141,227,172,.3);color:var(--ok);font-size:.72rem;font-weight:800;letter-spacing:.1em}
+    @media(max-width:760px){.lab-grid{grid-template-columns:1fr}.lab-card{min-height:220px}}
   </style>
 </head>
 <body>
   <main class="shell">
     <header class="hero">
-      <p class="eyebrow">ANTMUX · LABORATOIRE PUBLIC</p>
+      <p class="eyebrow">ANTMUX Â· LABORATOIRE PUBLIC</p>
       <h1>Laboratoire</h1>
-      <p class="lede">Observer. Mesurer. Tester. Documenter. Reproduire.</p>
-      <div class="lab-status">LAB-005 · NOYAU X72 V0.2 · LIVE READ-ONLY</div>
+      <p class="lede">Deux accÃ¨s publics conservÃ©s.</p>
+      <div class="lab-status">VITRINE Â· ACCÃˆS SÃ‰LECTIONNÃ‰S</div>
       <nav class="actions hero-nav" aria-label="Navigation du laboratoire">
         <a class="secondary" href="../">ACCUEIL ANTMUX</a>
-        <a class="primary" href="./parazone-x72-d13-v2/">OUVRIR NOYAU DYNAMIQUE X72</a>
-        <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-1-master.html" target="BRUTUS_SCREEN_1">SCREEN 1</a>
-        <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-2-analysis.html" target="BRUTUS_SCREEN_2">SCREEN 2</a>
-        <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-3-operator.html" target="BRUTUS_SCREEN_3">SCREEN 3</a>
-        <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-4-control.html" target="BRUTUS_SCREEN_4">SCREEN 4</a>
-        <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-5-settings.html" target="BRUTUS_SCREEN_5">SCREEN 5</a>
-        <a class="secondary" href="./embryon-x72/">EMBRYON X72 · HORLOGE DE LA VIE</a>
-        <a class="secondary" href="./zelstereos/">ZELSTÉRÉOS · PUBLIC SAFE LIVE</a>
-        <a class="secondary" href="./c3rutus/">C͡3RUTUS · GENESIS WORLD V0.1</a>
-        <a class="secondary" href="./fourmiliere/">🐜 FOURMILIÈRE · JOURNAL PUBLIC</a>
-        <a class="secondary" href="./brutotableur/">▦ BRUTOTABLEUR · VITRINE PUBLIQUE</a>
-        <a class="secondary" href="./brotoculateur/">◫ BROTOCULATEUR · VITRINE PUBLIQUE</a>
-        <a class="secondary" href="./brutobac/">💎 BRUTOBAC · FOURMI AQUARIUM 3D</a>
       </nav>
     </header>
 
-    <section class="grid" aria-label="Espaces du laboratoire">
+    <section class="lab-grid" aria-label="AccÃ¨s du laboratoire">
       <article class="card lab-card">
-        <p class="kicker">▦ BRUTOTABLEUR · VITRINE PUBLIQUE · READ ONLY</p>
-        <h2>Dictionnaire des formules et cubes 7×7</h2>
-        <p>Vitrine publique figée du Brutotableur : formules, identifiants canoniques, convergences, lignées et tables hiérarchiques restent visibles sans permettre au visiteur d'utiliser le logiciel.</p>
-        <ul class="lab-meta">
-          <li><strong>Public :</strong> capture fidèle · aucune interaction</li>
-          <li><strong>Privé :</strong> application interactive derrière authentification serveur</li>
-          <li><strong>Provenance :</strong> commit Brutotableur épinglé dans le manifeste public</li>
-          <li><strong>Invariant :</strong> observation numérique ≠ preuve mathématique</li>
-        </ul>
+        <p class="kicker">EMBRYON X72</p>
+        <h2>Horloge de la Vie</h2>
+        <p>Lâ€™expÃ©rience publique de lâ€™Horloge de la Vie reste accessible dans le laboratoire.</p>
         <div class="lab-links">
-          <a class="primary" href="./brutotableur/">OUVRIR LA VITRINE</a>
-        </div>
-      </article>
-      <article class="card lab-card">
-        <p class="kicker">◫ BROTOCULATEUR · VITRINE PUBLIQUE · READ ONLY</p>
-        <h2>Atelier Brutus — 7 tableaux</h2>
-        <p>Vitrine publique figée du Brotoculateur/BrutoCalculateur : la capture montre l'atelier courant sans publier le moteur privé ni permettre au visiteur d'exécuter des calculs.</p>
-        <ul class="lab-meta">
-          <li><strong>Public :</strong> capture fidèle · aucune interaction</li>
-          <li><strong>Atelier :</strong> 7 tableaux · Structureur 620 · voie PUR Z1 à Z39</li>
-          <li><strong>Privé :</strong> moteur et backend non exposés au Web public</li>
-          <li><strong>Provenance :</strong> commit Brotoculateur et hash de capture épinglés</li>
-        </ul>
-        <div class="lab-links">
-          <a class="primary" href="./brotoculateur/">OUVRIR LA VITRINE</a>
-        </div>
-      </article>
-      <article class="card lab-card">
-        <p class="kicker">💎 BRUTOBAC · FOURMI AQUARIUM 3D · LIVE READ ONLY</p>
-        <h2>Le monde des Fourmis arrosé par la poussière</h2>
-        <p>BrutoBac affiche le monde Fourmi réel projeté par le Queen Server. Sur la machine opérateur, la sortie read-only du Brotoculateur alimente aussi une pluie de poussière d'étoile au-dessus de l'aquarium.</p>
-        <ul class="lab-meta">
-          <li><strong>Fourmis :</strong> Queen Server V0.2 · transport persistant · miroir public</li>
-          <li><strong>Poussière :</strong> Brotoculateur → pont local 8780 → couche visuelle</li>
-          <li><strong>Fail-closed :</strong> aucune poussière inventée si la source locale est absente</li>
-          <li><strong>Frontière :</strong> vitrine sans autorité de mutation sur la Reine</li>
-        </ul>
-        <div class="lab-links">
-          <a class="primary" href="./brutobac/">OUVRIR BRUTOBAC</a>
-        </div>
-      </article>
-      <article class="card lab-card">
-        <p class="kicker">C͡3RUTUS · GENESIS WORLD · V0.1</p>
-        <h2>Fresque 3D — bulle globale et mondes routables</h2>
-        <p>Prototype expérimental : grande bulle ANTMUX, monde CARBON, monde CRYPTO, Verso local, Verso global, boucle C3 et neuf projections locales d’une table périodique canonique de 118 éléments.</p>
-        <ul class="lab-meta">
-          <li><strong>Horloge :</strong> référence 240,1 Hz + poussière, actions visibles synchronisées</li>
-          <li><strong>Routage local :</strong> 3 triangles × 3 projections · serpent C3</li>
-          <li><strong>Routage global :</strong> monde → Verso global → monde, seulement par contrat explicite</li>
-          <li><strong>Données :</strong> une table canonique, neuf projections, aucune duplication logique</li>
-          <li><strong>Statut :</strong> expérimental · reconstruction déterministe · aucune nouvelle loi physique présumée</li>
-        </ul>
-        <div class="lab-links">
-          <a class="primary" href="./c3rutus/">OUVRIR C͡3RUTUS</a>
-          <a class="secondary" href="./c3rutus/README.md">CONTRAT V0.1</a>
+          <a class="primary" href="./embryon-x72/">OUVRIR Lâ€™HORLOGE</a>
         </div>
       </article>
 
       <article class="card lab-card">
-        <p class="kicker">🐜 EMOJILOGIC · JOURNAL · CONTACT</p>
-        <h2>Fourmilière publique</h2>
-        <p>Journal de bord public ANTMUX avec signatures emoji, messages visiteurs, propositions de jobs, file de modération et garde-fous anti-spam.</p>
-        <ul class="lab-meta">
-          <li><strong>Journal :</strong> 🐜📓 ... 📓🐜</li>
-          <li><strong>Messages :</strong> 🐜✉️ ... ✉️🐜</li>
-          <li><strong>Jobs :</strong> 🐜💼 ... 💼🐜</li>
-          <li><strong>Protection :</strong> 3 soumissions maximum sur 24 h · modération avant publication</li>
-        </ul>
+        <p class="kicker">NINOSCREEN</p>
+        <h2>NinoScreen</h2>
+        <p>AccÃ¨s au cockpit NinoScreen dÃ©jÃ  reliÃ© au serveur Antmux.</p>
         <div class="lab-links">
-          <a class="primary" href="./fourmiliere/">OUVRIR LA FOURMILIÈRE</a>
+          <a class="primary" href="./astra/cockpit/vnc.html">OUVRIR NINOSCREEN</a>
         </div>
-      </article>
-
-      <article class="card lab-card">
-        <p class="kicker">NOYAU · X72 · V0.2 · SERVER LINK</p>
-        <h2>Noyau dynamique — bassins de cristallisation</h2>
-        <p>Visualisation live en lecture seule du noyau X72 monté dans le Queen Server : deux autoroutes opposées, trois passages centraux obligatoires, bassin 1 instrumenté, sondes d’analyse et cristaux actifs.</p>
-        <ul class="lab-meta">
-          <li><strong>Passages :</strong> C1 · C2 · C3 obligatoires dans les deux sens</li>
-          <li><strong>Bassin 1 :</strong> entrée · sortie · crystal_index · stabilité</li>
-          <li><strong>Source :</strong> Queen Server V0.2 → NoyauState + H256</li>
-          <li><strong>État :</strong> live read-only · aucun tick inventé dans le navigateur</li>
-        </ul>
-        <div class="lab-links">
-          <a class="primary" href="./parazone-x72-d13-v2/">OUVRIR NOYAU DYNAMIQUE X72</a>
-          <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-1-master.html" target="BRUTUS_SCREEN_1">SCREEN 1</a>
-          <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-2-analysis.html" target="BRUTUS_SCREEN_2">SCREEN 2</a>
-          <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-3-operator.html" target="BRUTUS_SCREEN_3">SCREEN 3</a>
-          <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-4-control.html" target="BRUTUS_SCREEN_4">SCREEN 4</a>
-          <a class="screen-shortcut" href="./parazone-x72-d13-v2/screen-5-settings.html" target="BRUTUS_SCREEN_5">SCREEN 5</a>
-          <a class="secondary" href="./parazone-x72-d13-v2/README.md">CONTRAT NOYAU V0.2</a>
-        </div>
-      </article>
-
-      <article class="card lab-card">
-        <p class="kicker">EMBRYON X72 · MYRMIX</p>
-        <h2>Horloge de la Vie — Reine</h2>
-        <p>Visualisation interactive du cerveau expérimental de la Reine : sept synapses internes, Temporal Core, Event Bus, panne, réparation, géométrie évolutive et empreinte d’état.</p>
-        <ul class="lab-meta">
-          <li><strong>Version :</strong> Core V0.2 — verified repair path</li>
-          <li><strong>Web :</strong> port fidèle de la dynamique et du cadran Python</li>
-          <li><strong>Source :</strong> Python V0.2 et rapport de test publiés pour audit</li>
-          <li><strong>But :</strong> rendre le fonctionnement visible, rejouable, testable et auditable</li>
-        </ul>
-        <div class="lab-links">
-          <a class="primary" href="./embryon-x72/">OUVRIR L’HORLOGE DE LA VIE</a>
-          <a class="secondary" href="./embryon-x72/README.md">CONTRAT DE TÉLÉMÉTRIE</a>
-        </div>
-      </article>
-
-      <article class="card lab-card">
-        <p class="kicker">MÉTHODE SCIENTIFIQUE</p>
-        <h2>Mesures et provenance</h2>
-        <p>Les données du laboratoire doivent rester séparées selon leur nature : source, mesure publiée, calcul dérivé, hypothèse, protocole, résultat, réplication, correction ou rejet.</p>
-        <div class="lab-links">
-          <a class="secondary" href="./data/MEASUREMENT-CONTRACT.md">CONTRAT DE MESURE</a>
-          <a class="secondary" href="./data/G1-SOURCES.md">REGISTRE DES SOURCES G1</a>
-        </div>
-      </article>
-
-      <article class="card lab-card safety">
-        <p class="kicker">FRONTIÈRE PUBLIQUE / PRIVÉE</p>
-        <h2>Lecture publique seulement</h2>
-        <p><strong>Le laboratoire public n'est pas Genesis.</strong> Il montre uniquement ce qui peut être défendu publiquement. Une animation n'est jamais une preuve d'activité réelle, et aucune donnée privée ne doit traverser la frontière sans contrat, provenance et validation.</p>
-      </article>
-
-      <article class="card lab-card">
-        <p class="kicker">DISCIPLINE</p>
-        <h2>Construire petit</h2>
-        <p>Chaque nouvelle brique est testée avant publication : contrat, donnée DEMO, validation, rendu navigateur, preuve, bundle. Les versions réelles resteront séparées tant que la frontière publique n'aura pas été démontrée.</p>
       </article>
     </section>
-
-    <footer>
-      <p>Laboratoire public Antmux · architecture expérimentale · aucune propriété de conscience ou nouvelle loi physique n'est présumée.</p>
-    </footer>
   </main>
 </body>
 </html>

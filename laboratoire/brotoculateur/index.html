@@ -3,56 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Antmux · Brotoculateur · vitrine publique</title>
+<title>Brutus Workshop // 7 tableaux</title>
 <style>
-:root{color-scheme:dark;--bg:#050505;--panel:#0d0d0d;--panel2:#141414;--line:#2b2b2b;--text:#f4f4f4;--muted:#9a9a9a}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.shell{max-width:1500px;margin:auto;padding:22px}.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:18px}
-h1{margin:0 0 7px;font-size:24px;letter-spacing:.08em}.sub{color:var(--muted);font-size:12px;line-height:1.55}
-.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:11px}.lock{background:#eee;color:#080808;text-decoration:none;font-weight:800}
-.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
-img{display:block;width:100%;height:auto;border:1px solid #252525;border-radius:10px;background:#080808}.k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-h2{font-size:16px;margin:7px 0 12px}.facts{display:grid;gap:9px}.fact{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px}
-.fact b{display:block;font-size:11px;margin-bottom:5px}.fact span{font-size:11px;color:var(--muted);line-height:1.45}.note{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.55}
-.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{display:inline-block;padding:10px 13px;border-radius:9px;border:1px solid var(--line);text-decoration:none;color:var(--text);font-size:11px;font-weight:800}.btn.primary{background:#eee;color:#080808}
-@media(max-width:900px){.grid{grid-template-columns:1fr}.top{flex-direction:column}}
+:root{color-scheme:dark;--bg:#050505;--p:#0d0d0d;--p2:#141414;--line:#2b2b2b;--text:#f4f4f4;--muted:#929292;--ok:#dfffe8}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-x:hidden}.shell{max-width:1500px;margin:auto;padding:18px 20px 40px}
+header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.brand h1{margin:0 0 7px;font-size:24px;letter-spacing:.1em}.brand p{margin:0;color:var(--muted);font-size:12px}.nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.pill,.back{border:1px solid var(--line);border-radius:999px;padding:9px 13px;font-size:11px;text-decoration:none;color:var(--text)}.pill[data-state="RUNNING"]{background:#eee;color:#050505}.back{background:#151515}.back:hover{background:#222}
+.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-bottom:14px}.metric,.board,.mini{background:var(--p);border:1px solid var(--line);border-radius:12px}.metric{padding:12px}.k,.eyebrow{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}.v{font-size:24px;margin-top:6px}.boards{display:grid;grid-template-columns:repeat(12,1fr);gap:13px}.board{padding:16px}.board h2{margin:5px 0 13px;font-size:16px}.full{grid-column:span 12}.half{grid-column:span 6}.livegrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mini{padding:12px;background:#090909}.big{font-size:44px;line-height:1;margin:9px 0}.small{font-size:11px;color:var(--muted);line-height:1.5}.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{border:1px solid var(--line);border-radius:999px;padding:6px 9px;font-size:11px}.chip.hot{background:#eee;color:#080808}.calc{display:grid;grid-template-columns:130px 1fr;gap:8px 12px}.name{color:var(--muted);font-size:11px}.formula{font-size:14px}.formula strong{font-size:20px}.options{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.option{background:#090909;border:1px solid var(--line);border-radius:10px;padding:11px;min-height:105px}.option .n{font-size:10px;color:var(--muted)}.option .t{font-weight:700;font-size:12px;margin-top:7px}.option .s{font-size:10px;color:var(--muted);margin-top:8px}.option.live{border-color:#888}.output{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}.out{background:#090909;border:1px solid var(--line);border-radius:10px;padding:12px}.out .num{font-size:28px;margin-top:5px}.factory{display:grid;grid-template-columns:repeat(31,1fr);gap:3px;max-height:220px;overflow:auto;border:1px solid #222;background:#080808;border-radius:9px;padding:7px}.cr{aspect-ratio:1;border:1px solid #303030;border-radius:3px;background:#141414}.cr:nth-child(7n){background:#1b1b1b}.stages{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:12px}.stage{background:#090909;border:1px solid var(--line);border-radius:9px;padding:9px}.stage b{display:block;font-size:14px}.stage span{font-size:10px;color:var(--muted)}.progress{height:7px;background:#181818;border-radius:99px;overflow:hidden;margin-top:11px}.progress div{height:100%;background:#eee;width:0}.meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:6px}.levelgrid{display:grid;gap:7px}.levelrow{display:grid;grid-template-columns:80px 1fr 110px;gap:10px;align-items:center;border-top:1px solid #1f1f1f;padding:9px 2px}.levelrow:first-child{border-top:0}.bar{height:7px;background:#171717;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#ddd;border-radius:99px}.readonly{border:1px dashed #444;border-radius:9px;padding:12px;color:var(--muted);font-size:11px;line-height:1.55}.public-note{margin-top:18px;border-top:1px solid var(--line);padding-top:12px;color:var(--muted);font-size:10px}
+@media(max-width:1000px){.summary{grid-template-columns:repeat(3,1fr)}.half{grid-column:span 12}.livegrid{grid-template-columns:1fr}.options{grid-template-columns:repeat(2,1fr)}.output{grid-template-columns:repeat(2,1fr)}.factory{grid-template-columns:repeat(20,1fr)}.stages{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){.shell{padding:12px 9px 30px}header{flex-direction:column}.summary{grid-template-columns:repeat(2,1fr)}.calc{grid-template-columns:1fr}.options{grid-template-columns:1fr 1fr}.output{grid-template-columns:1fr 1fr}.stages{grid-template-columns:1fr 1fr}.levelrow{grid-template-columns:55px 1fr 90px}}
 </style>
 </head>
 <body><div class="shell">
-<header class="top">
-  <div>
-    <div class="k">ANTMUX · BRUTUS · VITRINE PUBLIQUE</div>
-    <h1>BROTOCULATEUR / BRUTOCALCULATEUR</h1>
-    <div class="sub">Capture fidèle de l'atelier courant · Brutus Workshop // 7 tableaux · lecture publique seulement</div>
-  </div>
-  <a class="badge lock" href="./private/">DÉBARRER LA VITRINE</a>
+<header>
+  <div class="brand"><div class="eyebrow">ANTMUX · BRUTUS · LECTURE PUBLIQUE</div><h1>BRUTUS WORKSHOP // 7 TABLEAUX</h1><p>Interface originale · défilement vertical · télémétrie live sanitisée · aucune commande visiteur</p></div>
+  <div class="nav"><a class="back" href="/brutus/#broto" target="_top">← BRUTUS</a><span id="state" class="pill">CONNEXION…</span></div>
 </header>
-
-<div class="grid">
-  <section class="panel">
-    <div class="k">CAPTURE DE L'APPLICATION RÉELLE</div>
-    <h2>Atelier Brutus — vue figée</h2>
-    <img src="./brotoculateur-vitrine.png" alt="Capture publique figée du Brotoculateur">
-    <p class="note">La capture provient de l'application Brotoculateur démarrée localement et vérifiée avant publication. Cette page n'exécute aucun calcul et n'expose aucun backend privé.</p>
-  </section>
-
-  <aside class="panel">
-    <div class="k">CONTRAT PUBLIC</div>
-    <h2>PUBLIC · VERROUILLÉ</h2>
-    <div class="facts">
-      <div class="fact"><b>Mode</b><span>Vitrine figée, aucune interaction visiteur.</span></div>
-      <div class="fact"><b>Atelier</b><span>7 tableaux · 5 axes canoniques · 7 postes Brutus.</span></div>
-      <div class="fact"><b>Structureur</b><span>Cible affichée : 620 · voie PUR : Z1 à Z39.</span></div>
-      <div class="fact"><b>Backend</b><span>Non publié. Le moteur privé reste séparé de la vitrine.</span></div>
-      <div class="fact"><b>Provenance</b><span>Commit source et hash de capture publiés dans PUBLIC-PROVENANCE.json.</span></div>
-    </div>
-    <div class="actions">
-      <a class="btn primary" href="./private/">ACCÈS PROPRIÉTAIRE</a>
-      <a class="btn" href="./PUBLIC-PROVENANCE.json">PROVENANCE</a>
-      <a class="btn" href="../">RETOUR LABORATOIRE</a>
-    </div>
-    <p class="note">Une observation numérique ou une interface fonctionnelle ne constitue pas, à elle seule, une preuve mathématique.</p>
-  </aside>
+<section class="summary">
+  <div class="metric"><div class="k">Paquets</div><div id="processed" class="v">—</div></div>
+  <div class="metric"><div class="k">Formules actives</div><div id="formulaCount" class="v">—</div></div>
+  <div class="metric"><div class="k">Cristaux live</div><div id="liveCrystals" class="v">—</div></div>
+  <div class="metric"><div class="k">L1</div><div id="l1" class="v">—</div></div>
+  <div class="metric"><div class="k">L2+</div><div id="l2plus" class="v">—</div></div>
+  <div class="metric"><div class="k">Structureur</div><div class="v">620</div></div>
+</section>
+<main class="boards">
+<section class="board full"><div class="eyebrow">MOTEUR LIVE · LECTURE PUBLIQUE</div><h2>Brotoculateur LIVE</h2><div class="livegrid">
+  <div class="mini"><div class="small">EXÉCUTÉS</div><div id="processedBig" class="big">—</div><div class="progress"><div id="progressBar"></div></div><div class="meta"><span id="runId">run —</span><span id="liveStamp">mesure —</span></div><div style="height:12px"></div><div class="readonly"><strong>COMMANDES VERROUILLÉES</strong><br>DÉMARRER · PAUSE · +1 · RESET · SAVE restent disponibles uniquement dans l'atelier privé. Cette vitrine ne peut rien écrire dans le moteur.</div></div>
+  <div class="mini"><div class="small">NIVEAUX DE CRISTAUX</div><div id="levelMini" class="levelgrid"></div></div>
+</div></section>
+<section class="board full"><div class="eyebrow">CRISTAUX LIVE · RARETÉ</div><h2>Classement L1 → Ln — rares en haut, fréquents en bas</h2><div class="meta"><span>Mesure réelle issue du flux public sanitisé.</span><span>Total classé : <strong id="rarityTotal">—</strong></span></div><div id="crystalRarity" class="levelgrid" style="margin-top:10px"></div></section>
+<section class="board half"><div class="eyebrow">TABLEAU 1 / 7 · BASES</div><h2>Z — Z1 à Z39</h2><div class="calc"><div class="name">PUR · 39 bases</div><div id="zPure" class="chips"></div><div class="name">Poussière</div><div class="small">39 positions PUR avec 39 positions poussière intercalées : rythme 1:1. IMPUR reste hors de la boucle de recyclage.</div></div></section>
+<section class="board half"><div class="eyebrow">TABLEAU 2 / 7 · CONTENU</div><h2>PUR actif · IMPUR isolé</h2><div class="calc"><div class="name">Flux actif</div><div class="chips"><span class="chip hot">PUR · Z1…Z39</span></div><div class="name">Flux isolé</div><div class="chips"><span class="chip">IMPUR · PAS DE RÉINJECTION</span></div><div class="name">Règle</div><div class="small">Le gros cristal recyclé retourne uniquement dans PUR pour ne pas mélanger son chemin.</div></div></section>
+<section class="board full"><div class="eyebrow">STRUCTUREUR 39 · RECYCLAGE PUR</div><h2>39 PUR · gros cristal L2+ · pulsation 11 avant / 1 recyclage</h2><div class="output">
+  <div class="out"><div class="k">Cristaux L2+</div><div id="s39L2plus" class="num">—</div><div class="small">total live au-dessus de L1</div></div>
+  <div class="out"><div class="k">Stockage</div><div id="storage" class="num" style="font-size:16px">—</div><div class="small">mode d'écriture public</div></div>
+  <div class="out"><div class="k">Papillon</div><div id="papillon" class="num">—</div><div class="small">taux de hit public</div></div>
+  <div class="out"><div class="k">Sentinelles</div><div id="sentinels" class="num">—</div><div class="small">survie / total</div></div>
+</div><div class="readonly">Les compteurs internes de recyclage, fragments et séparateur ne sont pas publiés dans le flux public actuel. Ils ne sont donc pas inventés ici.</div></section>
+<section class="board half"><div class="eyebrow">TABLEAU 3 / 7 · PARALLÈLE F</div><h2>Suite Fibonacci</h2><div class="calc"><div class="name">F</div><div class="formula"><strong>F = {1,2,3,5,8,13}</strong></div><div class="name">Sens</div><div class="small">Ordre conservé. On ne renverse pas Fibonacci pour fabriquer le négatif.</div></div></section>
+<section class="board half"><div class="eyebrow">TABLEAU 4 / 7 · PARALLÈLE P</div><h2>Nombres premiers</h2><div class="calc"><div class="name">P</div><div class="formula"><strong>P = {2,3,5,7,11,13}</strong></div><div class="name">Sens</div><div class="small">Branche parallèle distincte. Ordre conservé dans le sens des nombres premiers.</div></div></section>
+<section class="board half"><div class="eyebrow">TABLEAU 5 / 7 · LECTURE</div><h2>Largeur / longueur · + / −</h2><div class="calc"><div class="name">Polarité +</div><div class="chips"><span class="chip hot">POSITIF +</span></div><div class="name">Polarité −</div><div class="chips"><span class="chip">NÉGATIF −</span></div><div class="name">Règle</div><div class="small">La polarité change la lecture / sortie; elle ne renverse pas l'ordre interne de F ni de P.</div></div></section>
+<section class="board full"><div class="eyebrow">TABLEAU 6 / 7 · OPTIONS BRUTUS</div><h2>Les 7 postes Brutus</h2><div class="options">
+  <div class="option"><div class="n">01</div><div class="t">Brutomatique</div><div class="s">notes / matière</div></div><div class="option live"><div class="n">02</div><div class="t">Brotoculateur</div><div class="s">LIVE · calcul</div></div><div class="option"><div class="n">03</div><div class="t">Brutoliseur</div><div class="s">lecture / extraction</div></div><div class="option"><div class="n">04</div><div class="t">Brutopresseur</div><div class="s">pression / regroupement</div></div><div class="option"><div class="n">05</div><div class="t">Brutoficateur</div><div class="s">fabrication</div></div><div class="option"><div class="n">06</div><div class="t">Bruto-tracker</div><div class="s">suivi / doublons</div></div><div class="option live"><div class="n">07</div><div class="t">Brutomagique</div><div class="s">LIVE · cristallisation</div></div>
+</div></section>
+<section class="board full"><div class="eyebrow">TABLEAU 7 / 7 · STRUCTUREUR</div><h2>Structureur — règle courante</h2><div class="output">
+  <div class="out"><div class="k">Bases actives</div><div class="num">39 PUR</div><div class="small">IMPUR isolé du recyclage</div></div><div class="out"><div class="k">Lectures logiques</div><div class="num">16</div><div class="small">8 lectures × polarités + / −</div></div><div class="out"><div class="k">Cible</div><div class="num">620</div><div class="small">620 différences — valeur conservée</div></div><div class="out"><div class="k">Produit live actuel</div><div id="liveFactoryCount" class="num">—</div><div class="small">cristaux réellement émis</div></div>
+</div><div id="factory" class="factory"></div><div class="stages"><div class="stage"><b>2×2 = 4</b><span>seuil 5</span></div><div class="stage"><b>3×3 = 9</b><span>seuil 10</span></div><div class="stage"><b>4×4 = 16</b><span>seuil 17</span></div><div class="stage"><b>5×5 = 25</b><span>seuil 26</span></div><div class="stage"><b>6×6 = 36</b><span>seuil 37</span></div><div class="stage"><b>7×7 = 49</b><span>seuil 50</span></div></div></section>
+</main>
+<div class="public-note">PUBLIC · READ ONLY · aucune route d'écriture · observation numérique ≠ preuve mathématique.</div>
 </div>
-</div></body>
-</html>
+<script>
+const $=id=>document.getElementById(id), nf=new Intl.NumberFormat('fr-CA');
+$('zPure').innerHTML=Array.from({length:39},(_,i)=>'<span class="chip">Z'+(i+1)+'</span>').join('');
+$('factory').innerHTML=Array.from({length:620},(_,i)=>'<div class="cr" title="Position '+(i+1)+'/620"></div>').join('');
+function fmt(v){return Number.isFinite(Number(v))?nf.format(Number(v)):'—'}
+function heightPing(){try{const h=document.documentElement.scrollHeight;if(window.parent!==window){const f=window.frameElement;if(f){f.style.height=Math.ceil(h+6)+'px';f.style.minHeight='0';f.style.border='0';f.style.borderRadius='0';f.style.overflow='hidden';const p=f.closest('.broto-focus-panel');if(p){p.style.padding='0';p.style.border='0';p.style.background='transparent';const t=p.querySelector('.broto-toolbar');if(t)t.style.display='none'}}}parent.postMessage({type:'brotoculateur-height',height:h},location.origin)}catch(_){}}
+function render(d){
+ const b=d.brotoculateur||{}, levels=b.levels||{}, entries=Object.entries(levels).sort((a,z)=>Number(a[0].slice(1))-Number(z[0].slice(1)));
+ const total=Number(b.crystals||0), l1=Number(levels.L1||0), l2plus=Math.max(0,total-l1), max=Math.max(1,...entries.map(x=>Number(x[1]||0)));
+ $('state').textContent=b.state||'—'; $('state').dataset.state=b.state||'';
+ $('processed').textContent=fmt(b.processed_packets); $('processedBig').textContent=fmt(b.processed_packets); $('formulaCount').textContent=fmt((b.formula_ids||[]).length);
+ $('liveCrystals').textContent=fmt(total); $('liveFactoryCount').textContent=fmt(total); $('l1').textContent=fmt(l1); $('l2plus').textContent=fmt(l2plus); $('s39L2plus').textContent=fmt(l2plus);
+ $('runId').textContent='run '+(b.run_id||'—'); $('liveStamp').textContent='LIVE · '+new Date().toLocaleTimeString('fr-CA');
+ $('storage').textContent=b.storage||'—'; $('papillon').textContent=Number.isFinite(Number(b.papillon_hit_rate))?(Number(b.papillon_hit_rate)*100).toFixed(2)+' %':'—'; $('sentinels').textContent=fmt(b.sentinels_survived)+' / '+fmt(b.sentinels_total);
+ const rows=entries.map(([k,n])=>'<div class="levelrow"><strong>'+k+'</strong><div class="bar"><i style="width:'+Math.max(1,Number(n||0)/max*100).toFixed(3)+'%"></i></div><span>'+fmt(n)+'</span></div>').join('');
+ $('levelMini').innerHTML=rows||'<div class="small">Aucun niveau publié.</div>';
+ const rare=entries.slice().sort((a,z)=>Number(a[1])-Number(z[1])); $('rarityTotal').textContent=fmt(entries.reduce((s,x)=>s+Number(x[1]||0),0));
+ $('crystalRarity').innerHTML=rare.map(([k,n])=>'<div class="levelrow"><strong>'+k+'</strong><div class="bar"><i style="width:'+Math.max(1,Number(n||0)/max*100).toFixed(3)+'%"></i></div><span>'+fmt(n)+'</span></div>').join('');
+ heightPing();
+}
+async function refresh(){try{const r=await fetch('/brutus/public-state.json?t='+Date.now(),{cache:'no-store'}); if(!r.ok)throw new Error('HTTP '+r.status); render(await r.json())}catch(e){$('state').textContent='PARTIEL'; heightPing()}}
+refresh(); setInterval(refresh,3000); window.addEventListener('load',heightPing); new ResizeObserver(heightPing).observe(document.body); setTimeout(heightPing,250);
+</script>
+</body></html>
