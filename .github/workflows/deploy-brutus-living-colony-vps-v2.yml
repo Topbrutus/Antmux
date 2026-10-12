@@ -1,0 +1,277 @@
+name: Deploy Brutus Living Colony Sidecars v2
+
+on:
+  push:
+    branches: [astra/brutus-colony-vps-audit-20261011]
+    paths:
+      - '.github/workflows/deploy-brutus-living-colony-vps-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brutus-living-colony-vps
+  cancel-in-progress: false
+
+env:
+  BRUTUS_REPO: https://github.com/Topbrutus/Brutus.git
+  BRUTUS_BRANCH: astra/brutus-living-colony-20261011
+  BRUTUS_SHA: d67a2297a3e639391a6d9a8e3945d75d1ba017ff
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch exact Brutus colony source
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch "$BRUTUS_BRANCH" "$BRUTUS_REPO" _brutus_colony
+          actual="$(git -C _brutus_colony rev-parse HEAD)"
+          test "$actual" = "$BRUTUS_SHA"
+          printf 'BRUTUS_SHA_VERIFIED=%s\n' "$actual"
+
+      - name: Validate Brutus colony contracts
+        run: |
+          set -euo pipefail
+          cd _brutus_colony
+          npm test
+          test -f deploy/brutus-colony.service
+          test -f deploy/brotoculateur-colony-worker.service
+          test -f tools/living-colony-service.mjs
+          test -f data/brutotableur-fresque-public.json
+          test -f public/colony-vitrine/index.html
+          test -f public/colony-vitrine/app.js
+          test -f public/colony-vitrine/style.css
+          grep -Fq '127.0.0.1:8781' deploy/brutus-colony.service
+          grep -Fq '127.0.0.1:8782' deploy/brutus-colony.service
+          grep -Fq 'BRUTUS_COLONY_PORT=8812' deploy/brutus-colony.service
+          grep -Fq 'READ ONLY' public/colony-vitrine/index.html
+          grep -Fq 'AUTO PROOF FALSE' public/colony-vitrine/index.html
+          grep -Fq 'Échelle vivante L1 → Ln' public/colony-vitrine/index.html
+          printf 'COLONY_CONTRACTS=PASS\n'
+
+      - name: Assemble immutable payload
+        run: |
+          set -euo pipefail
+          tar --exclude='.git' -C _brutus_colony -czf brutus-colony-${BRUTUS_SHA}.tgz .
+          sha256sum brutus-colony-${BRUTUS_SHA}.tgz > brutus-colony-${BRUTUS_SHA}.tgz.sha256
+          cat brutus-colony-${BRUTUS_SHA}.tgz.sha256
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload tested payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          REMOTE_STAGE="/home/$VPS_USER/brutus-colony-stage-${{ github.run_id }}-${{ github.run_attempt }}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            brutus-colony-${BRUTUS_SHA}.tgz brutus-colony-${BRUTUS_SHA}.tgz.sha256 \
+            "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+          printf 'REMOTE_STAGE=%s\n' "$REMOTE_STAGE" >> "$GITHUB_ENV"
+
+      - name: Install isolated worker, Queen sidecar and vitrine
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "REMOTE_STAGE='$REMOTE_STAGE' BRUTUS_SHA='$BRUTUS_SHA' bash -se" <<'REMOTE'
+          set -euo pipefail
+          test "$(id -un)" = 'rob'
+          test "$HOME" = '/home/rob'
+
+          RELEASES="$HOME/brutus-colony/releases"
+          RELEASE="$RELEASES/$BRUTUS_SHA"
+          CURRENT="$HOME/brutus-colony-runtime"
+          USER_UNITS="$HOME/.config/systemd/user"
+          PUBLIC_ROOT='/var/www/antmux.com/public_html/brutus'
+          BACKUP="$HOME/brutus-colony/backups/$(date -u +%Y%m%dT%H%M%SZ)-$BRUTUS_SHA"
+          PAYLOAD="$REMOTE_STAGE/brutus-colony-${BRUTUS_SHA}.tgz"
+          CHECKSUM="$REMOTE_STAGE/brutus-colony-${BRUTUS_SHA}.tgz.sha256"
+          DEPLOY_OK=0
+          OLD_CURRENT=''
+          PREV_WORKER_ACTIVE="$(systemctl --user is-active brotoculateur-colony-worker.service 2>/dev/null || true)"
+          PREV_COLONY_ACTIVE="$(systemctl --user is-active brutus-colony.service 2>/dev/null || true)"
+          PREV_WORKER_ENABLED="$(systemctl --user is-enabled brotoculateur-colony-worker.service 2>/dev/null || true)"
+          PREV_COLONY_ENABLED="$(systemctl --user is-enabled brutus-colony.service 2>/dev/null || true)"
+
+          rollback() {
+            code=$?
+            if [ "$DEPLOY_OK" != '1' ]; then
+              set +e
+              echo "ROLLBACK=START exit=$code"
+              systemctl --user stop brutus-colony.service brotoculateur-colony-worker.service >/dev/null 2>&1 || true
+              if [ -f "$BACKUP/brutus-colony.service" ]; then
+                cp "$BACKUP/brutus-colony.service" "$USER_UNITS/brutus-colony.service"
+              else
+                systemctl --user disable brutus-colony.service >/dev/null 2>&1 || true
+                rm -f "$USER_UNITS/brutus-colony.service"
+              fi
+              if [ -f "$BACKUP/brotoculateur-colony-worker.service" ]; then
+                cp "$BACKUP/brotoculateur-colony-worker.service" "$USER_UNITS/brotoculateur-colony-worker.service"
+              else
+                systemctl --user disable brotoculateur-colony-worker.service >/dev/null 2>&1 || true
+                rm -f "$USER_UNITS/brotoculateur-colony-worker.service"
+              fi
+              for f in index.html app.js style.css; do
+                if [ -f "$BACKUP/public-$f" ]; then cp "$BACKUP/public-$f" "$PUBLIC_ROOT/$f"; fi
+              done
+              rm -f "$PUBLIC_ROOT/colony-state.json"
+              if [ -n "$OLD_CURRENT" ] && [ -d "$OLD_CURRENT" ]; then ln -sfn "$OLD_CURRENT" "$CURRENT"; else rm -f "$CURRENT"; fi
+              systemctl --user daemon-reload || true
+              if [ "$PREV_WORKER_ENABLED" = 'enabled' ] && [ -f "$USER_UNITS/brotoculateur-colony-worker.service" ]; then systemctl --user enable brotoculateur-colony-worker.service >/dev/null 2>&1 || true; fi
+              if [ "$PREV_COLONY_ENABLED" = 'enabled' ] && [ -f "$USER_UNITS/brutus-colony.service" ]; then systemctl --user enable brutus-colony.service >/dev/null 2>&1 || true; fi
+              if [ "$PREV_WORKER_ACTIVE" = 'active' ]; then systemctl --user start brotoculateur-colony-worker.service || true; fi
+              if [ "$PREV_COLONY_ACTIVE" = 'active' ]; then systemctl --user start brutus-colony.service || true; fi
+              echo 'ROLLBACK=COMPLETE'
+            fi
+            exit "$code"
+          }
+          trap rollback EXIT
+
+          echo 'PRECHECK=START'
+          test -f "$PAYLOAD"
+          test -f "$CHECKSUM"
+          cd "$REMOTE_STAGE"
+          sha256sum -c "$(basename "$CHECKSUM")"
+          test "$(systemctl --user is-active brotoculateur.service)" = 'active'
+          test "$(systemctl --user is-active brutus.service)" = 'active'
+          test "$(systemctl --user is-active brutus-public.service)" = 'active'
+          curl --fail --silent --show-error http://127.0.0.1:8781/api/status >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8811/api/state >/dev/null
+          echo 'PRECHECK=PASS'
+
+          mkdir -p "$RELEASES" "$BACKUP" "$USER_UNITS" "$PUBLIC_ROOT"
+          if [ -L "$CURRENT" ]; then OLD_CURRENT="$(readlink -f "$CURRENT" || true)"; elif [ -e "$CURRENT" ]; then echo 'CURRENT_RUNTIME_IS_NOT_A_SYMLINK' >&2; exit 41; fi
+          for f in index.html app.js style.css; do test -f "$PUBLIC_ROOT/$f" && cp -a "$PUBLIC_ROOT/$f" "$BACKUP/public-$f" || true; done
+          test -f "$USER_UNITS/brutus-colony.service" && cp -a "$USER_UNITS/brutus-colony.service" "$BACKUP/brutus-colony.service" || true
+          test -f "$USER_UNITS/brotoculateur-colony-worker.service" && cp -a "$USER_UNITS/brotoculateur-colony-worker.service" "$BACKUP/brotoculateur-colony-worker.service" || true
+
+          rm -rf "$RELEASE"
+          mkdir -p "$RELEASE"
+          tar -xzf "$PAYLOAD" -C "$RELEASE"
+          test -f "$RELEASE/tools/living-colony-service.mjs"
+          test -f "$RELEASE/data/brutotableur-fresque-public.json"
+          test -f "$RELEASE/deploy/brutus-colony.service"
+          test -f "$RELEASE/deploy/brotoculateur-colony-worker.service"
+          ln -sfn "$RELEASE" "$CURRENT"
+
+          install -m 0644 "$RELEASE/deploy/brotoculateur-colony-worker.service" "$USER_UNITS/brotoculateur-colony-worker.service"
+          install -m 0644 "$RELEASE/deploy/brutus-colony.service" "$USER_UNITS/brutus-colony.service"
+          install -m 0644 "$RELEASE/public/colony-vitrine/index.html" "$PUBLIC_ROOT/index.html"
+          install -m 0644 "$RELEASE/public/colony-vitrine/app.js" "$PUBLIC_ROOT/app.js"
+          install -m 0644 "$RELEASE/public/colony-vitrine/style.css" "$PUBLIC_ROOT/style.css"
+
+          systemctl --user daemon-reload
+          systemctl --user enable brotoculateur-colony-worker.service >/dev/null
+          systemctl --user restart brotoculateur-colony-worker.service
+          for i in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:8782/api/status >/tmp/brutus-colony-worker-status.json && break
+            sleep 1
+          done
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/brutus-colony-worker-status.json'))
+          assert d.get('state') in {'PAUSED','RUNNING','COMPLETE'}, d.get('state')
+          print('WORKER_8782=PASS', d.get('state'), d.get('run_id'))
+          PY
+
+          systemctl --user enable brutus-colony.service >/dev/null
+          systemctl --user restart brutus-colony.service
+          for i in $(seq 1 45); do
+            curl --fail --silent http://127.0.0.1:8812/health >/tmp/brutus-colony-health.json && break
+            sleep 1
+          done
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/brutus-colony-health.json'))
+          assert d.get('status') in {'RUNNING','DEGRADED'}, d
+          j=d.get('journal') or {}
+          assert j.get('valid') is True, j
+          print('QUEEN_8812=PASS', d.get('status'), 'cycles=', d.get('cycles_completed'))
+          PY
+
+          echo 'WAIT_COLONY_PUBLIC_STATE=START'
+          for i in $(seq 1 45); do
+            if test -s "$PUBLIC_ROOT/colony-state.json" && python3 - "$PUBLIC_ROOT/colony-state.json" <<'PY_CHECK'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d.get('schema')=='BRUTUS-LIVING-COLONY-SITE-v0.1'
+          assert d.get('public_scope')=='READ_ONLY_SANITIZED'
+          PY_CHECK
+            then
+              break
+            fi
+            sleep 1
+          done
+          test -s "$PUBLIC_ROOT/colony-state.json"
+          echo 'WAIT_COLONY_PUBLIC_STATE=PASS'
+
+          echo 'POSTCHECK=START'
+          test "$(systemctl --user is-active brotoculateur.service)" = 'active'
+          test "$(systemctl --user is-active brutus.service)" = 'active'
+          test "$(systemctl --user is-active brutus-public.service)" = 'active'
+          test "$(systemctl --user is-active brotoculateur-colony-worker.service)" = 'active'
+          test "$(systemctl --user is-active brutus-colony.service)" = 'active'
+          curl --fail --silent http://127.0.0.1:8781/api/status >/tmp/main-broto-after.json
+          curl --fail --silent http://127.0.0.1:8811/api/state >/tmp/main-brutus-after.json
+          python3 - "$PUBLIC_ROOT/colony-state.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d['schema']=='BRUTUS-LIVING-COLONY-SITE-v0.1'
+          assert d['public_scope']=='READ_ONLY_SANITIZED'
+          print('COLONY_PUBLIC_STATE=PASS', d['service']['status'], d['colony']['queen']['cycle'])
+          PY
+          grep -Fq 'BRUTUS REINE VIVANTE' "$PUBLIC_ROOT/index.html"
+          grep -Fq 'BRUTOTABLEUR · FRESQUE' "$PUBLIC_ROOT/index.html"
+          echo 'POSTCHECK=PASS'
+
+          rm -rf "$REMOTE_STAGE"
+          DEPLOY_OK=1
+          trap - EXIT
+          echo "BRUTUS_COLONY_RELEASE=$BRUTUS_SHA"
+          echo 'DEPLOY_SIDECARS=PASS'
+          REMOTE
+
+      - name: Verify public Brutus colony
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/brutus/ -o /tmp/brutus-colony.html
+          curl --fail --silent --show-error --location https://antmux.com/brutus/public-state.json -o /tmp/brutus-public-state.json
+          curl --fail --silent --show-error --location https://antmux.com/brutus/colony-state.json -o /tmp/brutus-colony-state.json
+          grep -Fq 'BRUTUS REINE VIVANTE' /tmp/brutus-colony.html
+          grep -Fq 'BRUTOBAC' /tmp/brutus-colony.html
+          grep -Fq 'BRUTOTABLEUR · FRESQUE' /tmp/brutus-colony.html
+          python3 - <<'PY'
+          import json
+          public=json.load(open('/tmp/brutus-public-state.json'))
+          colony=json.load(open('/tmp/brutus-colony-state.json'))
+          assert public['public_scope']=='READ_ONLY_SANITIZED'
+          assert colony['schema']=='BRUTUS-LIVING-COLONY-SITE-v0.1'
+          assert colony['public_scope']=='READ_ONLY_SANITIZED'
+          levels=(public.get('brotoculateur') or {}).get('levels') or {}
+          print('PUBLIC_VERIFY=PASS')
+          print('BROTO_LEVELS=', levels)
+          print('COLONY_SERVICE=', colony.get('service'))
+          print('COLONY_COUNTS=', (colony.get('colony') or {}).get('colony'))
+          print('ASTRA=', (colony.get('colony') or {}).get('astra'))
+          PY
