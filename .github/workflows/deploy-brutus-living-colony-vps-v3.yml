@@ -1,0 +1,241 @@
+name: Deploy Brutus Living Colony Sidecars v3
+
+on:
+  push:
+    branches: [astra/brutus-colony-vps-audit-20261011]
+    paths:
+      - '.github/workflows/deploy-brutus-living-colony-vps-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brutus-living-colony-vps
+  cancel-in-progress: false
+
+env:
+  BRUTUS_REPO: https://github.com/Topbrutus/Brutus.git
+  BRUTUS_BRANCH: astra/brutus-living-colony-20261011
+  BRUTUS_SHA: 468caf6de0c7feb432da9fbe021dd3145c3ef626
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch and validate exact Brutus release
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch "$BRUTUS_BRANCH" "$BRUTUS_REPO" _brutus
+          test "$(git -C _brutus rev-parse HEAD)" = "$BRUTUS_SHA"
+          cd _brutus
+          npm test
+          grep -Fq 'data-brutus-colony-vitrine="v0.1"' public/colony-vitrine/index.html
+          grep -Fq 'data-public-scope="READ_ONLY_SANITIZED"' public/colony-vitrine/index.html
+          grep -Fq 'data-tab="fresque"' public/colony-vitrine/index.html
+          test -f deploy/brutus-colony.service
+          test -f deploy/brotoculateur-colony-worker.service
+          test -f data/brutotableur-fresque-public.json
+          echo "SOURCE_AND_CONTRACTS=PASS sha=$BRUTUS_SHA"
+
+      - name: Assemble immutable payload
+        run: |
+          set -euo pipefail
+          tar --exclude='.git' -C _brutus -czf brutus-colony-${BRUTUS_SHA}.tgz .
+          sha256sum brutus-colony-${BRUTUS_SHA}.tgz > brutus-colony-${BRUTUS_SHA}.tgz.sha256
+          cat brutus-colony-${BRUTUS_SHA}.tgz.sha256
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          stage="/home/$VPS_USER/brutus-colony-stage-${{ github.run_id }}-${{ github.run_attempt }}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$stage' && mkdir -p '$stage'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            brutus-colony-${BRUTUS_SHA}.tgz brutus-colony-${BRUTUS_SHA}.tgz.sha256 \
+            "$VPS_USER@$VPS_HOST:$stage/"
+          echo "REMOTE_STAGE=$stage" >> "$GITHUB_ENV"
+
+      - name: Install and prove sidecars
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "REMOTE_STAGE='$REMOTE_STAGE' BRUTUS_SHA='$BRUTUS_SHA' bash -se" <<'REMOTE'
+          set -euo pipefail
+          test "$(id -un)" = 'rob'
+          test "$HOME" = '/home/rob'
+
+          releases="$HOME/brutus-colony/releases"
+          release="$releases/$BRUTUS_SHA"
+          current="$HOME/brutus-colony-runtime"
+          units="$HOME/.config/systemd/user"
+          public='/var/www/antmux.com/public_html/brutus'
+          backup="$HOME/brutus-colony/backups/$(date -u +%Y%m%dT%H%M%SZ)-$BRUTUS_SHA"
+          payload="$REMOTE_STAGE/brutus-colony-${BRUTUS_SHA}.tgz"
+          checksum="$REMOTE_STAGE/brutus-colony-${BRUTUS_SHA}.tgz.sha256"
+          deploy_ok=0
+          old_current=''
+          prev_worker_active="$(systemctl --user is-active brotoculateur-colony-worker.service 2>/dev/null || true)"
+          prev_colony_active="$(systemctl --user is-active brutus-colony.service 2>/dev/null || true)"
+          prev_worker_enabled="$(systemctl --user is-enabled brotoculateur-colony-worker.service 2>/dev/null || true)"
+          prev_colony_enabled="$(systemctl --user is-enabled brutus-colony.service 2>/dev/null || true)"
+
+          rollback() {
+            rc=$?
+            if [ "$deploy_ok" != 1 ]; then
+              set +e
+              echo "ROLLBACK=START rc=$rc"
+              systemctl --user stop brutus-colony.service brotoculateur-colony-worker.service >/dev/null 2>&1 || true
+              if [ -f "$backup/brutus-colony.service" ]; then cp "$backup/brutus-colony.service" "$units/brutus-colony.service"; else systemctl --user disable brutus-colony.service >/dev/null 2>&1 || true; rm -f "$units/brutus-colony.service"; fi
+              if [ -f "$backup/brotoculateur-colony-worker.service" ]; then cp "$backup/brotoculateur-colony-worker.service" "$units/brotoculateur-colony-worker.service"; else systemctl --user disable brotoculateur-colony-worker.service >/dev/null 2>&1 || true; rm -f "$units/brotoculateur-colony-worker.service"; fi
+              for f in index.html app.js style.css; do test -f "$backup/public-$f" && cp "$backup/public-$f" "$public/$f" || true; done
+              rm -f "$public/colony-state.json"
+              if [ -n "$old_current" ] && [ -d "$old_current" ]; then ln -sfn "$old_current" "$current"; else rm -f "$current"; fi
+              systemctl --user daemon-reload || true
+              if [ "$prev_worker_enabled" = enabled ] && [ -f "$units/brotoculateur-colony-worker.service" ]; then systemctl --user enable brotoculateur-colony-worker.service >/dev/null 2>&1 || true; fi
+              if [ "$prev_colony_enabled" = enabled ] && [ -f "$units/brutus-colony.service" ]; then systemctl --user enable brutus-colony.service >/dev/null 2>&1 || true; fi
+              if [ "$prev_worker_active" = active ]; then systemctl --user start brotoculateur-colony-worker.service || true; fi
+              if [ "$prev_colony_active" = active ]; then systemctl --user start brutus-colony.service || true; fi
+              echo 'ROLLBACK=COMPLETE'
+            fi
+            exit "$rc"
+          }
+          trap rollback EXIT
+
+          echo 'PRECHECK=START'
+          cd "$REMOTE_STAGE"
+          sha256sum -c "$(basename "$checksum")"
+          for svc in brotoculateur.service brutus.service brutus-public.service; do test "$(systemctl --user is-active "$svc")" = active; done
+          curl --fail --silent http://127.0.0.1:8781/api/status >/dev/null
+          curl --fail --silent http://127.0.0.1:8811/api/state >/dev/null
+          echo 'PRECHECK=PASS'
+
+          mkdir -p "$releases" "$backup" "$units" "$public"
+          if [ -L "$current" ]; then old_current="$(readlink -f "$current" || true)"; elif [ -e "$current" ]; then echo 'CURRENT_RUNTIME_IS_NOT_SYMLINK' >&2; exit 41; fi
+          for f in index.html app.js style.css; do test -f "$public/$f" && cp -a "$public/$f" "$backup/public-$f" || true; done
+          test -f "$units/brutus-colony.service" && cp -a "$units/brutus-colony.service" "$backup/brutus-colony.service" || true
+          test -f "$units/brotoculateur-colony-worker.service" && cp -a "$units/brotoculateur-colony-worker.service" "$backup/brotoculateur-colony-worker.service" || true
+
+          rm -rf "$release"
+          mkdir -p "$release"
+          tar -xzf "$payload" -C "$release"
+          ln -sfn "$release" "$current"
+          install -m 0644 "$release/deploy/brotoculateur-colony-worker.service" "$units/brotoculateur-colony-worker.service"
+          install -m 0644 "$release/deploy/brutus-colony.service" "$units/brutus-colony.service"
+          install -m 0644 "$release/public/colony-vitrine/index.html" "$public/index.html"
+          install -m 0644 "$release/public/colony-vitrine/app.js" "$public/app.js"
+          install -m 0644 "$release/public/colony-vitrine/style.css" "$public/style.css"
+
+          grep -Fq 'data-brutus-colony-vitrine="v0.1"' "$public/index.html"
+          grep -Fq 'data-public-scope="READ_ONLY_SANITIZED"' "$public/index.html"
+          grep -Fq 'data-tab="fresque"' "$public/index.html"
+          echo 'VITRINE_CONTRACT=PASS'
+
+          systemctl --user daemon-reload
+          systemctl --user enable --now brotoculateur-colony-worker.service >/dev/null
+          for i in $(seq 1 30); do curl --fail --silent http://127.0.0.1:8782/api/status >/tmp/worker.json && break; sleep 1; done
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/worker.json'))
+          assert d.get('state') in {'PAUSED','RUNNING','COMPLETE'}, d
+          print('WORKER_8782=PASS', d.get('state'), d.get('run_id'))
+          PY
+
+          systemctl --user enable --now brutus-colony.service >/dev/null
+          for i in $(seq 1 45); do curl --fail --silent http://127.0.0.1:8812/health >/tmp/queen-health.json && break; sleep 1; done
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/queen-health.json'))
+          assert d.get('status') in {'RUNNING','DEGRADED'}, d
+          assert (d.get('journal') or {}).get('valid') is True, d
+          print('QUEEN_8812=PASS', d.get('status'), 'cycles=', d.get('cycles_completed'))
+          PY
+
+          for i in $(seq 1 45); do
+            if test -s "$public/colony-state.json" && python3 - "$public/colony-state.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d.get('schema')=='BRUTUS-LIVING-COLONY-SITE-v0.1'
+          assert d.get('public_scope')=='READ_ONLY_SANITIZED'
+          PY
+            then break; fi
+            sleep 1
+          done
+          test -s "$public/colony-state.json"
+          echo 'COLONY_STATE_FILE=PASS'
+
+          for i in $(seq 1 45); do
+            cycle="$(python3 - "$public/colony-state.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1])); print(((d.get('colony') or {}).get('queen') or {}).get('cycle',0))
+          PY
+          )"
+            [ "${cycle:-0}" -ge 1 ] && break
+            sleep 1
+          done
+          python3 - "$public/colony-state.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          cycle=((d.get('colony') or {}).get('queen') or {}).get('cycle',0)
+          assert cycle >= 1, cycle
+          print('QUEEN_CYCLE=PASS', cycle)
+          print('COLONY_COUNTS=', (d.get('colony') or {}).get('colony'))
+          print('ASTRA=', (d.get('colony') or {}).get('astra'))
+          print('STORAGE=', (d.get('colony') or {}).get('storage'))
+          PY
+
+          for svc in brotoculateur.service brutus.service brutus-public.service brotoculateur-colony-worker.service brutus-colony.service; do test "$(systemctl --user is-active "$svc")" = active; done
+          curl --fail --silent http://127.0.0.1:8781/api/status >/dev/null
+          curl --fail --silent http://127.0.0.1:8811/api/state >/dev/null
+          echo 'ALL_FIVE_SERVICES=PASS'
+
+          rm -rf "$REMOTE_STAGE"
+          deploy_ok=1
+          trap - EXIT
+          echo "BRUTUS_COLONY_RELEASE=$BRUTUS_SHA"
+          echo 'DEPLOY_SIDECARS=PASS'
+          REMOTE
+
+      - name: Verify HTTPS public colony
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/brutus/ -o /tmp/index.html
+          curl --fail --silent --show-error --location https://antmux.com/brutus/public-state.json -o /tmp/public.json
+          curl --fail --silent --show-error --location https://antmux.com/brutus/colony-state.json -o /tmp/colony.json
+          grep -Fq 'data-brutus-colony-vitrine="v0.1"' /tmp/index.html
+          grep -Fq 'data-tab="fresque"' /tmp/index.html
+          python3 - <<'PY'
+          import json
+          public=json.load(open('/tmp/public.json'))
+          colony=json.load(open('/tmp/colony.json'))
+          assert public.get('public_scope')=='READ_ONLY_SANITIZED'
+          assert colony.get('schema')=='BRUTUS-LIVING-COLONY-SITE-v0.1'
+          assert colony.get('public_scope')=='READ_ONLY_SANITIZED'
+          print('HTTPS_PUBLIC_VERIFY=PASS')
+          print('LEVELS=', (public.get('brotoculateur') or {}).get('levels'))
+          print('QUEEN=', (colony.get('colony') or {}).get('queen'))
+          print('COLONY=', (colony.get('colony') or {}).get('colony'))
+          print('ASTRA=', (colony.get('colony') or {}).get('astra'))
+          print('STORAGE=', (colony.get('colony') or {}).get('storage'))
+          PY
