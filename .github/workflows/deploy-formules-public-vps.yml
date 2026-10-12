@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      SOURCE_SHA: 4d4fd06438739532a2ec8a415951fb66b6b0e5a6
+      SOURCE_SHA: 9938c41798c13680dab7227fb60b87bcb7f15279
       REMOTE_STAGE: /tmp/antmux-formules-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Fetch pinned formulas page
@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           mkdir -p payload
           curl -fsSL "https://raw.githubusercontent.com/Topbrutus/Antmux/$SOURCE_SHA/site/formules/index.html" -o payload/formules.html
-          grep -Fq 'data-antmux-formulas="v0.1"' payload/formules.html
+          grep -Fq 'data-antmux-formulas="v0.2"' payload/formules.html
           grep -Fq 'Gabriel St-Pierre' payload/formules.html
           for id in $(seq -w 1 12); do grep -Fq "GSP-0$id" payload/formules.html; done
           for doi in \
@@ -137,8 +137,10 @@ jobs:
           assert '10.5281/zenodo.22970272' in page
           PY
 
-          curl -fsS https://antmux.com/ | grep -Fq 'FORMULES PUBLIÉES'
-          curl -fsS https://antmux.com/formules/ | grep -Fq 'data-antmux-formulas="v0.1"'
+          curl -fsS https://antmux.com/ -o /tmp/formulas-home-check.html
+          grep -Fq 'FORMULES PUBLIÉES' /tmp/formulas-home-check.html
+          curl -fsS https://antmux.com/formules/ -o /tmp/formulas-page-check.html
+          grep -Fq 'data-antmux-formulas="v0.2"' /tmp/formulas-page-check.html
           trap - ERR
           rm -rf "$STAGE"
           echo 'FORMULAS_INSTALL=PASS'
@@ -153,7 +155,7 @@ jobs:
           grep -Fq 'href="/laboratoire/"' /tmp/home.html
           grep -Fq 'href="/carrou/"' /tmp/home.html
           grep -Fq 'href="/formules/"' /tmp/home.html
-          grep -Fq 'FORMULES PUBLIÉES' /tmp/formules.html
+          grep -Fq 'Formules et relations publiées' /tmp/formules.html
           test "$(grep -o 'class="formula"' /tmp/formules.html | wc -l | tr -d ' ')" = '12'
           grep -Fq 'Gabriel St-Pierre' /tmp/formules.html
           grep -Fq '10.5281/zenodo.22970270' /tmp/formules.html
