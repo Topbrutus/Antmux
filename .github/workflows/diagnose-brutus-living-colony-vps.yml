@@ -1,0 +1,99 @@
+name: Diagnose Brutus Living Colony Rollback
+
+on:
+  push:
+    branches: [astra/brutus-colony-vps-audit-20261011]
+    paths:
+      - '.github/workflows/diagnose-brutus-living-colony-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only post-rollback diagnostics
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -u
+          echo 'DIAGNOSTIC_MODE=READ_ONLY'
+          echo "UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo '=== SERVICES ==='
+          for svc in brotoculateur.service brutus.service brutus-public.service brotoculateur-colony-worker.service brutus-colony.service; do
+            printf '%s=' "$svc"
+            systemctl --user is-active "$svc" 2>/dev/null || true
+          done
+          echo '=== ENABLED LINKS ==='
+          ls -l "$HOME/.config/systemd/user/default.target.wants/"*colony* 2>/dev/null || true
+          echo '=== UNIT FILES ==='
+          ls -l "$HOME/.config/systemd/user/"*colony* 2>/dev/null || true
+          echo '=== RUNTIME/RELEASE ==='
+          ls -ld "$HOME/brutus-colony-runtime" "$HOME/brutus-colony/releases/7f75af2ac30b4bc4d89359c979389d0900d860a7" 2>/dev/null || true
+          readlink -f "$HOME/brutus-colony-runtime" 2>/dev/null || true
+          echo '=== PUBLIC FILES ==='
+          ls -l /var/www/antmux.com/public_html/brutus/index.html \
+                /var/www/antmux.com/public_html/brutus/app.js \
+                /var/www/antmux.com/public_html/brutus/style.css \
+                /var/www/antmux.com/public_html/brutus/public-state.json \
+                /var/www/antmux.com/public_html/brutus/colony-state.json 2>/dev/null || true
+          echo '=== MAIN HEALTH ==='
+          python3 - <<'PY'
+          import json, urllib.request
+          for url in ('http://127.0.0.1:8781/api/status','http://127.0.0.1:8811/api/state'):
+              try:
+                  with urllib.request.urlopen(url, timeout=4) as r: d=json.load(r)
+                  print(url, 'PASS', d.get('state') or d.get('schema'))
+              except Exception as e:
+                  print(url, 'FAIL', type(e).__name__, str(e))
+          PY
+          echo '=== COLONY HEALTH IF PRESENT ==='
+          python3 - <<'PY'
+          import json, urllib.request
+          for url in ('http://127.0.0.1:8782/api/status','http://127.0.0.1:8812/health'):
+              try:
+                  with urllib.request.urlopen(url, timeout=2) as r: d=json.load(r)
+                  print(url, 'PASS', json.dumps(d, sort_keys=True)[:2000])
+              except Exception as e:
+                  print(url, 'UNAVAILABLE', type(e).__name__, str(e))
+          PY
+          echo '=== PUBLIC COLONY JSON IF PRESENT ==='
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('/var/www/antmux.com/public_html/brutus/colony-state.json')
+          if not p.exists():
+              print('COLONY_STATE_FILE=MISSING')
+          else:
+              try:
+                  d=json.loads(p.read_text())
+                  print('COLONY_STATE_FILE=VALID', d.get('schema'), d.get('public_scope'), (d.get('service') or {}).get('status'), ((d.get('colony') or {}).get('queen') or {}).get('cycle'))
+              except Exception as e:
+                  print('COLONY_STATE_FILE=INVALID', type(e).__name__, str(e))
+          PY
+          echo '=== PREVIOUS COLONY JOURNAL ==='
+          journalctl --user -u brotoculateur-colony-worker.service -u brutus-colony.service --no-pager -n 120 2>/dev/null || true
+          echo '=== PUBLIC PAGE MARKERS ==='
+          grep -E 'BRUTUS REINE VIVANTE|BRUTOTABLEUR · FRESQUE|Vitrine publique' /var/www/antmux.com/public_html/brutus/index.html 2>/dev/null || true
+          echo 'DIAGNOSTIC_COMPLETE=PASS'
+          REMOTE
