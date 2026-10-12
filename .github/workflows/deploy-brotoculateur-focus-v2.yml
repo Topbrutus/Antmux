@@ -1,0 +1,188 @@
+name: Deploy Brotoculateur Focus V2
+
+on:
+  push:
+    branches: [astra/brotoculateur-focus-20261012]
+    paths:
+      - '.github/workflows/deploy-brotoculateur-focus-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-focus-v2
+  cancel-in-progress: false
+
+env:
+  BRUTUS_SHA: cd6f573cf0ac33f030e2a327a20a79021dd48165
+  REMOTE_STAGE: /tmp/brotoculateur-focus-v2-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate sources
+        run: |
+          set -euo pipefail
+          grep -Fq 'DÉBARRER LA VITRINE' laboratoire/brotoculateur/index.html
+          grep -Fq 'PUBLIC · VERROUILLÉ' laboratoire/brotoculateur/index.html
+          grep -Fq '/brutus/public-state.json' laboratoire/brotoculateur/index.html
+          grep -Fq 'progression des cristaux en direct' laboratoire/brotoculateur/index.html
+          python3 - <<'PY'
+          import hashlib,json,pathlib,re,subprocess
+          r=pathlib.Path('laboratoire/brotoculateur')
+          p=json.loads((r/'PUBLIC-PROVENANCE.json').read_text(encoding='utf-8'))
+          assert p['public_interaction'] is False
+          assert p['private_backend_exposed'] is False
+          assert p['password_or_secret_in_public_payload'] is False
+          assert hashlib.sha256((r/'brotoculateur-vitrine.png').read_bytes()).hexdigest()==p['source_screenshot_sha256']
+          h=(r/'index.html').read_text(encoding='utf-8')
+          s=re.search(r'<script>(.*?)</script>',h,re.S).group(1)
+          pathlib.Path('/tmp/broto-inline.js').write_text(s,encoding='utf-8')
+          subprocess.run(['node','--check','/tmp/broto-inline.js'],check=True)
+          print('SOURCE_CONTRACT=PASS')
+          PY
+          mkdir -p _brutus
+          for f in index.html app.js style.css; do
+            curl --fail --silent --show-error --location \
+              "https://raw.githubusercontent.com/Topbrutus/Brutus/$BRUTUS_SHA/public/colony-vitrine/$f" \
+              -o "_brutus/$f"
+          done
+          grep -Fq 'id="brotoFullscreen"' _brutus/index.html
+          grep -Fq 'document.body.dataset.activeTab = name' _brutus/app.js
+          grep -Fq 'body[data-active-tab="broto"] .summary' _brutus/style.css
+          node --check _brutus/app.js
+
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual" = "$expected"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage payload on VPS
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          rm -rf _deploy
+          mkdir -p _deploy/lab-public _deploy/brutus
+          cp -a laboratoire/brotoculateur/. _deploy/lab-public/
+          cp laboratoire/index.html _deploy/laboratoire-index.html
+          cp _brutus/index.html _deploy/brutus/index.html
+          cp _brutus/app.js _deploy/brutus/app.js
+          cp _brutus/style.css _deploy/brutus/style.css
+          cd _deploy
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          cd ..
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r _deploy/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Install without restarting engines
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "REMOTE_STAGE='$REMOTE_STAGE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          LAB='/var/www/antmux.com/public_html/laboratoire'
+          CANON="$LAB/brotoculateur"
+          ALIAS="$LAB/brutocalculateur"
+          BRUTUS='/var/www/antmux.com/public_html/brutus'
+          BACKUP="$HOME/brotoculateur-focus-backups/$(date -u +%Y%m%d-%H%M%S)-v2"
+          cd "$REMOTE_STAGE"
+          sha256sum -c SHA256SUMS
+
+          for svc in brotoculateur.service brotoculateur-colony-worker.service brutus.service brutus-colony.service; do
+            test "$(systemctl --user is-active "$svc")" = active
+          done
+          curl --fail --silent --show-error http://127.0.0.1:8781/api/status -o /tmp/broto-focus-runtime.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/broto-focus-runtime.json',encoding='utf-8'))
+          assert d.get('state') in {'RUNNING','PAUSED'}
+          assert isinstance(d.get('processed_packets'),(int,float)) and d['processed_packets'] >= 0
+          print('RUNTIME_8781=PASS')
+          PY
+
+          mkdir -p "$BACKUP"
+          cp -a "$LAB/index.html" "$BACKUP/laboratoire-index.html"
+          cp -a "$CANON" "$BACKUP/brotoculateur"
+          cp -a "$ALIAS" "$BACKUP/brutocalculateur"
+          cp -a "$BRUTUS/index.html" "$BACKUP/brutus-index.html"
+          cp -a "$BRUTUS/app.js" "$BACKUP/brutus-app.js"
+          cp -a "$BRUTUS/style.css" "$BACKUP/brutus-style.css"
+          rollback(){
+            set +e
+            rm -rf "$CANON" "$ALIAS"
+            cp -a "$BACKUP/brotoculateur" "$CANON"
+            cp -a "$BACKUP/brutocalculateur" "$ALIAS"
+            cp -a "$BACKUP/laboratoire-index.html" "$LAB/index.html"
+            cp -a "$BACKUP/brutus-index.html" "$BRUTUS/index.html"
+            cp -a "$BACKUP/brutus-app.js" "$BRUTUS/app.js"
+            cp -a "$BACKUP/brutus-style.css" "$BRUTUS/style.css"
+            echo 'ROLLBACK=DONE'
+          }
+          trap rollback ERR
+
+          rm -rf "$CANON.new" "$ALIAS.new"
+          mkdir -p "$CANON.new" "$ALIAS.new"
+          cp -a lab-public/. "$CANON.new/"
+          cp -a lab-public/. "$ALIAS.new/"
+          rm -rf "$CANON" "$ALIAS"
+          mv "$CANON.new" "$CANON"
+          mv "$ALIAS.new" "$ALIAS"
+          install -m 0644 laboratoire-index.html "$LAB/index.html"
+          install -m 0644 brutus/index.html "$BRUTUS/index.html"
+          install -m 0644 brutus/app.js "$BRUTUS/app.js"
+          install -m 0644 brutus/style.css "$BRUTUS/style.css"
+
+          grep -Fq '/brutus/public-state.json' "$CANON/index.html"
+          grep -Fq 'id="brotoFullscreen"' "$BRUTUS/index.html"
+          for svc in brotoculateur.service brotoculateur-colony-worker.service brutus.service brutus-colony.service; do
+            test "$(systemctl --user is-active "$svc")" = active
+          done
+          trap - ERR
+          rm -rf "$REMOTE_STAGE"
+          echo 'VPS_INSTALL=PASS'
+          REMOTE
+
+      - name: Verify HTTPS result
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://antmux.com/brutus/ -o /tmp/brutus.html
+          curl --fail --silent --show-error --location https://antmux.com/brutus/app.js -o /tmp/app.js
+          curl --fail --silent --show-error --location https://antmux.com/brutus/style.css -o /tmp/style.css
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/brotoculateur/ -o /tmp/broto.html
+          curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutocalculateur/ -o /tmp/alias.html
+          curl --fail --silent --show-error --location https://antmux.com/brutus/public-state.json -o /tmp/state.json
+          grep -Fq 'id="brotoFullscreen"' /tmp/brutus.html
+          grep -Fq 'document.body.dataset.activeTab = name' /tmp/app.js
+          grep -Fq 'body[data-active-tab="broto"] .summary' /tmp/style.css
+          for f in /tmp/broto.html /tmp/alias.html; do
+            grep -Fq '/brutus/public-state.json' "$f"
+            grep -Fq 'progression des cristaux en direct' "$f"
+            grep -Fq 'PUBLIC · VERROUILLÉ' "$f"
+          done
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/state.json',encoding='utf-8'))
+          b=d.get('brotoculateur') or {}
+          assert b.get('state') in {'RUNNING','PAUSED'}
+          assert isinstance(b.get('levels'),dict) and b['levels']
+          assert b.get('crystals') is not None
+          print('PUBLIC_FOCUS=PASS',b['state'],b['crystals'],b['levels'])
+          PY
