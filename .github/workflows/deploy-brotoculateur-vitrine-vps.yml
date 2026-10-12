@@ -7,11 +7,13 @@ on:
       - '.github/workflows/deploy-brotoculateur-vitrine-vps.yml'
       - 'laboratoire/index.html'
       - 'laboratoire/brotoculateur/index.html'
+      - 'deploy/brutus-public/export_public.py'
   pull_request:
     paths:
       - '.github/workflows/deploy-brotoculateur-vitrine-vps.yml'
       - 'laboratoire/index.html'
       - 'laboratoire/brotoculateur/index.html'
+      - 'deploy/brutus-public/export_public.py'
 
 permissions:
   contents: read
@@ -30,12 +32,17 @@ jobs:
         run: |
           set -euo pipefail
           test -f laboratoire/brotoculateur/index.html
+          test -f deploy/brutus-public/export_public.py
+          python3 -m py_compile deploy/brutus-public/export_public.py
+          grep -Fq "'crystal_ranking'" deploy/brutus-public/export_public.py
           grep -Fq 'BRUTUS WORKSHOP // 7 TABLEAUX' laboratoire/brotoculateur/index.html
           grep -Fq 'Interface originale' laboratoire/brotoculateur/index.html
           grep -Fq 'défilement vertical' laboratoire/brotoculateur/index.html
           grep -Fq 'COMMANDES VERROUILLÉES' laboratoire/brotoculateur/index.html
           grep -Fq '/brutus/public-state.json' laboratoire/brotoculateur/index.html
           grep -Fq 'brotoculateur-height' laboratoire/brotoculateur/index.html
+          grep -Fq 'Toutes les sortes de cristaux' laboratoire/brotoculateur/index.html
+          grep -Fq 'crystalFamilies' laboratoire/brotoculateur/index.html
           ! grep -Fq 'brotoculateur-vitrine.png' laboratoire/brotoculateur/index.html
           ! grep -Fq 'RETOUR LABORATOIRE' laboratoire/brotoculateur/index.html
           grep -Fq 'Horloge de la Vie' laboratoire/index.html
@@ -61,8 +68,9 @@ jobs:
           mkdir -p _brotoculateur_deploy
           cp laboratoire/index.html _brotoculateur_deploy/laboratoire-index.html
           cp laboratoire/brotoculateur/index.html _brotoculateur_deploy/brotoculateur-index.html
+          cp deploy/brutus-public/export_public.py _brotoculateur_deploy/export_public.py
           cd _brotoculateur_deploy
-          sha256sum laboratoire-index.html brotoculateur-index.html > SHA256SUMS
+          sha256sum laboratoire-index.html brotoculateur-index.html export_public.py > SHA256SUMS
       - name: Configure pinned VPS SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
@@ -92,17 +100,40 @@ jobs:
           set -euo pipefail
           LAB_ROOT='/var/www/antmux.com/public_html/laboratoire'
           CANON="$LAB_ROOT/brotoculateur"
+          PUBLIC_EXPORTER="$HOME/brutus-public/export_public.py"
           REMOTE_STAGE='${{ env.REMOTE_STAGE }}'
           BACKUP="$HOME/antmux-brotoculateur/backups/$(date -u +%Y%m%d-%H%M%S)-${{ github.sha }}"
           cd "$REMOTE_STAGE"
           sha256sum -c SHA256SUMS
-          mkdir -p "$BACKUP" "$CANON"
+          mkdir -p "$BACKUP" "$CANON" "$(dirname "$PUBLIC_EXPORTER")"
           test -f "$LAB_ROOT/index.html" && cp -a "$LAB_ROOT/index.html" "$BACKUP/laboratoire-index.html" || true
           test -f "$CANON/index.html" && cp -a "$CANON/index.html" "$BACKUP/brotoculateur-index.html" || true
+          test -f "$PUBLIC_EXPORTER" && cp -a "$PUBLIC_EXPORTER" "$BACKUP/export_public.py" || true
           install -m 0644 laboratoire-index.html "$LAB_ROOT/index.html"
           install -m 0644 brotoculateur-index.html "$CANON/index.html"
+          install -m 0644 export_public.py "$PUBLIC_EXPORTER"
+          if ! systemctl --user restart brutus-public.service; then
+            test -f "$BACKUP/export_public.py" && install -m 0644 "$BACKUP/export_public.py" "$PUBLIC_EXPORTER"
+            test -f "$BACKUP/laboratoire-index.html" && install -m 0644 "$BACKUP/laboratoire-index.html" "$LAB_ROOT/index.html"
+            test -f "$BACKUP/brotoculateur-index.html" && install -m 0644 "$BACKUP/brotoculateur-index.html" "$CANON/index.html"
+            systemctl --user restart brutus-public.service || true
+            exit 1
+          fi
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brutus-public.service && grep -Fq '"crystal_ranking":' /var/www/antmux.com/public_html/brutus/public-state.json; then ok=1; break; fi
+            sleep 1
+          done
+          if [ "$ok" -ne 1 ]; then
+            test -f "$BACKUP/export_public.py" && install -m 0644 "$BACKUP/export_public.py" "$PUBLIC_EXPORTER"
+            test -f "$BACKUP/laboratoire-index.html" && install -m 0644 "$BACKUP/laboratoire-index.html" "$LAB_ROOT/index.html"
+            test -f "$BACKUP/brotoculateur-index.html" && install -m 0644 "$BACKUP/brotoculateur-index.html" "$CANON/index.html"
+            systemctl --user restart brutus-public.service || true
+            exit 1
+          fi
           rm -rf "$REMOTE_STAGE"
           echo 'BROTOCULATEUR_CANONICAL_DEPLOY=PASS'
+          echo 'BRUTUS_PUBLIC_RANKING_EXPORT=PASS'
           REMOTE
       - name: Verify public navigation and live document
         run: |
@@ -112,6 +143,17 @@ jobs:
           grep -Fq 'défilement vertical' /tmp/broto.html
           grep -Fq 'COMMANDES VERROUILLÉES' /tmp/broto.html
           grep -Fq 'brotoculateur-height' /tmp/broto.html
+          grep -Fq 'Toutes les sortes de cristaux' /tmp/broto.html
+          grep -Fq 'crystalFamilies' /tmp/broto.html
+          curl --fail --silent --show-error --location https://antmux.com/brutus/public-state.json -o /tmp/public-state.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/public-state.json',encoding='utf-8'))
+          r=(d.get('brotoculateur') or {}).get('crystal_ranking')
+          assert isinstance(r,list) and r, 'crystal_ranking missing or empty'
+          assert all(set(x) == {'formula_id','level','count'} for x in r), 'ranking schema mismatch'
+          print('CRYSTAL_RANKING_PUBLIC_VERIFY=PASS', len(r))
+          PY
           ! grep -Fq 'brotoculateur-vitrine.png' /tmp/broto.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab.html
           grep -Fq 'Horloge de la Vie' /tmp/lab.html
