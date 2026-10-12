@@ -1,0 +1,94 @@
+name: Astra Reply Once 2026-10-12
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/astra-reply-once-20261012.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deliver Astra replies and verify mailbox
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request
+
+          replies = [
+              {
+                  "letter_id": "ASTRA-LETTER-000001",
+                  "decision": "REJECT",
+                  "message": "Contre-exemple trouve. Rejeter D1(a[n])=0 comme relation generale. Conserver la trace et la provenance; toute version restreinte devra definir explicitement son domaine et repasser les contre-tests."
+              },
+              {
+                  "letter_id": "ASTRA-LETTER-000002",
+                  "decision": "REJECT",
+                  "message": "Contre-exemple trouve. Rejeter D2(a[n])=0 comme relation generale. Conserver la trace et la provenance; toute reformulation devra preciser un domaine restreint et repasser les contre-tests."
+              },
+              {
+                  "letter_id": "ASTRA-LETTER-000003",
+                  "decision": "REQUEST_MORE_TESTS",
+                  "message": "Le motif period=7 est interessant mais pas pret pour publication. Etendre les tests a davantage d'ancres, operateurs, fenetres et zones de Fresque; chercher activement un contre-exemple et inclure des controles negatifs. Revenir a Astra seulement si la periodicite 7 resiste et si son domaine de validite est explicitement defini."
+              }
+          ]
+
+          def post(item):
+              req = urllib.request.Request(
+                  "http://127.0.0.1:8812/api/astra/reply",
+                  data=json.dumps(item).encode("utf-8"),
+                  headers={"Content-Type": "application/json"},
+                  method="POST",
+              )
+              with urllib.request.urlopen(req, timeout=10) as response:
+                  payload = json.loads(response.read().decode("utf-8"))
+                  assert payload.get("accepted") is True
+                  return payload["reply"]
+
+          delivered = [post(item) for item in replies]
+          print(json.dumps({"delivered": delivered}, ensure_ascii=False))
+
+          with urllib.request.urlopen("http://127.0.0.1:8812/api/astra/mailbox", timeout=10) as response:
+              mailbox = json.loads(response.read().decode("utf-8"))
+
+          letters = mailbox["letters"]
+          records = mailbox["replies"]
+          expected = {
+              "ASTRA-LETTER-000001": "REJECT",
+              "ASTRA-LETTER-000002": "REJECT",
+              "ASTRA-LETTER-000003": "REQUEST_MORE_TESTS",
+          }
+          for letter_id, decision in expected.items():
+              letter = next(x for x in letters if x["letter_id"] == letter_id)
+              assert letter["status"] == "REPLIED_BY_ASTRA", (letter_id, letter["status"])
+              record = next(x for x in records if x["letter_id"] == letter_id)
+              assert record["decision"] == decision, (letter_id, record["decision"])
+
+          awaiting = [x for x in letters if x["status"] == "AWAITING_ASTRA_REVIEW"]
+          assert not awaiting, awaiting
+          print("ASTRA_REPLY_VERIFY=PASS")
+          print("AWAITING_REVIEW=0")
+          PY
+          REMOTE
