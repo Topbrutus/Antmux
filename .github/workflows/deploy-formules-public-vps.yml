@@ -1,0 +1,165 @@
+name: Deploy Public Formulas Catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-formules-public-vps.yml'
+      - 'site/formules/index.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: antmux-formules-public
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SOURCE_SHA: 4d4fd06438739532a2ec8a415951fb66b6b0e5a6
+      REMOTE_STAGE: /tmp/antmux-formules-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Fetch pinned formulas page
+        run: |
+          set -euo pipefail
+          mkdir -p payload
+          curl -fsSL "https://raw.githubusercontent.com/Topbrutus/Antmux/$SOURCE_SHA/site/formules/index.html" -o payload/formules.html
+          grep -Fq 'data-antmux-formulas="v0.1"' payload/formules.html
+          grep -Fq 'Gabriel St-Pierre' payload/formules.html
+          for id in $(seq -w 1 12); do grep -Fq "GSP-0$id" payload/formules.html; done
+          for doi in \
+            10.5281/zenodo.22962484 \
+            10.5281/zenodo.22961910 \
+            10.5281/zenodo.22970274 \
+            10.5281/zenodo.22970270 \
+            10.5281/zenodo.22963075 \
+            10.5281/zenodo.22963802 \
+            10.5281/zenodo.22965557 \
+            10.5281/zenodo.22865069 \
+            10.5281/zenodo.22963493 \
+            10.5281/zenodo.22969353 \
+            10.5281/zenodo.22962746 \
+            10.5281/zenodo.22970584 \
+            10.5281/zenodo.22970272; do
+            grep -Fq "$doi" payload/formules.html
+          done
+          echo 'FORMULAS_SOURCE_VERIFY=PASS'
+
+      - name: Configure VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload formulas page
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes payload/formules.html "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/index.html"
+
+      - name: Install catalog and homepage entry with rollback
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT='/var/www/antmux.com/public_html'
+          HOME_INDEX="$ROOT/index.html"
+          FORM_DIR="$ROOT/formules"
+          STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP="$HOME/antmux-formules/backups/$(date -u +%Y%m%d-%H%M%S)-${{ env.SOURCE_SHA }}"
+          mkdir -p "$BACKUP" "$FORM_DIR"
+          cp -a "$HOME_INDEX" "$BACKUP/index.html"
+          if [ -d "$FORM_DIR" ]; then cp -a "$FORM_DIR" "$BACKUP/formules-old"; fi
+
+          rollback(){
+            install -m 0644 "$BACKUP/index.html" "$HOME_INDEX" || true
+            rm -rf "$FORM_DIR"
+            if [ -d "$BACKUP/formules-old" ]; then cp -a "$BACKUP/formules-old" "$FORM_DIR"; fi
+          }
+          trap 'rollback' ERR
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('/var/www/antmux.com/public_html/index.html')
+          text=p.read_text(encoding='utf-8')
+          nav=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
+          assert nav, 'antmux-quick-nav not found'
+          pairs=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', nav.group(0))
+          expected=[('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')]
+          assert pairs == expected, (pairs, expected)
+
+          start='<!-- ANTMUX-FORMULES-ENTRY-v0.1 -->'
+          end='<!-- /ANTMUX-FORMULES-ENTRY-v0.1 -->'
+          block='''<!-- ANTMUX-FORMULES-ENTRY-v0.1 -->
+<section id="antmux-formules-entry" aria-label="Formules publiées" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99998;width:min(680px,calc(100vw - 28px));padding:12px 15px;border:1px solid rgba(119,220,255,.46);border-radius:16px;background:rgba(5,10,15,.9);box-shadow:0 10px 38px rgba(0,0,0,.45);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;gap:14px;font-family:Arial,sans-serif">
+  <div style="min-width:0"><div style="font-size:9px;font-weight:900;letter-spacing:.15em;color:#77dcff">PUBLICATIONS · ZENODO</div><div style="font-size:13px;font-weight:800;color:#fff;margin-top:3px">12 formules documentées · Gabriel St-Pierre</div><div style="font-size:10px;color:#8fa0ad;margin-top:2px">Brutus · Pell · ANTMUX-X72 · relations et constructions publiées</div></div>
+  <a href="/formules/" style="flex:none;display:inline-flex;align-items:center;padding:10px 14px;border-radius:999px;background:#fff;color:#080b10;text-decoration:none;font-size:10px;font-weight:900;letter-spacing:.09em">FORMULES PUBLIÉES →</a>
+</section>
+<!-- /ANTMUX-FORMULES-ENTRY-v0.1 -->'''
+          if start in text:
+              pattern=re.escape(start)+r'.*?'+re.escape(end)
+              text,n=re.subn(pattern,block,text,count=1,flags=re.S)
+              assert n==1
+          else:
+              assert '</body>' in text
+              text=text.replace('</body>',block+'\n</body>',1)
+          p.write_text(text,encoding='utf-8',newline='\n')
+          PY
+
+          install -d -m 0755 "$FORM_DIR"
+          install -m 0644 "$STAGE/index.html" "$FORM_DIR/index.html"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('/var/www/antmux.com/public_html/index.html').read_text(encoding='utf-8')
+          nav=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
+          pairs=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', nav.group(0))
+          assert pairs == [('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')]
+          assert text.count('ANTMUX-FORMULES-ENTRY-v0.1') == 2
+          assert 'href="/formules/"' in text
+          page=Path('/var/www/antmux.com/public_html/formules/index.html').read_text(encoding='utf-8')
+          assert page.count('class="formula"') == 12
+          assert '10.5281/zenodo.22962484' in page
+          assert '10.5281/zenodo.22970272' in page
+          PY
+
+          curl -fsS https://antmux.com/ | grep -Fq 'FORMULES PUBLIÉES'
+          curl -fsS https://antmux.com/formules/ | grep -Fq 'data-antmux-formulas="v0.1"'
+          trap - ERR
+          rm -rf "$STAGE"
+          echo 'FORMULAS_INSTALL=PASS'
+          REMOTE
+
+      - name: Verify public catalog externally
+        run: |
+          set -euo pipefail
+          curl -fsSL https://antmux.com/ -o /tmp/home.html
+          curl -fsSL https://antmux.com/formules/ -o /tmp/formules.html
+          grep -Fq 'href="/brutus/"' /tmp/home.html
+          grep -Fq 'href="/laboratoire/"' /tmp/home.html
+          grep -Fq 'href="/carrou/"' /tmp/home.html
+          grep -Fq 'href="/formules/"' /tmp/home.html
+          grep -Fq 'FORMULES PUBLIÉES' /tmp/formules.html
+          test "$(grep -o 'class="formula"' /tmp/formules.html | wc -l | tr -d ' ')" = '12'
+          grep -Fq 'Gabriel St-Pierre' /tmp/formules.html
+          grep -Fq '10.5281/zenodo.22970270' /tmp/formules.html
+          echo 'FORMULAS_HTTPS_VERIFY=PASS'
