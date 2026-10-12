@@ -88,7 +88,7 @@ jobs:
           WantedBy=default.target
           UNIT
           cd _deploy
-          find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
           echo 'PAYLOAD_ASSEMBLY=PASS'
 
       - name: Preserve validated payload
@@ -185,7 +185,6 @@ jobs:
           }
           trap rollback ERR
 
-          # Existing engines are prerequisites only; this workflow never restarts them.
           test "$(systemctl --user is-active brotoculateur.service)" = active
           test "$(systemctl --user is-active brotoculateur-colony-worker.service)" = active
           test "$(systemctl --user is-active brutus.service)" = active
@@ -231,7 +230,6 @@ jobs:
           test "$(systemctl --user is-active brutobac-colony-exporter.service)" = active
           echo 'LIVE_EVENTS=PASS'
 
-          # Expose iframe only after its target and projection are proven.
           install -m 0644 brutus-index.html "$BRUTUS_ROOT/index.html"
           grep -Fq 'src="/brutus/brutobac/"' "$BRUTUS_ROOT/index.html"
           grep -Fq 'BRUTUS LIVE FOURMI AQUARIUM 3D' "$PUBLIC_ROOT/index.html"
