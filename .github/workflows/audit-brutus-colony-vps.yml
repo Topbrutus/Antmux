@@ -1,0 +1,111 @@
+name: Audit Brutus Colony VPS
+
+on:
+  push:
+    branches:
+      - astra/brutus-colony-vps-audit-20261011
+    paths:
+      - '.github/workflows/audit-brutus-colony-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brutus-colony-vps-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Read-only VPS audit
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p _audit
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE' | tee _audit/brutus-colony-vps-audit.txt
+          set -euo pipefail
+          echo 'AUDIT_MODE=READ_ONLY'
+          echo "HOSTNAME=$(hostname)"
+          echo "UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo '=== SERVICES ==='
+          for svc in brotoculateur.service brutus.service brutus-public.service brutus-colony.service brotoculateur-colony-worker.service; do
+            printf '%s=' "$svc"
+            systemctl --user is-active "$svc" 2>/dev/null || true
+          done
+          echo '=== BROTOCULATEUR UNIT ==='
+          systemctl --user show brotoculateur.service -p FragmentPath -p WorkingDirectory -p ExecStart -p Environment --no-pager || true
+          systemctl --user cat brotoculateur.service --no-pager || true
+          echo '=== BRUTUS UNIT ==='
+          systemctl --user show brutus.service -p FragmentPath -p WorkingDirectory -p ExecStart --no-pager || true
+          echo '=== LIVE STATUS SUMMARY ==='
+          python3 - <<'PY'
+          import json, urllib.request
+          for url in ('http://127.0.0.1:8781/api/status','http://127.0.0.1:8811/api/state','http://127.0.0.1:8811/api/queen'):
+              try:
+                  with urllib.request.urlopen(url, timeout=4) as r:
+                      d=json.load(r)
+                  if url.endswith('/api/status'):
+                      bm=d.get('brutomagique') or {}
+                      print(json.dumps({'url':url,'state':d.get('state'),'run_id':d.get('run_id'),'processed_packets':d.get('processed_packets'),'formula_ids':d.get('formula_ids'),'crystals':bm.get('total_crystals'),'levels':bm.get('emitted_by_level'),'worker_error':d.get('worker_error')},sort_keys=True))
+                  elif url.endswith('/api/queen'):
+                      q=d.get('queen') or {}
+                      print(json.dumps({'url':url,'counts':q.get('counts'),'tasks':len(q.get('tasks',[])),'candidates':len(q.get('candidates',[])),'mailbox':len(q.get('mailbox',[]))},sort_keys=True))
+                  else:
+                      print(json.dumps({'url':url,'schema':d.get('schema'),'mode':d.get('mode'),'queen_mode':d.get('queen_mode'),'colony':d.get('colony'),'evaluation':d.get('evaluation')},sort_keys=True))
+              except Exception as e:
+                  print(json.dumps({'url':url,'error':type(e).__name__+': '+str(e)}))
+          PY
+          echo '=== BROTOCULATEUR SOURCES ==='
+          find "$HOME" -maxdepth 7 -type f \( -path '*/brotoculateur/dashboard.py' -o -path '*/brotoculateur/brutomagique.py' -o -path '*/brotoculateur/orchestrator.py' \) -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
+          echo '=== CRYSTAL DIRECTORIES ==='
+          find "$HOME" -maxdepth 7 -type d -path '*/brutomagique/crystals' -print 2>/dev/null | sort
+          echo '=== STORAGE ==='
+          df -h / || true
+          find "$HOME" -maxdepth 7 -type d -path '*/brutomagique/crystals' -print0 2>/dev/null | while IFS= read -r -d '' d; do du -sh "$d" 2>/dev/null || true; done
+          echo '=== RUNTIME ==='
+          python3 --version || true
+          node --version || true
+          echo '=== BRUTUS REPO ==='
+          if test -d "$HOME/brutus/.git"; then
+            git -C "$HOME/brutus" branch --show-current || true
+            git -C "$HOME/brutus" rev-parse HEAD || true
+            git -C "$HOME/brutus" status --short || true
+            git -C "$HOME/brutus" remote -v || true
+          else
+            echo 'BRUTUS_GIT_NOT_FOUND_AT_HOME_BRUTUS'
+          fi
+          echo '=== PUBLIC ROOT ==='
+          ls -ld /var/www/antmux.com/public_html/brutus 2>/dev/null || true
+          test -w /var/www/antmux.com/public_html/brutus && echo 'BRUTUS_PUBLIC_ROOT_WRITABLE=YES' || echo 'BRUTUS_PUBLIC_ROOT_WRITABLE=NO'
+          echo 'AUDIT_COMPLETE=PASS'
+          REMOTE
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: brutus-colony-vps-audit
+          path: _audit/brutus-colony-vps-audit.txt
+          if-no-files-found: error
+          retention-days: 7
