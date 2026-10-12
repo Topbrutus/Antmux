@@ -1,0 +1,9 @@
+﻿{
+    "schema":  "BRUTOBAC-COLONY-DEPLOY-PAYLOAD-v0.1",
+    "source_repository":  "Topbrutus/BrutoBac",
+    "source_commit":  "0a8b3d6d277d75e1f55fe3324b5eaa0a6b54e53e",
+    "brutus_host_commit":  "fe79bffa5dfdce5aea7452021ece56dfbbcbaaeb",
+    "public_path":  "/brutus/brutobac/",
+    "projection":  "REAL_QUEST_TIME_DILATED",
+    "read_only":  true
+}
