@@ -1,0 +1,145 @@
+name: Deploy Brutus Fresque to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-brutus-fresque-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brutus-fresque-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BRUTUS_SHA: 5d6e1404465ac234501ad0aed788d0cebd4ed4b2
+      REMOTE_STAGE: /tmp/brutus-fresque-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Fetch pinned Brutus public files
+        run: |
+          set -euo pipefail
+          mkdir -p payload/colony payload/fresque
+          base="https://raw.githubusercontent.com/Topbrutus/Brutus/$BRUTUS_SHA/public"
+          curl -fsSL "$base/colony-vitrine/index.html" -o payload/colony/index.html
+          curl -fsSL "$base/colony-vitrine/app.js" -o payload/colony/app.js
+          curl -fsSL "$base/colony-vitrine/style.css" -o payload/colony/style.css
+          curl -fsSL "$base/fresque-vitrine/index.html" -o payload/fresque/index.html
+          curl -fsSL "$base/fresque-vitrine/app.js" -o payload/fresque/app.js
+          curl -fsSL "$base/fresque-vitrine/style.css" -o payload/fresque/style.css
+          curl -fsSL "$base/fresque-vitrine/fresque.json" -o payload/fresque/fresque.json
+
+      - name: Verify pinned payload hashes and contract
+        run: |
+          set -euo pipefail
+          echo '3b189ce43ff1c36da28ea7dcae96a7d2a17dbed2907a19fec76903ad6ef359d8  payload/colony/index.html' | sha256sum -c -
+          echo '77e6ca6f7e13ba1f40eb972ec8669e3671c0d9e1fa6f705e2715dccb9e02e6e9  payload/colony/app.js' | sha256sum -c -
+          echo '43db77dd67145d4211cd49071ba70887503e4c5801dfd2b476be47d123840072  payload/colony/style.css' | sha256sum -c -
+          echo 'c52a171fb85903477c781db5575b312db4931dd6e9a5eef4226f15543e642904  payload/fresque/index.html' | sha256sum -c -
+          echo 'cd3ba3ce4eaf95652bc05d434ba4ec0c39bfa00c6a7a96f8549c87ddd8863de4  payload/fresque/app.js' | sha256sum -c -
+          echo '5aae0001a50a132509a448ef188c41aa4374991aaff084bbbaaac447d13c85d1  payload/fresque/style.css' | sha256sum -c -
+          echo '9de5b7c9216ad25110b305a5cbd3d8e3f4d72de7a6d0119c0772c0ce8310ab79  payload/fresque/fresque.json' | sha256sum -c -
+          grep -Fq 'src="./fresque/"' payload/colony/index.html
+          ! grep -Fq '/laboratoire/brutotableur/' payload/colony/index.html
+          grep -Fq 'Mur mathématique vivant' payload/fresque/index.html
+          grep -Fq 'PUBLIC · LECTURE SEULE' payload/fresque/index.html
+          python3 - <<'PY'
+          import json
+          d=json.load(open('payload/fresque/fresque.json',encoding='utf-8'))
+          assert d['schema']=='BRUTOTABLEUR-FRESQUE-COLONY-FEED-v0.1'
+          assert d['stats']['segments']==567
+          assert len(d['segments'])==567
+          assert sum(1 for s in d['segments'] if s['kind']=='VIRTUAL_TABLE_7X7')==560
+          print('FRESQUE_PAYLOAD=PASS')
+          PY
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload payload
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r payload/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
+
+      - name: Install Fresque and Brutus shell with rollback
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT='/var/www/antmux.com/public_html/brutus'
+          FRESQUE="$ROOT/fresque"
+          STAGE='${{ env.REMOTE_STAGE }}'
+          BACKUP="$HOME/brutus-fresque/backups/$(date -u +%Y%m%d-%H%M%S)-${{ env.BRUTUS_SHA }}"
+          mkdir -p "$BACKUP" "$FRESQUE"
+          for f in index.html app.js style.css; do test -f "$ROOT/$f" && cp -a "$ROOT/$f" "$BACKUP/$f" || true; done
+          test -d "$FRESQUE" && cp -a "$FRESQUE" "$BACKUP/fresque-old" || true
+          rollback(){
+            for f in index.html app.js style.css; do test -f "$BACKUP/$f" && install -m 0644 "$BACKUP/$f" "$ROOT/$f" || true; done
+            rm -rf "$FRESQUE"
+            test -d "$BACKUP/fresque-old" && cp -a "$BACKUP/fresque-old" "$FRESQUE" || true
+          }
+          trap 'rollback' ERR
+          install -m 0644 "$STAGE/colony/index.html" "$ROOT/index.html"
+          install -m 0644 "$STAGE/colony/app.js" "$ROOT/app.js"
+          install -m 0644 "$STAGE/colony/style.css" "$ROOT/style.css"
+          install -d -m 0755 "$FRESQUE"
+          install -m 0644 "$STAGE/fresque/index.html" "$FRESQUE/index.html"
+          install -m 0644 "$STAGE/fresque/app.js" "$FRESQUE/app.js"
+          install -m 0644 "$STAGE/fresque/style.css" "$FRESQUE/style.css"
+          install -m 0644 "$STAGE/fresque/fresque.json" "$FRESQUE/fresque.json"
+          grep -Fq 'src="./fresque/"' "$ROOT/index.html"
+          ! grep -Fq '/laboratoire/brutotableur/' "$ROOT/index.html"
+          grep -Fq 'Mur mathématique vivant' "$FRESQUE/index.html"
+          python3 - <<'PY'
+          import json
+          p='/var/www/antmux.com/public_html/brutus/fresque/fresque.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['stats']['segments']==567 and len(d['segments'])==567
+          PY
+          curl -fsS http://127.0.0.1:8812/health >/dev/null
+          curl -fsS http://127.0.0.1:8781/api/status >/dev/null
+          curl -fsS https://antmux.com/brutus/fresque/ | grep -Fq 'Mur mathématique vivant'
+          trap - ERR
+          rm -rf "$STAGE"
+          echo 'BRUTUS_FRESQUE_INSTALL=PASS'
+          REMOTE
+
+      - name: Verify public Fresque
+        run: |
+          set -euo pipefail
+          curl -fsSL https://antmux.com/brutus/ -o /tmp/brutus.html
+          curl -fsSL https://antmux.com/brutus/fresque/ -o /tmp/fresque.html
+          curl -fsSL https://antmux.com/brutus/fresque/fresque.json -o /tmp/fresque.json
+          grep -Fq 'src="./fresque/"' /tmp/brutus.html
+          ! grep -Fq '/laboratoire/brutotableur/' /tmp/brutus.html
+          grep -Fq 'FRESQUE DES FOURMIS' /tmp/fresque.html
+          grep -Fq 'PUBLIC · LECTURE SEULE' /tmp/fresque.html
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/fresque.json',encoding='utf-8'))
+          assert d['stats']['segments']==567
+          assert sum(1 for s in d['segments'] if s['kind']=='VIRTUAL_TABLE_7X7')==560
+          print('BRUTUS_FRESQUE_HTTPS_VERIFY=PASS')
+          PY
