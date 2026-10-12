@@ -31,7 +31,7 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Put Formules Zenodo beside visible homepage doors
+      - name: Put Formules Zenodo in its own visible fixed slot
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -57,26 +57,35 @@ jobs:
           p=Path('/var/www/antmux.com/public_html/index.html')
           text=p.read_text(encoding='utf-8')
 
-          # Remove the previous floating Formules injection if present.
+          # Remove every previous injected Formules block.
           text=re.sub(
-              r'<!-- ANTMUX-FORMULES-ENTRY-v0\.1 -->.*?<!-- /ANTMUX-FORMULES-ENTRY-v0\.1 -->',
-              '', text, count=1, flags=re.S
+              r'<!-- ANTMUX-FORMULES-ENTRY-v0\.[0-9]+ -->.*?<!-- /ANTMUX-FORMULES-ENTRY-v0\.[0-9]+ -->',
+              '', text, flags=re.S
           )
 
+          # Remove the temporary link that had been inserted inside the primary nav.
           nav_match=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
           assert nav_match, 'antmux-quick-nav not found'
           nav=nav_match.group(0)
+          nav=re.sub(
+              r'\s*<a\b[^>]*data-antmux-secondary="formules-zenodo"[^>]*>.*?</a>\s*',
+              '\n', nav, flags=re.S
+          )
 
-          # Keep the three primary doors unchanged and add one clearly secondary entry.
+          # Prove the three original doors are still there and only those three remain in quick-nav.
           primary=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', nav)
-          assert primary[:3] == [('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')], primary
-
-          marker='data-antmux-secondary="formules-zenodo"'
-          if marker not in nav:
-              button='''\n<a href="/formules/" data-antmux-secondary="formules-zenodo" aria-label="Formules publiées et Zenodo" style="display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;padding:10px 14px!important;margin-left:10px!important;border:1px solid rgba(119,220,255,.75)!important;border-radius:999px!important;background:rgba(5,10,15,.96)!important;color:#ffffff!important;text-decoration:none!important;font-size:11px!important;font-weight:900!important;letter-spacing:.07em!important;box-shadow:0 0 0 1px rgba(119,220,255,.12),0 8px 24px rgba(0,0,0,.35)!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;white-space:nowrap!important">∑ FORMULES · ZENODO</a>\n'''
-              nav=nav.replace('</nav>', button+'</nav>', 1)
-
+          assert primary == [('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')], primary
           text=text[:nav_match.start()] + nav + text[nav_match.end():]
+
+          # Standalone button: deliberately OUTSIDE the primary nav so its CSS cannot stack it.
+          block='''<!-- ANTMUX-FORMULES-ENTRY-v0.2 -->
+<div id="antmux-formules-zenodo-entry" style="all:initial!important;position:fixed!important;top:18px!important;right:18px!important;left:auto!important;bottom:auto!important;z-index:2147483647!important;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;transform:none!important;margin:0!important;padding:0!important;width:auto!important;height:auto!important">
+  <a href="/formules/" aria-label="Formules publiées et Zenodo" style="all:initial!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;box-sizing:border-box!important;padding:11px 16px!important;border:1px solid rgba(119,220,255,.78)!important;border-radius:999px!important;background:rgba(5,10,15,.96)!important;color:#ffffff!important;text-decoration:none!important;font-family:Arial,sans-serif!important;font-size:11px!important;line-height:1!important;font-weight:900!important;letter-spacing:.07em!important;white-space:nowrap!important;box-shadow:0 8px 28px rgba(0,0,0,.45),0 0 0 1px rgba(119,220,255,.12)!important;cursor:pointer!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;transform:none!important">∑ FORMULES · ZENODO</a>
+</div>
+<!-- /ANTMUX-FORMULES-ENTRY-v0.2 -->'''
+
+          assert '</body>' in text
+          text=text.replace('</body>', block+'\n</body>', 1)
           p.write_text(text, encoding='utf-8', newline='\n')
           PY
 
@@ -86,19 +95,22 @@ jobs:
           text=Path('/var/www/antmux.com/public_html/index.html').read_text(encoding='utf-8')
           nav=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
           assert nav
-          chunk=nav.group(0)
-          assert 'href="/brutus/"' in chunk
-          assert 'href="/laboratoire/"' in chunk
-          assert 'href="/carrou/"' in chunk
-          assert 'href="/formules/"' in chunk
-          assert 'data-antmux-secondary="formules-zenodo"' in chunk
-          assert '∑ FORMULES · ZENODO' in chunk
+          pairs=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', nav.group(0))
+          assert pairs == [('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')], pairs
+          assert 'data-antmux-secondary="formules-zenodo"' not in nav.group(0)
+          assert text.count('ANTMUX-FORMULES-ENTRY-v0.2') == 2
+          assert 'id="antmux-formules-zenodo-entry"' in text
+          assert 'right:18px!important' in text
+          assert 'z-index:2147483647!important' in text
+          assert '∑ FORMULES · ZENODO' in text
           PY
 
           curl -fsS https://antmux.com/ -o /tmp/formules-nav-live.html
-          grep -Fq 'data-antmux-secondary="formules-zenodo"' /tmp/formules-nav-live.html
+          grep -Fq 'ANTMUX-FORMULES-ENTRY-v0.2' /tmp/formules-nav-live.html
+          grep -Fq 'id="antmux-formules-zenodo-entry"' /tmp/formules-nav-live.html
+          grep -Fq 'right:18px!important' /tmp/formules-nav-live.html
+          grep -Fq 'z-index:2147483647!important' /tmp/formules-nav-live.html
           grep -Fq '∑ FORMULES · ZENODO' /tmp/formules-nav-live.html
-          grep -Fq 'href="/formules/"' /tmp/formules-nav-live.html
           trap - ERR
-          echo 'FORMULES_NAV_HOTFIX=PASS'
+          echo 'FORMULES_NAV_HOTFIX_V2=PASS'
           REMOTE
