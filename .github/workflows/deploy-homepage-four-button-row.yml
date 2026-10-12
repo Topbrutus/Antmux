@@ -1,0 +1,91 @@
+name: Deploy Homepage Four Button Row
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-homepage-four-button-row.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+
+      - name: Rebuild nav as one row
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          REPLACEMENT_B64: PHN0eWxlIGlkPSJhbnRtdXgtbmF2LWZvdXItc3R5bGUiPgpodG1sIGJvZHkgbmF2I2FudG11eC1xdWljay1uYXZ7cG9zaXRpb246Zml4ZWQhaW1wb3J0YW50O3RvcDoxOHB4IWltcG9ydGFudDtsZWZ0OjUwJSFpbXBvcnRhbnQ7cmlnaHQ6YXV0byFpbXBvcnRhbnQ7Ym90dG9tOmF1dG8haW1wb3J0YW50O3RyYW5zZm9ybTp0cmFuc2xhdGVYKC01MCUpIWltcG9ydGFudDt6LWluZGV4OjIxNDc0ODM2NDchaW1wb3J0YW50O2Rpc3BsYXk6ZmxleCFpbXBvcnRhbnQ7ZmxleC1kaXJlY3Rpb246cm93IWltcG9ydGFudDthbGlnbi1pdGVtczpjZW50ZXIhaW1wb3J0YW50O2p1c3RpZnktY29udGVudDpjZW50ZXIhaW1wb3J0YW50O2dhcDo2cHghaW1wb3J0YW50O2ZsZXgtd3JhcDpub3dyYXAhaW1wb3J0YW50O3dpZHRoOmF1dG8haW1wb3J0YW50O21heC13aWR0aDpjYWxjKDEwMHZ3IC0gMTZweCkhaW1wb3J0YW50O21hcmdpbjowIWltcG9ydGFudDtwYWRkaW5nOjZweCFpbXBvcnRhbnQ7Ym94LXNpemluZzpib3JkZXItYm94IWltcG9ydGFudDtib3JkZXItcmFkaXVzOjk5OXB4IWltcG9ydGFudDtiYWNrZ3JvdW5kOnJnYmEoMCwwLDAsLjIwKSFpbXBvcnRhbnR9Cmh0bWwgYm9keSBuYXYjYW50bXV4LXF1aWNrLW5hdj5he3Bvc2l0aW9uOnN0YXRpYyFpbXBvcnRhbnQ7bGVmdDphdXRvIWltcG9ydGFudDtyaWdodDphdXRvIWltcG9ydGFudDt0b3A6YXV0byFpbXBvcnRhbnQ7Ym90dG9tOmF1dG8haW1wb3J0YW50O3RyYW5zZm9ybTpub25lIWltcG9ydGFudDtkaXNwbGF5OmlubGluZS1mbGV4IWltcG9ydGFudDthbGlnbi1pdGVtczpjZW50ZXIhaW1wb3J0YW50O2p1c3RpZnktY29udGVudDpjZW50ZXIhaW1wb3J0YW50O2ZsZXg6MCAwIGF1dG8haW1wb3J0YW50O21hcmdpbjowIWltcG9ydGFudDtwYWRkaW5nOjlweCAxMnB4IWltcG9ydGFudDtib3gtc2l6aW5nOmJvcmRlci1ib3ghaW1wb3J0YW50O2JvcmRlcjoxcHggc29saWQgcmdiYSgyNTUsMjU1LDI1NSwuNTgpIWltcG9ydGFudDtib3JkZXItcmFkaXVzOjk5OXB4IWltcG9ydGFudDtiYWNrZ3JvdW5kOnJnYmEoNSwxMCwxNSwuODYpIWltcG9ydGFudDtjb2xvcjojZmZmIWltcG9ydGFudDt0ZXh0LWRlY29yYXRpb246bm9uZSFpbXBvcnRhbnQ7Zm9udDo5MDAgMTBweC8xIEFyaWFsLHNhbnMtc2VyaWYhaW1wb3J0YW50O2xldHRlci1zcGFjaW5nOi4wOGVtIWltcG9ydGFudDt3aGl0ZS1zcGFjZTpub3dyYXAhaW1wb3J0YW50O29wYWNpdHk6MSFpbXBvcnRhbnQ7dmlzaWJpbGl0eTp2aXNpYmxlIWltcG9ydGFudDtwb2ludGVyLWV2ZW50czphdXRvIWltcG9ydGFudH0KaHRtbCBib2R5IG5hdiNhbnRtdXgtcXVpY2stbmF2PmFbaHJlZj0iL2NhcnJvdS8iXXtiYWNrZ3JvdW5kOiNmZmYhaW1wb3J0YW50O2NvbG9yOiMwODBiMTAhaW1wb3J0YW50fQo8L3N0eWxlPgo8bmF2IGlkPSJhbnRtdXgtcXVpY2stbmF2IiBhcmlhLWxhYmVsPSJOYXZpZ2F0aW9uIHByaW5jaXBhbGUiPgo8YSBocmVmPSIvYnJ1dHVzLyI+QlJVVFVTPC9hPgo8YSBocmVmPSIvbGFib3JhdG9pcmUvIj5MQUJPUkFUT0lSRTwvYT4KPGEgaHJlZj0iL2NhcnJvdS8iPklNQUdFPC9hPgo8YSBocmVmPSIvZm9ybXVsZXMvIiBhcmlhLWxhYmVsPSJGb3JtdWxlcyBwdWJsaWVlcyBzdXIgWmVub2RvIiB0aXRsZT0iRm9ybXVsZXMgcHVibGllZXMgc3VyIFplbm9kbyI+Rk9STVVMRVM8L2E+CjwvbmF2Pg==
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "REPLACEMENT_B64='$REPLACEMENT_B64' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT=/var/www/antmux.com/public_html
+          HOME_INDEX="$ROOT/index.html"
+          BACKUP="$HOME/antmux-formules-nav/backups/$(date -u +%Y%m%d-%H%M%S)-one-row"
+          mkdir -p "$BACKUP"
+          cp -a "$HOME_INDEX" "$BACKUP/index.html"
+          rollback() { cp -a "$BACKUP/index.html" "$HOME_INDEX" || true; }
+          trap rollback ERR
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,base64,os
+          p=Path('/var/www/antmux.com/public_html/index.html')
+          text=p.read_text(encoding='utf-8')
+          text=re.sub(r'<!-- ANTMUX-FORMULES-ENTRY-v0\.[0-9]+ -->.*?<!-- /ANTMUX-FORMULES-ENTRY-v0\.[0-9]+ -->','',text,flags=re.S)
+          text=re.sub(r'<style id="antmux-nav-four-style">.*?</style>\s*','',text,flags=re.S)
+          m=re.search(r'<nav id="antmux-quick-nav".*?</nav>',text,re.S)
+          assert m,'antmux-quick-nav missing'
+          replacement=base64.b64decode(os.environ['REPLACEMENT_B64']).decode('utf-8')
+          text=text[:m.start()]+replacement+text[m.end():]
+          p.write_text(text,encoding='utf-8',newline='\n')
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('/var/www/antmux.com/public_html/index.html').read_text(encoding='utf-8')
+          nav=re.search(r'<nav id="antmux-quick-nav".*?</nav>',text,re.S)
+          assert nav
+          pairs=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>',nav.group(0))
+          assert pairs==[('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE'),('/formules/','FORMULES')],pairs
+          assert text.count('href="/formules/"')==1
+          assert text.count('id="antmux-nav-four-style"')==1
+          assert 'flex-direction:row!important' in text
+          assert 'flex-wrap:nowrap!important' in text
+          assert 'ANTMUX-FORMULES-ENTRY' not in text
+          print('LOCAL_ONE_ROW=PASS')
+          PY
+
+          curl -fsS https://antmux.com/ -o /tmp/home-one-row.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('/tmp/home-one-row.html').read_text(encoding='utf-8')
+          nav=re.search(r'<nav id="antmux-quick-nav".*?</nav>',text,re.S)
+          assert nav
+          pairs=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>',nav.group(0))
+          assert pairs==[('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE'),('/formules/','FORMULES')],pairs
+          assert text.count('href="/formules/"')==1
+          assert 'flex-direction:row!important' in text
+          assert 'flex-wrap:nowrap!important' in text
+          print('PUBLIC_ONE_ROW=PASS')
+          PY
+          trap - ERR
+          REMOTE
