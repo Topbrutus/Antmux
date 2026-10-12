@@ -20,38 +20,35 @@ env:
   REMOTE_STAGE: /tmp/brutobac-colony-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
-  validate-build:
+  validate-payload:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+      - uses: actions/checkout@v6
 
-      - name: Checkout exact BrutoBac source
+      - name: Validate staged BrutoBac payload and projector
         run: |
           set -euo pipefail
-          git clone --filter=blob:none https://github.com/Topbrutus/BrutoBac.git _brutobac
-          cd _brutobac
-          git fetch --depth=1 origin "$BRUTOBAC_SHA"
-          git checkout --detach "$BRUTOBAC_SHA"
-          test "$(git rev-parse HEAD)" = "$BRUTOBAC_SHA"
-          echo "BRUTOBAC_SHA_EXACT=PASS"
-
-      - name: Test and build public aquarium
-        working-directory: _brutobac
-        env:
-          VITE_BASE_PATH: /brutus/brutobac/
-        run: |
-          set -euo pipefail
-          bun install --frozen-lockfile
-          node --test tools/colony-aquarium-exporter.test.mjs
-          bun run lint
-          bun run build
-          test -s dist/index.html
-          grep -Fq '/brutus/brutobac/assets/' dist/index.html
-          grep -Fq 'BRUTUS LIVE FOURMI AQUARIUM 3D' dist/index.html
-          echo "BRUTOBAC_BUILD=PASS"
+          ROOT='deploy/brutobac-colony-live'
+          test -s "$ROOT/public/index.html"
+          test -s "$ROOT/runtime/colony-aquarium-exporter.mjs"
+          test -s "$ROOT/runtime/colony-aquarium-exporter.test.mjs"
+          grep -Fq '/brutus/brutobac/assets/' "$ROOT/public/index.html"
+          grep -Fq 'BRUTUS LIVE FOURMI AQUARIUM 3D' "$ROOT/public/index.html"
+          node --check "$ROOT/runtime/colony-aquarium-exporter.mjs"
+          node --test "$ROOT/runtime/colony-aquarium-exporter.test.mjs"
+          python3 - <<'PY'
+          import json, pathlib
+          p=json.loads(pathlib.Path('deploy/brutobac-colony-live/PAYLOAD.json').read_text(encoding='utf-8-sig'))
+          assert p['schema']=='BRUTOBAC-COLONY-DEPLOY-PAYLOAD-v0.1'
+          assert p['source_repository']=='Topbrutus/BrutoBac'
+          assert p['source_commit']=='0a8b3d6d277d75e1f55fe3324b5eaa0a6b54e53e'
+          assert p['brutus_host_commit']=='fe79bffa5dfdce5aea7452021ece56dfbbcbaaeb'
+          assert p['public_path']=='/brutus/brutobac/'
+          assert p['projection']=='REAL_QUEST_TIME_DILATED'
+          assert p['read_only'] is True
+          print('STAGED_PAYLOAD=PASS')
+          PY
 
       - name: Fetch exact Brutus host index
         run: |
@@ -61,15 +58,15 @@ jobs:
             -o _brutus-index.html
           grep -Fq 'src="/brutus/brutobac/"' _brutus-index.html
           grep -Fq 'fourmis réelles' _brutus-index.html
-          echo "BRUTUS_HOST_INDEX=PASS"
+          echo 'BRUTUS_HOST_INDEX=PASS'
 
-      - name: Assemble payload
+      - name: Assemble immutable deploy payload
         run: |
           set -euo pipefail
           rm -rf _deploy
           mkdir -p _deploy/public _deploy/runtime
-          cp -a _brutobac/dist/. _deploy/public/
-          cp _brutobac/tools/colony-aquarium-exporter.mjs _deploy/runtime/
+          cp -a deploy/brutobac-colony-live/public/. _deploy/public/
+          cp deploy/brutobac-colony-live/runtime/colony-aquarium-exporter.mjs _deploy/runtime/
           cp _brutus-index.html _deploy/brutus-index.html
           cat > _deploy/brutobac-colony-exporter.service <<'UNIT'
           [Unit]
@@ -92,9 +89,9 @@ jobs:
           UNIT
           cd _deploy
           find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
-          echo "PAYLOAD_READY=PASS"
+          echo 'PAYLOAD_ASSEMBLY=PASS'
 
-      - name: Preserve deploy payload
+      - name: Preserve validated payload
         uses: actions/upload-artifact@v4
         with:
           name: brutobac-colony-payload
@@ -103,7 +100,7 @@ jobs:
           retention-days: 1
 
   deploy:
-    needs: validate-build
+    needs: validate-payload
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -127,7 +124,7 @@ jobs:
           test "$actual_public_key" = "$expected_public_key"
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          echo "SSH_IDENTITY=PASS"
+          echo 'SSH_IDENTITY=PASS'
 
       - name: Upload payload
         env:
@@ -137,7 +134,7 @@ jobs:
           set -euo pipefail
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "rm -rf '$REMOTE_STAGE' && mkdir -p '$REMOTE_STAGE'"
           scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r _deploy/. "$VPS_USER@$VPS_HOST:$REMOTE_STAGE/"
-          echo "UPLOAD=PASS"
+          echo 'UPLOAD=PASS'
 
       - name: Install live BrutoBac sidecar and public route
         env:
@@ -145,14 +142,15 @@ jobs:
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "REMOTE_STAGE='$REMOTE_STAGE' bash -se" <<'REMOTE'
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "REMOTE_STAGE='$REMOTE_STAGE' BRUTOBAC_SHA='$BRUTOBAC_SHA' bash -se" <<'REMOTE'
           set -euo pipefail
           BRUTUS_ROOT='/var/www/antmux.com/public_html/brutus'
           PUBLIC_ROOT="$BRUTUS_ROOT/brutobac"
           RUNTIME="$HOME/brutobac-colony-runtime"
           USER_UNITS="$HOME/.config/systemd/user"
           UNIT="$USER_UNITS/brutobac-colony-exporter.service"
-          BACKUP="$HOME/brutobac-colony-backups/$(date -u +%Y%m%d-%H%M%S)-${BRUTOBAC_SHA}"
+          BACKUP="$HOME/brutobac-colony-backups/$(date -u +%Y%m%d-%H%M%S)-$BRUTOBAC_SHA"
           OLD_ACTIVE="$(systemctl --user is-active brutobac-colony-exporter.service 2>/dev/null || true)"
 
           cd "$REMOTE_STAGE"
@@ -187,7 +185,7 @@ jobs:
           }
           trap rollback ERR
 
-          # Existing engines must already be alive; never restart them here.
+          # Existing engines are prerequisites only; this workflow never restarts them.
           test "$(systemctl --user is-active brotoculateur.service)" = active
           test "$(systemctl --user is-active brotoculateur-colony-worker.service)" = active
           test "$(systemctl --user is-active brutus.service)" = active
@@ -213,9 +211,9 @@ jobs:
           systemctl --user daemon-reload
           systemctl --user enable --now brutobac-colony-exporter.service
 
+          LIVE_OK=0
           for i in $(seq 1 40); do
-            if test -s "$PUBLIC_ROOT/live-events.json"; then
-              if python3 - "$PUBLIC_ROOT/live-events.json" <<'PY'
+            if test -s "$PUBLIC_ROOT/live-events.json" && python3 - "$PUBLIC_ROOT/live-events.json" <<'PY'
           import json,re,sys
           events=json.load(open(sys.argv[1], encoding='utf-8'))
           assert isinstance(events,list) and events
@@ -225,21 +223,19 @@ jobs:
           assert workers
           assert any((x.get('metadata') or {}).get('quest_id') for x in workers)
           assert any((x.get('metadata') or {}).get('visualization_mode')=='REAL_QUEST_TIME_DILATED' for x in workers)
-          print('LIVE_EVENTS=PASS')
           PY
-              then break; fi
-            fi
+            then LIVE_OK=1; break; fi
             sleep 1
           done
-          test -s "$PUBLIC_ROOT/live-events.json"
+          test "$LIVE_OK" = 1
           test "$(systemctl --user is-active brutobac-colony-exporter.service)" = active
+          echo 'LIVE_EVENTS=PASS'
 
-          # Only expose the iframe after its target and live projection are proven.
+          # Expose iframe only after its target and projection are proven.
           install -m 0644 brutus-index.html "$BRUTUS_ROOT/index.html"
           grep -Fq 'src="/brutus/brutobac/"' "$BRUTUS_ROOT/index.html"
           grep -Fq 'BRUTUS LIVE FOURMI AQUARIUM 3D' "$PUBLIC_ROOT/index.html"
 
-          # Re-check the four pre-existing engines after the sidecar install.
           test "$(systemctl --user is-active brotoculateur.service)" = active
           test "$(systemctl --user is-active brotoculateur-colony-worker.service)" = active
           test "$(systemctl --user is-active brutus.service)" = active
@@ -266,7 +262,7 @@ jobs:
           import json,re
           e=json.load(open('/tmp/events.json', encoding='utf-8'))
           assert isinstance(e,list) and e
-          assert any(x.get('ant_id')=='QUEEN-BRUTUS' for x in e)
+          assert any(x.get('ant_id')=='QUEEN-BRUTUS' and x.get('role')=='QUEEN' for x in e)
           ants=[x for x in e if re.fullmatch(r'ANT-[A-F0-9]{12}', str(x.get('ant_id','')))]
           assert ants
           assert any((x.get('metadata') or {}).get('quest_id','').startswith('QUEST-') for x in ants)
