@@ -52,18 +52,16 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          import re
+          import re, base64
 
           p=Path('/var/www/antmux.com/public_html/index.html')
           text=p.read_text(encoding='utf-8')
 
-          # Remove every previous injected Formules block.
           text=re.sub(
               r'<!-- ANTMUX-FORMULES-ENTRY-v0\.[0-9]+ -->.*?<!-- /ANTMUX-FORMULES-ENTRY-v0\.[0-9]+ -->',
               '', text, flags=re.S
           )
 
-          # Remove the temporary link that had been inserted inside the primary nav.
           nav_match=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
           assert nav_match, 'antmux-quick-nav not found'
           nav=nav_match.group(0)
@@ -71,19 +69,11 @@ jobs:
               r'\s*<a\b[^>]*data-antmux-secondary="formules-zenodo"[^>]*>.*?</a>\s*',
               '\n', nav, flags=re.S
           )
-
-          # Prove the three original doors are still there and only those three remain in quick-nav.
           primary=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', nav)
           assert primary == [('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')], primary
           text=text[:nav_match.start()] + nav + text[nav_match.end():]
 
-          # Standalone button: deliberately OUTSIDE the primary nav so its CSS cannot stack it.
-          block='''<!-- ANTMUX-FORMULES-ENTRY-v0.2 -->
-<div id="antmux-formules-zenodo-entry" style="all:initial!important;position:fixed!important;top:18px!important;right:18px!important;left:auto!important;bottom:auto!important;z-index:2147483647!important;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;transform:none!important;margin:0!important;padding:0!important;width:auto!important;height:auto!important">
-  <a href="/formules/" aria-label="Formules publiées et Zenodo" style="all:initial!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;box-sizing:border-box!important;padding:11px 16px!important;border:1px solid rgba(119,220,255,.78)!important;border-radius:999px!important;background:rgba(5,10,15,.96)!important;color:#ffffff!important;text-decoration:none!important;font-family:Arial,sans-serif!important;font-size:11px!important;line-height:1!important;font-weight:900!important;letter-spacing:.07em!important;white-space:nowrap!important;box-shadow:0 8px 28px rgba(0,0,0,.45),0 0 0 1px rgba(119,220,255,.12)!important;cursor:pointer!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;transform:none!important">∑ FORMULES · ZENODO</a>
-</div>
-<!-- /ANTMUX-FORMULES-ENTRY-v0.2 -->'''
-
+          block=base64.b64decode('PCEtLSBBTlRNVVgtRk9STVVMRVMtRU5UUlktdjAuMiAtLT4KPGRpdiBpZD0iYW50bXV4LWZvcm11bGVzLXplbm9kby1lbnRyeSIgc3R5bGU9ImFsbDppbml0aWFsIWltcG9ydGFudDtwb3NpdGlvbjpmaXhlZCFpbXBvcnRhbnQ7dG9wOjE4cHghaW1wb3J0YW50O3JpZ2h0OjE4cHghaW1wb3J0YW50O2xlZnQ6YXV0byFpbXBvcnRhbnQ7Ym90dG9tOmF1dG8haW1wb3J0YW50O3otaW5kZXg6MjE0NzQ4MzY0NyFpbXBvcnRhbnQ7ZGlzcGxheTpibG9jayFpbXBvcnRhbnQ7dmlzaWJpbGl0eTp2aXNpYmxlIWltcG9ydGFudDtvcGFjaXR5OjEhaW1wb3J0YW50O3BvaW50ZXItZXZlbnRzOmF1dG8haW1wb3J0YW50O3RyYW5zZm9ybTpub25lIWltcG9ydGFudDttYXJnaW46MCFpbXBvcnRhbnQ7cGFkZGluZzowIWltcG9ydGFudDt3aWR0aDphdXRvIWltcG9ydGFudDtoZWlnaHQ6YXV0byFpbXBvcnRhbnQiPgogIDxhIGhyZWY9Ii9mb3JtdWxlcy8iIGFyaWEtbGFiZWw9IkZvcm11bGVzIHB1Ymxpw6llcyBldCBaZW5vZG8iIHN0eWxlPSJhbGw6aW5pdGlhbCFpbXBvcnRhbnQ7ZGlzcGxheTppbmxpbmUtZmxleCFpbXBvcnRhbnQ7YWxpZ24taXRlbXM6Y2VudGVyIWltcG9ydGFudDtqdXN0aWZ5LWNvbnRlbnQ6Y2VudGVyIWltcG9ydGFudDtnYXA6OHB4IWltcG9ydGFudDtib3gtc2l6aW5nOmJvcmRlci1ib3ghaW1wb3J0YW50O3BhZGRpbmc6MTFweCAxNnB4IWltcG9ydGFudDtib3JkZXI6MXB4IHNvbGlkIHJnYmEoMTE5LDIyMCwyNTUsLjc4KSFpbXBvcnRhbnQ7Ym9yZGVyLXJhZGl1czo5OTlweCFpbXBvcnRhbnQ7YmFja2dyb3VuZDpyZ2JhKDUsMTAsMTUsLjk2KSFpbXBvcnRhbnQ7Y29sb3I6I2ZmZmZmZiFpbXBvcnRhbnQ7dGV4dC1kZWNvcmF0aW9uOm5vbmUhaW1wb3J0YW50O2ZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWYhaW1wb3J0YW50O2ZvbnQtc2l6ZToxMXB4IWltcG9ydGFudDtsaW5lLWhlaWdodDoxIWltcG9ydGFudDtmb250LXdlaWdodDo5MDAhaW1wb3J0YW50O2xldHRlci1zcGFjaW5nOi4wN2VtIWltcG9ydGFudDt3aGl0ZS1zcGFjZTpub3dyYXAhaW1wb3J0YW50O2JveC1zaGFkb3c6MCA4cHggMjhweCByZ2JhKDAsMCwwLC40NSksMCAwIDAgMXB4IHJnYmEoMTE5LDIyMCwyNTUsLjEyKSFpbXBvcnRhbnQ7Y3Vyc29yOnBvaW50ZXIhaW1wb3J0YW50O3Zpc2liaWxpdHk6dmlzaWJsZSFpbXBvcnRhbnQ7b3BhY2l0eToxIWltcG9ydGFudDtwb2ludGVyLWV2ZW50czphdXRvIWltcG9ydGFudDt0cmFuc2Zvcm06bm9uZSFpbXBvcnRhbnQiPuKIkSBGT1JNVUxFUyDCtyBaRU5PRE88L2E+CjwvZGl2Pgo8IS0tIC9BTlRNVVgtRk9STVVMRVMtRU5UUlktdjAuMiAtLT4=').decode('utf-8')
           assert '</body>' in text
           text=text.replace('</body>', block+'\n</body>', 1)
           p.write_text(text, encoding='utf-8', newline='\n')
