@@ -1,0 +1,104 @@
+name: Deploy Formules Nav Hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-formules-nav-hotfix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: antmux-formules-nav-hotfix
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Put Formules Zenodo beside visible homepage doors
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT='/var/www/antmux.com/public_html'
+          HOME_INDEX="$ROOT/index.html"
+          BACKUP="$HOME/antmux-formules-nav/backups/$(date -u +%Y%m%d-%H%M%S)"
+          mkdir -p "$BACKUP"
+          cp -a "$HOME_INDEX" "$BACKUP/index.html"
+
+          rollback(){
+            install -m 0644 "$BACKUP/index.html" "$HOME_INDEX" || true
+          }
+          trap 'rollback' ERR
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('/var/www/antmux.com/public_html/index.html')
+          text=p.read_text(encoding='utf-8')
+
+          # Remove the previous floating Formules injection if present.
+          text=re.sub(
+              r'<!-- ANTMUX-FORMULES-ENTRY-v0\.1 -->.*?<!-- /ANTMUX-FORMULES-ENTRY-v0\.1 -->',
+              '', text, count=1, flags=re.S
+          )
+
+          nav_match=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
+          assert nav_match, 'antmux-quick-nav not found'
+          nav=nav_match.group(0)
+
+          # Keep the three primary doors unchanged and add one clearly secondary entry.
+          primary=re.findall(r'<a\s+href="([^"]+)"[^>]*>([^<]+)</a>', nav)
+          assert primary[:3] == [('/brutus/','BRUTUS'),('/laboratoire/','LABORATOIRE'),('/carrou/','IMAGE')], primary
+
+          marker='data-antmux-secondary="formules-zenodo"'
+          if marker not in nav:
+              button='''\n<a href="/formules/" data-antmux-secondary="formules-zenodo" aria-label="Formules publiées et Zenodo" style="display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;padding:10px 14px!important;margin-left:10px!important;border:1px solid rgba(119,220,255,.75)!important;border-radius:999px!important;background:rgba(5,10,15,.96)!important;color:#ffffff!important;text-decoration:none!important;font-size:11px!important;font-weight:900!important;letter-spacing:.07em!important;box-shadow:0 0 0 1px rgba(119,220,255,.12),0 8px 24px rgba(0,0,0,.35)!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;white-space:nowrap!important">∑ FORMULES · ZENODO</a>\n'''
+              nav=nav.replace('</nav>', button+'</nav>', 1)
+
+          text=text[:nav_match.start()] + nav + text[nav_match.end():]
+          p.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('/var/www/antmux.com/public_html/index.html').read_text(encoding='utf-8')
+          nav=re.search(r'<nav id="antmux-quick-nav".*?</nav>', text, re.S)
+          assert nav
+          chunk=nav.group(0)
+          assert 'href="/brutus/"' in chunk
+          assert 'href="/laboratoire/"' in chunk
+          assert 'href="/carrou/"' in chunk
+          assert 'href="/formules/"' in chunk
+          assert 'data-antmux-secondary="formules-zenodo"' in chunk
+          assert '∑ FORMULES · ZENODO' in chunk
+          PY
+
+          curl -fsS https://antmux.com/ -o /tmp/formules-nav-live.html
+          grep -Fq 'data-antmux-secondary="formules-zenodo"' /tmp/formules-nav-live.html
+          grep -Fq '∑ FORMULES · ZENODO' /tmp/formules-nav-live.html
+          grep -Fq 'href="/formules/"' /tmp/formules-nav-live.html
+          trap - ERR
+          echo 'FORMULES_NAV_HOTFIX=PASS'
+          REMOTE
