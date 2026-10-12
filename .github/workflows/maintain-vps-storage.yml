@@ -102,5 +102,13 @@ jobs:
           echo '--- STORAGE AFTER ---'
           df -h /
           du -sh "$HOME/antmux-x72-queen-backups" 2>/dev/null || true
+          echo '--- REMAINING X72 BACKUPS ---'
+          du -sk "$HOME"/antmux-x72-queen-backups/* 2>/dev/null | sort -nr | head -20 || true
+          echo '--- HOME TOP LEVEL ---'
+          du -x -k -d 1 "$HOME" 2>/dev/null | sort -nr | head -25 || true
+          echo '--- QUEEN DATA FILES ---'
+          ls -lh "$HOME"/antmux-x72-queen/data/queen.db* 2>/dev/null || true
+          echo '--- DELETED OPEN FILES ---'
+          if command -v lsof >/dev/null 2>&1; then lsof +L1 2>/dev/null | sort -k7 -nr | head -20 || true; fi
           systemctl --user show brutus-public.service -p ActiveState -p SubState -p NRestarts --no-pager
           REMOTE
