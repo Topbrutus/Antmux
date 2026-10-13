@@ -1,0 +1,314 @@
+name: Deploy Brotoculateur T2 Exact Duplicate VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start T2 exact-duplicate shadow, or disable T2
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-T2-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-t2-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and T2 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-T2-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-t2/t2_exact_duplicate.py \
+            deploy/vps-t2/patch_brotoculateur_t2_exact_duplicate.py \
+            deploy/vps-t2/test_t2_exact_duplicate.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage T2 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-t2/t2_exact_duplicate.py \
+            deploy/vps-t2/patch_brotoculateur_t2_exact_duplicate.py \
+            deploy/vps-t2/test_t2_exact_duplicate.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy T2
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          T1MOD="$PKG/t1_family.py"
+          T2MOD="$PKG/t2_exact_duplicate.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_T1='e68643e72c4c0551b3d7187fde05f5d3a37c45b7e5f0d30cd750869378a32320'
+          PRE_ORCH='453c06a2064e743e08a042ced8dc7406492ab323c664dea16b1f6de1aaa9f526'
+          PRE_DASH='c54737bfa9213d1625f8134a7588ee37a99712b44e7aa37a2246743c5c344355'
+          POST_ORCH='1dcf3c224e0a8cdfbf819a6ce97a8f5e3c19757a0a310444c1d477418f2c4012'
+          POST_DASH='6eb9c68e143f6488c15d8d96861c59980555c124895b2128f3676a0d56b9d44b'
+          POST_T2='52b9a8a39480e0e5201d524eec330effdabb1642988fdeefebb47d00c2421e12'
+
+          test -f "$ORCH" -a -f "$DASH" -a -f "$T1MOD"
+          test "$(sha256sum "$T1MOD"|awk '{print $1}')" = "$EXPECT_T1"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t2-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t2-before.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}
+          print('STATE='+str(d.get('state')))
+          print('RUN_ID='+str(d.get('run_id')))
+          print('PROCESSED='+str(d.get('processed_packets')))
+          print('CRYSTALS='+str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C2_TOTAL='+str(c2.get('total_fingerprints')))
+          print('C3_OBSERVATIONS='+str(c3.get('observations')))
+          print('C4_OBSERVATIONS='+str(c4.get('observations')))
+          print('C5_OBSERVATIONS='+str(c5.get('observations')))
+          print('C6_OBSERVATIONS='+str(c6.get('observations')))
+          print('C7_OBSERVATIONS='+str(c7.get('observations')))
+          print('T1_OBSERVATIONS='+str(t1.get('observations')))
+          print('T2_MODE='+str(t2.get('mode')))
+          print('T2_ENABLED='+str(t2.get('enabled')))
+          print('T2_OBSERVATIONS='+str(t2.get('observations')))
+          print('T2_DUPLICATES='+str(t2.get('exact_duplicates')))
+          print('T2_ALT_PATH='+str(t2.get('alternate_path_duplicates')))
+          print('T2_FAMILY_CONFLICTS='+str(t2.get('cross_family_conflicts')))
+          PY
+
+          orch_hash=$(sha256sum "$ORCH"|awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH"|awk '{print $1}')
+          if [ -f "$T2MOD" ]; then t2_hash=$(sha256sum "$T2MOD"|awk '{print $1}'); else t2_hash='ABSENT'; fi
+          source_state='UNKNOWN'
+          if [ "$orch_hash" = "$PRE_ORCH" ] && [ "$dash_hash" = "$PRE_DASH" ] && [ "$t2_hash" = 'ABSENT' ]; then source_state='PRE_T2'; fi
+          if [ "$orch_hash" = "$POST_ORCH" ] && [ "$dash_hash" = "$POST_DASH" ] && [ "$t2_hash" = "$POST_T2" ]; then source_state='POST_T2'; fi
+          test "$source_state" != 'UNKNOWN'
+          echo "T2_SOURCE_STATE=$source_state"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then
+            SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/t2-before.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          n=int(c2.get('total_fingerprints') or 0)
+          assert n==int(c3.get('observations') or 0)==int(c4.get('observations') or 0)==int(c5.get('observations') or 0)==int(c6.get('observations') or 0)==int(c7.get('observations') or 0)==int(t1.get('observations') or 0)
+          if os.environ['SOURCE_STATE']=='POST_T2' and t2.get('enabled') is True:
+              assert n==int(t2.get('observations') or 0)
+              assert t2.get('authority')=='SHADOW_ONLY'
+              assert t2.get('deduplication_applied') is False
+              assert int(t2.get('packets_collapsed',-1))==0
+              assert t2.get('controls_routing') is False and t2.get('controls_scheduling') is False
+              assert int(t2.get('compute_skips',-1))==0 and t2.get('proof_promotion') is False
+              assert int(t2.get('cross_family_conflicts') or 0)==0
+          print('T2_AUDIT_ONLY=PASS')
+          PY
+            exit 0
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$source_state" = 'PRE_T2'
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t2-before.json',encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}; c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'} and not d.get('worker_error')
+          assert z.get('enabled') is True and int(z.get('rollout_percent') or 0)==10
+          assert all(x.get('enabled') is True for x in (c2,c3,c4,c5,c6,c7,t1))
+          n=int(c2.get('total_fingerprints') or 0)
+          assert n==int(c3.get('observations') or 0)==int(c4.get('observations') or 0)==int(c5.get('observations') or 0)==int(c6.get('observations') or 0)==int(c7.get('observations') or 0)==int(t1.get('observations') or 0)
+          print('T2_REQUIRES_T1_C7_C6_C5_C4_C3_C2_Z10=PASS')
+          PY
+            STAGE="/tmp/brotoculateur-t2-stage-$$"
+            rm -rf "$STAGE"; mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_t2_exact_duplicate.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py"|awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t1_family.py"|awk '{print $1}')" = "$EXPECT_T1"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t2_exact_duplicate.py"|awk '{print $1}')" = "$POST_T2"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_t2_exact_duplicate.py
+            echo 'T2_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_T2'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/t2-before.json',encoding='utf-8')).get('state')=='RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/t2-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/t2-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t2-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t2-paused.json',encoding='utf-8'))
+          assert d.get('state')=='PAUSED', d.get('state')
+          print('T2_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/t2-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$BACKUP/"
+          [ ! -f "$T2MOD" ] || cp -a "$T2MOD" "$BACKUP/"
+          cp -a /tmp/t2-before.json "$BACKUP/status-before.json"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/95-brutus-t2.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0; [ ! -f "$DROPIN" ] || { HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/95-brutus-t2.conf"; }
+          HAD_T2=0; [ ! -f "$T2MOD" ] || HAD_T2=1
+          echo "T2_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?; set +e; echo "T2_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            if [ "$HAD_T2" = 1 ]; then cp -a "$BACKUP/t2_exact_duplicate.py" "$T2MOD"; else rm -f "$T2MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/95-brutus-t2.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t2-rollback-start.json || true; fi
+            echo 'T2_ROLLBACK_DONE'; exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/t2_exact_duplicate.py" "$T2MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T2_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T2_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t2-after.json; then ok=1; break; fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/t2-after.json',encoding='utf-8'))
+          t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert t1.get('enabled') is True
+          if os.environ['MODE']=='canary_start':
+              assert t2.get('mode')=='BRUTUS_T2_EXACT_DUPLICATE_V1' and t2.get('enabled') is True
+              assert t2.get('authority')=='SHADOW_ONLY' and t2.get('deduplication_applied') is False
+              assert int(t2.get('packets_collapsed',-1))==0 and int(t2.get('compute_skips',-1))==0
+          else:
+              assert t2.get('enabled') is False
+          print('T2_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t2-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t2-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json,os,sys
+          try: d=json.load(open('/tmp/t2-live.json',encoding='utf-8'))
+          except Exception: sys.exit(1)
+          t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}
+          good=d.get('state')=='RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE')=='canary_start':
+              n=int(t2.get('observations') or 0)
+              good=good and n>0 and n==int(t1.get('observations') or 0)
+              good=good and int(t2.get('packets_collapsed',-1))==0 and int(t2.get('cross_family_conflicts') or 0)==0
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t2-live.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}
+          print('T2_LIVE_STATE='+str(d.get('state')))
+          print('T2_LIVE_PROCESSED='+str(d.get('processed_packets')))
+          print('T2_LIVE_CRYSTALS='+str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('T2_LIVE_C2='+str(c2.get('total_fingerprints')))
+          print('T2_LIVE_C7='+str(c7.get('observations')))
+          print('T2_LIVE_T1='+str(t1.get('observations')))
+          print('T2_LIVE_OBSERVATIONS='+str(t2.get('observations')))
+          print('T2_LIVE_DUPLICATES='+str(t2.get('exact_duplicates')))
+          print('T2_LIVE_ALT_PATH='+str(t2.get('alternate_path_duplicates')))
+          print('T2_LIVE_FAMILY_CONFLICTS='+str(t2.get('cross_family_conflicts')))
+          print('T2_LIVE_COLLAPSED='+str(t2.get('packets_collapsed')))
+          print('T2_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ORCH"|awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$T1MOD"|awk '{print $1}')" = "$EXPECT_T1"
+            test "$(sha256sum "$T2MOD"|awk '{print $1}')" = "$POST_T2"
+          fi
+          df -P / | awk 'NR==2 {print "T2_ROOT_DISK_USED=" $5 " T2_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'T2_WORKFLOW=PASS'
+          REMOTE
