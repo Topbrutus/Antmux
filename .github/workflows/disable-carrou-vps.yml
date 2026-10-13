@@ -1,0 +1,108 @@
+name: Disable public /carrou/ route
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DISABLE-CARROU'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: disable-carrou-vps
+  cancel-in-progress: false
+
+jobs:
+  disable:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'DISABLE-CARROU'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate disabled source
+        run: |
+          set -euo pipefail
+          grep -Fq '/carrou/ est désactivé' carrou/index.html
+          ! grep -Fq 'src="./app.js"' carrou/index.html
+          ! grep -Fq '../carrou/' generator/index.html
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Disable route on VPS with rollback backup
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = 'server1.antmux.com'
+          ROOT='/var/www/antmux.com/public_html'
+          CAR="$ROOT/carrou"
+          HOME_INDEX="$ROOT/index.html"
+          GEN_INDEX="$ROOT/generator/index.html"
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$HOME/static-backups/carrou-disabled-$STAMP"
+          mkdir -p "$BACKUP"
+
+          if [ -e "$CAR" ] || [ -L "$CAR" ]; then
+            cp -a "$CAR" "$BACKUP/carrou-before"
+          fi
+          [ ! -f "$HOME_INDEX" ] || cp -a "$HOME_INDEX" "$BACKUP/home-index-before.html"
+          [ ! -f "$GEN_INDEX" ] || cp -a "$GEN_INDEX" "$BACKUP/generator-index-before.html"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for raw in ['/var/www/antmux.com/public_html/index.html','/var/www/antmux.com/public_html/generator/index.html']:
+              p=Path(raw)
+              if not p.is_file():
+                  continue
+              text=p.read_text(encoding='utf-8')
+              text=re.sub(r'\s*<a\b[^>]*href=["\'](?:/carrou/?|\.\./carrou/?|carrou/?)["\'][^>]*>.*?</a>', '', text, flags=re.I|re.S)
+              p.write_text(text, encoding='utf-8')
+          PY
+
+          if [ -e "$CAR" ] || [ -L "$CAR" ]; then
+            chmod -R u+rwX "$CAR" 2>/dev/null || true
+            rm -rf "$CAR"
+          fi
+          mkdir "$CAR"
+          chmod 000 "$CAR"
+
+          echo "BACKUP=$BACKUP"
+          echo 'CARROU_FILESYSTEM_GUARD=PASS'
+          test "$(stat -c '%a' "$CAR")" = '0'
+          ! grep -Fq '/carrou/' "$HOME_INDEX"
+          if [ -f "$GEN_INDEX" ]; then ! grep -Fq '../carrou/' "$GEN_INDEX"; fi
+          echo 'CARROU_LINK_REMOVAL=PASS'
+          REMOTE
+
+      - name: Verify public route is closed
+        run: |
+          set -euo pipefail
+          ok=0
+          for _ in $(seq 1 20); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 https://antmux.com/carrou/ || true)
+            echo "CARROU_HTTP=$code"
+            case "$code" in 403|404|410) ok=1; break;; esac
+            sleep 2
+          done
+          test "$ok" = 1
+          curl -fsSL --max-time 8 https://antmux.com/ -o /tmp/antmux-home.html
+          ! grep -Fq 'href="/carrou/"' /tmp/antmux-home.html
+          echo 'CARROU_DISABLED=PASS'
