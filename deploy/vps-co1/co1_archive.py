@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from collections import Counter, deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,6 +95,9 @@ class Co1ArchiveTelemetry:
     duplicate record. The archived payload preserves the canonical structural
     fields used by C2 plus the exact S5 formula/Z/bucket context.
 
+    The check+append+in-memory registration sequence is serialized with an
+    RLock so concurrent callbacks cannot append the same archive id twice.
+
     Co1 v1 deliberately does NOT evict from S5, invent an age policy, change
     ValidationState, or claim scientific proof. Co2 owns proof-chain continuity.
     """
@@ -101,6 +105,7 @@ class Co1ArchiveTelemetry:
     def __init__(self, archive_path: str | Path | None = None) -> None:
         self.enabled = _env_flag("BROTO_CO1_ENABLED", False)
         self.archive_path = Path(archive_path).expanduser() if archive_path is not None else _default_archive_path()
+        self._lock = threading.RLock()
 
         self.observations = 0
         self.eligible_s5 = 0
@@ -191,7 +196,10 @@ class Co1ArchiveTelemetry:
     def observe(self, formula_id: str, source: Any, out: Any, s5_outcome: str) -> str:
         if not self.enabled:
             return "DISABLED"
+        with self._lock:
+            return self._observe_locked(formula_id, source, out, s5_outcome)
 
+    def _observe_locked(self, formula_id: str, source: Any, out: Any, s5_outcome: str) -> str:
         self.observations += 1
         s5 = str(s5_outcome).upper()
         formula = str(formula_id or "").strip()
@@ -337,6 +345,10 @@ class Co1ArchiveTelemetry:
         return outcome
 
     def status(self) -> dict[str, Any]:
+        with self._lock:
+            return self._status_locked()
+
+    def _status_locked(self) -> dict[str, Any]:
         archive_bytes = 0
         try:
             if self.archive_path.exists():
@@ -364,6 +376,7 @@ class Co1ArchiveTelemetry:
             "load_error_summary": self.load_error_summary,
             "loaded_records": self.loaded_records,
             "loaded_duplicate_ids": self.loaded_duplicate_ids,
+            "physical_records_seen": self.loaded_records + self.appended_records,
             "unique_archive_records": len(self._archive_ids),
             "unique_z_archived": len({z for z in self._z_ids if z}),
             "unique_formulas_archived": len({f for f in self._formula_ids if f}),
@@ -381,6 +394,8 @@ class Co1ArchiveTelemetry:
             "append_only": True,
             "fsync_on_new_record": True,
             "deduplicates_by_archive_id": True,
+            "thread_safe_deduplication": True,
+            "preexisting_duplicate_lines_preserved": True,
             "rewrites_existing_records": False,
             "archive_id_is_scientific_identity": False,
             "archive_id_is_c2_fingerprint": False,
