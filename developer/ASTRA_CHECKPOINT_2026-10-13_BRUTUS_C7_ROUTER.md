@@ -81,3 +81,29 @@ Sequence:
 
 No reset of crystal data is authorized by this workflow.
 
+
+## Live validation
+
+Deployment run: `38356723898` — SUCCESS.
+Independent audit run: `38356797737` — SUCCESS.
+
+Independent live audit:
+- state: RUNNING
+- processed packets: 9,522
+- total crystals: 1,634,330
+- C2=C3=C4=C5=C6=C7 observations: 53,759
+- C7 mode: `BRUTUS_C7_SHADOW_ROUTER_V1`
+- C7 enabled: true
+- `PROVENANCE_REVIEW`: 46,845
+- `NOVELTY_REVIEW`: 1,980
+- `RARE_REPLAY`: 4,425
+- `CONVERGENCE_REVIEW`: 509
+- `KNOWN_CONTROL`: 0
+- `CAPACITY_REVIEW`: 0
+- `OBSERVE_ONLY`: 0
+- source state: POST_C7
+- root disk used: 59%
+- root disk free: 49,117,012 KB
+- `actual_routes_applied`: 0 (verified by deployment guard; C7 remains shadow-only)
+
+Interpretation constraint: route counts are engineering recommendations only. They do not represent scientific proof, discovery, or active scheduling decisions.
