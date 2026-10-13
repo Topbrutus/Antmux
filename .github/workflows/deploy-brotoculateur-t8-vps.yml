@@ -1,0 +1,318 @@
+name: Deploy Brotoculateur T8 Countertest VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start T8 countertest shadow, or disable T8
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-T8-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-t8-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and T8 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-T8-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-t8/t8_countertest.py \
+            deploy/vps-t8/patch_brotoculateur_t8_countertest.py \
+            deploy/vps-t8/test_t8_countertest.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage T8 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-t8/t8_countertest.py \
+            deploy/vps-t8/patch_brotoculateur_t8_countertest.py \
+            deploy/vps-t8/test_t8_countertest.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy T8
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          PAP="$PKG/papillon_engine.py"
+          T6MOD="$PKG/t6_papillon.py"
+          T7MOD="$PKG/t7_calculation.py"
+          T8MOD="$PKG/t8_countertest.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_PAP='87045c18db95871f4cc9521bdfae1c7c4175dcf0a09ef33a8f7e35c5879fa50a'
+          EXPECT_T6='6c58c96cd46de6f10851e443b5882ffdd2c505c82f907b325cae250e1ffd0792'
+          EXPECT_T7='5d6ce094a5b9238994182d56b1740555633f4c49983a40e4abceb0a7495303fd'
+          EXPECT_ORCH='cf4978cb315f817abf2283f41630c322a80ccbb94c75662eac8b4a87c7a05d63'
+          PRE_DASH='e9bf39bfd632a2945bd976373a3e749d28140ca26160c7faeb07297cbf5af690'
+          POST_DASH='8a294e39869babd68ff7c5456afbbd5d740ca44aec360e60a0f5bd8a1335e94e'
+          POST_T8='a93bd6cd9aaaf0fe832604de9e390e6d69de7dfb8b853e558d8c9955761cce9e'
+
+          test -f "$PAP" -a -f "$T6MOD" -a -f "$T7MOD" -a -f "$ORCH" -a -f "$DASH"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t8-before.json
+
+          pap_hash=$(sha256sum "$PAP"|awk '{print $1}')
+          t6_hash=$(sha256sum "$T6MOD"|awk '{print $1}')
+          t7_hash=$(sha256sum "$T7MOD"|awk '{print $1}')
+          orch_hash=$(sha256sum "$ORCH"|awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH"|awk '{print $1}')
+          if [ -f "$T8MOD" ]; then t8_hash=$(sha256sum "$T8MOD"|awk '{print $1}'); else t8_hash='ABSENT'; fi
+          test "$pap_hash" = "$EXPECT_PAP"
+          test "$t6_hash" = "$EXPECT_T6"
+          test "$t7_hash" = "$EXPECT_T7"
+          test "$orch_hash" = "$EXPECT_ORCH"
+          source_state='UNKNOWN'
+          if [ "$dash_hash" = "$PRE_DASH" ] && [ "$t8_hash" = 'ABSENT' ]; then source_state='PRE_T8'; fi
+          if [ "$dash_hash" = "$POST_DASH" ] && [ "$t8_hash" = "$POST_T8" ]; then source_state='POST_T8'; fi
+          test "$source_state" != 'UNKNOWN'
+          echo "T8_SOURCE_STATE=$source_state"
+
+          SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/t8-before.json',encoding='utf-8'))
+          t7=d.get('t7_calculation') or {}; t8=d.get('t8_countertest') or {}; bm=d.get('brutomagique') or {}
+          print('STATE='+str(d.get('state')))
+          print('PROCESSED='+str(d.get('processed_packets')))
+          print('CRYSTALS='+str(bm.get('total_crystals')))
+          print('BRUTOMAGIQUE_OBSERVATIONS='+str(bm.get('total_observations')))
+          print('T7_ENABLED='+str(t7.get('enabled')))
+          print('T7_PACKETS='+str(t7.get('packet_observations')))
+          print('T8_MODE='+str(t8.get('mode')))
+          print('T8_ENABLED='+str(t8.get('enabled')))
+          print('T8_OBSERVATIONS='+str(t8.get('observations')))
+          print('T8_PASS='+str(t8.get('passed')))
+          print('T8_FAIL='+str(t8.get('failed')))
+          print('T8_LIMITED='+str(t8.get('limited')))
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert t7.get('enabled') is True
+          if os.environ['SOURCE_STATE']=='POST_T8' and t8.get('enabled') is True:
+              assert t8.get('authority')=='SHADOW_ONLY'
+              assert t8.get('source_of_truth')=='FORMULA_RESULT_CALLBACK'
+              assert t8.get('sets_countertested_state') is False
+              assert t8.get('validation_state_mutated') is False
+              assert t8.get('scientific_proof_claim') is False
+              assert t8.get('controls_calculation') is False
+              assert int(t8.get('compute_skips') or 0)==0
+              assert t8.get('proof_promotion') is False
+          print('T8_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then exit 0; fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$source_state" = 'PRE_T8'
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t8-before.json',encoding='utf-8'))
+          t7=d.get('t7_calculation') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'} and not d.get('worker_error')
+          assert t7.get('enabled') is True
+          print('T8_REQUIRES_T7=PASS')
+          PY
+            STAGE="/tmp/brotoculateur-t8-stage-$$"
+            rm -rf "$STAGE"; mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_t8_countertest.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t8_countertest.py"|awk '{print $1}')" = "$POST_T8"
+            PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 python3 /tmp/test_t8_countertest.py
+            echo 'T8_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_T8'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/t8-before.json',encoding='utf-8')).get('state')=='RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/t8-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/t8-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t8-paused.json
+          python3 - <<'PY'
+          import json
+          assert json.load(open('/tmp/t8-paused.json',encoding='utf-8')).get('state')=='PAUSED'
+          print('T8_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/t8-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$DASH" "$BACKUP/"
+          [ ! -f "$T8MOD" ] || cp -a "$T8MOD" "$BACKUP/"
+          cp -a /tmp/t8-before.json "$BACKUP/status-before.json"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/98-brutus-t8.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0; [ ! -f "$DROPIN" ] || { HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/98-brutus-t8.conf"; }
+          HAD_T8=0; [ ! -f "$T8MOD" ] || HAD_T8=1
+          echo "T8_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?; set +e; echo "T8_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            if [ "$HAD_T8" = 1 ]; then cp -a "$BACKUP/t8_countertest.py" "$T8MOD"; else rm -f "$T8MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/98-brutus-t8.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t8-rollback-start.json || true; fi
+            echo 'T8_ROLLBACK_DONE'; exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/t8_countertest.py" "$T8MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T8_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T8_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t8-after.json; then ok=1; break; fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/t8-after.json',encoding='utf-8'))
+          t7=d.get('t7_calculation') or {}; t8=d.get('t8_countertest') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert t7.get('enabled') is True
+          if os.environ['MODE']=='canary_start':
+              assert t8.get('mode')=='BRUTUS_T8_COUNTERTEST_V1' and t8.get('enabled') is True
+              assert t8.get('authority')=='SHADOW_ONLY'
+              assert t8.get('sets_countertested_state') is False
+              assert t8.get('controls_calculation') is False
+          else:
+              assert t8.get('enabled') is False
+          print('T8_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            BASE_BM=$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t8-after.json',encoding='utf-8'))
+          print(int((d.get('brutomagique') or {}).get('total_observations') or 0))
+          PY
+          )
+            BASE_T8=$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t8-after.json',encoding='utf-8'))
+          print(int((d.get('t8_countertest') or {}).get('observations') or 0))
+          PY
+          )
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t8-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t8-live.json || true
+              if BASE_BM="$BASE_BM" BASE_T8="$BASE_T8" MODE="$MODE" python3 - <<'PY'
+          import json,os,sys
+          try: d=json.load(open('/tmp/t8-live.json',encoding='utf-8'))
+          except Exception: sys.exit(1)
+          t8=d.get('t8_countertest') or {}; bm=d.get('brutomagique') or {}
+          good=d.get('state')=='RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE')=='canary_start':
+              dt8=int(t8.get('observations') or 0)-int(os.environ['BASE_T8'])
+              dbm=int(bm.get('total_observations') or 0)-int(os.environ['BASE_BM'])
+              good=good and dt8>0 and dt8==dbm
+              good=good and int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0
+              good=good and float(t8.get('countertest_coverage') or 0.0)==1.0
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+            BASE_BM="$BASE_BM" BASE_T8="$BASE_T8" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/t8-live.json',encoding='utf-8'))
+          t8=d.get('t8_countertest') or {}; bm=d.get('brutomagique') or {}
+          dt8=int(t8.get('observations') or 0)-int(os.environ['BASE_T8'])
+          dbm=int(bm.get('total_observations') or 0)-int(os.environ['BASE_BM'])
+          print('T8_LIVE_STATE='+str(d.get('state')))
+          print('T8_LIVE_PROCESSED='+str(d.get('processed_packets')))
+          print('T8_LIVE_CRYSTALS='+str(bm.get('total_crystals')))
+          print('T8_LIVE_OBSERVATIONS='+str(t8.get('observations')))
+          print('T8_LIVE_PASS='+str(t8.get('passed')))
+          print('T8_LIVE_FAIL='+str(t8.get('failed')))
+          print('T8_LIVE_LIMITED='+str(t8.get('limited')))
+          print('T8_LIVE_COVERAGE='+str(t8.get('countertest_coverage')))
+          print('T8_LIVE_DELTA_T8='+str(dt8))
+          print('T8_LIVE_DELTA_BRUTOMAGIQUE='+str(dbm))
+          print('T8_LIVE_RELATION_PASSES='+str(t8.get('relation_passes')))
+          print('T8_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$DASH"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$T8MOD"|awk '{print $1}')" = "$POST_T8"
+          fi
+          df -P / | awk 'NR==2 {print "T8_ROOT_DISK_USED=" $5 " T8_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'T8_WORKFLOW=PASS'
+          REMOTE
