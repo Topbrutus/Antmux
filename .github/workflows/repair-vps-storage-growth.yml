@@ -34,7 +34,8 @@ jobs:
             deploy/vps-storage/prune_brotoculateur_snapshots.py \
             deploy/vps-storage/compress_brotomagique_crystals.py \
             deploy/vps-storage/patch_brotomagique_compact_outbox.py \
-            deploy/vps-storage/patch_brotomagique_gzip_crystals.py
+            deploy/vps-storage/patch_brotomagique_gzip_crystals.py \
+            deploy/vps-storage/patch_queen_checkpoint_retention.py
 
       - name: Configure pinned SSH identity
         env:
@@ -70,6 +71,7 @@ jobs:
             deploy/vps-storage/prune_brotoculateur_snapshots.py \
             deploy/vps-storage/patch_brotomagique_compact_outbox.py \
             deploy/vps-storage/patch_brotomagique_gzip_crystals.py \
+            deploy/vps-storage/patch_queen_checkpoint_retention.py \
             "$REMOTE_STAGE/"
 
       - name: Repair proven storage growth
@@ -128,7 +130,9 @@ jobs:
           compact_if_stable "$OVERFLOW_OUTBOX"
           python3 "$STAGE/prune_brotoculateur_snapshots.py" "$SNAPSHOTS" --retain 512
 
-          # Queen code must already contain bounded retention before historical DB compaction.
+          # Patch Queen retention surgically before compacting historical checkpoints.
+          python3 "$STAGE/patch_queen_checkpoint_retention.py" "$QUEEN_SOURCE"
+          python3 -m py_compile "$QUEEN_SOURCE"
           grep -Fq 'DEFAULT_MAX_CHECKPOINTS = 256' "$QUEEN_SOURCE"
           systemctl --user stop antmux-x72-queen.service
           python3 "$STAGE/compact_queen_db.py" "$QUEEN_DB" --retain 256
