@@ -1,0 +1,356 @@
+name: Deploy Brotoculateur C2 Fingerprint VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start C2 on the existing Z canary, or disable C2
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - canary_start
+          - disable
+      confirm:
+        description: Type BRUTUS-C2-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-c2-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and C2 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then
+            test "$CONFIRM" = 'BRUTUS-C2-VPS'
+          fi
+          python3 -m py_compile \
+            deploy/vps-zstamp/patch_brotoculateur_c2_fingerprint.py \
+            deploy/vps-zstamp/test_c2_fingerprint.py \
+            deploy/vps-zstamp/test_c2_cumulative.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage C2 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-zstamp/patch_brotoculateur_c2_fingerprint.py \
+            deploy/vps-zstamp/test_c2_fingerprint.py \
+            deploy/vps-zstamp/test_c2_cumulative.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy C2
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ENGINE="$PKG/engine.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          SLEEP="$PKG/sleeping_pool.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          PRE_ENGINE='4aa5c6b9f8feed9559ded55b1db72016ebb45c00d2fbc00ff9e92b74ea677db5'
+          PRE_ORCH='d562dede20d171684d7d5d6d4bcd3f001260fce6b716ce28c1e91168623a0b06'
+          PRE_DASH='1c47b3f596cf8341f7a0ea54b6118f725349e41b7941e2494684a17766fd43f6'
+          EXPECT_SLEEP='1fe651ff70e4cad7afc8ec216cbad5f361ff839c072408dcc0233e0a0c637124'
+          POST_ENGINE='ac956512699ab0bb527449e08fdaeafab9c883eea3565c4abc5d8e4fcc9ac31b'
+          POST_ORCH='20e019e58f77fbd0ea5a983112b8ed5809bad236d8f02df52ea3c65f710f0f83'
+          POST_DASH='5410dc0aebb273eddf616dc3b08e53666f6473c25eb5a00ebb44003f2bb00ce2'
+
+          test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH" -a -f "$SLEEP"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c2-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c2-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c=d.get('c2_fingerprint') or {}
+          r=d.get('hierarchical_rarity') or {}
+          print('STATE=' + str(d.get('state')))
+          print('RUN_ID=' + str(d.get('run_id')))
+          print('PROCESSED=' + str(d.get('processed_packets')))
+          print('CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('Z_ENABLED=' + str(z.get('enabled')))
+          print('Z_PERCENT=' + str(z.get('rollout_percent')))
+          print('Z_TOTAL_ROOT_SELECTED=' + str(z.get('total_root_selected')))
+          print('Z_TOTAL_CHILDREN_STAMPED=' + str(z.get('total_children_stamped')))
+          print('C2_MODE=' + str(c.get('mode')))
+          print('C2_ENABLED=' + str(c.get('enabled')))
+          print('C2_TOTAL_ROOTS=' + str(c.get('total_roots_fingerprinted')))
+          print('C2_TOTAL_CHILDREN=' + str(c.get('total_children_fingerprinted')))
+          print('C2_TOTAL=' + str(c.get('total_fingerprints')))
+          print('RARITY_PERCENT=' + str(r.get('rollout_percent')))
+          PY
+          echo "ENGINE_SHA256=$(sha256sum "$ENGINE" | awk '{print $1}')"
+          echo "ORCH_SHA256=$(sha256sum "$ORCH" | awk '{print $1}')"
+          echo "DASH_SHA256=$(sha256sum "$DASH" | awk '{print $1}')"
+          echo "SLEEPING_POOL_SHA256=$(sha256sum "$SLEEP" | awk '{print $1}')"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then
+            echo 'C2_AUDIT_ONLY=PASS'
+            exit 0
+          fi
+
+          cur_engine=$(sha256sum "$ENGINE" | awk '{print $1}')
+          cur_orch=$(sha256sum "$ORCH" | awk '{print $1}')
+          cur_dash=$(sha256sum "$DASH" | awk '{print $1}')
+          cur_sleep=$(sha256sum "$SLEEP" | awk '{print $1}')
+          test "$cur_sleep" = "$EXPECT_SLEEP"
+          source_state='UNKNOWN'
+          if [ "$cur_engine" = "$PRE_ENGINE" ] && [ "$cur_orch" = "$PRE_ORCH" ] && [ "$cur_dash" = "$PRE_DASH" ]; then
+            source_state='PRE_C2'
+          elif [ "$cur_engine" = "$POST_ENGINE" ] && [ "$cur_orch" = "$POST_ORCH" ] && [ "$cur_dash" = "$POST_DASH" ]; then
+            source_state='POST_C2'
+          fi
+          test "$source_state" != 'UNKNOWN'
+          echo "C2_SOURCE_STATE=$source_state"
+
+          if [ "$MODE" = canary_start ]; then
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c2-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'}, d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert z.get('enabled') is True, z
+          assert int(z.get('rollout_percent') or 0) == 10, z
+          print('C2_REQUIRES_Z10=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-c2-stage-$$"
+            rm -rf "$STAGE"
+            mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_c2_fingerprint.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/engine.py" | awk '{print $1}')" = "$POST_ENGINE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/sleeping_pool.py" | awk '{print $1}')" = "$EXPECT_SLEEP"
+            python3 -m py_compile \
+              "$STAGE/src/brotoculateur/engine.py" \
+              "$STAGE/src/brotoculateur/orchestrator.py" \
+              "$STAGE/src/brotoculateur/dashboard.py"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_c2_fingerprint.py
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_c2_cumulative.py
+            echo 'C2_EXACT_LIVE_STAGE=PASS'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/c2-before.json', encoding='utf-8')).get('state') == 'RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/c2-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/c2-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c2-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c2-paused.json', encoding='utf-8'))
+          assert d.get('state') == 'PAUSED', d.get('state')
+          print('C2_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/c2-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ENGINE" "$ORCH" "$DASH" "$SLEEP" "$BACKUP/"
+          cp -a /tmp/c2-before.json "$BACKUP/status-before.json"
+          sha256sum "$ENGINE" "$ORCH" "$DASH" "$SLEEP" > "$BACKUP/SHA256SUMS"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/50-brutus-c2.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0
+          if [ -f "$DROPIN" ]; then
+            HAD_DROPIN=1
+            cp -a "$DROPIN" "$BACKUP/50-brutus-c2.conf"
+          fi
+          echo "C2_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?
+            set +e
+            echo "C2_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/engine.py" "$ENGINE"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            cp -a "$BACKUP/sleeping_pool.py" "$SLEEP"
+            if [ "$HAD_DROPIN" = 1 ]; then
+              cp -a "$BACKUP/50-brutus-c2.conf" "$DROPIN"
+            else
+              rm -f "$DROPIN"
+            fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then
+              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c2-rollback-start.json || true
+            fi
+            echo 'C2_ROLLBACK_DONE'
+            exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/engine.py" "$ENGINE"
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C2_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C2_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c2-after.json; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/c2-after.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c=d.get('c2_fingerprint') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          if os.environ['MODE'] == 'canary_start':
+              assert c.get('mode') == 'BRUTUS_C2_FINGERPRINT_V1', c
+              assert c.get('enabled') is True, c
+              assert c.get('scope') == 'Z_STAMPED_PACKETS_ONLY', c
+              assert c.get('materialized_on_packet') is False, c
+              assert c.get('c2_changes_state_hash') is False, c
+              assert c.get('value_mutated') is False, c
+              assert int(c.get('total_roots_fingerprinted') or 0) > 0, c
+              assert int(c.get('total_roots_fingerprinted') or 0) == int(z.get('total_root_selected') or 0), (c,z)
+              assert z.get('enabled') is True and int(z.get('rollout_percent') or 0) == 10, z
+          else:
+              assert c.get('enabled') is False, c
+              assert int(c.get('total_fingerprints') or 0) == 0, c
+          print('C2_AFTER_STATE=' + str(d.get('state')))
+          print('C2_AFTER_ROOTS=' + str(c.get('total_roots_fingerprinted')))
+          print('C2_AFTER_CHILDREN=' + str(c.get('total_children_fingerprinted')))
+          print('C2_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c2-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c2-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json, os, sys
+          try:
+              d=json.load(open('/tmp/c2-live.json', encoding='utf-8'))
+          except Exception:
+              sys.exit(1)
+          z=d.get('brutus_cortex') or {}
+          c=d.get('c2_fingerprint') or {}
+          good=d.get('state') == 'RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE') == 'canary_start':
+              zr=int(z.get('total_root_selected') or 0)
+              zc=int(z.get('total_children_stamped') or 0)
+              cr=int(c.get('total_roots_fingerprinted') or 0)
+              cc=int(c.get('total_children_fingerprinted') or 0)
+              good = good and cr > 0 and cc > 0 and cr == zr and cc == zc
+          sys.exit(0 if good else 1)
+          PY
+              then
+                live=1
+                break
+              fi
+              sleep 1
+            done
+            test "$live" = 1
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c2-live.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c2-live.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c=d.get('c2_fingerprint') or {}
+          assert d.get('state') == 'RUNNING', d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          if c.get('enabled') is True:
+              assert int(c.get('total_roots_fingerprinted') or 0) == int(z.get('total_root_selected') or 0), (c,z)
+              assert int(c.get('total_children_fingerprinted') or 0) == int(z.get('total_children_stamped') or 0), (c,z)
+              assert c.get('session_first_fingerprint'), c
+              assert c.get('session_last_fingerprint'), c
+          print('C2_LIVE_STATE=' + str(d.get('state')))
+          print('C2_LIVE_PROCESSED=' + str(d.get('processed_packets')))
+          print('C2_LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C2_LIVE_Z_ROOTS=' + str(z.get('total_root_selected')))
+          print('C2_LIVE_Z_CHILDREN=' + str(z.get('total_children_stamped')))
+          print('C2_LIVE_ROOTS=' + str(c.get('total_roots_fingerprinted')))
+          print('C2_LIVE_CHILDREN=' + str(c.get('total_children_fingerprinted')))
+          print('C2_LIVE_TOTAL=' + str(c.get('total_fingerprints')))
+          print('C2_LIVE_FIRST=' + str(c.get('session_first_fingerprint')))
+          print('C2_LIVE_LAST=' + str(c.get('session_last_fingerprint')))
+          print('C2_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          test "$(sha256sum "$SLEEP" | awk '{print $1}')" = "$EXPECT_SLEEP"
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ENGINE" | awk '{print $1}')" = "$POST_ENGINE"
+            test "$(sha256sum "$ORCH" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$POST_DASH"
+          fi
+          df -P / | awk 'NR==2 {print "C2_ROOT_DISK_USED=" $5 " C2_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'C2_WORKFLOW=PASS'
+          REMOTE
