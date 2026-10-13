@@ -1,0 +1,109 @@
+name: Deploy Brotoculateur L3 Press VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: brotoculateur-l3-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-L3-VPS'; fi
+          python3 -m py_compile deploy/vps-l3/l3_press.py deploy/vps-l3/patch_brotoculateur_l3_press.py deploy/vps-l3/test_l3_press.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage L3 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-l3/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy L3
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; L2="$PKG/l2_threshold.py"; L3="$PKG/l3_press.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='fea396adeba7611f0c5a1fddf67088646e484eeb25d7e2bffbffe4474adeea65'; L2SHA='912b662ee544a76f5b7db6f37d265ba0bb748f8b3d5a32287df93d2b12c0b898'; L3SHA='373f2bf054ec595e72c1012228b3a39ec0279e9a2c8cefa9d7122c7e113fb42d'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$L2")" = "$L2SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/l3-before.json
+          dh=$(sha "$DASH"); lh=ABSENT; [ ! -f "$L3" ] || lh=$(sha "$L3")
+          if [ "$dh" = "$PRE" ] && [ "$lh" = ABSENT ]; then state=PRE_L3; elif [ "$lh" = "$L3SHA" ]; then state=POST_L3; else exit 3; fi
+          echo "L3_SOURCE_STATE=$state"; echo "L3_DASHBOARD_SHA256=$dh"; echo "L3_MODULE_SHA256=$lh"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/l3-before.json')); t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; t10=d.get('t10_replay') or {}; t11=d.get('t11_budget') or {}; t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}; l3=d.get('l3_press') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('L2_OBSERVATIONS',l2.get('observations')),('L2_ABOVE',l2.get('at_or_above_reference')),('L2_BELOW',l2.get('below_reference')),('L3_OBSERVATIONS',l3.get('observations')),('L3_PRESSED',l3.get('pressed')),('L3_UNIQUE_DUST_KEYS',l3.get('unique_dust_keys'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          assert int(t8.get('observations') or 0)==int(t9.get('observations') or 0)==int(t10.get('observations') or 0)==int(t11.get('observations') or 0)==int(t12.get('observations') or 0)==int(l1.get('observations') or 0)==int(l2.get('observations') or 0)
+          assert int(l2.get('compared') or 0)==int(l2.get('observations') or 0); assert l2.get('accepts_candidate') is False and l2.get('rejects_candidate') is False
+          if os.environ['SOURCE_STATE']=='POST_L3' and l3.get('enabled') is True:
+              assert l3.get('authority')=='SHADOW_ONLY'; assert l3.get('dust_key_is_output_z_id') is True; assert l3.get('creates_new_identity') is False
+              assert l3.get('presses_both_l2_reference_sides') is True and l3.get('l4_canon_input') is True and l3.get('canonizes') is False
+              assert l3.get('accepts_candidate') is False and l3.get('rejects_candidate') is False and l3.get('proof_promotion') is False
+              assert int(l3.get('observations') or 0)==int(l2.get('observations') or 0)==int(l3.get('pressed') or 0)
+              assert int(l3.get('blocked_l2_other') or 0)==0 and int(l3.get('blocked_missing_z') or 0)==0
+          print('L3_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_L3
+          STAGE="/tmp/l3-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_l3_press.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/l3_press.py")" = "$L3SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_l3_press.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "L3_STAGE_DASHBOARD_SHA256=$sd"; echo L3_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/l3-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/l3-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$L2" "$B/"; cp -a /tmp/l3-before.json "$B/status-before.json"; echo "L3_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-l3.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$L3" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/l3_press.py" "$L3"; printf '[Service]\nEnvironment="BROTO_L3_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/l3-zero.json
+          b2=$(python3 -c "import json;print(int((json.load(open('/tmp/l3-zero.json')).get('l2_threshold') or {}).get('observations') or 0))"); b3=$(python3 -c "import json;print(int((json.load(open('/tmp/l3-zero.json')).get('l3_press') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/l3-live.json; if B2="$b2" B3="$b3" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/l3-live.json')); l2=d.get('l2_threshold') or {}; l3=d.get('l3_press') or {}; a=int(l2.get('observations') or 0)-int(os.environ['B2']); b=int(l3.get('observations') or 0)-int(os.environ['B3']); sys.exit(0 if d.get('state')=='RUNNING' and b>0 and a==b and int(l3.get('pressed') or 0)==int(l3.get('observations') or 0) and int(l3.get('blocked_l2_other') or 0)==0 and int(l3.get('blocked_missing_z') or 0)==0 else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/l3-live.json')); l2=d.get('l2_threshold') or {}; l3=d.get('l3_press') or {}
+          print('L3_LIVE_STATE='+str(d.get('state'))); print('L3_LIVE_L2_OBSERVATIONS='+str(l2.get('observations'))); print('L3_LIVE_OBSERVATIONS='+str(l3.get('observations'))); print('L3_LIVE_PRESSED='+str(l3.get('pressed'))); print('L3_LIVE_UNIQUE_DUST_KEYS='+str(l3.get('unique_dust_keys'))); print('L3_LIVE_REFERENCE_SIDES='+str(l3.get('reference_sides'))); print('L3_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$L3")" = "$L3SHA"; echo "L3_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo L3_WORKFLOW=PASS
+          REMOTE
