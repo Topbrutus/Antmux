@@ -1,0 +1,377 @@
+name: Deploy Brotoculateur C4 Novelty VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start C4 on the existing C3/Z canary, or disable C4
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - canary_start
+          - disable
+      confirm:
+        description: Type BRUTUS-C4-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-c4-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and C4 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then
+            test "$CONFIRM" = 'BRUTUS-C4-VPS'
+          fi
+          python3 -m py_compile \
+            deploy/vps-c4/c4_novelty.py \
+            deploy/vps-c4/patch_brotoculateur_c4_novelty.py \
+            deploy/vps-c4/test_c4_novelty.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage C4 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-c4/c4_novelty.py \
+            deploy/vps-c4/patch_brotoculateur_c4_novelty.py \
+            deploy/vps-c4/test_c4_novelty.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy C4
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ENGINE="$PKG/engine.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          SLEEP="$PKG/sleeping_pool.py"
+          C3MOD="$PKG/c3_library.py"
+          C4MOD="$PKG/c4_novelty.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_ENGINE='ac956512699ab0bb527449e08fdaeafab9c883eea3565c4abc5d8e4fcc9ac31b'
+          EXPECT_SLEEP='1fe651ff70e4cad7afc8ec216cbad5f361ff839c072408dcc0233e0a0c637124'
+          EXPECT_C3='b7970583e688488d0f9fd8a90838d9163d00b08b7e6afedd499434e79a06c434'
+          PRE_ORCH='2ba8a93967e3f01147acbd2a5220857830cd89ce3bdcba879e8d5630292fdb87'
+          PRE_DASH='2602f91205457dc8b474ab098a0ed4453153054ff0ef4f9f73b9c2eca4ccc157'
+          POST_ORCH='0c29aae538c5ea69a3f3a235d7fd377bddd83b339a7f6cda5b091bbd9ae2642f'
+          POST_DASH='a55b055ee31816fda113f71d28499b1c4a697a8b123ee01dc852d86984dbc7fe'
+          POST_C4='d9669cdcdbd300529ff63a07fc088be6a9e60fdc65315015b1904f83d42e10f2'
+
+          test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH" -a -f "$SLEEP" -a -f "$C3MOD"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c4-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c4-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          c4=d.get('c4_novelty') or {}
+          print('STATE=' + str(d.get('state')))
+          print('RUN_ID=' + str(d.get('run_id')))
+          print('PROCESSED=' + str(d.get('processed_packets')))
+          print('CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('Z_PERCENT=' + str(z.get('rollout_percent')))
+          print('C2_ENABLED=' + str(c2.get('enabled')))
+          print('C2_TOTAL=' + str(c2.get('total_fingerprints')))
+          print('C3_ENABLED=' + str(c3.get('enabled')))
+          print('C3_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C3_HITS=' + str(c3.get('hits')))
+          print('C3_MISSES=' + str(c3.get('misses')))
+          print('C4_MODE=' + str(c4.get('mode')))
+          print('C4_ENABLED=' + str(c4.get('enabled')))
+          print('C4_OBSERVATIONS=' + str(c4.get('observations')))
+          print('C4_KNOWN=' + str(c4.get('known')))
+          print('C4_NOVEL=' + str(c4.get('novel_candidates')))
+          PY
+
+          engine_hash=$(sha256sum "$ENGINE" | awk '{print $1}')
+          orch_hash=$(sha256sum "$ORCH" | awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH" | awk '{print $1}')
+          sleep_hash=$(sha256sum "$SLEEP" | awk '{print $1}')
+          c3_hash=$(sha256sum "$C3MOD" | awk '{print $1}')
+          if [ -f "$C4MOD" ]; then c4_hash=$(sha256sum "$C4MOD" | awk '{print $1}'); else c4_hash='ABSENT'; fi
+          echo "ENGINE_SHA256=$engine_hash"
+          echo "ORCH_SHA256=$orch_hash"
+          echo "DASH_SHA256=$dash_hash"
+          echo "SLEEPING_POOL_SHA256=$sleep_hash"
+          echo "C3_LIBRARY_SHA256=$c3_hash"
+          echo "C4_NOVELTY_SHA256=$c4_hash"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          test "$engine_hash" = "$EXPECT_ENGINE"
+          test "$sleep_hash" = "$EXPECT_SLEEP"
+          test "$c3_hash" = "$EXPECT_C3"
+          source_state='UNKNOWN'
+          if [ "$orch_hash" = "$PRE_ORCH" ] && [ "$dash_hash" = "$PRE_DASH" ] && [ "$c4_hash" = 'ABSENT' ]; then
+            source_state='PRE_C4'
+          elif [ "$orch_hash" = "$POST_ORCH" ] && [ "$dash_hash" = "$POST_DASH" ] && [ "$c4_hash" = "$POST_C4" ]; then
+            source_state='POST_C4'
+          fi
+          test "$source_state" != 'UNKNOWN'
+          echo "C4_SOURCE_STATE=$source_state"
+
+          if [ "$MODE" = audit ]; then
+            SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/c4-before.json', encoding='utf-8'))
+          c3=d.get('c3_library') or {}
+          c4=d.get('c4_novelty') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          if os.environ['SOURCE_STATE'] == 'POST_C4' and c4.get('enabled') is True:
+              obs=int(c4.get('observations') or 0)
+              assert obs == int(c3.get('observations') or 0), (c4,c3)
+              assert int(c4.get('known') or 0) == int(c3.get('hits') or 0), (c4,c3)
+              assert int(c4.get('novel_candidates') or 0) == int(c3.get('misses') or 0), (c4,c3)
+              assert c4.get('scientific_discovery_claim') is False, c4
+              assert int(c4.get('compute_skips', -1)) == 0, c4
+          print('C4_AUDIT_ONLY=PASS')
+          PY
+            exit 0
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c4-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'}, d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert z.get('enabled') is True and int(z.get('rollout_percent') or 0) == 10, z
+          assert c2.get('enabled') is True, c2
+          assert c3.get('enabled') is True, c3
+          assert c3.get('authority') == 'SHADOW_ONLY', c3
+          assert int(c3.get('compute_skips', -1)) == 0, c3
+          assert int(c3.get('observations') or 0) == int(c2.get('total_fingerprints') or 0), (c3,c2)
+          print('C4_REQUIRES_C3_C2_Z10=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-c4-stage-$$"
+            rm -rf "$STAGE"
+            mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_c4_novelty.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c3_library.py" | awk '{print $1}')" = "$EXPECT_C3"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c4_novelty.py" | awk '{print $1}')" = "$POST_C4"
+            test "$(sha256sum "$STAGE/src/brotoculateur/engine.py" | awk '{print $1}')" = "$EXPECT_ENGINE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/sleeping_pool.py" | awk '{print $1}')" = "$EXPECT_SLEEP"
+            python3 -m py_compile \
+              "$STAGE/src/brotoculateur/c4_novelty.py" \
+              "$STAGE/src/brotoculateur/orchestrator.py" \
+              "$STAGE/src/brotoculateur/dashboard.py"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_c4_novelty.py
+            echo 'C4_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_C4'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/c4-before.json', encoding='utf-8')).get('state') == 'RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/c4-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/c4-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c4-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c4-paused.json', encoding='utf-8'))
+          assert d.get('state') == 'PAUSED', d.get('state')
+          print('C4_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/c4-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$C3MOD" "$BACKUP/"
+          if [ -f "$C4MOD" ]; then cp -a "$C4MOD" "$BACKUP/"; fi
+          cp -a /tmp/c4-before.json "$BACKUP/status-before.json"
+          sha256sum "$ENGINE" "$ORCH" "$DASH" "$SLEEP" "$C3MOD" > "$BACKUP/SHA256SUMS"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/70-brutus-c4.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0
+          if [ -f "$DROPIN" ]; then HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/70-brutus-c4.conf"; fi
+          HAD_C4MOD=0
+          if [ -f "$C4MOD" ]; then HAD_C4MOD=1; fi
+          echo "C4_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?
+            set +e
+            echo "C4_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            cp -a "$BACKUP/c3_library.py" "$C3MOD"
+            if [ "$HAD_C4MOD" = 1 ]; then cp -a "$BACKUP/c4_novelty.py" "$C4MOD"; else rm -f "$C4MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/70-brutus-c4.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then
+              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c4-rollback-start.json || true
+            fi
+            echo 'C4_ROLLBACK_DONE'
+            exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/c4_novelty.py" "$C4MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C4_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C4_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c4-after.json; then ok=1; break; fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/c4-after.json', encoding='utf-8'))
+          c3=d.get('c3_library') or {}
+          c4=d.get('c4_novelty') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert c3.get('enabled') is True, c3
+          if os.environ['MODE'] == 'canary_start':
+              assert c4.get('mode') == 'BRUTUS_C4_NOVELTY_V1', c4
+              assert c4.get('enabled') is True, c4
+              assert c4.get('authority') == 'SHADOW_ONLY', c4
+              assert c4.get('source_of_truth') == 'C3_EXACT_HIT_MISS', c4
+              assert c4.get('scientific_discovery_claim') is False, c4
+              assert int(c4.get('compute_skips', -1)) == 0, c4
+              assert int(c4.get('observations') or 0) == int(c3.get('observations') or 0), (c4,c3)
+              assert int(c4.get('known') or 0) == int(c3.get('hits') or 0), (c4,c3)
+              assert int(c4.get('novel_candidates') or 0) == int(c3.get('misses') or 0), (c4,c3)
+          else:
+              assert c4.get('enabled') is False, c4
+          print('C4_AFTER_STATE=' + str(d.get('state')))
+          print('C4_AFTER_OBSERVATIONS=' + str(c4.get('observations')))
+          print('C4_AFTER_KNOWN=' + str(c4.get('known')))
+          print('C4_AFTER_NOVEL=' + str(c4.get('novel_candidates')))
+          print('C4_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c4-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c4-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json, os, sys
+          try: d=json.load(open('/tmp/c4-live.json', encoding='utf-8'))
+          except Exception: sys.exit(1)
+          c3=d.get('c3_library') or {}
+          c4=d.get('c4_novelty') or {}
+          good=d.get('state') == 'RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE') == 'canary_start':
+              obs=int(c4.get('observations') or 0)
+              good = good and obs > 0 and obs == int(c3.get('observations') or 0)
+              good = good and int(c4.get('known') or 0) == int(c3.get('hits') or 0)
+              good = good and int(c4.get('novel_candidates') or 0) == int(c3.get('misses') or 0)
+              good = good and int(c4.get('compute_skips', -1)) == 0
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c4-live.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c4-live.json', encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          c4=d.get('c4_novelty') or {}
+          print('C4_LIVE_STATE=' + str(d.get('state')))
+          print('C4_LIVE_PROCESSED=' + str(d.get('processed_packets')))
+          print('C4_LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C4_LIVE_C2_TOTAL=' + str(c2.get('total_fingerprints')))
+          print('C4_LIVE_C3_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C4_LIVE_OBSERVATIONS=' + str(c4.get('observations')))
+          print('C4_LIVE_KNOWN=' + str(c4.get('known')))
+          print('C4_LIVE_NOVEL=' + str(c4.get('novel_candidates')))
+          print('C4_LIVE_NOVELTY_RATE=' + str(c4.get('novelty_rate')))
+          print('C4_LIVE_UNTRACKED_CAPACITY=' + str(c4.get('untracked_capacity')))
+          print('C4_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          test "$(sha256sum "$ENGINE" | awk '{print $1}')" = "$EXPECT_ENGINE"
+          test "$(sha256sum "$SLEEP" | awk '{print $1}')" = "$EXPECT_SLEEP"
+          test "$(sha256sum "$C3MOD" | awk '{print $1}')" = "$EXPECT_C3"
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ORCH" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$C4MOD" | awk '{print $1}')" = "$POST_C4"
+          fi
+          df -P / | awk 'NR==2 {print "C4_ROOT_DISK_USED=" $5 " C4_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'C4_WORKFLOW=PASS'
+          REMOTE
