@@ -1,0 +1,335 @@
+name: Deploy Brotoculateur C7 Shadow Router VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start C7 shadow router, or disable C7
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-C7-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-c7-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and C7 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-C7-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-c7/c7_router.py \
+            deploy/vps-c7/patch_brotoculateur_c7_router.py \
+            deploy/vps-c7/test_c7_router.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage C7 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-c7/c7_router.py \
+            deploy/vps-c7/patch_brotoculateur_c7_router.py \
+            deploy/vps-c7/test_c7_router.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy C7
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ENGINE="$PKG/engine.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          SLEEP="$PKG/sleeping_pool.py"
+          C3MOD="$PKG/c3_library.py"
+          C4MOD="$PKG/c4_novelty.py"
+          C5MOD="$PKG/c5_rarity.py"
+          C6MOD="$PKG/c6_provenance.py"
+          C7MOD="$PKG/c7_router.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_ENGINE='ac956512699ab0bb527449e08fdaeafab9c883eea3565c4abc5d8e4fcc9ac31b'
+          EXPECT_SLEEP='1fe651ff70e4cad7afc8ec216cbad5f361ff839c072408dcc0233e0a0c637124'
+          EXPECT_C3='b7970583e688488d0f9fd8a90838d9163d00b08b7e6afedd499434e79a06c434'
+          EXPECT_C4='d9669cdcdbd300529ff63a07fc088be6a9e60fdc65315015b1904f83d42e10f2'
+          EXPECT_C5='d8a02ccecffddffc6db8d8810e84875184861d5446eea8304d23cc8adc483999'
+          PRE_C6='e8aa78c5834bf21a97eb11e7ce0b80a65b405a82282837485f4f23fffb2b0d84'
+          PRE_ORCH='ad079319b4dfc3c6d0f3994d2638a81ae686015bae9b7aa3a9b5052df69afa74'
+          PRE_DASH='5af116fe28120ee9c463a4a980751101294fc51e086c54594482b46f37dc7296'
+          POST_C6='81a24a088817274e423688b3133ca3b7d568b1790fb8a7df2ccb37c31aaeeefd'
+          POST_C7='a58f7a9cd35d15a2448ebea18badebcb0dabc2833429dcdcc6ad61d25830bd7f'
+          POST_ORCH='e22f0f8dc54765243f2e62a20c2dc841efa6d6bb860a3f0b48fa8f67b7cfb7ee'
+          POST_DASH='a146aa18a5ff01c82a879e8810a9a58b359709dd469cb1aa94c571c44224ab6e'
+
+          test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH" -a -f "$SLEEP" -a -f "$C3MOD" -a -f "$C4MOD" -a -f "$C5MOD" -a -f "$C6MOD"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c7-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c7-before.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}
+          print('STATE='+str(d.get('state')))
+          print('RUN_ID='+str(d.get('run_id')))
+          print('PROCESSED='+str(d.get('processed_packets')))
+          print('CRYSTALS='+str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C2_TOTAL='+str(c2.get('total_fingerprints')))
+          print('C3_OBSERVATIONS='+str(c3.get('observations')))
+          print('C4_OBSERVATIONS='+str(c4.get('observations')))
+          print('C5_OBSERVATIONS='+str(c5.get('observations')))
+          print('C6_OBSERVATIONS='+str(c6.get('observations')))
+          print('C7_MODE='+str(c7.get('mode')))
+          print('C7_ENABLED='+str(c7.get('enabled')))
+          print('C7_OBSERVATIONS='+str(c7.get('observations')))
+          print('C7_ROUTES='+str(c7.get('route_counts')))
+          PY
+
+          engine_hash=$(sha256sum "$ENGINE"|awk '{print $1}')
+          orch_hash=$(sha256sum "$ORCH"|awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH"|awk '{print $1}')
+          sleep_hash=$(sha256sum "$SLEEP"|awk '{print $1}')
+          c3_hash=$(sha256sum "$C3MOD"|awk '{print $1}')
+          c4_hash=$(sha256sum "$C4MOD"|awk '{print $1}')
+          c5_hash=$(sha256sum "$C5MOD"|awk '{print $1}')
+          c6_hash=$(sha256sum "$C6MOD"|awk '{print $1}')
+          if [ -f "$C7MOD" ]; then c7_hash=$(sha256sum "$C7MOD"|awk '{print $1}'); else c7_hash='ABSENT'; fi
+          test "$engine_hash" = "$EXPECT_ENGINE"
+          test "$sleep_hash" = "$EXPECT_SLEEP"
+          test "$c3_hash" = "$EXPECT_C3"
+          test "$c4_hash" = "$EXPECT_C4"
+          test "$c5_hash" = "$EXPECT_C5"
+
+          source_state='UNKNOWN'
+          if [ "$orch_hash" = "$PRE_ORCH" ] && [ "$dash_hash" = "$PRE_DASH" ] && [ "$c6_hash" = "$PRE_C6" ] && [ "$c7_hash" = 'ABSENT' ]; then source_state='PRE_C7'; fi
+          if [ "$orch_hash" = "$POST_ORCH" ] && [ "$dash_hash" = "$POST_DASH" ] && [ "$c6_hash" = "$POST_C6" ] && [ "$c7_hash" = "$POST_C7" ]; then source_state='POST_C7'; fi
+          test "$source_state" != 'UNKNOWN'
+          echo "C7_SOURCE_STATE=$source_state"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then
+            SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/c7-before.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          n=int(c2.get('total_fingerprints') or 0)
+          assert n==int(c3.get('observations') or 0)==int(c4.get('observations') or 0)==int(c5.get('observations') or 0)==int(c6.get('observations') or 0)
+          if os.environ['SOURCE_STATE']=='POST_C7' and c7.get('enabled') is True:
+              assert n==int(c7.get('observations') or 0)
+              assert c7.get('authority')=='SHADOW_ONLY'
+              assert c7.get('controls_scheduling') is False
+              assert int(c7.get('actual_routes_applied',-1))==0
+              assert int(c7.get('compute_skips',-1))==0
+              assert c7.get('proof_promotion') is False
+          print('C7_AUDIT_ONLY=PASS')
+          PY
+            exit 0
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$source_state" = 'PRE_C7'
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c7-before.json',encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}; c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'} and not d.get('worker_error')
+          assert z.get('enabled') is True and int(z.get('rollout_percent') or 0)==10
+          assert all(x.get('enabled') is True for x in (c2,c3,c4,c5,c6))
+          n=int(c2.get('total_fingerprints') or 0)
+          assert n==int(c3.get('observations') or 0)==int(c4.get('observations') or 0)==int(c5.get('observations') or 0)==int(c6.get('observations') or 0)
+          assert c6.get('authority')=='SHADOW_ONLY' and c6.get('controls_scheduling') is False and int(c6.get('compute_skips',-1))==0
+          print('C7_REQUIRES_C6_C5_C4_C3_C2_Z10=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-c7-stage-$$"
+            rm -rf "$STAGE"; mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_c7_router.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py"|awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c6_provenance.py"|awk '{print $1}')" = "$POST_C6"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c7_router.py"|awk '{print $1}')" = "$POST_C7"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_c7_router.py
+            echo 'C7_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_C7'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/c7-before.json',encoding='utf-8')).get('state')=='RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/c7-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/c7-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c7-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c7-paused.json',encoding='utf-8'))
+          assert d.get('state')=='PAUSED', d.get('state')
+          print('C7_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/c7-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$C6MOD" "$BACKUP/"
+          [ ! -f "$C7MOD" ] || cp -a "$C7MOD" "$BACKUP/"
+          cp -a /tmp/c7-before.json "$BACKUP/status-before.json"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/80-brutus-c7.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0; [ ! -f "$DROPIN" ] || { HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/80-brutus-c7.conf"; }
+          HAD_C7=0; [ ! -f "$C7MOD" ] || HAD_C7=1
+          echo "C7_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?; set +e; echo "C7_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            cp -a "$BACKUP/c6_provenance.py" "$C6MOD"
+            if [ "$HAD_C7" = 1 ]; then cp -a "$BACKUP/c7_router.py" "$C7MOD"; else rm -f "$C7MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/80-brutus-c7.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c7-rollback-start.json || true; fi
+            echo 'C7_ROLLBACK_DONE'; exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/c6_provenance.py" "$C6MOD"
+            cp -a "$STAGE/src/brotoculateur/c7_router.py" "$C7MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C7_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C7_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c7-after.json; then ok=1; break; fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/c7-after.json',encoding='utf-8'))
+          c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert c6.get('enabled') is True
+          if os.environ['MODE']=='canary_start':
+              assert c7.get('mode')=='BRUTUS_C7_SHADOW_ROUTER_V1' and c7.get('enabled') is True
+              assert c7.get('authority')=='SHADOW_ONLY' and c7.get('controls_scheduling') is False
+              assert int(c7.get('actual_routes_applied',-1))==0 and int(c7.get('compute_skips',-1))==0
+          else:
+              assert c7.get('enabled') is False
+          print('C7_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c7-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c7-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json,os,sys
+          try: d=json.load(open('/tmp/c7-live.json',encoding='utf-8'))
+          except Exception: sys.exit(1)
+          c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}
+          good=d.get('state')=='RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE')=='canary_start':
+              n=int(c7.get('observations') or 0)
+              good=good and n>0 and n==int(c6.get('observations') or 0)
+              good=good and int(c7.get('actual_routes_applied',-1))==0 and c7.get('controls_scheduling') is False
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c7-live.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}
+          print('C7_LIVE_STATE='+str(d.get('state')))
+          print('C7_LIVE_PROCESSED='+str(d.get('processed_packets')))
+          print('C7_LIVE_CRYSTALS='+str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C7_LIVE_C2='+str(c2.get('total_fingerprints')))
+          print('C7_LIVE_C3='+str(c3.get('observations')))
+          print('C7_LIVE_C4='+str(c4.get('observations')))
+          print('C7_LIVE_C5='+str(c5.get('observations')))
+          print('C7_LIVE_C6='+str(c6.get('observations')))
+          print('C7_LIVE_OBSERVATIONS='+str(c7.get('observations')))
+          print('C7_LIVE_ROUTES='+str(c7.get('route_counts')))
+          print('C7_LIVE_ACTUAL_ROUTES='+str(c7.get('actual_routes_applied')))
+          print('C7_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ORCH"|awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$C6MOD"|awk '{print $1}')" = "$POST_C6"
+            test "$(sha256sum "$C7MOD"|awk '{print $1}')" = "$POST_C7"
+          fi
+          df -P / | awk 'NR==2 {print "C7_ROOT_DISK_USED=" $5 " C7_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'C7_WORKFLOW=PASS'
+          REMOTE
