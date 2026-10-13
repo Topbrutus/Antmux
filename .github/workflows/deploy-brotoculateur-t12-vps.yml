@@ -1,0 +1,91 @@
+name: Deploy Brotoculateur T12 Candidate VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start T12 candidate shadow, or disable T12
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-T12-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-t12-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and T12 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-T12-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-t12/t12_candidate.py \
+            deploy/vps-t12/patch_brotoculateur_t12_candidate.py \
+            deploy/vps-t12/test_t12_candidate.py
+          bash -n deploy/vps-t12/run_t12_vps.sh
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage T12 tools when mutating
+        if: inputs.mode != 'audit'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-t12/t12_candidate.py \
+            deploy/vps-t12/patch_brotoculateur_t12_candidate.py \
+            deploy/vps-t12/test_t12_candidate.py \
+            deploy/vps-t12/run_t12_vps.sh \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Stage audit runner
+        if: inputs.mode == 'audit'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-t12/run_t12_vps.sh \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy T12
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash /tmp/run_t12_vps.sh"
