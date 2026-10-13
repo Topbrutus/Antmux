@@ -1,0 +1,116 @@
+name: Deploy Brotoculateur S5 Fast Index VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-s5-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-S5-VPS'; fi
+          python3 -m py_compile deploy/vps-s5/s5_fast_index.py deploy/vps-s5/patch_brotoculateur_s5_fast_index.py deploy/vps-s5/test_s5_fast_index.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage S5 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-s5/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy S5
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; S4="$PKG/s4_formula_index.py"; S5="$PKG/s5_fast_index.py"; C3="$PKG/c3_library.py"; ENG="$PKG/engine.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='5161995d53af3bbefa39aec6fd6a69b6aaa7af10d1295eef5d61fc133cb15f5e'; S4SHA='3c9431bbdf7fc0be33d1eae38455d1584ec87b250b4fe09e0bc849cbc117ebc9'; C3SHA='b7970583e688488d0f9fd8a90838d9163d00b08b7e6afedd499434e79a06c434'; S5SHA='de885d1f4748d236a0050cbea87560cf26fc74a08a95a8a02b119241ce6b0334'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$S4")" = "$S4SHA"; test "$(sha "$C3")" = "$C3SHA"; grep -q 'def c2_fingerprint' "$ENG"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/s5-before.json
+          dh=$(sha "$DASH"); s5hash=ABSENT; [ ! -f "$S5" ] || s5hash=$(sha "$S5")
+          if [ "$dh" = "$PRE" ] && [ "$s5hash" = ABSENT ]; then state=PRE_S5; elif [ "$s5hash" = "$S5SHA" ]; then state=POST_S5; else exit 3; fi
+          echo "S5_SOURCE_STATE=$state"; echo "S5_DASHBOARD_SHA256=$dh"; echo "S5_MODULE_SHA256=$s5hash"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/s5-before.json')); s4=d.get('s4_formula_index') or {}; s5=d.get('s5_fast_index') or {}; c3=d.get('c3_library') or {}; t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('C3_BUCKET_COUNT',c3.get('bucket_count')),('S4_OBSERVATIONS',s4.get('observations')),('S4_INDEXED',s4.get('indexed')),('S4_BLOCKED_S3_OTHER',s4.get('blocked_s3_other')),('S4_BLOCKED_MISSING_FORMULA',s4.get('blocked_missing_formula')),('S4_BLOCKED_MISSING_Z',s4.get('blocked_missing_z')),('S4_BLOCKED_FORMULA_MISMATCH',s4.get('blocked_formula_mismatch')),('S4_UNIQUE_RESULT_Z',s4.get('unique_result_z')),('S5_OBSERVATIONS',s5.get('observations')),('S5_INDEXED',s5.get('indexed')),('S5_OCCUPIED_BUCKETS',s5.get('occupied_buckets')),('S5_UNIQUE_FINGERPRINTS',s5.get('unique_fingerprints')),('S5_UNIQUE_ENTRIES',s5.get('unique_fast_entries')),('S5_UNIQUE_Z',s5.get('unique_z_indexed')),('S5_CAPACITY_REJECTIONS',s5.get('capacity_rejections')),('S5_MAX_ENTRY_MULTIPLICITY',s5.get('max_fast_entry_multiplicity'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          assert int(c3.get('bucket_count') or 0)==37
+          s4o=int(s4.get('observations') or 0); s4i=int(s4.get('indexed') or 0); s4b=sum(int(s4.get(k) or 0) for k in ('blocked_s3_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch')); assert s4o==s4i+s4b
+          if os.environ['SOURCE_STATE']=='POST_S5' and s5.get('enabled') is True:
+              assert s5.get('authority')=='SHADOW_ONLY'; assert s5.get('prototype_measurement_bucket37') is True; assert s5.get('uses_existing_c2_fingerprint') is True; assert s5.get('uses_exact_c3_bucket_function') is True
+              assert s5.get('full_c2_fingerprint_is_identity') is True and s5.get('bucket37_is_routing_only') is True; assert s5.get('query_before_compute') is False and int(s5.get('compute_skips') or 0)==0 and s5.get('persistent') is False
+              assert s5.get('creates_formula') is False and s5.get('executes_formula') is False and s5.get('selects_formula') is False and s5.get('formula_registry_mutated') is False and s5.get('s4_formula_index_mutated') is False
+              assert s5.get('z_identity_preserved') is True and s5.get('co1_archive_input') is True; assert s5.get('scientific_proof_claim') is False and s5.get('proof_promotion') is False and s5.get('controls_routing') is False and s5.get('controls_scheduling') is False and s5.get('controls_calculation') is False
+              s5o=int(s5.get('observations') or 0); s5i=int(s5.get('indexed') or 0); s5b=sum(int(s5.get(k) or 0) for k in ('blocked_s4_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch','capacity_rejections'))
+              assert s5o==s4o and s5o==s5i+s5b
+              assert int(s5.get('blocked_s4_other') or 0)==s4b
+              assert int(s5.get('blocked_missing_formula') or 0)==0 and int(s5.get('blocked_missing_z') or 0)==0 and int(s5.get('blocked_formula_mismatch') or 0)==0 and int(s5.get('capacity_rejections') or 0)==0
+              assert s5i==s4i and int(s5.get('unique_z_indexed') or 0)==int(s4.get('unique_result_z') or 0)
+              assert int(s5.get('bucket_count') or 0)==37 and 0 <= int(s5.get('occupied_buckets') or 0) <= 37
+          print('S5_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_S5
+          STAGE="/tmp/s5-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_s5_fast_index.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/s5_fast_index.py")" = "$S5SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_S1_ENABLED=1 BROTO_S2_ENABLED=1 BROTO_S3_ENABLED=1 BROTO_S4_ENABLED=1 BROTO_S5_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_s5_fast_index.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "S5_STAGE_DASHBOARD_SHA256=$sd"; echo S5_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/s5-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/s5-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$S4" "$C3" "$B/"; cp -a /tmp/s5-before.json "$B/status-before.json"; echo "S5_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-s5.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$S5" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/s5_fast_index.py" "$S5"; printf '[Service]\nEnvironment="BROTO_S5_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/s5-zero.json
+          b4=$(python3 -c "import json;print(int((json.load(open('/tmp/s5-zero.json')).get('s4_formula_index') or {}).get('observations') or 0))"); b5=$(python3 -c "import json;print(int((json.load(open('/tmp/s5-zero.json')).get('s5_fast_index') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/s5-live.json; if B4="$b4" B5="$b5" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/s5-live.json')); s4=d.get('s4_formula_index') or {}; s5=d.get('s5_fast_index') or {}; a=int(s4.get('observations') or 0)-int(os.environ['B4']); b=int(s5.get('observations') or 0)-int(os.environ['B5']); s4o=int(s4.get('observations') or 0); s4i=int(s4.get('indexed') or 0); s4b=sum(int(s4.get(k) or 0) for k in ('blocked_s3_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch')); s5o=int(s5.get('observations') or 0); s5i=int(s5.get('indexed') or 0); s5b=sum(int(s5.get(k) or 0) for k in ('blocked_s4_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch','capacity_rejections')); good=d.get('state')=='RUNNING' and b>0 and a==b and s5o==s4o and s5i==s4i and s5b==s4b and int(s5.get('unique_z_indexed') or 0)==int(s4.get('unique_result_z') or 0) and int(s5.get('occupied_buckets') or 0)<=37; sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/s5-live.json')); s4=d.get('s4_formula_index') or {}; s5=d.get('s5_fast_index') or {}; print('S5_LIVE_STATE='+str(d.get('state'))); print('S5_LIVE_S4_OBSERVATIONS='+str(s4.get('observations'))); print('S5_LIVE_S4_INDEXED='+str(s4.get('indexed'))); print('S5_LIVE_OBSERVATIONS='+str(s5.get('observations'))); print('S5_LIVE_INDEXED='+str(s5.get('indexed'))); print('S5_LIVE_OCCUPIED_BUCKETS='+str(s5.get('occupied_buckets'))); print('S5_LIVE_UNIQUE_FINGERPRINTS='+str(s5.get('unique_fingerprints'))); print('S5_LIVE_UNIQUE_ENTRIES='+str(s5.get('unique_fast_entries'))); print('S5_LIVE_UNIQUE_Z='+str(s5.get('unique_z_indexed'))); print('S5_LIVE_MULTI_BUCKET_Z='+str(s5.get('multi_bucket_z'))); print('S5_LIVE_MAX_ENTRY_MULTIPLICITY='+str(s5.get('max_fast_entry_multiplicity'))); print('S5_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$S5")" = "$S5SHA"; echo "S5_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo S5_WORKFLOW=PASS
+          REMOTE
