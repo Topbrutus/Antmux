@@ -298,7 +298,7 @@ jobs:
               assert int(c3.get('bucket_count') or 0) == 37, c3
               assert int(c3.get('max_entries') or 0) == 131072, c3
               assert c3.get('query_before_compute') is False, c3
-              assert int(c3.get('compute_skips') or -1) == 0, c3
+              assert int(c3.get('compute_skips', -1)) == 0, c3
               assert c3.get('persistent') is False, c3
               assert c2.get('enabled') is True, c2
               assert int(c3.get('observations') or 0) == int(c2.get('total_fingerprints') or 0), (c3,c2)
@@ -331,7 +331,7 @@ jobs:
               good = good and obs > 0 and obs == int(c2.get('total_fingerprints') or 0)
               good = good and int(c3.get('hits') or 0) + int(c3.get('misses') or 0) == obs
               good = good and int(c3.get('unique_entries') or 0) <= int(c3.get('max_entries') or 0)
-              good = good and int(c3.get('compute_skips') or -1) == 0
+              good = good and int(c3.get('compute_skips', -1)) == 0
           sys.exit(0 if good else 1)
           PY
               then
@@ -353,7 +353,7 @@ jobs:
               obs=int(c3.get('observations') or 0)
               assert obs == int(c2.get('total_fingerprints') or 0), (c3,c2)
               assert int(c3.get('hits') or 0) + int(c3.get('misses') or 0) == obs, c3
-              assert int(c3.get('compute_skips') or -1) == 0, c3
+              assert int(c3.get('compute_skips', -1)) == 0, c3
           print('C3_LIVE_STATE=' + str(d.get('state')))
           print('C3_LIVE_PROCESSED=' + str(d.get('processed_packets')))
           print('C3_LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
