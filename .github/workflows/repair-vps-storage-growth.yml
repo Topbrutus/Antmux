@@ -1,0 +1,173 @@
+name: Repair VPS Storage Growth
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type REPAIR-VPS-STORAGE-GROWTH to compact proven duplicate/redundant storage'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: antmux-vps-storage-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'REPAIR-VPS-STORAGE-GROWTH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+
+      - name: Validate storage tools
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            deploy/vps-storage/compact_brotomagique_outbox.py \
+            deploy/vps-storage/compact_queen_db.py \
+            deploy/vps-storage/prune_brotoculateur_snapshots.py \
+            deploy/vps-storage/compress_brotomagique_crystals.py \
+            deploy/vps-storage/patch_brotomagique_compact_outbox.py
+
+      - name: Configure pinned SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY:-}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          actual_public_key="$(ssh-keygen -y -f ~/.ssh/id_ed25519 | awk '{print $1, $2}')"
+          expected_public_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOsRFrry5A6SRRMPOQDm2an9roU8JmXh2UN5UaaFpnWm'
+          test "$actual_public_key" = "$expected_public_key"
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload storage tools
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST:-}"
+          test -n "${VPS_USER:-}"
+          echo "::add-mask::$VPS_HOST"
+          echo "::add-mask::$VPS_USER"
+          REMOTE_STAGE="$VPS_USER@$VPS_HOST:/tmp/antmux-storage-repair-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "mkdir -p /tmp/antmux-storage-repair-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-storage/compact_brotomagique_outbox.py \
+            deploy/vps-storage/compact_queen_db.py \
+            deploy/vps-storage/prune_brotoculateur_snapshots.py \
+            deploy/vps-storage/patch_brotomagique_compact_outbox.py \
+            "$REMOTE_STAGE/"
+
+      - name: Repair proven storage growth
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          STAGE="/tmp/antmux-storage-repair-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "STAGE='$STAGE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = "server1.antmux.com"
+          test "$(id -un)" = "rob"
+          echo '--- BEFORE ---'
+          df -h /
+
+          BROTO_ROOT="$HOME/brotoculateur"
+          BROTO_STATUS='http://127.0.0.1:8781/api/status'
+          PRIMARY_OUTBOX="$BROTO_ROOT/brutomagique/outbox.jsonl"
+          OVERFLOW_OUTBOX="$HOME/AppData/Local/Brotoculateur/brotoculateur-overflow/brutomagique/outbox.jsonl"
+          SNAPSHOTS="$BROTO_ROOT/.brotoculateur_instance_D/snapshots"
+          QUEEN_DB="$HOME/antmux-x72-queen/data/queen.db"
+          QUEEN_SOURCE="$HOME/antmux-x72-queen/app/server.py"
+          BROTO_SOURCE="$BROTO_ROOT/src/brotoculateur/brutomagique.py"
+
+          broto_state="$(python3 - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen('http://127.0.0.1:8781/api/status', timeout=5) as r:
+              print(json.load(r).get('state','UNKNOWN'))
+          PY
+          )"
+          echo "BROTO_STATE_BEFORE=$broto_state"
+          test "$broto_state" = 'PAUSED'
+
+          # Patch only future outbox writes. The running process is intentionally not restarted.
+          python3 "$STAGE/patch_brotomagique_compact_outbox.py" "$BROTO_SOURCE"
+          python3 -m py_compile "$BROTO_SOURCE"
+
+          compact_if_stable() {
+            path="$1"
+            if [ ! -f "$path" ]; then
+              echo "OUTBOX_MISSING=$path"
+              return 0
+            fi
+            s1="$(stat -c %s "$path")"
+            sleep 3
+            s2="$(stat -c %s "$path")"
+            echo "OUTBOX_STABILITY path=$path before=$s1 after=$s2"
+            test "$s1" = "$s2"
+            python3 "$STAGE/compact_brotomagique_outbox.py" "$path"
+          }
+
+          compact_if_stable "$PRIMARY_OUTBOX"
+          compact_if_stable "$OVERFLOW_OUTBOX"
+          python3 "$STAGE/prune_brotoculateur_snapshots.py" "$SNAPSHOTS" --retain 512
+
+          # Queen code must already contain bounded retention before historical DB compaction.
+          grep -Fq 'DEFAULT_MAX_CHECKPOINTS = 256' "$QUEEN_SOURCE"
+          systemctl --user stop antmux-x72-queen.service
+          python3 "$STAGE/compact_queen_db.py" "$QUEEN_DB" --retain 256
+          systemctl --user start antmux-x72-queen.service
+
+          queen_ok=0
+          for _ in $(seq 1 40); do
+            if systemctl --user is-active --quiet antmux-x72-queen.service && \
+               curl -fsS --max-time 2 http://127.0.0.1:8720/api/health >/tmp/queen-health.json; then
+              queen_ok=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$queen_ok" -ne 1 ]; then
+            echo 'QUEEN_COMPACTION_VERIFY=FAIL'
+            systemctl --user stop antmux-x72-queen.service || true
+            mv "$QUEEN_DB" "$QUEEN_DB.failed-$(date -u +%Y%m%dT%H%M%SZ)" || true
+            mv "$QUEEN_DB.precompact" "$QUEEN_DB"
+            systemctl --user start antmux-x72-queen.service || true
+            exit 1
+          fi
+
+          echo 'QUEEN_COMPACTION_VERIFY=PASS'
+          python3 - <<'PY'
+          import sqlite3, pathlib
+          p=pathlib.Path.home()/'antmux-x72-queen'/'data'/'queen.db'
+          db=sqlite3.connect(f'file:{p}?mode=ro', uri=True)
+          row=db.execute('SELECT count(*), min(id), max(id), avg(length(state_json)) FROM checkpoints').fetchone()
+          ok=db.execute('PRAGMA integrity_check').fetchone()[0]
+          db.close()
+          print('QUEEN_DB_AFTER count=%s min=%s max=%s avg_json=%s integrity=%s' % (*row, ok))
+          assert row[0] <= 256
+          assert ok == 'ok'
+          PY
+          rm -f "$QUEEN_DB.precompact"
+
+          echo '--- AFTER ---'
+          df -h /
+          du -sh "$BROTO_ROOT/brutomagique" "$SNAPSHOTS" "$HOME/antmux-x72-queen/data" 2>/dev/null || true
+          systemctl --user show antmux-x72-queen.service -p ActiveState -p SubState -p NRestarts --no-pager
+          systemctl --user show brutus-public.service -p ActiveState -p SubState -p NRestarts --no-pager
+          rm -rf "$STAGE"
+          REMOTE
