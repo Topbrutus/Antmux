@@ -485,8 +485,11 @@ class QueenCore:
 
 
 class Persistence:
-    def __init__(self, db_path: Path):
+    DEFAULT_MAX_CHECKPOINTS = 256
+
+    def __init__(self, db_path: Path, max_checkpoints: int = DEFAULT_MAX_CHECKPOINTS):
         self.db_path = db_path
+        self.max_checkpoints = max(20, int(max_checkpoints))
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(self.db_path)) as db:
             db.execute(
@@ -503,10 +506,18 @@ class Persistence:
         state_json = json.dumps(queen.to_checkpoint(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         with closing(sqlite3.connect(self.db_path)) as db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute(
+            cursor = db.execute(
                 "INSERT INTO checkpoints(created_at, state_json, protected_h256, whole_h256) VALUES (?, ?, ?, ?)",
                 (time.time(), state_json, queen.protected_h256(), queen.whole_h256()),
             )
+            newest_id = int(cursor.lastrowid or 0)
+            cutoff_id = newest_id - self.max_checkpoints
+            if cutoff_id > 0:
+                db.execute(
+                    "DELETE FROM checkpoints WHERE id IN ("
+                    "SELECT id FROM checkpoints WHERE id <= ? ORDER BY id ASC LIMIT 128)",
+                    (cutoff_id,),
+                )
             db.commit()
 
     def load_latest(self) -> QueenCore | None:
