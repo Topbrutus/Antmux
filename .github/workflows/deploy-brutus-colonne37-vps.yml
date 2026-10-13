@@ -23,10 +23,12 @@ jobs:
           set -euo pipefail
           test -f laboratoire/brutus-colonne-37/index.html
           grep -Fq 'BRUTUS COLONNE 37 — CORTEX Z' laboratoire/brutus-colonne-37/index.html
-          grep -Fq 'PROTOTYPE ISOLÉ' laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'Connexions 37' laboratoire/brutus-colonne-37/index.html
           grep -Fq 'Cortex Brutus / Pinéale' laboratoire/brutus-colonne-37/index.html
           grep -Fq 'Z-STAMP' laboratoire/brutus-colonne-37/index.html
-          grep -Fq 'AUCUNE COMMANDE LIVE' laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'VITRINE · READ ONLY' laboratoire/brutus-colonne-37/index.html
+          ! grep -Fq 'fetch(' laboratoire/brutus-colonne-37/index.html
+          ! grep -Fq 'XMLHttpRequest' laboratoire/brutus-colonne-37/index.html
           sha256sum laboratoire/brutus-colonne-37/index.html
 
       - name: Configure pinned VPS SSH
@@ -83,7 +85,8 @@ jobs:
               https://antmux.com/laboratoire/brutus-colonne-37/ -o /tmp/brutus37.html; then
               if grep -Fq 'BRUTUS COLONNE 37 — CORTEX Z' /tmp/brutus37.html \
                 && grep -Fq 'Cortex Brutus / Pinéale' /tmp/brutus37.html \
-                && grep -Fq 'AUCUNE COMMANDE LIVE' /tmp/brutus37.html; then
+                && grep -Fq 'Connexions 37' /tmp/brutus37.html \
+                && grep -Fq 'VITRINE · READ ONLY' /tmp/brutus37.html; then
                 echo 'PUBLIC_VERIFY=PASS'
                 exit 0
               fi
