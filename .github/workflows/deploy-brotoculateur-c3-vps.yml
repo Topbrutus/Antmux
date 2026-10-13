@@ -1,0 +1,383 @@
+name: Deploy Brotoculateur C3 Library VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start C3 shadow library on the existing C2/Z canary, or disable C3
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - canary_start
+          - disable
+      confirm:
+        description: Type BRUTUS-C3-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-c3-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and C3 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then
+            test "$CONFIRM" = 'BRUTUS-C3-VPS'
+          fi
+          python3 -m py_compile \
+            deploy/vps-c3/c3_library.py \
+            deploy/vps-c3/patch_brotoculateur_c3_library.py \
+            deploy/vps-c3/test_c3_library.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage C3 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-c3/c3_library.py \
+            deploy/vps-c3/patch_brotoculateur_c3_library.py \
+            deploy/vps-c3/test_c3_library.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy C3
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ENGINE="$PKG/engine.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          SLEEP="$PKG/sleeping_pool.py"
+          C3MOD="$PKG/c3_library.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_ENGINE='ac956512699ab0bb527449e08fdaeafab9c883eea3565c4abc5d8e4fcc9ac31b'
+          PRE_ORCH='20e019e58f77fbd0ea5a983112b8ed5809bad236d8f02df52ea3c65f710f0f83'
+          PRE_DASH='5410dc0aebb273eddf616dc3b08e53666f6473c25eb5a00ebb44003f2bb00ce2'
+          EXPECT_SLEEP='1fe651ff70e4cad7afc8ec216cbad5f361ff839c072408dcc0233e0a0c637124'
+          POST_ORCH='2ba8a93967e3f01147acbd2a5220857830cd89ce3bdcba879e8d5630292fdb87'
+          POST_DASH='2602f91205457dc8b474ab098a0ed4453153054ff0ef4f9f73b9c2eca4ccc157'
+          POST_C3MOD='b7970583e688488d0f9fd8a90838d9163d00b08b7e6afedd499434e79a06c434'
+
+          test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH" -a -f "$SLEEP"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c3-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c3-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          r=d.get('hierarchical_rarity') or {}
+          print('STATE=' + str(d.get('state')))
+          print('RUN_ID=' + str(d.get('run_id')))
+          print('PROCESSED=' + str(d.get('processed_packets')))
+          print('CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('Z_ENABLED=' + str(z.get('enabled')))
+          print('Z_PERCENT=' + str(z.get('rollout_percent')))
+          print('C2_ENABLED=' + str(c2.get('enabled')))
+          print('C2_TOTAL=' + str(c2.get('total_fingerprints')))
+          print('C3_MODE=' + str(c3.get('mode')))
+          print('C3_ENABLED=' + str(c3.get('enabled')))
+          print('C3_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C3_HITS=' + str(c3.get('hits')))
+          print('C3_MISSES=' + str(c3.get('misses')))
+          print('C3_UNIQUE=' + str(c3.get('unique_entries')))
+          print('RARITY_PERCENT=' + str(r.get('rollout_percent')))
+          PY
+
+          engine_hash=$(sha256sum "$ENGINE" | awk '{print $1}')
+          orch_hash=$(sha256sum "$ORCH" | awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH" | awk '{print $1}')
+          sleep_hash=$(sha256sum "$SLEEP" | awk '{print $1}')
+          echo "ENGINE_SHA256=$engine_hash"
+          echo "ORCH_SHA256=$orch_hash"
+          echo "DASH_SHA256=$dash_hash"
+          echo "SLEEPING_POOL_SHA256=$sleep_hash"
+          if [ -f "$C3MOD" ]; then
+            c3mod_hash=$(sha256sum "$C3MOD" | awk '{print $1}')
+            echo "C3_LIBRARY_SHA256=$c3mod_hash"
+          else
+            c3mod_hash='ABSENT'
+            echo 'C3_LIBRARY_SHA256=ABSENT'
+          fi
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          test "$engine_hash" = "$EXPECT_ENGINE"
+          test "$sleep_hash" = "$EXPECT_SLEEP"
+          source_state='UNKNOWN'
+          if [ "$orch_hash" = "$PRE_ORCH" ] && [ "$dash_hash" = "$PRE_DASH" ] && [ "$c3mod_hash" = 'ABSENT' ]; then
+            source_state='PRE_C3'
+          elif [ "$orch_hash" = "$POST_ORCH" ] && [ "$dash_hash" = "$POST_DASH" ] && [ "$c3mod_hash" = "$POST_C3MOD" ]; then
+            source_state='POST_C3'
+          fi
+          test "$source_state" != 'UNKNOWN'
+          echo "C3_SOURCE_STATE=$source_state"
+
+          if [ "$MODE" = audit ]; then
+            echo 'C3_AUDIT_ONLY=PASS'
+            exit 0
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c3-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          c2=d.get('c2_fingerprint') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'}, d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert z.get('enabled') is True and int(z.get('rollout_percent') or 0) == 10, z
+          assert c2.get('enabled') is True, c2
+          print('C3_REQUIRES_C2_Z10=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-c3-stage-$$"
+            rm -rf "$STAGE"
+            mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_c3_library.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c3_library.py" | awk '{print $1}')" = "$POST_C3MOD"
+            test "$(sha256sum "$STAGE/src/brotoculateur/engine.py" | awk '{print $1}')" = "$EXPECT_ENGINE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/sleeping_pool.py" | awk '{print $1}')" = "$EXPECT_SLEEP"
+            python3 -m py_compile \
+              "$STAGE/src/brotoculateur/c3_library.py" \
+              "$STAGE/src/brotoculateur/orchestrator.py" \
+              "$STAGE/src/brotoculateur/dashboard.py"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_c3_library.py
+            echo 'C3_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_C3'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/c3-before.json', encoding='utf-8')).get('state') == 'RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/c3-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/c3-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c3-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c3-paused.json', encoding='utf-8'))
+          assert d.get('state') == 'PAUSED', d.get('state')
+          print('C3_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/c3-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$BACKUP/"
+          if [ -f "$C3MOD" ]; then cp -a "$C3MOD" "$BACKUP/"; fi
+          cp -a /tmp/c3-before.json "$BACKUP/status-before.json"
+          sha256sum "$ENGINE" "$ORCH" "$DASH" "$SLEEP" > "$BACKUP/SHA256SUMS"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/60-brutus-c3.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0
+          if [ -f "$DROPIN" ]; then
+            HAD_DROPIN=1
+            cp -a "$DROPIN" "$BACKUP/60-brutus-c3.conf"
+          fi
+          HAD_C3MOD=0
+          if [ -f "$C3MOD" ]; then HAD_C3MOD=1; fi
+          echo "C3_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?
+            set +e
+            echo "C3_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            if [ "$HAD_C3MOD" = 1 ]; then
+              cp -a "$BACKUP/c3_library.py" "$C3MOD"
+            else
+              rm -f "$C3MOD"
+            fi
+            if [ "$HAD_DROPIN" = 1 ]; then
+              cp -a "$BACKUP/60-brutus-c3.conf" "$DROPIN"
+            else
+              rm -f "$DROPIN"
+            fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then
+              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c3-rollback-start.json || true
+            fi
+            echo 'C3_ROLLBACK_DONE'
+            exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/c3_library.py" "$C3MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C3_ENABLED=1"
+          Environment="BROTO_C3_MAX_ENTRIES=131072"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C3_ENABLED=0"
+          Environment="BROTO_C3_MAX_ENTRIES=131072"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c3-after.json; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/c3-after.json', encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          if os.environ['MODE'] == 'canary_start':
+              assert c3.get('mode') == 'BRUTUS_C3_LIBRARY37_V1', c3
+              assert c3.get('enabled') is True, c3
+              assert c3.get('authority') == 'SHADOW_ONLY', c3
+              assert int(c3.get('bucket_count') or 0) == 37, c3
+              assert int(c3.get('max_entries') or 0) == 131072, c3
+              assert c3.get('query_before_compute') is False, c3
+              assert int(c3.get('compute_skips') or -1) == 0, c3
+              assert c3.get('persistent') is False, c3
+              assert c2.get('enabled') is True, c2
+              assert int(c3.get('observations') or 0) == int(c2.get('total_fingerprints') or 0), (c3,c2)
+          else:
+              assert c3.get('enabled') is False, c3
+              assert int(c3.get('observations') or 0) == 0, c3
+          print('C3_AFTER_STATE=' + str(d.get('state')))
+          print('C3_AFTER_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C3_AFTER_HITS=' + str(c3.get('hits')))
+          print('C3_AFTER_UNIQUE=' + str(c3.get('unique_entries')))
+          print('C3_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c3-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c3-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json, os, sys
+          try:
+              d=json.load(open('/tmp/c3-live.json', encoding='utf-8'))
+          except Exception:
+              sys.exit(1)
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          good=d.get('state') == 'RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE') == 'canary_start':
+              obs=int(c3.get('observations') or 0)
+              good = good and obs > 0 and obs == int(c2.get('total_fingerprints') or 0)
+              good = good and int(c3.get('hits') or 0) + int(c3.get('misses') or 0) == obs
+              good = good and int(c3.get('unique_entries') or 0) <= int(c3.get('max_entries') or 0)
+              good = good and int(c3.get('compute_skips') or -1) == 0
+          sys.exit(0 if good else 1)
+          PY
+              then
+                live=1
+                break
+              fi
+              sleep 1
+            done
+            test "$live" = 1
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c3-live.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c3-live.json', encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}
+          assert d.get('state') == 'RUNNING', d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          if c3.get('enabled') is True:
+              obs=int(c3.get('observations') or 0)
+              assert obs == int(c2.get('total_fingerprints') or 0), (c3,c2)
+              assert int(c3.get('hits') or 0) + int(c3.get('misses') or 0) == obs, c3
+              assert int(c3.get('compute_skips') or -1) == 0, c3
+          print('C3_LIVE_STATE=' + str(d.get('state')))
+          print('C3_LIVE_PROCESSED=' + str(d.get('processed_packets')))
+          print('C3_LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C3_LIVE_C2_TOTAL=' + str(c2.get('total_fingerprints')))
+          print('C3_LIVE_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C3_LIVE_HITS=' + str(c3.get('hits')))
+          print('C3_LIVE_MISSES=' + str(c3.get('misses')))
+          print('C3_LIVE_UNIQUE=' + str(c3.get('unique_entries')))
+          print('C3_LIVE_REJECTIONS=' + str(c3.get('capacity_rejections')))
+          print('C3_LIVE_HIT_RATE=' + str(c3.get('hit_rate')))
+          print('C3_LIVE_OCCUPIED_BUCKETS=' + str(c3.get('occupied_buckets')))
+          print('C3_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          test "$(sha256sum "$ENGINE" | awk '{print $1}')" = "$EXPECT_ENGINE"
+          test "$(sha256sum "$SLEEP" | awk '{print $1}')" = "$EXPECT_SLEEP"
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ORCH" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$C3MOD" | awk '{print $1}')" = "$POST_C3MOD"
+          fi
+          df -P / | awk 'NR==2 {print "C3_ROOT_DISK_USED=" $5 " C3_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'C3_WORKFLOW=PASS'
+          REMOTE
