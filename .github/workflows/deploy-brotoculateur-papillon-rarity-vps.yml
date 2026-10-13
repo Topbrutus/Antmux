@@ -1,0 +1,246 @@
+name: Deploy Brotoculateur Papillon Rarity VPS
+
+on:
+  push:
+    branches:
+      - astra/vps-papillon-rarity-20261012
+    paths:
+      - '.github/workflows/deploy-brotoculateur-papillon-rarity-vps.yml'
+      - 'deploy/vps-storage/patch_brotoculateur_papillon_rarity.py'
+      - 'deploy/vps-storage/papillon-rarity-rollout-mode.txt'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, 10 percent canary, full rollout, or disable
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - canary
+          - full
+          - disable
+      confirm:
+        description: Type PAPILLON-RARITY-VPS for any mode except audit
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-papillon-rarity-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve and validate request
+        id: request
+        env:
+          DISPATCH_MODE: ${{ inputs.mode }}
+          DISPATCH_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            MODE="$(tr -d '\r\n ' < deploy/vps-storage/papillon-rarity-rollout-mode.txt)"
+            CONFIRM='PAPILLON-RARITY-VPS'
+          else
+            MODE="$DISPATCH_MODE"
+            CONFIRM="$DISPATCH_CONFIRM"
+          fi
+          case "$MODE" in audit|canary|full|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then
+            test "$CONFIRM" = 'PAPILLON-RARITY-VPS'
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          python3 -m py_compile deploy/vps-storage/patch_brotoculateur_papillon_rarity.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage patcher
+        if: steps.request.outputs.mode != 'audit'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-storage/patch_brotoculateur_papillon_rarity.py \
+            "$VPS_USER@$VPS_HOST:/tmp/patch_brotoculateur_papillon_rarity.py"
+
+      - name: Audit or deploy canary
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ steps.request.outputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          ORCH="$BROTO_ROOT/src/brotoculateur/orchestrator.py"
+          DASH="$BROTO_ROOT/src/brotoculateur/dashboard.py"
+          PAPI="$BROTO_ROOT/src/brotoculateur/papillon_engine.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+          EXPECTED_ORCH='e68f662ff17e1b70dfb3ca393e45e92326df131565c061f67d49b35fe6396e77'
+          EXPECTED_DASH='87ae9f700e72a035f2a58d53120670c64d7e5934c7632385d5f0e171fbb1d26c'
+          EXPECTED_PAPI='ca45f4ebd9ac4efc241626b9322c2e6d57870873d27982f287d99a9f773871ef'
+
+          test -f "$ORCH" -a -f "$DASH" -a -f "$PAPI"
+          echo "HOSTNAME=$(hostname)"
+          echo "BROTO_SERVICE=$(systemctl --user is-active brotoculateur.service || true)"
+          echo "ORCH_SHA256=$(sha256sum "$ORCH" | awk '{print $1}')"
+          echo "DASH_SHA256=$(sha256sum "$DASH" | awk '{print $1}')"
+          echo "PAPI_SHA256=$(sha256sum "$PAPI" | awk '{print $1}')"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          systemctl --user show brotoculateur.service -p ActiveState -p SubState -p NRestarts -p ExecStart --no-pager
+
+          if curl -fsS --max-time 5 "$STATUS_URL" >/tmp/broto-rarity-before.json; then
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/broto-rarity-before.json', encoding='utf-8'))
+          p=d.get('papillon') or {}
+          r=d.get('hierarchical_rarity') or {}
+          print('STATE=' + str(d.get('state')))
+          print('RUN_ID=' + str(d.get('run_id')))
+          print('PROCESSED=' + str(d.get('processed_packets')))
+          print('CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('PAPILLON_MODE=' + str(p.get('mode')))
+          print('PAPILLON_ROUTING=' + str(p.get('routing_mode')))
+          print('RARITY_MODE=' + str(r.get('mode')))
+          print('RARITY_PERCENT=' + str(r.get('rollout_percent')))
+          PY
+          else
+            echo 'STATUS_ENDPOINT=UNAVAILABLE'
+            exit 1
+          fi
+
+          if [ "$MODE" = audit ]; then
+            echo 'AUDIT_ONLY=PASS'
+            exit 0
+          fi
+
+          STATE=$(python3 - <<'PY'
+          import json
+          print(json.load(open('/tmp/broto-rarity-before.json', encoding='utf-8')).get('state',''))
+          PY
+          )
+          if [ "$STATE" != 'PAUSED' ]; then
+            echo "REFUSE_DEPLOY_STATE=$STATE"
+            echo 'Canary deployment requires the Brotoculateur to be PAUSED so the current live run is not interrupted.'
+            exit 3
+          fi
+
+          current_orch=$(sha256sum "$ORCH" | awk '{print $1}')
+          current_dash=$(sha256sum "$DASH" | awk '{print $1}')
+          current_papi=$(sha256sum "$PAPI" | awk '{print $1}')
+          if ! grep -Fq 'PAPILLON_HIERARCHICAL_RARITY_V1' "$ORCH"; then
+            test "$current_orch" = "$EXPECTED_ORCH"
+            test "$current_dash" = "$EXPECTED_DASH"
+          fi
+          test "$current_papi" = "$EXPECTED_PAPI"
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/papillon-rarity-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$PAPI" "$BACKUP/"
+          cp -a /tmp/broto-rarity-before.json "$BACKUP/status-before.json"
+          systemctl --user cat brotoculateur.service > "$BACKUP/brotoculateur.service.txt"
+          if test -d "$HOME/.config/systemd/user/brotoculateur.service.d"; then
+            cp -a "$HOME/.config/systemd/user/brotoculateur.service.d" "$BACKUP/service-dropins"
+          fi
+          echo "BACKUP=$BACKUP"
+
+          python3 /tmp/patch_brotoculateur_papillon_rarity.py "$BROTO_ROOT"
+          python3 -m py_compile "$ORCH" "$DASH" "$PAPI"
+
+          PYTHONPATH="$BROTO_ROOT/src" \
+          BROTO_RARITY_ENABLED=1 BROTO_RARITY_PERCENT=100 \
+          BROTO_PAPILLON_MASTER_ENABLED=1 BROTO_PAPILLON_MASTER_PERCENT=100 \
+          python3 - <<'PY'
+          from brotoculateur.engine import Formula, FormulaRegistry, TracePacket
+          from brotoculateur.orchestrator import ExperimentRunner, ExperimentSpec
+          reg=FormulaRegistry()
+          reg.register(Formula('PLUS1','x+1','increment',lambda x:x+1))
+          reg.register(Formula('DOUBLE','2x','double',lambda x:2*x))
+          runner=ExperimentRunner(reg, ExperimentSpec(max_depth=5,max_active_branches=32,max_packets=200))
+          runner.seed([TracePacket(111), TracePacket(222)])
+          snap=runner.run_steps(20)
+          rarity=runner.rarity_status(); pap=runner.papillon_status()
+          assert snap.processed_packets > 0
+          assert rarity['mode'] == 'PAPILLON_HIERARCHICAL_RARITY_V1'
+          assert rarity['rarity_replays_enqueued'] > 0
+          assert pap['routing_mode'] == 'PAPILLON_MASTER_ROLLOUT'
+          assert pap['evaluations'] > 0
+          print('TARGETED_PATCH_TEST=PASS')
+          PY
+
+          mkdir -p "$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$HOME/.config/systemd/user/brotoculateur.service.d/30-papillon-rarity.conf"
+          case "$MODE" in
+            canary)
+              RARITY_ENABLED=1; RARITY_PERCENT=10; MASTER_ENABLED=1; MASTER_PERCENT=10 ;;
+            full)
+              RARITY_ENABLED=1; RARITY_PERCENT=100; MASTER_ENABLED=1; MASTER_PERCENT=100 ;;
+            disable)
+              RARITY_ENABLED=0; RARITY_PERCENT=0; MASTER_ENABLED=0; MASTER_PERCENT=0 ;;
+            *) exit 2 ;;
+          esac
+          cat > "$DROPIN" <<EOF
+          [Service]
+          Environment="BROTO_RARITY_ENABLED=$RARITY_ENABLED"
+          Environment="BROTO_RARITY_PERCENT=$RARITY_PERCENT"
+          Environment="BROTO_PAPILLON_MASTER_ENABLED=$MASTER_ENABLED"
+          Environment="BROTO_PAPILLON_MASTER_PERCENT=$MASTER_PERCENT"
+          EOF
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/broto-rarity-after.json; then
+              ok=1; break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/broto-rarity-after.json', encoding='utf-8'))
+          r=d.get('hierarchical_rarity') or {}
+          p=d.get('papillon') or {}
+          mode=os.environ['MODE']
+          expected={'canary':(True,10,True,10),'full':(True,100,True,100),'disable':(False,0,False,0)}[mode]
+          actual=(bool(r.get('enabled')), int(r.get('rollout_percent') or 0), bool(p.get('master_enabled')), int(p.get('master_rollout_percent') or 0))
+          assert actual == expected, (actual, expected)
+          assert r.get('mode') == 'PAPILLON_HIERARCHICAL_RARITY_V1'
+          assert p.get('routing_mode') == 'PAPILLON_MASTER_ROLLOUT'
+          print('AFTER_STATE=' + str(d.get('state')))
+          print('AFTER_RUN_ID=' + str(d.get('run_id')))
+          print('AFTER_PROCESSED=' + str(d.get('processed_packets')))
+          print('AFTER_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('RARITY_ENABLED=' + str(r.get('enabled')))
+          print('RARITY_PERCENT=' + str(r.get('rollout_percent')))
+          print('PAPILLON_MASTER_ENABLED=' + str(p.get('master_enabled')))
+          print('PAPILLON_MASTER_PERCENT=' + str(p.get('master_rollout_percent')))
+          print('DEPLOY_VERIFY=PASS')
+          PY
+          REMOTE
