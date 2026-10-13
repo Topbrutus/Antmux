@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - audit
+          - snapshot
           - measure
           - canary
           - canary_start
@@ -49,8 +50,8 @@ jobs:
             MODE="$DISPATCH_MODE"
             CONFIRM="$DISPATCH_CONFIRM"
           fi
-          case "$MODE" in audit|measure|canary|canary_start|full|disable) ;; *) exit 2 ;; esac
-          if [ "$MODE" != audit ]; then
+          case "$MODE" in audit|snapshot|measure|canary|canary_start|full|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ] && [ "$MODE" != snapshot ]; then
             test "$CONFIRM" = 'PAPILLON-RARITY-VPS'
           fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
@@ -127,7 +128,7 @@ jobs:
             exit 1
           fi
 
-          if [ "$MODE" = audit ]; then
+          if [ "$MODE" = audit ] || [ "$MODE" = snapshot ]; then
             echo 'AUDIT_ONLY=PASS'
             exit 0
           fi
@@ -329,3 +330,76 @@ jobs:
           PY
           fi
           REMOTE
+
+      - name: Snapshot current VPS source
+        if: steps.request.outputs.mode == 'snapshot'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          rm -rf snapshot-out
+          mkdir -p snapshot-out
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          SNAP=/tmp/brutus_pre_colonne37_snapshot
+          rm -rf "$SNAP"
+          mkdir -p "$SNAP/meta"
+          test -d "$BROTO_ROOT/src/brotoculateur"
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$SNAP/meta/captured_at_utc.txt"
+          hostname > "$SNAP/meta/hostname.txt"
+          systemctl --user is-active brotoculateur.service > "$SNAP/meta/service_active.txt" || true
+          systemctl --user show brotoculateur.service -p ActiveState -p SubState -p NRestarts -p ExecStart -p WorkingDirectory --no-pager > "$SNAP/meta/service_runtime.txt"
+          curl -fsS --max-time 5 http://127.0.0.1:8781/api/status > "$SNAP/meta/status.json"
+          python3 --version > "$SNAP/meta/python-version.txt" 2>&1
+          cat > "$SNAP/meta/EXCLUSIONS.txt" <<'EOF'
+          Excluded intentionally from rollback source snapshot:
+          - .brotoculateur* runtime/state stores (large, mutable data)
+          - backups/
+          - .secrets, .ssh, .env*, *.pem and *.key private configuration
+          - __pycache__, .pytest_cache, logs
+          This archive is for CODE rollback of the live VPS version before Brutus Colonne 37 / Z-STAMP deployment.
+          EOF
+          cd "$BROTO_ROOT"
+          find . -type f \
+            ! -path './.brotoculateur*' ! -path './.brotoculateur*/*' \
+            ! -path './backups/*' ! -path './.secrets' ! -path './.secrets/*' ! -path './.ssh' ! -path './.ssh/*' \
+            ! -name '.env' ! -name '.env.*' ! -name '*.pem' ! -name '*.key' \
+            ! -path '*/__pycache__/*' ! -path '*/.pytest_cache/*' \
+            ! -name '*.log' -print0 | sort -z | xargs -0 sha256sum > "$SNAP/meta/SOURCE_SHA256_MANIFEST.txt"
+          tar -czf "$SNAP/brotoculateur-source-pre-colonne37.tar.gz" \
+            --exclude='./.brotoculateur*' \
+            --exclude='./backups' \
+            --exclude='./.secrets' --exclude='./.ssh' \
+            --exclude='./.env' --exclude='./.env.*' --exclude='*.pem' --exclude='*.key' \
+            --exclude='*/__pycache__' --exclude='*/.pytest_cache' \
+            --exclude='*.log' \
+            .
+          sha256sum "$SNAP/brotoculateur-source-pre-colonne37.tar.gz" > "$SNAP/meta/ARCHIVE_SHA256.txt"
+          du -h "$SNAP/brotoculateur-source-pre-colonne37.tar.gz" > "$SNAP/meta/archive-size.txt"
+          printf 'SOURCE_ROOT=%s\n' "$BROTO_ROOT" > "$SNAP/meta/RESTORE_INFO.txt"
+          printf 'Purpose: code rollback to the VPS version captured before Brutus Colonne 37 / Z-STAMP.\n' >> "$SNAP/meta/RESTORE_INFO.txt"
+          printf 'Do not overwrite runtime state stores when restoring code.\n' >> "$SNAP/meta/RESTORE_INFO.txt"
+          echo SNAPSHOT_REMOTE_READY=PASS
+          REMOTE
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -r \
+            "$VPS_USER@$VPS_HOST:/tmp/brutus_pre_colonne37_snapshot/." snapshot-out/
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'rm -rf /tmp/brutus_pre_colonne37_snapshot'
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          ZIP="BRUTUS_VPS_PRE_COLONNE37_${STAMP}.zip"
+          (cd snapshot-out && zip -qr "../$ZIP" .)
+          sha256sum "$ZIP" | tee "$ZIP.sha256"
+          echo "ZIP_NAME=$ZIP"
+          echo "SNAPSHOT_BUILD=PASS"
+
+      - name: Upload VPS rollback snapshot
+        if: steps.request.outputs.mode == 'snapshot'
+        uses: actions/upload-artifact@v4
+        with:
+          name: brotoculateur-vps-pre-colonne37
+          path: |
+            BRUTUS_VPS_PRE_COLONNE37_*.zip
+            BRUTUS_VPS_PRE_COLONNE37_*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
