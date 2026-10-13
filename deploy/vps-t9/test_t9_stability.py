@@ -80,7 +80,8 @@ def test_baselines_are_bounded() -> None:
     assert s["distinct_baselines"] == 2
     assert s["evictions"] == 1
     assert s["baseline_capacity"] == 2
-    print("T9_BOUNDED_BASELINES=PASS", s["distinct_baselines"], s["evictions"])
+    assert s["eviction_policy"] == "LRU"
+    print("T9_BOUNDED_BASELINES=PASS", s["distinct_baselines"], s["evictions"], s["eviction_policy"])
 
 
 def test_dashboard_callback_lockstep() -> None:
