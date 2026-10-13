@@ -1,0 +1,322 @@
+name: Deploy Brotoculateur T4 Convergence VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start T4 convergence shadow, or disable T4
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-T4-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-t4-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and T4 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-T4-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-t4/t4_convergence.py \
+            deploy/vps-t4/patch_brotoculateur_t4_convergence.py \
+            deploy/vps-t4/test_t4_convergence.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage T4 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-t4/t4_convergence.py \
+            deploy/vps-t4/patch_brotoculateur_t4_convergence.py \
+            deploy/vps-t4/test_t4_convergence.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy T4
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          T3MOD="$PKG/t3_neighborhood.py"
+          T4MOD="$PKG/t4_convergence.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_T3='f4144e566508d6bd0e17279690d3ff9edd72e85a93d5a0d8dead2beeab1310d6'
+          PRE_ORCH='49585752a6bba0c830193be10743a7f44388cc295183478c1f8e7b8f3df8f862'
+          PRE_DASH='943f075765282b448c8f3d01cb3d03e54ae5d5d84bfd18dd92d79fd6b7f7f131'
+          POST_T4='736f19b2b2bf25b65d7fa32e17576c3dac3125fb8bf3cb063bb00e6629482ed5'
+          POST_ORCH='1ee7c8e61d538f4d8c5617179a64bc3b15e8c3084ea096a909fa4343afbf737e'
+          POST_DASH='0d2a7f64fe8082186060210891ded1fc12ddeef01daacfbaff496f9e63d41cc6'
+
+          test -f "$ORCH" -a -f "$DASH" -a -f "$T3MOD"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t4-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t4-before.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}; t3=d.get('t3_neighborhood') or {}; t4=d.get('t4_convergence') or {}
+          print('STATE='+str(d.get('state')))
+          print('PROCESSED='+str(d.get('processed_packets')))
+          print('CRYSTALS='+str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C2_TOTAL='+str(c2.get('total_fingerprints')))
+          print('T2_DUPLICATES='+str(t2.get('exact_duplicates')))
+          print('T3_OBSERVATIONS='+str(t3.get('observations')))
+          print('T3_CLASSES='+str(t3.get('class_counts')))
+          print('T4_MODE='+str(t4.get('mode')))
+          print('T4_ENABLED='+str(t4.get('enabled')))
+          print('T4_OBSERVATIONS='+str(t4.get('observations')))
+          print('T4_CONVERGENCES='+str(t4.get('structural_convergence_events')))
+          print('T4_TARGETS='+str(t4.get('convergent_targets')))
+          PY
+
+          orch_hash=$(sha256sum "$ORCH"|awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH"|awk '{print $1}')
+          t3_hash=$(sha256sum "$T3MOD"|awk '{print $1}')
+          if [ -f "$T4MOD" ]; then t4_hash=$(sha256sum "$T4MOD"|awk '{print $1}'); else t4_hash='ABSENT'; fi
+          test "$t3_hash" = "$EXPECT_T3"
+          source_state='UNKNOWN'
+          if [ "$orch_hash" = "$PRE_ORCH" ] && [ "$dash_hash" = "$PRE_DASH" ] && [ "$t4_hash" = 'ABSENT' ]; then source_state='PRE_T4'; fi
+          if [ "$orch_hash" = "$POST_ORCH" ] && [ "$dash_hash" = "$POST_DASH" ] && [ "$t4_hash" = "$POST_T4" ]; then source_state='POST_T4'; fi
+          test "$source_state" != 'UNKNOWN'
+          echo "T4_SOURCE_STATE=$source_state"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then
+            SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/t4-before.json',encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}; t3=d.get('t3_neighborhood') or {}; t4=d.get('t4_convergence') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          n=int(c2.get('total_fingerprints') or 0)
+          assert n==int(c3.get('observations') or 0)==int(c4.get('observations') or 0)==int(c5.get('observations') or 0)==int(c6.get('observations') or 0)==int(c7.get('observations') or 0)==int(t1.get('observations') or 0)==int(t2.get('observations') or 0)==int(t3.get('observations') or 0)
+          assert int(t2.get('cross_family_conflicts') or 0)==0
+          assert t3.get('hash_distance_used') is False and int(t3.get('packets_collapsed') or 0)==0
+          if os.environ['SOURCE_STATE']=='POST_T4' and t4.get('enabled') is True:
+              assert n==int(t4.get('observations') or 0)
+              assert t4.get('authority')=='SHADOW_ONLY'
+              assert t4.get('target_key')=='Z_ID_CANONICAL_VALUE_TARGET'
+              assert t4.get('exact_duplicate_counts_as_convergence') is False
+              assert t4.get('hash_distance_used') is False
+              assert t4.get('scientific_convergence_claim') is False
+              assert int(t4.get('t2_consistency_conflicts') or 0)==0
+              assert int(t4.get('t3_consistency_conflicts') or 0)==0
+              assert int(t4.get('packets_collapsed') or 0)==0 and int(t4.get('compute_skips') or 0)==0
+              assert t4.get('proof_promotion') is False
+          print('T4_AUDIT_ONLY=PASS')
+          PY
+            exit 0
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$source_state" = 'PRE_T4'
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t4-before.json',encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}; c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}; c6=d.get('c6_provenance') or {}; c7=d.get('c7_router') or {}; t1=d.get('t1_family') or {}; t2=d.get('t2_exact_duplicate') or {}; t3=d.get('t3_neighborhood') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'} and not d.get('worker_error')
+          assert z.get('enabled') is True and int(z.get('rollout_percent') or 0)==10
+          assert all(x.get('enabled') is True for x in (c2,c3,c4,c5,c6,c7,t1,t2,t3))
+          n=int(c2.get('total_fingerprints') or 0)
+          assert n==int(c3.get('observations') or 0)==int(c4.get('observations') or 0)==int(c5.get('observations') or 0)==int(c6.get('observations') or 0)==int(c7.get('observations') or 0)==int(t1.get('observations') or 0)==int(t2.get('observations') or 0)==int(t3.get('observations') or 0)
+          assert int(t2.get('cross_family_conflicts') or 0)==0 and t3.get('hash_distance_used') is False
+          print('T4_REQUIRES_T3_T2_T1_C7_C6_C5_C4_C3_C2_Z10=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-t4-stage-$$"
+            rm -rf "$STAGE"; mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_t4_convergence.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py"|awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t3_neighborhood.py"|awk '{print $1}')" = "$EXPECT_T3"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t4_convergence.py"|awk '{print $1}')" = "$POST_T4"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_t4_convergence.py
+            echo 'T4_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_T4'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/t4-before.json',encoding='utf-8')).get('state')=='RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/t4-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/t4-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t4-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t4-paused.json',encoding='utf-8'))
+          assert d.get('state')=='PAUSED', d.get('state')
+          print('T4_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/t4-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$BACKUP/"
+          [ ! -f "$T4MOD" ] || cp -a "$T4MOD" "$BACKUP/"
+          cp -a /tmp/t4-before.json "$BACKUP/status-before.json"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/94-brutus-t4.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0; [ ! -f "$DROPIN" ] || { HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/94-brutus-t4.conf"; }
+          HAD_T4=0; [ ! -f "$T4MOD" ] || HAD_T4=1
+          echo "T4_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?; set +e; echo "T4_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            if [ "$HAD_T4" = 1 ]; then cp -a "$BACKUP/t4_convergence.py" "$T4MOD"; else rm -f "$T4MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/94-brutus-t4.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t4-rollback-start.json || true; fi
+            echo 'T4_ROLLBACK_DONE'; exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/t4_convergence.py" "$T4MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T4_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T4_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t4-after.json; then ok=1; break; fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/t4-after.json',encoding='utf-8'))
+          t3=d.get('t3_neighborhood') or {}; t4=d.get('t4_convergence') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert t3.get('enabled') is True
+          if os.environ['MODE']=='canary_start':
+              assert t4.get('mode')=='BRUTUS_T4_CONVERGENCE_V1' and t4.get('enabled') is True
+              assert t4.get('authority')=='SHADOW_ONLY'
+              assert t4.get('exact_duplicate_counts_as_convergence') is False
+              assert int(t4.get('packets_collapsed') or 0)==0 and int(t4.get('compute_skips') or 0)==0
+          else:
+              assert t4.get('enabled') is False
+          print('T4_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t4-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t4-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json,os,sys
+          try: d=json.load(open('/tmp/t4-live.json',encoding='utf-8'))
+          except Exception: sys.exit(1)
+          t3=d.get('t3_neighborhood') or {}; t4=d.get('t4_convergence') or {}
+          good=d.get('state')=='RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE')=='canary_start':
+              n=int(t4.get('observations') or 0)
+              good=good and n>0 and n==int(t3.get('observations') or 0)
+              good=good and int(t4.get('t2_consistency_conflicts') or 0)==0
+              good=good and int(t4.get('t3_consistency_conflicts') or 0)==0
+              good=good and t4.get('exact_duplicate_counts_as_convergence') is False
+              good=good and int(t4.get('packets_collapsed') or 0)==0
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t4-live.json',encoding='utf-8'))
+          t3=d.get('t3_neighborhood') or {}; t4=d.get('t4_convergence') or {}
+          print('T4_LIVE_STATE='+str(d.get('state')))
+          print('T4_LIVE_PROCESSED='+str(d.get('processed_packets')))
+          print('T4_LIVE_CRYSTALS='+str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('T4_LIVE_T3='+str(t3.get('observations')))
+          print('T4_LIVE_OBSERVATIONS='+str(t4.get('observations')))
+          print('T4_LIVE_CONVERGENCES='+str(t4.get('structural_convergence_events')))
+          print('T4_LIVE_CONVERGENT_TARGETS='+str(t4.get('convergent_targets')))
+          print('T4_LIVE_CROSS_FAMILY='+str(t4.get('cross_family_convergence_events')))
+          print('T4_LIVE_MULTI_ORIGIN='+str(t4.get('multi_origin_convergence_events')))
+          print('T4_LIVE_BY_T3='+str(t4.get('convergence_by_t3_class')))
+          print('T4_LIVE_T2_CONFLICTS='+str(t4.get('t2_consistency_conflicts')))
+          print('T4_LIVE_T3_CONFLICTS='+str(t4.get('t3_consistency_conflicts')))
+          print('T4_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ORCH"|awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH"|awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$T3MOD"|awk '{print $1}')" = "$EXPECT_T3"
+            test "$(sha256sum "$T4MOD"|awk '{print $1}')" = "$POST_T4"
+          fi
+          df -P / | awk 'NR==2 {print "T4_ROOT_DISK_USED=" $5 " T4_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'T4_WORKFLOW=PASS'
+          REMOTE
