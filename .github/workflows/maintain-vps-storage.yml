@@ -8,7 +8,7 @@ on:
         required: true
         default: ''
   schedule:
-    - cron: '17 5 * * *'
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
@@ -64,6 +64,11 @@ jobs:
 
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -s -- "$HOME/antmux-x72-queen-backups"' < deploy/vps-storage/prune_x72_backups.sh
 
+          # Snapshot history is rebuildable; keep a bounded hot window while latest.json remains canonical.
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
+            'tmp=$(mktemp); cat > "$tmp"; python3 "$tmp" "$HOME/brotoculateur/.brotoculateur_instance_D/snapshots" --retain 512; rm -f "$tmp"' \
+            < deploy/vps-storage/prune_brotoculateur_snapshots.py
+
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
           set -euo pipefail
           journalctl --user --vacuum-size=128M >/dev/null 2>&1 || true
@@ -101,6 +106,9 @@ jobs:
           PY
           echo '--- STORAGE AFTER ---'
           df -h /
+          used_pct="$(df -P / | awk 'NR==2 {gsub(/%/,"",$5); print $5}')"
+          echo "ROOT_USED_PERCENT=$used_pct"
+          if [ "$used_pct" -ge 90 ]; then echo 'STORAGE_HIGH_WATERMARK=WARNING'; fi
           du -sh "$HOME/antmux-x72-queen-backups" 2>/dev/null || true
           echo '--- REMAINING X72 BACKUPS ---'
           du -sk "$HOME"/antmux-x72-queen-backups/* 2>/dev/null | sort -nr | head -20 || true
