@@ -1,0 +1,93 @@
+name: QA Brotoculateur Co2 PR
+
+on:
+  pull_request:
+    paths:
+      - "deploy/vps-co2/**"
+      - ".github/workflows/qa-brotoculateur-co2-pr.yml"
+      - ".github/workflows/deploy-brotoculateur-co2-vps.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            deploy/vps-co2/co2_proof_chain.py \
+            deploy/vps-co2/patch_brotoculateur_co2_proof_chain.py \
+            deploy/vps-co2/test_co2_proof_chain.py \
+            deploy/vps-co2/verify_co2_chain_files.py
+          bash -n deploy/vps-co2/run_co2_vps.sh
+          echo CO2_PR_SYNTAX=PASS
+
+      - name: Standalone chain semantics
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json, os, tempfile
+          from pathlib import Path
+
+          p=Path("deploy/vps-co2/co2_proof_chain.py")
+          spec=importlib.util.spec_from_file_location("co2", p)
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          os.environ["BROTO_CO2_ENABLED"]="1"
+
+          def row(i):
+              return {
+                  "schema":"BRUTUS_CO1_ARCHIVE_RECORD_V1",
+                  "archive_id":"A1-"+f"{i:064x}",
+                  "archived_at":"2026-10-13T00:00:00+00:00",
+                  "c2_fingerprint":f"{i:064x}",
+                  "bucket37":i%37,
+                  "formula_id":"DOUBLE",
+                  "z_id":"Z-"+f"{i:032x}",
+                  "reference_side":"AT_OR_ABOVE_REFERENCE",
+                  "structural_state":{"value":str(i),"depth":1,"formula_chain":["DOUBLE"],"state":"RAW","z_id":"Z-"+f"{i:032x}","z_parent_id":None,"z_origin_id":None},
+                  "source_z_id_first_observed":None,
+              }
+
+          with tempfile.TemporaryDirectory() as td:
+              a=Path(td)/"archive.jsonl"; c=Path(td)/"chain.jsonl"
+              a.write_text("".join(m._canonical(row(i))+"\n" for i in range(1,4)),encoding="utf-8")
+              x=m.Co2ProofChainTelemetry(a,c)
+              s=x.status()
+              assert s["available"] and s["backfilled_links"]==3 and s["chain_links"]==3
+              v=m.verify_chain_files(a,c)
+              assert v["archive_records"]==v["chain_links"]==3 and v["missing_links"]==0
+              with a.open("a",encoding="utf-8") as h: h.write(m._canonical(row(4))+"\n")
+              assert x.observe("DOUBLE",None,None,"ARCHIVED_NEW_AT_OR_ABOVE_REFERENCE")=="CHAIN_ADVANCED_1"
+              assert m.verify_chain_files(a,c)["chain_links"]==4
+              y=m.Co2ProofChainTelemetry(a,c)
+              assert y.status()["available"] and y.status()["loaded_chain_links"]==4
+              rows=a.read_text(encoding="utf-8").splitlines()
+              bad=json.loads(rows[0]); bad["structural_state"]["value"]="999"; rows[0]=m._canonical(bad)
+              a.write_text("\n".join(rows)+"\n",encoding="utf-8")
+              z=m.Co2ProofChainTelemetry(a,c)
+              assert z.status()["available"] is False and z.status()["integrity_failures"]==1
+          print("CO2_PR_STANDALONE_CHAIN=PASS")
+          PY
+
+      - name: Static contract guards
+        run: |
+          set -euo pipefail
+          f=deploy/vps-co2/co2_proof_chain.py
+          grep -Fq '"authority": "TRACE_INTEGRITY_ONLY"' "$f"
+          grep -Fq '"source_of_truth": "CO1_ARCHIVE_PHYSICAL_ORDER"' "$f"
+          grep -Fq '"hash_algorithm": "SHA-256"' "$f"
+          grep -Fq '"trace_integrity_claim": True' "$f"
+          grep -Fq '"scientific_proof_claim": False' "$f"
+          grep -Fq '"truth_of_claim_established": False' "$f"
+          grep -Fq '"historical_attestation_claim": False' "$f"
+          grep -Fq '"external_trust_anchor": False' "$f"
+          grep -Fq '"digital_signature_enabled": False' "$f"
+          grep -Fq '"validation_state_mutated": False' "$f"
+          grep -Fq '"proof_promotion": False' "$f"
+          grep -Fq '"co3_checkpoint_input": True' "$f"
+          echo CO2_PR_STATIC_GUARDS=PASS
