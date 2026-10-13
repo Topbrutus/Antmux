@@ -1,0 +1,118 @@
+name: Deploy Brotoculateur Co1 Archive V2 VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-co1-v2-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-CO1-V2-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-co1/co1_archive.py \
+            deploy/vps-co1/patch_brotoculateur_co1_archive.py \
+            deploy/vps-co1/test_co1_archive.py \
+            deploy/vps-co1/test_co1_concurrency.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage Co1 V2 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-co1/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy Co1 V2
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          CO1SHA=$(sha256sum deploy/vps-co1/co1_archive.py | awk '{print $1}')
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' CO1SHA='$CO1SHA' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; S5="$PKG/s5_fast_index.py"; CO1="$PKG/co1_archive.py"; C3="$PKG/c3_library.py"; ENG="$PKG/engine.py"; ARCHIVE="$ROOT/data/co1/archive-v1.jsonl"; URL='http://127.0.0.1:8781/api/status'
+          PRE='82b57cca014d6eee3d9e039e6f483317f248caddef8d21b37cbf226ce27903af'; POST='210abbe5d72fd4dcc4b154cb3d13a8d954567ac29ef5435381fe2f16fbce109b'; S5SHA='de885d1f4748d236a0050cbea87560cf26fc74a08a95a8a02b119241ce6b0334'; C3SHA='b7970583e688488d0f9fd8a90838d9163d00b08b7e6afedd499434e79a06c434'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          wait_api(){ for _ in $(seq 1 30); do curl -fsS "$URL" >/dev/null 2>&1 && return 0; sleep 1; done; return 1; }
+          test "$(sha "$S5")" = "$S5SHA"; test "$(sha "$C3")" = "$C3SHA"; grep -q 'def c2_fingerprint' "$ENG"; systemctl --user is-active --quiet brotoculateur.service; wait_api; curl -fsS "$URL" >/tmp/co1v2-before.json
+          dh=$(sha "$DASH"); co1hash=ABSENT; [ ! -f "$CO1" ] || co1hash=$(sha "$CO1")
+          if [ "$dh" = "$PRE" ] && [ "$co1hash" = ABSENT ]; then state=PRE_CO1; elif [ "$dh" = "$POST" ] && [ "$co1hash" = "$CO1SHA" ]; then state=POST_CO1; else exit 3; fi
+          echo "CO1V2_SOURCE_STATE=$state"; echo "CO1V2_DASHBOARD_SHA256=$dh"; echo "CO1V2_MODULE_SHA256=$co1hash"; echo "CO1V2_EXPECTED_MODULE_SHA256=$CO1SHA"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/co1v2-before.json')); s5=d.get('s5_fast_index') or {}; c=d.get('co1_archive') or {}; t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('S5_OBSERVATIONS',s5.get('observations')),('S5_INDEXED',s5.get('indexed')),('S5_BLOCKED',sum(int(s5.get(x) or 0) for x in ('blocked_s4_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch','capacity_rejections'))),('S5_UNIQUE_ENTRIES',s5.get('unique_fast_entries')),('S5_UNIQUE_Z',s5.get('unique_z_indexed')),('CO1_OBSERVATIONS',c.get('observations')),('CO1_ELIGIBLE',c.get('eligible_s5')),('CO1_APPENDED',c.get('appended_records')),('CO1_PRESENT',c.get('already_present')),('CO1_LOADED_RECORDS',c.get('loaded_records')),('CO1_LOADED_DUPLICATES',c.get('loaded_duplicate_ids')),('CO1_PHYSICAL_RECORDS',c.get('physical_records_seen')),('CO1_UNIQUE_RECORDS',c.get('unique_archive_records')),('CO1_UNIQUE_Z',c.get('unique_z_archived')),('CO1_BUCKETS',c.get('occupied_buckets_archived')),('CO1_BYTES',c.get('archive_bytes')),('CO1_LOAD_ERRORS',c.get('load_errors')),('CO1_WRITE_ERRORS',c.get('write_errors'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          s5o=int(s5.get('observations') or 0); s5i=int(s5.get('indexed') or 0); s5b=sum(int(s5.get(x) or 0) for x in ('blocked_s4_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch','capacity_rejections')); assert s5o==s5i+s5b
+          if os.environ['SOURCE_STATE']=='POST_CO1':
+              assert c.get('enabled') is True and c.get('authority')=='PERSISTENCE_ONLY'; assert c.get('thread_safe_deduplication') is True and c.get('preexisting_duplicate_lines_preserved') is True
+              assert c.get('persistent') is True and c.get('append_only') is True and c.get('fsync_on_new_record') is True and c.get('rewrites_existing_records') is False
+              assert c.get('age_policy_defined') is False and c.get('hot_removal_enabled') is False and int(c.get('hot_evictions') or 0)==0; assert c.get('hash_chain_enabled') is False and c.get('co2_owns_hash_chain') is True
+              assert c.get('scientific_proof_claim') is False and c.get('proof_promotion') is False and c.get('validation_state_mutated') is False and c.get('controls_routing') is False and c.get('controls_scheduling') is False and c.get('controls_calculation') is False
+              co=int(c.get('observations') or 0); eligible=int(c.get('eligible_s5') or 0); appended=int(c.get('appended_records') or 0); present=int(c.get('already_present') or 0); loaded=int(c.get('loaded_records') or 0); physical=int(c.get('physical_records_seen') or 0)
+              assert co==s5o and eligible==s5i and int(c.get('blocked_s5_other') or 0)==s5b; assert appended+present==eligible; assert physical==loaded+appended
+              assert int(c.get('blocked_missing_formula') or 0)==0 and int(c.get('blocked_missing_z') or 0)==0 and int(c.get('blocked_formula_mismatch') or 0)==0 and int(c.get('blocked_archive_unavailable') or 0)==0 and int(c.get('load_errors') or 0)==0 and int(c.get('write_errors') or 0)==0 and c.get('available') is True
+          print('CO1V2_AUDIT_ONLY=PASS')
+          PY
+          if [ -f "$ARCHIVE" ]; then echo "CO1V2_ARCHIVE_LINES=$(wc -l < "$ARCHIVE")"; echo "CO1V2_ARCHIVE_SHA256=$(sha "$ARCHIVE")"; fi
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_CO1
+          STAGE="/tmp/co1v2-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_co1_archive.py "$STAGE"; test "$(sha "$STAGE/src/brotoculateur/co1_archive.py")" = "$CO1SHA"; test "$(sha "$STAGE/src/brotoculateur/dashboard.py")" = "$POST"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_S1_ENABLED=1 BROTO_S2_ENABLED=1 BROTO_S3_ENABLED=1 BROTO_S4_ENABLED=1 BROTO_S5_ENABLED=1 BROTO_CO1_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_co1_archive.py
+          PYTHONPATH="$STAGE/src" BROTO_CO1_ENABLED=1 python3 /tmp/test_co1_concurrency.py
+          echo CO1V2_EXACT_LIVE_STAGE=PASS
+          before_state=$(python3 -c "import json;print(json.load(open('/tmp/co1v2-before.json')).get('state'))")
+          [ "$before_state" != RUNNING ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/co1v2-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$S5" "$C3" "$B/"; cp -a /tmp/co1v2-before.json "$B/status-before.json"; [ ! -f "$ARCHIVE" ] || cp -a "$ARCHIVE" "$B/archive-before.jsonl"; echo "CO1V2_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-co1.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$CO1" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; wait_api && curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; echo 'CO1V2_ROLLBACK_ARCHIVE_PRESERVED=YES'; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/co1_archive.py" "$CO1"; printf '[Service]\nEnvironment="BROTO_CO1_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; wait_api; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/co1v2-live.json; if python3 - <<'PY'
+          import json,sys
+          d=json.load(open('/tmp/co1v2-live.json')); s5=d.get('s5_fast_index') or {}; c=d.get('co1_archive') or {}; s5o=int(s5.get('observations') or 0); s5i=int(s5.get('indexed') or 0); s5b=sum(int(s5.get(x) or 0) for x in ('blocked_s4_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch','capacity_rejections')); co=int(c.get('observations') or 0); eligible=int(c.get('eligible_s5') or 0); physical=int(c.get('physical_records_seen') or 0); loaded=int(c.get('loaded_records') or 0); appended=int(c.get('appended_records') or 0); present=int(c.get('already_present') or 0); good=d.get('state')=='RUNNING' and co>0 and co==s5o and eligible==s5i and int(c.get('blocked_s5_other') or 0)==s5b and appended+present==eligible and physical==loaded+appended and int(c.get('load_errors') or 0)==0 and int(c.get('write_errors') or 0)==0 and c.get('available') is True and c.get('thread_safe_deduplication') is True; sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/co1v2-live.json')); s5=d.get('s5_fast_index') or {}; c=d.get('co1_archive') or {}; print('CO1V2_LIVE_STATE='+str(d.get('state'))); print('CO1V2_LIVE_S5_OBSERVATIONS='+str(s5.get('observations'))); print('CO1V2_LIVE_S5_INDEXED='+str(s5.get('indexed'))); print('CO1V2_LIVE_OBSERVATIONS='+str(c.get('observations'))); print('CO1V2_LIVE_ELIGIBLE='+str(c.get('eligible_s5'))); print('CO1V2_LIVE_APPENDED='+str(c.get('appended_records'))); print('CO1V2_LIVE_PRESENT='+str(c.get('already_present'))); print('CO1V2_LIVE_LOADED_RECORDS='+str(c.get('loaded_records'))); print('CO1V2_LIVE_LOADED_DUPLICATES='+str(c.get('loaded_duplicate_ids'))); print('CO1V2_LIVE_PHYSICAL_RECORDS='+str(c.get('physical_records_seen'))); print('CO1V2_LIVE_UNIQUE_RECORDS='+str(c.get('unique_archive_records'))); print('CO1V2_LIVE_UNIQUE_Z='+str(c.get('unique_z_archived'))); print('CO1V2_LIVE_BUCKETS='+str(c.get('occupied_buckets_archived'))); print('CO1V2_LIVE_BYTES='+str(c.get('archive_bytes'))); print('CO1V2_LIVE_VERIFY=PASS')
+          PY
+          physical=$(python3 -c "import json;print(int((json.load(open('/tmp/co1v2-live.json')).get('co1_archive') or {}).get('physical_records_seen') or 0))"); test "$(wc -l < "$ARCHIVE")" -eq "$physical"; test "$(sha "$DASH")" = "$POST"; test "$(sha "$CO1")" = "$CO1SHA"; echo "CO1V2_ARCHIVE_SHA256=$(sha "$ARCHIVE")"; echo "CO1V2_POST_DASHBOARD_SHA256=$POST"; trap - ERR; rm -rf "$STAGE"; echo CO1V2_WORKFLOW=PASS
+          REMOTE
