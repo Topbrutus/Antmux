@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import tempfile
@@ -10,14 +10,20 @@ from brotoculateur.orchestrator import ExperimentSpec
 
 def main() -> None:
     os.environ["BROTO_ZSTAMP_ENABLED"] = "1"
-    os.environ["BROTO_ZSTAMP_PERCENT"] = "100"
+    os.environ["BROTO_ZSTAMP_PERCENT"] = "10"
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        spec = ExperimentSpec(duration_seconds=60, max_depth=2, max_active_branches=32, max_packets=200)
-        service = DashboardService(Path(tmp) / "store", spec=spec, tick_seconds=0.01)
+        spec = ExperimentSpec(duration_seconds=60, max_depth=2, max_active_branches=32, max_packets=300)
+        service = DashboardService(
+            Path(tmp) / "store",
+            spec=spec,
+            tick_seconds=0.01,
+            sleeping_pool_enabled=True,
+        )
         try:
-            service.reset((6337,))
+            service.reset((343, 703, 2701, 6337, 11611))
             service.step(1)
             before = service.status()["brutus_cortex"]
+            assert int(before["total_root_selected"]) == 1, before
             assert int(before["children_stamped"]) > 0, before
             assert int(before["total_children_stamped"]) > 0, before
             saved_total = int(before["total_children_stamped"])
@@ -35,4 +41,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
