@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
           STAGE="/tmp/antmux-storage-repair-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=30 "$VPS_USER@$VPS_HOST" \
             "STAGE='$STAGE' bash -se" <<'REMOTE'
           set -euo pipefail
           test "$(hostname)" = "server1.antmux.com"
@@ -123,6 +123,7 @@ jobs:
             s2="$(stat -c %s "$path")"
             echo "OUTBOX_STABILITY path=$path before=$s1 after=$s2"
             test "$s1" = "$s2"
+            rm -f "${path}.compact.tmp"
             python3 "$STAGE/compact_brotomagique_outbox.py" "$path"
           }
 
@@ -170,6 +171,26 @@ jobs:
           assert ok == 'ok'
           PY
           rm -f "$QUEEN_DB.precompact"
+
+          # Activate the already-validated Brotomagique compact/gzip writers only after space is recovered.
+          systemctl --user restart brotoculateur.service
+          broto_ok=0
+          for _ in $(seq 1 40); do
+            if systemctl --user is-active --quiet brotoculateur.service && \
+               curl -fsS --max-time 2 http://127.0.0.1:8781/api/status >/tmp/broto-status.json; then
+              broto_ok=1
+              break
+            fi
+            sleep 1
+          done
+          test "$broto_ok" -eq 1
+          python3 - <<'PY'
+          import json
+          p='/tmp/broto-status.json'
+          d=json.load(open(p, encoding='utf-8'))
+          print('BROTO_AFTER_RESTART state='+str(d.get('state'))+' run_id='+str(d.get('run_id'))+' worker_error='+str(d.get('worker_error')))
+          assert d.get('state') == 'PAUSED'
+          PY
 
           echo '--- AFTER ---'
           df -h /

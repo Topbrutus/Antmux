@@ -34,10 +34,16 @@ def compact(path: Path) -> dict:
     output_bytes = 0
     lines = 0
     errors = 0
+    progress_step = 512 * 1024 * 1024
+    next_progress = progress_step
+    tmp.unlink(missing_ok=True)
     with path.open("rb") as src, tmp.open("wb") as dst:
         for raw in src:
             source_hash.update(raw)
             source_bytes += len(raw)
+            if source_bytes >= next_progress:
+                print(f"OUTBOX_COMPACT_PROGRESS path={path} source_bytes={source_bytes} lines={lines}", flush=True)
+                next_progress += progress_step
             if not raw.strip():
                 continue
             try:
