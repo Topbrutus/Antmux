@@ -49,3 +49,38 @@ Mutations require explicit confirmation token BRUTUS-C5-VPS.
 The workflow verifies C1/C2/C3/C4 first, stages and tests an exact live copy before pause, then save/pause/backup/restart/start with rollback on error.
 
 No C5 live deployment is claimed by this checkpoint until the workflow has succeeded and an independent audit has passed.
+
+## Live deployment result
+PR #266 was merged into main as merge commit `5beb3297fe6d8aa77d235af7a833395b7ae675b6`.
+
+VPS audit before deployment:
+- run `38353666664`: PASS
+- source state: PRE_C5
+- state: RUNNING
+- C2 = C3 = C4 = 152,830 observations
+- C5 absent
+
+C5 canary deployment:
+- run `38353735968`: SUCCESS
+- exact live-stage tests: PASS
+- save/pause/backup/restart/start: PASS
+- first live sample: 23 observations, all RARE_8, max fingerprint count 2, untracked capacity 0
+- backup: `brotoculateur/backups/c5-20261013T055347Z`
+
+Independent post-deploy audit:
+- run `38353812518`: PASS
+- source state: POST_C5
+- state: RUNNING
+- processed packets: 13,294
+- crystals reported: 1,604,771
+- C2 = C3 = C4 = C5 = 75,302 observations
+- C5 classes:
+  - RARE_8: 25,175
+  - RARE_6: 16,653
+  - SCARCE_4: 17,946
+  - CONVERGENT_2: 12,278
+  - COMMON_1_CONTROL: 3,250
+- root disk used: 58%
+- root disk free: 49,478,336 KB
+
+C5 remains SHADOW_ONLY: reference rights are not applied, scheduling is unchanged, compute skips remain zero, values are unchanged, and proof promotion remains disabled.
