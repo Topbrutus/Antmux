@@ -1,4 +1,4 @@
-# ASTRA CHECKPOINT — BRUTUS C7 ROUTER
+﻿# ASTRA CHECKPOINT â€” BRUTUS C7 ROUTER
 
 Date: 2026-10-13
 Status before live deployment: local exact-live stage PASS
@@ -51,7 +51,7 @@ The patch was applied to an exact POST-C6 copy.
 
 Post-C7 hashes:
 - `c6_provenance.py`: `81a24a088817274e423688b3133ca3b7d568b1790fb8a7df2ccb37c31aaeeefd`
-- `c7_router.py`: `a58f7a9cd35d15a2448ebea18badebcb0dabc2833429dcdcc6ad61d25830bd7f`
+- `c7_router.py` Git/Linux: `9290fd8db6a34b0df3e94ad0281963ee3b7c5531fa955eb946e1aa10675c30f6`
 - `orchestrator.py`: `e22f0f8dc54765243f2e62a20c2dc841efa6d6bb860a3f0b48fa8f67b7cfb7ee`
 - `dashboard.py`: `a146aa18a5ff01c82a879e8810a9a58b359709dd469cb1aa94c571c44224ab6e`
 
@@ -80,3 +80,4 @@ Sequence:
 9. rollback automatically on failure.
 
 No reset of crystal data is authorized by this workflow.
+

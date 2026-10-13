@@ -1,4 +1,4 @@
-name: Deploy Brotoculateur C7 Shadow Router VPS
+﻿name: Deploy Brotoculateur C7 Shadow Router VPS
 
 on:
   workflow_dispatch:
@@ -99,7 +99,7 @@ jobs:
           PRE_ORCH='ad079319b4dfc3c6d0f3994d2638a81ae686015bae9b7aa3a9b5052df69afa74'
           PRE_DASH='5af116fe28120ee9c463a4a980751101294fc51e086c54594482b46f37dc7296'
           POST_C6='81a24a088817274e423688b3133ca3b7d568b1790fb8a7df2ccb37c31aaeeefd'
-          POST_C7='a58f7a9cd35d15a2448ebea18badebcb0dabc2833429dcdcc6ad61d25830bd7f'
+          POST_C7='9290fd8db6a34b0df3e94ad0281963ee3b7c5531fa955eb946e1aa10675c30f6'
           POST_ORCH='e22f0f8dc54765243f2e62a20c2dc841efa6d6bb860a3f0b48fa8f67b7cfb7ee'
           POST_DASH='a146aa18a5ff01c82a879e8810a9a58b359709dd469cb1aa94c571c44224ab6e'
 
@@ -333,3 +333,4 @@ jobs:
           rm -rf "${STAGE:-}"
           echo 'C7_WORKFLOW=PASS'
           REMOTE
+
