@@ -1,13 +1,6 @@
 name: Deploy Brotoculateur Papillon Rarity VPS
 
 on:
-  push:
-    branches:
-      - astra/vps-papillon-rarity-20261012
-    paths:
-      - '.github/workflows/deploy-brotoculateur-papillon-rarity-vps.yml'
-      - 'deploy/vps-storage/patch_brotoculateur_papillon_rarity.py'
-      - 'deploy/vps-storage/papillon-rarity-rollout-mode.txt'
   workflow_dispatch:
     inputs:
       mode:
