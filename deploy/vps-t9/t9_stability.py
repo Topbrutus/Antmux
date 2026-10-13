@@ -173,6 +173,7 @@ class T9StabilityTelemetry:
             "distinct_baselines": len(self._baselines),
             "baseline_capacity": self.max_baselines,
             "evictions": self.evictions,
+            "eviction_policy": "LRU",
             "by_formula": {k: dict(v) for k, v in sorted(self.by_formula.items())},
             "recent_limit": RECENT_LIMIT,
             "recent": list(self._recent),
