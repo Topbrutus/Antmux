@@ -1,4 +1,4 @@
-name: Maintain VPS Storage
+﻿name: Maintain VPS Storage
 
 on:
   workflow_dispatch:
@@ -71,10 +71,10 @@ jobs:
 
           # Lossless cold compression for legacy crystals; new writes are already gzip-native.
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$VPS_USER@$VPS_HOST" \
-            'tmp=$(mktemp); cat > "$tmp"; nice -n 10 python3 "$tmp" "$HOME/brotoculateur/brutomagique/crystals" --min-age-seconds 1800 --max-files 5000; rm -f "$tmp"' \
+            'tmp=$(mktemp); cat > "$tmp"; nice -n 10 python3 "$tmp" "$HOME/brotoculateur/brutomagique/crystals" --min-age-seconds 1800 --max-files 25000; rm -f "$tmp"' \
             < deploy/vps-storage/compress_brotomagique_crystals.py
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$VPS_USER@$VPS_HOST" \
-            'tmp=$(mktemp); cat > "$tmp"; nice -n 10 python3 "$tmp" "$HOME/AppData/Local/Brotoculateur/brotoculateur-overflow/brutomagique/crystals" --min-age-seconds 1800 --max-files 5000; rm -f "$tmp"' \
+            'tmp=$(mktemp); cat > "$tmp"; nice -n 10 python3 "$tmp" "$HOME/AppData/Local/Brotoculateur/brotoculateur-overflow/brutomagique/crystals" --min-age-seconds 1800 --max-files 25000; rm -f "$tmp"' \
             < deploy/vps-storage/compress_brotomagique_crystals.py
 
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
@@ -146,3 +146,4 @@ jobs:
           if command -v lsof >/dev/null 2>&1; then lsof +L1 2>/dev/null | sort -k7 -nr | head -20 || true; fi
           systemctl --user show brutus-public.service -p ActiveState -p SubState -p NRestarts --no-pager
           REMOTE
+
