@@ -59,3 +59,43 @@ Le canary exige :
 
 ## Statut avant déploiement
 READY_FOR_PR — pas encore déployé au moment de cette section.
+## Validation live VPS — 2026-10-13
+
+T8 a été déployé en shadow sur le Brotoculateur live après audit PRE_T8 exact.
+
+### Déploiement canary
+- workflow: `38373497747`
+- source initiale: `PRE_T8`
+- backup: `brotoculateur/backups/t8-20261013T090251Z`
+- état: RUNNING
+- 488 résultats Brutomagique observés pendant la fenêtre canary
+- 488 observations T8
+- 488 PASS
+- 0 FAIL
+- 0 LIMITED
+- couverture: 1.0
+- delta T8 = delta Brutomagique = 488
+- relation_passes = 488
+- workflow: PASS
+
+### Audit indépendant POST_T8
+- workflow: `38373619414`
+- source: `POST_T8`
+- état: RUNNING
+- processed_packets: 9 341
+- cristaux: 1 757 480
+- T7 packets: 9 341
+- T8 observations: 52 709
+- T8 PASS: 52 709
+- T8 FAIL: 0
+- T8 LIMITED: 0
+- disque root: 59%
+- audit: PASS
+
+### Interprétation
+T8 contre-teste toutes les sorties des 10 formules actuellement enregistrées au moyen de relations distinctes du calcul forward lorsque possible. Les résultats ci-dessus établissent le bon fonctionnement de la télémétrie T8 dans cette configuration live ; ils ne constituent pas une preuve scientifique générale.
+
+`ValidationState.COUNTERTESTED` reste volontairement inchangé.
+
+## Statut final
+LIVE_VALIDATED_SHADOW — T8 actif, aucune autorité moteur, aucune promotion de preuve.
