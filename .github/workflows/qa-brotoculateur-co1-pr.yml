@@ -5,6 +5,7 @@ on:
     paths:
       - 'deploy/vps-co1/**'
       - '.github/workflows/deploy-brotoculateur-co1-vps.yml'
+      - '.github/workflows/deploy-brotoculateur-co1-v2-vps.yml'
       - '.github/workflows/qa-brotoculateur-co1-pr.yml'
 
 permissions:
@@ -22,7 +23,8 @@ jobs:
           python3 -m py_compile \
             deploy/vps-co1/co1_archive.py \
             deploy/vps-co1/patch_brotoculateur_co1_archive.py \
-            deploy/vps-co1/test_co1_archive.py
+            deploy/vps-co1/test_co1_archive.py \
+            deploy/vps-co1/test_co1_concurrency.py
           echo CO1_PR_PYCOMPILE=PASS
       - name: Static contract guards
         run: |
@@ -31,6 +33,9 @@ jobs:
           grep -Fq '"authority": "PERSISTENCE_ONLY"' "$f"
           grep -Fq '"append_only": True' "$f"
           grep -Fq '"fsync_on_new_record": True' "$f"
+          grep -Fq '"deduplicates_by_archive_id": True' "$f"
+          grep -Fq '"thread_safe_deduplication": True' "$f"
+          grep -Fq '"preexisting_duplicate_lines_preserved": True' "$f"
           grep -Fq '"rewrites_existing_records": False' "$f"
           grep -Fq '"age_policy_defined": False' "$f"
           grep -Fq '"hot_removal_enabled": False' "$f"
