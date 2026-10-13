@@ -1,0 +1,389 @@
+name: Deploy Brotoculateur T9 Stability VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start T9 stability shadow, or disable T9
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-T9-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-t9-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and T9 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-T9-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-t9/t9_stability.py \
+            deploy/vps-t9/patch_brotoculateur_t9_stability.py \
+            deploy/vps-t9/test_t9_stability.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage T9 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-t9/t9_stability.py \
+            deploy/vps-t9/patch_brotoculateur_t9_stability.py \
+            deploy/vps-t9/test_t9_stability.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy T9
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          PAP="$PKG/papillon_engine.py"
+          T6MOD="$PKG/t6_papillon.py"
+          T7MOD="$PKG/t7_calculation.py"
+          T8MOD="$PKG/t8_countertest.py"
+          T9MOD="$PKG/t9_stability.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_PAP='87045c18db95871f4cc9521bdfae1c7c4175dcf0a09ef33a8f7e35c5879fa50a'
+          EXPECT_T6='6c58c96cd46de6f10851e443b5882ffdd2c505c82f907b325cae250e1ffd0792'
+          EXPECT_T7='5d6ce094a5b9238994182d56b1740555633f4c49983a40e4abceb0a7495303fd'
+          EXPECT_T8='a93bd6cd9aaaf0fe832604de9e390e6d69de7dfb8b853e558d8c9955761cce9e'
+          EXPECT_ORCH='cf4978cb315f817abf2283f41630c322a80ccbb94c75662eac8b4a87c7a05d63'
+          PRE_DASH='8a294e39869babd68ff7c5456afbbd5d740ca44aec360e60a0f5bd8a1335e94e'
+          EXPECT_T9='0c49cccb8a32d579f987655c3555451083e193c761f1ba85a8b3d5c657de88e0'
+
+          test -f "$PAP" -a -f "$T6MOD" -a -f "$T7MOD" -a -f "$T8MOD" -a -f "$ORCH" -a -f "$DASH"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t9-before.json
+
+          pap_hash=$(sha256sum "$PAP"|awk '{print $1}')
+          t6_hash=$(sha256sum "$T6MOD"|awk '{print $1}')
+          t7_hash=$(sha256sum "$T7MOD"|awk '{print $1}')
+          t8_hash=$(sha256sum "$T8MOD"|awk '{print $1}')
+          orch_hash=$(sha256sum "$ORCH"|awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH"|awk '{print $1}')
+          if [ -f "$T9MOD" ]; then t9_hash=$(sha256sum "$T9MOD"|awk '{print $1}'); else t9_hash='ABSENT'; fi
+
+          test "$pap_hash" = "$EXPECT_PAP"
+          test "$t6_hash" = "$EXPECT_T6"
+          test "$t7_hash" = "$EXPECT_T7"
+          test "$t8_hash" = "$EXPECT_T8"
+          test "$orch_hash" = "$EXPECT_ORCH"
+
+          source_state='UNKNOWN'
+          if [ "$dash_hash" = "$PRE_DASH" ] && [ "$t9_hash" = 'ABSENT' ]; then
+            source_state='PRE_T9'
+          elif [ "$t9_hash" = "$EXPECT_T9" ]; then
+            if python3 - "$DASH" <<'PY'
+          import sys
+          text=open(sys.argv[1],encoding='utf-8').read()
+          markers=[
+              'from .t9_stability import T9StabilityTelemetry',
+              'self.t9_stability = T9StabilityTelemetry()',
+              't8_outcome = self.t8_countertest.observe(formula_id, source, out)',
+              'self.t9_stability.observe(formula_id, source, out, t8_outcome)',
+              '"t9_stability": self.t9_stability.status(),',
+          ]
+          assert all(text.count(m) >= 1 for m in markers)
+          assert text.count('from .t9_stability import T9StabilityTelemetry') == 1
+          assert text.count('"t9_stability": self.t9_stability.status(),') == 1
+          PY
+            then source_state='POST_T9'; fi
+          fi
+          test "$source_state" != 'UNKNOWN'
+          echo "T9_SOURCE_STATE=$source_state"
+          echo "T9_DASHBOARD_SHA256=$dash_hash"
+          echo "T9_MODULE_SHA256=$t9_hash"
+
+          SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/t9-before.json',encoding='utf-8'))
+          t8=d.get('t8_countertest') or {}
+          t9=d.get('t9_stability') or {}
+          bm=d.get('brutomagique') or {}
+          print('STATE='+str(d.get('state')))
+          print('PROCESSED='+str(d.get('processed_packets')))
+          print('CRYSTALS='+str(bm.get('total_crystals')))
+          print('T8_ENABLED='+str(t8.get('enabled')))
+          print('T8_OBSERVATIONS='+str(t8.get('observations')))
+          print('T8_PASS='+str(t8.get('passed')))
+          print('T8_FAIL='+str(t8.get('failed')))
+          print('T8_LIMITED='+str(t8.get('limited')))
+          print('T9_MODE='+str(t9.get('mode')))
+          print('T9_ENABLED='+str(t9.get('enabled')))
+          print('T9_OBSERVATIONS='+str(t9.get('observations')))
+          print('T9_REPEATS='+str(t9.get('repeat_observations')))
+          print('T9_STABLE_REPEATS='+str(t9.get('stable_repeats')))
+          print('T9_DRIFTS='+str(t9.get('drifts')))
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert t8.get('enabled') is True
+          assert t8.get('authority') == 'SHADOW_ONLY'
+          assert int(t8.get('failed') or 0) == 0
+          assert int(t8.get('limited') or 0) == 0
+          if os.environ['SOURCE_STATE']=='POST_T9' and t9.get('enabled') is True:
+              assert t9.get('authority')=='SHADOW_ONLY'
+              assert t9.get('source_of_truth')=='T8_PASS_CALLBACK'
+              assert t9.get('requires_t8_pass') is True
+              assert t9.get('scientific_proof_claim') is False
+              assert t9.get('validation_state_mutated') is False
+              assert t9.get('controls_calculation') is False
+              assert int(t9.get('compute_skips') or 0) == 0
+              assert t9.get('proof_promotion') is False
+              assert int(t9.get('observations') or 0) == int(t8.get('observations') or 0)
+              assert int(t9.get('drifts') or 0) == 0
+          print('T9_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then exit 0; fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$source_state" = 'PRE_T9'
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t9-before.json',encoding='utf-8'))
+          t8=d.get('t8_countertest') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'} and not d.get('worker_error')
+          assert t8.get('enabled') is True
+          assert t8.get('authority') == 'SHADOW_ONLY'
+          assert int(t8.get('failed') or 0) == 0
+          assert int(t8.get('limited') or 0) == 0
+          print('T9_REQUIRES_T8=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-t9-stage-$$"
+            rm -rf "$STAGE"; mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_t9_stability.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t8_countertest.py"|awk '{print $1}')" = "$EXPECT_T8"
+            test "$(sha256sum "$STAGE/src/brotoculateur/t9_stability.py"|awk '{print $1}')" = "$EXPECT_T9"
+            python3 -m py_compile \
+              "$STAGE/src/brotoculateur/dashboard.py" \
+              "$STAGE/src/brotoculateur/t8_countertest.py" \
+              "$STAGE/src/brotoculateur/t9_stability.py"
+            PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 python3 /tmp/test_t9_stability.py
+            STAGE_DASH_SHA=$(sha256sum "$STAGE/src/brotoculateur/dashboard.py"|awk '{print $1}')
+            echo "T9_STAGE_DASHBOARD_SHA256=$STAGE_DASH_SHA"
+            echo 'T9_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_T9'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/t9-before.json',encoding='utf-8')).get('state')=='RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/t9-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/t9-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/t9-paused.json
+          python3 - <<'PY'
+          import json
+          assert json.load(open('/tmp/t9-paused.json',encoding='utf-8')).get('state')=='PAUSED'
+          print('T9_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/t9-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$DASH" "$BACKUP/"
+          cp -a "$T8MOD" "$BACKUP/"
+          [ ! -f "$T9MOD" ] || cp -a "$T9MOD" "$BACKUP/"
+          cp -a /tmp/t9-before.json "$BACKUP/status-before.json"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/99-brutus-t9.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0; [ ! -f "$DROPIN" ] || { HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/99-brutus-t9.conf"; }
+          HAD_T9=0; [ ! -f "$T9MOD" ] || HAD_T9=1
+          echo "T9_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?; set +e; echo "T9_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            cp -a "$BACKUP/t8_countertest.py" "$T8MOD"
+            if [ "$HAD_T9" = 1 ]; then cp -a "$BACKUP/t9_stability.py" "$T9MOD"; else rm -f "$T9MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/99-brutus-t9.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then
+              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t9-rollback-start.json || true
+            fi
+            echo 'T9_ROLLBACK_DONE'
+            exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/t9_stability.py" "$T9MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T9_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_T9_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t9-after.json; then
+              ok=1; break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/t9-after.json',encoding='utf-8'))
+          t8=d.get('t8_countertest') or {}
+          t9=d.get('t9_stability') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert t8.get('enabled') is True
+          assert t8.get('authority') == 'SHADOW_ONLY'
+          if os.environ['MODE']=='canary_start':
+              assert t9.get('mode')=='BRUTUS_T9_STABILITY_V1'
+              assert t9.get('enabled') is True
+              assert t9.get('authority')=='SHADOW_ONLY'
+              assert t9.get('source_of_truth')=='T8_PASS_CALLBACK'
+              assert t9.get('requires_t8_pass') is True
+              assert t9.get('controls_calculation') is False
+              assert t9.get('proof_promotion') is False
+          else:
+              assert t9.get('enabled') is False
+          print('T9_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            BASE_T8=$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t9-after.json',encoding='utf-8'))
+          print(int((d.get('t8_countertest') or {}).get('observations') or 0))
+          PY
+          )
+            BASE_T9=$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/t9-after.json',encoding='utf-8'))
+          print(int((d.get('t9_stability') or {}).get('observations') or 0))
+          PY
+          )
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/t9-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/t9-live.json || true
+              if BASE_T8="$BASE_T8" BASE_T9="$BASE_T9" MODE="$MODE" python3 - <<'PY'
+          import json, os, sys
+          try:
+              d=json.load(open('/tmp/t9-live.json',encoding='utf-8'))
+          except Exception:
+              sys.exit(1)
+          t8=d.get('t8_countertest') or {}
+          t9=d.get('t9_stability') or {}
+          good=d.get('state')=='RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE')=='canary_start':
+              dt8=int(t8.get('observations') or 0)-int(os.environ['BASE_T8'])
+              dt9=int(t9.get('observations') or 0)-int(os.environ['BASE_T9'])
+              repeats=int(t9.get('repeat_observations') or 0)
+              good=good and dt9>0 and dt9==dt8
+              good=good and int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0
+              good=good and int(t9.get('upstream_fail') or 0)==0
+              good=good and int(t9.get('upstream_limited') or 0)==0
+              good=good and int(t9.get('upstream_other') or 0)==0
+              good=good and int(t9.get('drifts') or 0)==0
+              if repeats > 0:
+                  good=good and float(t9.get('stability_rate') or 0.0)==1.0
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+
+            BASE_T8="$BASE_T8" BASE_T9="$BASE_T9" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/t9-live.json',encoding='utf-8'))
+          t8=d.get('t8_countertest') or {}
+          t9=d.get('t9_stability') or {}
+          dt8=int(t8.get('observations') or 0)-int(os.environ['BASE_T8'])
+          dt9=int(t9.get('observations') or 0)-int(os.environ['BASE_T9'])
+          print('T9_LIVE_STATE='+str(d.get('state')))
+          print('T9_LIVE_PROCESSED='+str(d.get('processed_packets')))
+          print('T9_LIVE_T8_OBSERVATIONS='+str(t8.get('observations')))
+          print('T9_LIVE_OBSERVATIONS='+str(t9.get('observations')))
+          print('T9_LIVE_ELIGIBLE_PASS='+str(t9.get('eligible_pass_observations')))
+          print('T9_LIVE_BASELINES='+str(t9.get('baselines_created')))
+          print('T9_LIVE_REPEATS='+str(t9.get('repeat_observations')))
+          print('T9_LIVE_STABLE_REPEATS='+str(t9.get('stable_repeats')))
+          print('T9_LIVE_DRIFTS='+str(t9.get('drifts')))
+          print('T9_LIVE_STABILITY_RATE='+str(t9.get('stability_rate')))
+          print('T9_LIVE_EVICTIONS='+str(t9.get('evictions')))
+          print('T9_LIVE_DELTA_T8='+str(dt8))
+          print('T9_LIVE_DELTA_T9='+str(dt9))
+          print('T9_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$DASH"|awk '{print $1}')" = "$STAGE_DASH_SHA"
+            test "$(sha256sum "$T8MOD"|awk '{print $1}')" = "$EXPECT_T8"
+            test "$(sha256sum "$T9MOD"|awk '{print $1}')" = "$EXPECT_T9"
+            echo "T9_POST_DASHBOARD_SHA256=$STAGE_DASH_SHA"
+          fi
+
+          df -P / | awk 'NR==2 {print "T9_ROOT_DISK_USED=" $5 " T9_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'T9_WORKFLOW=PASS'
+          REMOTE
