@@ -1,0 +1,50 @@
+name: Capture Brotoculateur Live Source
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type CAPTURE-BROTO-LIVE'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'CAPTURE-BROTO-LIVE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Capture live source
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p capture
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            'cat "$HOME/brotoculateur/src/brotoculateur/brutomagique.py"' > capture/brutomagique.py
+          python3 -m py_compile capture/brutomagique.py
+          sha256sum capture/brutomagique.py > capture/SHA256SUMS
+
+      - name: Upload captured source
+        uses: actions/upload-artifact@v4
+        with:
+          name: brotoculateur-live-source
+          path: capture/
+          retention-days: 1
+          if-no-files-found: error
