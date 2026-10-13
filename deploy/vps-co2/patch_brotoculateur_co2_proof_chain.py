@@ -70,7 +70,7 @@ def main(root: Path) -> None:
     )
     d = replace_once(
         d,
-        "        co1_outcome = self.co1_archive.observe(formula_id, source, out, s5_outcome)\n",
+        "        self.co1_archive.observe(formula_id, source, out, s5_outcome)\n",
         "        co1_outcome = self.co1_archive.observe(formula_id, source, out, s5_outcome)\n        self.co2_proof_chain.observe(formula_id, source, out, co1_outcome)\n",
         "callback",
     )
