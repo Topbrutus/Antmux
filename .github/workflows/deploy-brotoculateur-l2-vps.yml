@@ -1,0 +1,109 @@
+name: Deploy Brotoculateur L2 Threshold VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: brotoculateur-l2-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-L2-VPS'; fi
+          python3 -m py_compile deploy/vps-l2/l2_threshold.py deploy/vps-l2/patch_brotoculateur_l2_threshold.py deploy/vps-l2/test_l2_threshold.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage L2 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-l2/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy L2
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; L1="$PKG/l1_crystal_score.py"; L2="$PKG/l2_threshold.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='b0f450f62bd6096fe4481fb1bed5a9072a866d117e4b772d91ab8663f0485749'; L1SHA='2f5d674410d284e0e274a2ef347666d3cd18aa4a0235a4cc5fdabcb37469bca4'; L2SHA='912b662ee544a76f5b7db6f37d265ba0bb748f8b3d5a32287df93d2b12c0b898'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$L1")" = "$L1SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/l2-before.json
+          dh=$(sha "$DASH"); lh=ABSENT; [ ! -f "$L2" ] || lh=$(sha "$L2")
+          if [ "$dh" = "$PRE" ] && [ "$lh" = ABSENT ]; then state=PRE_L2; elif [ "$lh" = "$L2SHA" ]; then state=POST_L2; else exit 3; fi
+          echo "L2_SOURCE_STATE=$state"; echo "L2_DASHBOARD_SHA256=$dh"; echo "L2_MODULE_SHA256=$lh"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/l2-before.json')); t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; t10=d.get('t10_replay') or {}; t11=d.get('t11_budget') or {}; t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('L1_OBSERVATIONS',l1.get('observations')),('L1_SCORE_AVERAGE',l1.get('score_average')),('L2_OBSERVATIONS',l2.get('observations')),('L2_COMPARED',l2.get('compared')),('L2_ABOVE',l2.get('at_or_above_reference')),('L2_BELOW',l2.get('below_reference'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          assert int(t8.get('observations') or 0)==int(t9.get('observations') or 0)==int(t10.get('observations') or 0)==int(t11.get('observations') or 0)==int(t12.get('observations') or 0)==int(l1.get('observations') or 0)
+          assert int(l1.get('scored') or 0)==int(l1.get('observations') or 0); assert l1.get('applies_threshold') is False
+          if os.environ['SOURCE_STATE']=='POST_L2' and l2.get('enabled') is True:
+              assert l2.get('authority')=='SHADOW_ONLY'; assert float(l2.get('threshold'))==75.0
+              assert l2.get('threshold_scientifically_calibrated') is False and l2.get('scientific_threshold_claim') is False
+              assert l2.get('accepts_candidate') is False and l2.get('rejects_candidate') is False and l2.get('proof_promotion') is False
+              assert int(l2.get('observations') or 0)==int(l1.get('observations') or 0)==int(l2.get('compared') or 0)
+              assert int(l2.get('blocked_l1_other') or 0)==0 and int(l2.get('blocked_score_invalid') or 0)==0
+          print('L2_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_L2
+          STAGE="/tmp/l2-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_l2_threshold.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/l2_threshold.py")" = "$L2SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_l2_threshold.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "L2_STAGE_DASHBOARD_SHA256=$sd"; echo L2_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/l2-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/l2-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$L1" "$B/"; cp -a /tmp/l2-before.json "$B/status-before.json"; echo "L2_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-l2.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$L2" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/l2_threshold.py" "$L2"; printf '[Service]\nEnvironment="BROTO_L2_ENABLED=1"\nEnvironment="BROTO_L2_THRESHOLD=75"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/l2-zero.json
+          b1=$(python3 -c "import json;print(int((json.load(open('/tmp/l2-zero.json')).get('l1_crystal_score') or {}).get('observations') or 0))"); b2=$(python3 -c "import json;print(int((json.load(open('/tmp/l2-zero.json')).get('l2_threshold') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/l2-live.json; if B1="$b1" B2="$b2" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/l2-live.json')); l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}; a=int(l1.get('observations') or 0)-int(os.environ['B1']); b=int(l2.get('observations') or 0)-int(os.environ['B2']); sys.exit(0 if d.get('state')=='RUNNING' and b>0 and a==b and int(l2.get('compared') or 0)==int(l2.get('observations') or 0) and int(l2.get('blocked_l1_other') or 0)==0 and int(l2.get('blocked_score_invalid') or 0)==0 else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/l2-live.json')); l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}
+          print('L2_LIVE_STATE='+str(d.get('state'))); print('L2_LIVE_L1_OBSERVATIONS='+str(l1.get('observations'))); print('L2_LIVE_OBSERVATIONS='+str(l2.get('observations'))); print('L2_LIVE_COMPARED='+str(l2.get('compared'))); print('L2_LIVE_THRESHOLD='+str(l2.get('threshold'))); print('L2_LIVE_ABOVE='+str(l2.get('at_or_above_reference'))); print('L2_LIVE_BELOW='+str(l2.get('below_reference'))); print('L2_LIVE_MARGIN_AVG='+str(l2.get('margin_average'))); print('L2_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$L2")" = "$L2SHA"; echo "L2_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo L2_WORKFLOW=PASS
+          REMOTE
