@@ -94,7 +94,7 @@ jobs:
           EXPECT_T8='a93bd6cd9aaaf0fe832604de9e390e6d69de7dfb8b853e558d8c9955761cce9e'
           EXPECT_ORCH='cf4978cb315f817abf2283f41630c322a80ccbb94c75662eac8b4a87c7a05d63'
           PRE_DASH='8a294e39869babd68ff7c5456afbbd5d740ca44aec360e60a0f5bd8a1335e94e'
-          EXPECT_T9='0c49cccb8a32d579f987655c3555451083e193c761f1ba85a8b3d5c657de88e0'
+          EXPECT_T9='c0e0309dfe6d571c1d786010f72bc6f8bf3ccdada1f5fa960ab6f428e3640dd1'
 
           test -f "$PAP" -a -f "$T6MOD" -a -f "$T7MOD" -a -f "$T8MOD" -a -f "$ORCH" -a -f "$DASH"
           systemctl --user is-active --quiet brotoculateur.service
