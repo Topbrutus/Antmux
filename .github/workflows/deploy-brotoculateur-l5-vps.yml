@@ -1,0 +1,109 @@
+name: Deploy Brotoculateur L5 Placement VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: brotoculateur-l5-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-L5-VPS'; fi
+          python3 -m py_compile deploy/vps-l5/l5_placement.py deploy/vps-l5/patch_brotoculateur_l5_placement.py deploy/vps-l5/test_l5_placement.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage L5 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-l5/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy L5
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; L4="$PKG/l4_canon.py"; L5="$PKG/l5_placement.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='4476ae0d83542226a1c37ab1b069a11a59d106f8e8ee0807b697ddc9e0f67bb0'; L4SHA='9f8ff4d83cec6721eefe0a04bfd333861d47e7e10b17a85dec2dcaf1b9dc336d'; L5SHA='cd1d0fa824ddf753c5471d7c8c2d04211f364a3b411ae55a57dc25a653e0e55d'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$L4")" = "$L4SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/l5-before.json
+          dh=$(sha "$DASH"); lh=ABSENT; [ ! -f "$L5" ] || lh=$(sha "$L5")
+          if [ "$dh" = "$PRE" ] && [ "$lh" = ABSENT ]; then state=PRE_L5; elif [ "$lh" = "$L5SHA" ]; then state=POST_L5; else exit 3; fi
+          echo "L5_SOURCE_STATE=$state"; echo "L5_DASHBOARD_SHA256=$dh"; echo "L5_MODULE_SHA256=$lh"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/l5-before.json')); t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; t10=d.get('t10_replay') or {}; t11=d.get('t11_budget') or {}; t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}; l3=d.get('l3_press') or {}; l4=d.get('l4_canon') or {}; l5=d.get('l5_placement') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('L4_OBSERVATIONS',l4.get('observations')),('L4_CANONICAL_RECORDS',l4.get('canonical_records')),('L4_BLOCKED_L3_OTHER',l4.get('blocked_l3_other')),('L4_BLOCKED_MISSING_Z',l4.get('blocked_missing_z')),('L4_UNIQUE_CANONICAL_Z',l4.get('unique_canonical_z')),('L5_OBSERVATIONS',l5.get('observations')),('L5_PLACED',l5.get('placed')),('L5_UNIQUE_PLACED_Z',l5.get('unique_placed_z'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          assert int(t8.get('observations') or 0)==int(t9.get('observations') or 0)==int(t10.get('observations') or 0)==int(t11.get('observations') or 0)==int(t12.get('observations') or 0)==int(l1.get('observations') or 0)==int(l2.get('observations') or 0)==int(l3.get('observations') or 0)==int(l4.get('observations') or 0)
+          l4o=int(l4.get('observations') or 0); l4c=int(l4.get('canonical_records') or 0); l4b3=int(l4.get('blocked_l3_other') or 0); l4bz=int(l4.get('blocked_missing_z') or 0); assert l4o==l4c+l4b3+l4bz
+          if os.environ['SOURCE_STATE']=='POST_L5' and l5.get('enabled') is True:
+              assert l5.get('authority')=='SHADOW_ONLY'; assert l5.get('prototype_placement_literal')=='HOT'; assert l5.get('hot_is_logical_class') is True
+              assert l5.get('physical_temperature_claim') is False and l5.get('priority_claim') is False and l5.get('storage_tier_claim') is False
+              assert l5.get('canonical_z_is_output_z_id') is True and l5.get('creates_new_identity') is False and l5.get('s1_aggregator_input') is True and l5.get('proof_promotion') is False
+              l5o=int(l5.get('observations') or 0); l5p=int(l5.get('placed') or 0); l5b4=int(l5.get('blocked_l4_other') or 0); l5bz=int(l5.get('blocked_missing_z') or 0)
+              assert l5o==l4o and l5p==l4c and l5b4==l4b3+l4bz and l5bz==0 and l5o==l5p+l5b4+l5bz
+              assert int(l5.get('unique_placed_z') or 0)==int(l4.get('unique_canonical_z') or 0); assert int((l5.get('placement_classes') or {}).get('HOT') or 0)==l5p
+          print('L5_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_L5
+          STAGE="/tmp/l5-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_l5_placement.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/l5_placement.py")" = "$L5SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_l5_placement.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "L5_STAGE_DASHBOARD_SHA256=$sd"; echo L5_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/l5-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/l5-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$L4" "$B/"; cp -a /tmp/l5-before.json "$B/status-before.json"; echo "L5_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-l5.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$L5" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/l5_placement.py" "$L5"; printf '[Service]\nEnvironment="BROTO_L5_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/l5-zero.json
+          b4=$(python3 -c "import json;print(int((json.load(open('/tmp/l5-zero.json')).get('l4_canon') or {}).get('observations') or 0))"); b5=$(python3 -c "import json;print(int((json.load(open('/tmp/l5-zero.json')).get('l5_placement') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/l5-live.json; if B4="$b4" B5="$b5" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/l5-live.json')); l4=d.get('l4_canon') or {}; l5=d.get('l5_placement') or {}; a=int(l4.get('observations') or 0)-int(os.environ['B4']); b=int(l5.get('observations') or 0)-int(os.environ['B5']); l4o=int(l4.get('observations') or 0); l4c=int(l4.get('canonical_records') or 0); l4b3=int(l4.get('blocked_l3_other') or 0); l4bz=int(l4.get('blocked_missing_z') or 0); l5o=int(l5.get('observations') or 0); l5p=int(l5.get('placed') or 0); l5b=int(l5.get('blocked_l4_other') or 0); good=d.get('state')=='RUNNING' and b>0 and a==b and l4o==l4c+l4b3+l4bz and l5o==l4o and l5p==l4c and l5b==l4b3+l4bz and int(l5.get('blocked_missing_z') or 0)==0 and int((l5.get('placement_classes') or {}).get('HOT') or 0)==l5p; sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/l5-live.json')); l4=d.get('l4_canon') or {}; l5=d.get('l5_placement') or {}; print('L5_LIVE_STATE='+str(d.get('state'))); print('L5_LIVE_L4_OBSERVATIONS='+str(l4.get('observations'))); print('L5_LIVE_L4_CANONICAL_RECORDS='+str(l4.get('canonical_records'))); print('L5_LIVE_OBSERVATIONS='+str(l5.get('observations'))); print('L5_LIVE_PLACED='+str(l5.get('placed'))); print('L5_LIVE_UNIQUE_PLACED_Z='+str(l5.get('unique_placed_z'))); print('L5_LIVE_PLACEMENT_CLASSES='+str(l5.get('placement_classes'))); print('L5_LIVE_REFERENCE_SIDES='+str(l5.get('reference_sides'))); print('L5_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$L5")" = "$L5SHA"; echo "L5_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo L5_WORKFLOW=PASS
+          REMOTE
