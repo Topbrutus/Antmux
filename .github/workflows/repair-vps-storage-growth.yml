@@ -33,7 +33,8 @@ jobs:
             deploy/vps-storage/compact_queen_db.py \
             deploy/vps-storage/prune_brotoculateur_snapshots.py \
             deploy/vps-storage/compress_brotomagique_crystals.py \
-            deploy/vps-storage/patch_brotomagique_compact_outbox.py
+            deploy/vps-storage/patch_brotomagique_compact_outbox.py \
+            deploy/vps-storage/patch_brotomagique_gzip_crystals.py
 
       - name: Configure pinned SSH identity
         env:
@@ -68,6 +69,7 @@ jobs:
             deploy/vps-storage/compact_queen_db.py \
             deploy/vps-storage/prune_brotoculateur_snapshots.py \
             deploy/vps-storage/patch_brotomagique_compact_outbox.py \
+            deploy/vps-storage/patch_brotomagique_gzip_crystals.py \
             "$REMOTE_STAGE/"
 
       - name: Repair proven storage growth
@@ -105,6 +107,7 @@ jobs:
 
           # Patch only future outbox writes. The running process is intentionally not restarted.
           python3 "$STAGE/patch_brotomagique_compact_outbox.py" "$BROTO_SOURCE"
+          python3 "$STAGE/patch_brotomagique_gzip_crystals.py" "$BROTO_SOURCE"
           python3 -m py_compile "$BROTO_SOURCE"
 
           compact_if_stable() {
@@ -171,3 +174,4 @@ jobs:
           systemctl --user show brutus-public.service -p ActiveState -p SubState -p NRestarts --no-pager
           rm -rf "$STAGE"
           REMOTE
+
