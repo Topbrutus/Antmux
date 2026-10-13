@@ -1,51 +1,51 @@
 # ASTRA CHECKPOINT — BRUTUS COLONNE 37
 
-Date locale chantier : 2026-10-12
+Date : 2026-10-12
 Branche : `astra/brutus-colonne-37-20261012`
-Base : `origin/main` @ `4fa8f26929eaa38a536a7dc9d5221bd74444c8fb`
+Statut : prototype isolé du live VPS
 
-## But
+## Architecture
 
-Prototype isolé du VPS vivant : 33 vertèbres-instruments + 4 organes maîtres = 37 postes.
+- 33 vertèbres-instruments.
+- 4 organes maîtres.
+- 37 postes au total.
+- Organes : Cortex Brutus / Pinéale, Papillon, Bibliothèque 37, Reine/Fourmis.
 
-Organes maîtres :
-1. Constante Brutus
-2. Papillon
-3. Bibliothèque ultra-rapide 37 voies
-4. Reine/Fourmis
+## Changement V2 — Cortex Z
 
-Constante de référence :
+Le Cortex Brutus intervient désormais entre C1 et C2 :
+
+`C1 Entrée -> Cortex Brutus / Pinéale -> Z-STAMP -> C2 Empreinte Z -> C3 Bibliothèque`
+
+Le Cortex contient la référence à la Constante Brutus :
+
 `B = 7^21 / 10^17 = 5.58545864083284007`
 
-La constante est transportée et tracée, mais n'est pas appliquée automatiquement aux valeurs.
+La constante n'est jamais appliquée numériquement de manière implicite.
 
-## Résultat ciblé
+## Contrat Z
 
-Tests : `7 passed in 5.79s`.
+- `Z-ID` : identité canonique de la matière.
+- `provenance_digest` : trace propre à chaque chemin.
+- `parent_z` : parent de lignée, conservé séparément.
+- C2 produit ensuite l'empreinte technique de la matière déjà estampée.
+- Des chemins différents peuvent donc converger vers un même Z sans perdre leur provenance.
 
-Test de poussière :
-- observations : 245000
-- cristaux canoniques : 1
-- chemins indépendants : 37
-- poussières absorbées : 244999
-- évaluations des vertèbres : 33 pour cette identité
-- replay budget après forte fréquence : 1
+## Vérification
 
-Le cache empêche le recalcul des 33 instruments pour les doublons exacts et conserve compteur + chemins.
+Suite ciblée : **11/11 PASS**.
 
-## Mesure 37
+Test massif V2 :
 
-Le squelette mesure explicitement modulo 37, quotient et divisibilité.
+- observations poussière : 245000;
+- canonique : 1;
+- chemins indépendants : 37;
+- provenances : 37;
+- schéma : `BRUTUS-COLONNE-37-PROTOTYPE-v2-ZSTAMP`;
+- postes : 37.
 
-Exemples du demo :
-- 111 : divisible par 37, quotient 3
-- 999 : divisible par 37, quotient 27
-- 11611 : reste 30 modulo 37
+La démo complète termine avec code 0.
 
-## Sécurité / portée
+## Séparation du live
 
-- Aucun déploiement VPS.
-- Aucun reset du live.
-- Aucun cristal live supprimé ou modifié.
-- Prototype de structure/stockage, pas preuve mathématique.
-- La pancarte complète des 45 nombres n'est volontairement pas inventée dans le code. Le jeu exact doit être importé depuis sa source autoritative, puis `11611` ajouté.
+Aucun changement n'a été appliqué au Brotoculateur VPS par ce prototype. La page `laboratoire/brutus-colonne-37/index.html` est une page de comparaison/prototype isolée.

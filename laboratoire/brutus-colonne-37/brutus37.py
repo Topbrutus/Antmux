@@ -11,6 +11,7 @@ from typing import Any
 getcontext().prec = 80
 BRUTUS_CONSTANT = (Decimal(7) ** 21) / (Decimal(10) ** 17)
 BRUTUS_CONSTANT_TEXT = "5.58545864083284007"
+Z_STAMP_SCHEMA = "BRUTUS-Z-STAMP-v1"
 
 
 def utc_now() -> str:
@@ -48,15 +49,109 @@ def is_square(n: int) -> bool:
     return r * r == n
 
 
+@dataclass(frozen=True)
+class ZStamp:
+    """Brutus seal placed after C1 and before C2.
+
+    z_id is canonical for the matter itself, so identical matter from different
+    paths keeps one identity. Provenance and parent lineage remain separate.
+    """
+
+    z_id: str
+    normalized_value: int
+    formula_id: str
+    level: str
+    constant_reference: str
+    cortex_version: str
+    parent_z: str | None
+    provenance_digest: str
+    route37: int
+
+    def canonical_identity(self) -> dict[str, Any]:
+        return {
+            "schema": Z_STAMP_SCHEMA,
+            "z_id": self.z_id,
+            "normalized_value": self.normalized_value,
+            "formula_id": self.formula_id,
+            "level": self.level,
+            "constant_reference": self.constant_reference,
+            "cortex_version": self.cortex_version,
+        }
+
+    def lineage_view(self) -> dict[str, Any]:
+        return {
+            "parent_z": self.parent_z,
+            "provenance_digest": self.provenance_digest,
+            "route37": self.route37,
+        }
+
+    def as_dict(self) -> dict[str, Any]:
+        return {**self.canonical_identity(), **self.lineage_view()}
+
+
+class BrutusCortex:
+    """Master organ inserted between C1 Entrada and C2 Empreinte."""
+
+    VERSION = "BRUTUS-CORTEX-PINEALE-v1"
+
+    @staticmethod
+    def normalize(value: int) -> int:
+        # C1: explicit, deterministic normalization. No hidden mutation.
+        return int(value)
+
+    def stamp(
+        self,
+        normalized_value: int,
+        *,
+        formula_id: str,
+        level: str,
+        path: str,
+        parent_z: str | None = None,
+    ) -> ZStamp:
+        identity_payload = {
+            "schema": Z_STAMP_SCHEMA,
+            "normalized_value": int(normalized_value),
+            "formula_id": str(formula_id),
+            "level": str(level),
+            "brutus_constant": BRUTUS_CONSTANT_TEXT,
+            "cortex_version": self.VERSION,
+        }
+        digest = sha256_text(canonical(identity_payload))
+        z_id = "Z-" + digest[:32]
+        provenance_digest = sha256_text(
+            canonical({"z_id": z_id, "path": str(path), "parent_z": parent_z})
+        )
+        return ZStamp(
+            z_id=z_id,
+            normalized_value=int(normalized_value),
+            formula_id=str(formula_id),
+            level=str(level),
+            constant_reference=BRUTUS_CONSTANT_TEXT,
+            cortex_version=self.VERSION,
+            parent_z=parent_z,
+            provenance_digest=provenance_digest,
+            route37=int(digest[32:48], 16) % 37,
+        )
+
+    @staticmethod
+    def fingerprint(stamp: ZStamp) -> str:
+        """C2 technical fingerprint of matter that is already Z-stamped."""
+        return sha256_text(canonical(stamp.canonical_identity()))
+
+
 @dataclass
 class CrystalRecord:
     key: str
+    z_id: str
+    c2_fingerprint: str
     value: int
     formula_id: str
     level: str
     bucket37: int
     count: int = 0
     paths: set[str] = field(default_factory=set)
+    provenance_digests: set[str] = field(default_factory=set)
+    parent_z_ids: set[str] = field(default_factory=set)
     first_seen: str = ""
     last_seen: str = ""
     trace_digest: str = ""
@@ -80,7 +175,7 @@ class CrystalRecord:
 
 
 class FastLibrary37:
-    """37 hash lanes. Duplicate observations update one canonical record."""
+    """37 hash lanes. Duplicate Z identities update one canonical record."""
 
     def __init__(self) -> None:
         self._buckets: list[dict[str, CrystalRecord]] = [dict() for _ in range(37)]
@@ -89,19 +184,33 @@ class FastLibrary37:
         self.dust_collapsed = 0
 
     @staticmethod
-    def identity(value: int, formula_id: str, level: str) -> str:
-        return sha256_text(canonical({"value": int(value), "formula_id": formula_id, "level": level}))
+    def identity(z_id: str) -> str:
+        return sha256_text(canonical({"z_id": str(z_id)}))
 
     @staticmethod
     def lane(key: str) -> int:
         return int(key[:16], 16) % 37
 
-    def get(self, value: int, formula_id: str, level: str = "L1") -> CrystalRecord | None:
-        key = self.identity(value, formula_id, level)
+    def get_by_z(self, z_id: str) -> CrystalRecord | None:
+        key = self.identity(z_id)
         return self._buckets[self.lane(key)].get(key)
 
-    def observe(self, value: int, formula_id: str, path: str, *, level: str = "L1", trace_digest: str = "", brutus_constant_applied: bool = False) -> tuple[CrystalRecord, bool]:
-        key = self.identity(value, formula_id, level)
+    def get(self, value: int, formula_id: str, level: str = "L1") -> CrystalRecord | None:
+        # Compatibility helper: reconstruct canonical Z identity without path.
+        cortex = BrutusCortex()
+        z = cortex.stamp(int(value), formula_id=formula_id, level=level, path="lookup")
+        return self.get_by_z(z.z_id)
+
+    def observe(
+        self,
+        stamp: ZStamp,
+        c2_fingerprint: str,
+        path: str,
+        *,
+        trace_digest: str = "",
+        brutus_constant_applied: bool = False,
+    ) -> tuple[CrystalRecord, bool]:
+        key = self.identity(stamp.z_id)
         lane = self.lane(key)
         rec = self._buckets[lane].get(key)
         created = rec is None
@@ -109,9 +218,11 @@ class FastLibrary37:
         if created:
             rec = CrystalRecord(
                 key=key,
-                value=int(value),
-                formula_id=formula_id,
-                level=level,
+                z_id=stamp.z_id,
+                c2_fingerprint=c2_fingerprint,
+                value=stamp.normalized_value,
+                formula_id=stamp.formula_id,
+                level=stamp.level,
                 bucket37=lane,
                 first_seen=now,
                 trace_digest=trace_digest,
@@ -122,7 +233,10 @@ class FastLibrary37:
         else:
             self.dust_collapsed += 1
         rec.count += 1
-        rec.paths.add(path)
+        rec.paths.add(str(path))
+        rec.provenance_digests.add(stamp.provenance_digest)
+        if stamp.parent_z:
+            rec.parent_z_ids.add(stamp.parent_z)
         rec.last_seen = now
         self.observations += 1
         return rec, created
@@ -138,88 +252,127 @@ class FastLibrary37:
 
 
 class Spine33:
-    """33 deterministic instruments. They measure; they do not silently mutate the integer."""
+    """33 deterministic instruments. C1 precedes the Brutus Cortex; C2 follows it."""
 
     NAMES = (
-        "NORMALIZE", "SIGN", "ABS", "PARITY", "DIGITS", "DIGIT_SUM", "DIGITAL_ROOT",
-        "BIT_LENGTH", "MOD_37", "QUOTIENT_37", "DIVISIBLE_37", "MOD_7", "MOD_13",
-        "MOD_3", "MOD_9", "GCD_37", "GCD_7", "GCD_13", "IS_SQUARE", "REVERSED_DECIMAL",
-        "IS_PALINDROME", "V2", "V3", "V7", "V13", "POPCOUNT", "MOD_111", "MOD_273",
-        "MOD_343", "MOD_637", "MOD_2401", "BRUTUS_CONSTANT_REFERENCE", "ROUTE_SIGNATURE",
+        "C1_NORMALIZE", "C2_EMPREINTE_Z", "C3_LIBRARY", "C4_NOVELTY", "C5_RARITY",
+        "C6_PROVENANCE", "C7_ROUTER", "T1_FAMILY", "T2_EXACT_DUPLICATE", "T3_NEIGHBORHOOD",
+        "T4_CONVERGENCE", "T5_INDEPENDENCE", "T6_PAPILLON", "T7_CALCUL", "T8_COUNTERTEST",
+        "T9_STABILITY", "T10_REPLAY", "T11_BUDGET", "T12_CANDIDATE", "L1_CRYSTAL_SCORE",
+        "L2_THRESHOLD", "L3_PRESS", "L4_CANON", "L5_PLACEMENT", "S1_AGGREGATOR",
+        "S2_LINEAGE_INDEX", "S3_ROUTE_INDEX", "S4_FORMULA_INDEX", "S5_FAST_INDEX",
+        "CO1_ARCHIVE", "CO2_PROOF_CHAIN", "CO3_CHECKPOINT", "CO4_RESUME",
     )
 
-    def evaluate(self, value: int, route_signature: str) -> list[dict[str, Any]]:
+    def evaluate(self, value: int, route_signature: str, z_stamp: ZStamp, c2_fingerprint: str) -> list[dict[str, Any]]:
         n = int(value)
         s = str(abs(n))
-        reversed_n = int(s[::-1]) if s else 0
         values: list[Any] = [
             n,
-            -1 if n < 0 else (1 if n > 0 else 0),
-            abs(n),
-            "EVEN" if n % 2 == 0 else "ODD",
-            len(s),
-            sum(int(ch) for ch in s),
-            digital_root(n),
-            abs(n).bit_length(),
-            n % 37,
-            n // 37,
-            n % 37 == 0,
-            n % 7,
-            n % 13,
-            n % 3,
-            n % 9,
-            math.gcd(abs(n), 37),
-            math.gcd(abs(n), 7),
-            math.gcd(abs(n), 13),
-            is_square(n),
-            reversed_n,
-            s == s[::-1],
-            v_p(n, 2),
-            v_p(n, 3),
-            v_p(n, 7),
-            v_p(n, 13),
-            abs(n).bit_count(),
-            n % 111,
-            n % 273,
-            n % 343,
-            n % 637,
-            n % 2401,
-            BRUTUS_CONSTANT_TEXT,
+            c2_fingerprint,
+            z_stamp.route37,
+            {"known": False},
+            {"initial_replay_budget": 8},
+            z_stamp.provenance_digest,
             route_signature,
+            {"formula_id": z_stamp.formula_id},
+            {"z_id": z_stamp.z_id},
+            {"mod37": n % 37},
+            {"route37": z_stamp.route37},
+            {"parent_z": z_stamp.parent_z},
+            route_signature,
+            {"value": n, "constant_applied": False},
+            {"status": "UNTESTED"},
+            {"status": "UNMEASURED"},
+            8,
+            {"budget_class": "PROTOTYPE"},
+            {"candidate": True},
+            {"score": None},
+            {"threshold": None},
+            {"dust_key": z_stamp.z_id},
+            {"canonical_z": z_stamp.z_id},
+            "HOT",
+            {"aggregate_z": z_stamp.z_id},
+            {"parent_z": z_stamp.parent_z},
+            route_signature,
+            z_stamp.formula_id,
+            {"bucket37": z_stamp.route37},
+            {"archive": False},
+            {"trace": sha256_text(z_stamp.z_id + c2_fingerprint)},
+            {"checkpoint": None},
+            {"resume": None},
         ]
         assert len(values) == 33 == len(self.NAMES)
-        return [{"index": i + 1, "instrument": name, "measurement": val} for i, (name, val) in enumerate(zip(self.NAMES, values))]
+        return [
+            {"index": i + 1, "instrument": name, "measurement": val}
+            for i, (name, val) in enumerate(zip(self.NAMES, values))
+        ]
 
 
 class Brutus37Engine:
     """33 vertebrae + 4 master organs = 37-post prototype."""
 
-    ORGANS = ("BRUTUS_CONSTANT", "PAPILLON", "FAST_LIBRARY_37", "QUEEN_ANTS")
+    ORGANS = ("BRUTUS_CORTEX_PINEALE", "PAPILLON", "FAST_LIBRARY_37", "QUEEN_ANTS")
 
     def __init__(self) -> None:
+        self.cortex = BrutusCortex()
         self.library = FastLibrary37()
         self.spine = Spine33()
         self.vertebra_evaluations = 0
         self.cache_hits = 0
         self.cache_misses = 0
+        self.z_stamps_issued = 0
 
     @staticmethod
-    def papillon_route(value: int, formula_id: str, path: str) -> dict[str, int]:
-        digest = sha256_text(canonical({"value": int(value), "formula_id": formula_id, "path": path}))
+    def papillon_route(value: int, formula_id: str, path: str, z_id: str) -> dict[str, int]:
+        digest = sha256_text(
+            canonical({"value": int(value), "formula_id": formula_id, "path": path, "z_id": z_id})
+        )
         return {"route144": int(digest[:16], 16) % 144, "lane37": int(digest[16:32], 16) % 37}
 
-    def process(self, value: int, *, formula_id: str = "SEED", path: str = "root", level: str = "L1") -> dict[str, Any]:
-        value = int(value)
-        existing = self.library.get(value, formula_id, level)
-        route = self.papillon_route(value, formula_id, path)
+    def process(
+        self,
+        value: int,
+        *,
+        formula_id: str = "SEED",
+        path: str = "root",
+        level: str = "L1",
+        parent_z: str | None = None,
+    ) -> dict[str, Any]:
+        # C1 — Entrée / normalization.
+        normalized = self.cortex.normalize(value)
+
+        # Master organ — Brutus Cortex / Pineale. Z is sealed BEFORE C2.
+        z_stamp = self.cortex.stamp(
+            normalized,
+            formula_id=formula_id,
+            level=level,
+            path=path,
+            parent_z=parent_z,
+        )
+        self.z_stamps_issued += 1
+
+        # C2 — technical fingerprint of already stamped matter.
+        c2_fingerprint = self.cortex.fingerprint(z_stamp)
+        existing = self.library.get_by_z(z_stamp.z_id)
+        route = self.papillon_route(normalized, formula_id, path, z_stamp.z_id)
         route_signature = f"P{route['route144']:03d}/V{route['lane37']:02d}"
+        sequence = ["C1_ENTREE", "BRUTUS_CORTEX_PINEALE", "Z_STAMP", "C2_EMPREINTE"]
 
         if existing is not None:
             self.cache_hits += 1
-            rec, _ = self.library.observe(value, formula_id, path, level=level, trace_digest=existing.trace_digest)
+            rec, _ = self.library.observe(
+                z_stamp,
+                c2_fingerprint,
+                path,
+                trace_digest=existing.trace_digest,
+            )
             return {
-                "value": value,
+                "value": normalized,
                 "cache_hit": True,
+                "sequence": sequence,
+                "z_stamp": z_stamp.as_dict(),
+                "c2_fingerprint": c2_fingerprint,
                 "route": route,
                 "record": self._record_view(rec),
                 "vertebrae": None,
@@ -228,13 +381,21 @@ class Brutus37Engine:
             }
 
         self.cache_misses += 1
-        vertebrae = self.spine.evaluate(value, route_signature)
+        vertebrae = self.spine.evaluate(normalized, route_signature, z_stamp, c2_fingerprint)
         self.vertebra_evaluations += 33
-        trace_digest = sha256_text(canonical(vertebrae))
-        rec, _ = self.library.observe(value, formula_id, path, level=level, trace_digest=trace_digest)
+        trace_digest = sha256_text(canonical({"z_stamp": z_stamp.as_dict(), "vertebrae": vertebrae}))
+        rec, _ = self.library.observe(
+            z_stamp,
+            c2_fingerprint,
+            path,
+            trace_digest=trace_digest,
+        )
         return {
-            "value": value,
+            "value": normalized,
             "cache_hit": False,
+            "sequence": sequence,
+            "z_stamp": z_stamp.as_dict(),
+            "c2_fingerprint": c2_fingerprint,
             "route": route,
             "record": self._record_view(rec),
             "vertebrae": vertebrae,
@@ -246,9 +407,13 @@ class Brutus37Engine:
     def _record_view(rec: CrystalRecord) -> dict[str, Any]:
         return {
             "key": rec.key,
+            "z_id": rec.z_id,
+            "c2_fingerprint": rec.c2_fingerprint,
             "bucket37": rec.bucket37,
             "count": rec.count,
             "independent_paths": rec.independent_paths,
+            "provenance_count": len(rec.provenance_digests),
+            "parent_z_count": len(rec.parent_z_ids),
             "replay_budget": rec.replay_budget,
             "first_seen": rec.first_seen,
             "last_seen": rec.last_seen,
@@ -257,11 +422,14 @@ class Brutus37Engine:
 
     def status(self) -> dict[str, Any]:
         return {
-            "schema": "BRUTUS-COLONNE-37-PROTOTYPE-v1",
+            "schema": "BRUTUS-COLONNE-37-PROTOTYPE-v2-ZSTAMP",
             "posts": 37,
             "vertebrae": 33,
             "organs": list(self.ORGANS),
             "brutus_constant": BRUTUS_CONSTANT_TEXT,
+            "cortex_version": self.cortex.VERSION,
+            "z_stamp_schema": Z_STAMP_SCHEMA,
+            "z_stamps_issued": self.z_stamps_issued,
             "library": self.library.stats(),
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,

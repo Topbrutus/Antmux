@@ -13,17 +13,19 @@ def main() -> None:
     rows = []
     for seed in SEEDS:
         out = engine.process(seed, path=f"seed/{seed}")
-        measurements = {x["instrument"]: x["measurement"] for x in out["vertebrae"]}
         rows.append({
             "seed": seed,
-            "divisible_37": measurements["DIVISIBLE_37"],
-            "quotient_37": measurements["QUOTIENT_37"],
-            "mod_37": measurements["MOD_37"],
+            "divisible_37": seed % 37 == 0,
+            "quotient_37": seed // 37,
+            "mod_37": seed % 37,
+            "z_id": out["z_stamp"]["z_id"],
+            "z_route37": out["z_stamp"]["route37"],
             "bucket37": out["record"]["bucket37"],
             "papillon144": out["route"]["route144"],
+            "sequence": out["sequence"],
         })
 
-    # Simulate a large repeated dust pile without creating 245,000 heavyweight records.
+    # Simulate a large repeated dust pile while retaining one canonical Z identity.
     for i in range(245_000):
         engine.process(777, formula_id="DUST_DEMO", path=f"ant/{i % 37}")
 
@@ -33,7 +35,9 @@ def main() -> None:
         "dust_demo": {
             "observations": dust.count if dust else 0,
             "canonical_records": 1 if dust else 0,
+            "z_id": dust.z_id if dust else None,
             "independent_paths": dust.independent_paths if dust else 0,
+            "provenance_count": len(dust.provenance_digests) if dust else 0,
             "replay_budget": dust.replay_budget if dust else 0,
         },
         "engine": engine.status(),

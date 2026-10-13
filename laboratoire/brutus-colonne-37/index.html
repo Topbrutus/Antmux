@@ -3,83 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BRUTUS COLONNE 37 — Prototype isolé</title>
+<title>BRUTUS COLONNE 37 — Cortex Z-STAMP</title>
 <style>
-:root{color-scheme:dark;--bg:#08070a;--panel:#111017;--card:#17151f;--line:#383344;--text:#f7f4ff;--muted:#aaa2b8;--hot:#f1e9ff;--accent:#c8a8ff}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#2a193d 0,#0a0810 42%,#050506 100%);color:var(--text);font-family:Inter,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-a{color:inherit}.shell{max-width:1500px;margin:auto;padding:20px}.hero,.panel{border:1px solid var(--line);background:rgba(17,16,23,.94);border-radius:16px}.hero{padding:20px}.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.eyebrow{font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}.hero h1{font-size:30px;margin:7px 0 8px}.hero p{margin:0;max-width:900px;color:var(--muted);line-height:1.55}.badge{border:1px solid var(--accent);border-radius:999px;padding:9px 12px;font-size:11px;color:var(--hot)}
+:root{color-scheme:dark;--bg:#08070a;--panel:#111017;--card:#17151f;--line:#383344;--text:#f7f4ff;--muted:#aaa2b8;--hot:#f1e9ff;--accent:#c8a8ff;--z:#ffe99a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#2a193d 0,#0a0810 42%,#050506 100%);color:var(--text);font-family:Inter,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.shell{max-width:1500px;margin:auto;padding:20px}.hero,.panel{border:1px solid var(--line);background:rgba(17,16,23,.94);border-radius:16px}.hero{padding:20px}.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.eyebrow{font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}.hero h1{font-size:30px;margin:7px 0 8px}.hero p{margin:0;max-width:900px;color:var(--muted);line-height:1.55}.badge{border:1px solid var(--accent);border-radius:999px;padding:9px 12px;font-size:11px;color:var(--hot)}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:14px}.metric{border:1px solid var(--line);background:#0d0c12;border-radius:11px;padding:12px}.metric b{display:block;font-size:25px}.metric span{font-size:10px;color:var(--muted)}.panel{padding:18px;margin-top:15px}.panel h2{margin:0 0 6px;font-size:18px}.note{font-size:11px;color:var(--muted);line-height:1.5}
 .compare{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:stretch;margin-top:16px}.side{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px}.side h2{font-size:17px;margin:5px 0 9px}.side p{font-size:12px;color:var(--muted);line-height:1.5;margin:0}.arrow{display:grid;place-items:center;font-size:24px;color:var(--accent)}
-.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:14px}.metric{border:1px solid var(--line);background:#0d0c12;border-radius:11px;padding:12px}.metric b{display:block;font-size:25px}.metric span{font-size:10px;color:var(--muted)}
-.panel{padding:18px;margin-top:15px}.panel h2{margin:0 0 6px;font-size:18px}.note{font-size:11px;color:var(--muted);line-height:1.5}.organs{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px}.organ{border:1px solid var(--accent);border-radius:11px;padding:12px;background:#151020}.organ b{display:block}.organ span{font-size:10px;color:var(--muted)}
+.cortexflow{display:grid;grid-template-columns:1fr auto 1.35fr auto 1fr;gap:10px;align-items:stretch;margin-top:14px}.node{border:1px solid var(--line);border-radius:12px;background:#0c0b10;padding:14px}.node b{display:block;font-size:16px}.node span{display:block;margin-top:6px;font-size:10px;color:var(--muted);line-height:1.45}.cortex{border:2px solid var(--z);background:linear-gradient(135deg,#211b10,#1a1225)}.cortex b{color:var(--z)}.zstamp{display:inline-block;margin-top:9px;border:1px solid var(--z);border-radius:999px;padding:5px 8px;font-size:10px;color:var(--z)}
+.organs{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px}.organ{border:1px solid var(--accent);border-radius:11px;padding:12px;background:#151020}.organ:first-child{border-color:var(--z)}.organ b{display:block}.organ span{font-size:10px;color:var(--muted)}
 .spine{display:grid;grid-template-columns:repeat(11,1fr);gap:7px;margin-top:13px}.v{min-height:74px;border:1px solid var(--line);border-radius:9px;background:#0c0b10;padding:9px;cursor:pointer;text-align:left;color:var(--text)}.v:hover,.v.active{border-color:var(--accent);background:#1b1425}.v b{display:block;font-size:12px}.v span{display:block;font-size:9px;color:var(--muted);margin-top:5px}.detail{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:14px;background:#0c0b10}.detail strong{font-size:17px}.detail p{font-size:12px;color:var(--muted);line-height:1.55;margin:7px 0 0}
-.flow{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-top:12px}.flow div{border:1px solid var(--line);border-radius:9px;padding:11px;text-align:center;font-size:11px;background:#0c0b10}.dust{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-top:12px}.dust .big{font-size:34px;font-weight:800}.dust .box{border:1px solid var(--line);border-radius:11px;padding:14px;background:#0d0c12}.dust .tiny{font-size:10px;color:var(--muted)}.footer{padding:16px 0 6px;color:var(--muted);font-size:10px;text-align:center}
-@media(max-width:1000px){.metrics{grid-template-columns:repeat(3,1fr)}.spine{grid-template-columns:repeat(6,1fr)}.flow{grid-template-columns:repeat(4,1fr)}}
-@media(max-width:650px){.compare{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}.metrics{grid-template-columns:repeat(2,1fr)}.organs{grid-template-columns:1fr 1fr}.spine{grid-template-columns:repeat(3,1fr)}.flow{grid-template-columns:1fr 1fr}.dust{grid-template-columns:1fr}.dust .arrow{transform:rotate(90deg)}}
+.flow{display:grid;grid-template-columns:repeat(9,1fr);gap:7px;margin-top:12px}.flow div{border:1px solid var(--line);border-radius:9px;padding:11px;text-align:center;font-size:11px;background:#0c0b10}.flow .zf{border-color:var(--z);color:var(--z)}.dust{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-top:12px}.dust .big{font-size:34px;font-weight:800}.dust .box{border:1px solid var(--line);border-radius:11px;padding:14px;background:#0d0c12}.tiny{font-size:10px;color:var(--muted)}.footer{padding:16px 0 6px;color:var(--muted);font-size:10px;text-align:center}
+@media(max-width:1000px){.metrics{grid-template-columns:repeat(3,1fr)}.spine{grid-template-columns:repeat(6,1fr)}.flow{grid-template-columns:repeat(3,1fr)}.cortexflow{grid-template-columns:1fr}.cortexflow .arrow{transform:rotate(90deg)}}@media(max-width:650px){.compare{grid-template-columns:1fr}.compare .arrow{transform:rotate(90deg)}.metrics{grid-template-columns:repeat(2,1fr)}.organs{grid-template-columns:1fr 1fr}.spine{grid-template-columns:repeat(3,1fr)}.flow{grid-template-columns:1fr 1fr}.dust{grid-template-columns:1fr}.dust .arrow{transform:rotate(90deg)}}
 </style>
 </head>
 <body><div class="shell">
 <section class="hero">
-  <div class="top">
-    <div><div class="eyebrow">ANTMUX · LABORATOIRE · COMPARAISON A/B</div><h1>BRUTUS COLONNE 37</h1><p>Page séparée du Brotoculateur live. Elle montre le nouveau squelette : 33 vertèbres-instruments entourées de 4 organes maîtres. Aucun bouton de cette page ne commande le moteur vivant.</p></div>
-    <div class="badge">PROTOTYPE ISOLÉ · V1</div>
-  </div>
-  <div class="compare">
-    <div class="side"><div class="eyebrow">A · témoin</div><h2>Brotoculateur LIVE</h2><p>Moteur actuel, cristaux réellement produits, Papillon rareté et état VPS. On ne le modifie pas depuis cette page.</p></div>
-    <div class="arrow">→</div>
-    <div class="side"><div class="eyebrow">B · prototype</div><h2>Colonne 37</h2><p>Bibliothèque ultra-rapide, 33 instruments, agrégation de poussière, provenance et quatre organes maîtres.</p></div>
-  </div>
-  <div class="metrics">
-    <div class="metric"><b>37</b><span>postes complets</span></div>
-    <div class="metric"><b>33</b><span>vertèbres-instruments</span></div>
-    <div class="metric"><b>4</b><span>organes maîtres</span></div>
-    <div class="metric"><b>144</b><span>routes Papillon conservées</span></div>
-    <div class="metric"><b>37</b><span>compartiments bibliothèque</span></div>
-  </div>
+<div class="top"><div><div class="eyebrow">ANTMUX · LABORATOIRE · PROTOTYPE ISOLÉ</div><h1>BRUTUS COLONNE 37 — CORTEX Z</h1><p>Le Cortex Brutus intervient maintenant directement entre C1 et C2. Il scelle l’identité Z avant l’empreinte technique, sans ajouter une vertèbre et sans toucher au Brotoculateur live.</p></div><div class="badge">V2 · Z-STAMP ACTIF</div></div>
+<div class="compare"><div class="side"><div class="eyebrow">A · témoin</div><h2>Brotoculateur LIVE</h2><p>Moteur VPS actuel. Cette page ne possède aucune commande capable de l’écrire.</p></div><div class="arrow">→</div><div class="side"><div class="eyebrow">B · prototype</div><h2>Colonne 37 / Cortex Z</h2><p>33 vertèbres, 4 organes maîtres, bibliothèque rapide et scellement Z avant C2.</p></div></div>
+<div class="metrics"><div class="metric"><b>37</b><span>postes complets</span></div><div class="metric"><b>33</b><span>vertèbres</span></div><div class="metric"><b>4</b><span>organes maîtres</span></div><div class="metric"><b>144</b><span>routes Papillon</span></div><div class="metric"><b>Z</b><span>sceau avant C2</span></div></div>
 </section>
-
-<section class="panel">
-  <div class="eyebrow">4 organes maîtres</div><h2>Ce qui entoure la colonne</h2>
-  <div class="organs">
-    <div class="organ"><b>34 · Constante Brutus</b><span>référence disponible, jamais appliquée silencieusement</span></div>
-    <div class="organ"><b>35 · Papillon</b><span>routage, rareté, 144 routes</span></div>
-    <div class="organ"><b>36 · Bibliothèque 37</b><span>index rapide, canonique, compteurs</span></div>
-    <div class="organ"><b>37 · Reine / Fourmis</b><span>tri, fusion, recyclage, entretien</span></div>
-  </div>
-</section>
-
-<section class="panel">
-  <div class="eyebrow">33 vertèbres</div><h2>Parcours officiel</h2>
-  <div class="note">Clique une vertèbre. L’ordre affiché est le parcours enregistré dans <code>PARCOURS_OFFICIEL.md</code>.</div>
-  <div id="spine" class="spine"></div>
-  <div class="detail"><strong id="dName">C1 · Entrée</strong><p id="dRole">Reçoit et normalise la matière brute.</p></div>
-</section>
-
-<section class="panel">
-  <div class="eyebrow">Boucle complète</div><h2>Trajet d’une matière</h2>
-  <div class="flow"><div>Entrée</div><div>Bibliothèque</div><div>Rareté</div><div>Papillon</div><div>33 instruments</div><div>Fourmis</div><div>Retour mémoire</div></div>
-</section>
-
-<section class="panel">
-  <div class="eyebrow">Test prototype vérifié</div><h2>La différence qu’on veut voir</h2>
-  <div class="dust">
-    <div class="box"><div class="tiny">OBSERVATIONS POUSSIÈRE</div><div class="big">245 000</div><div class="tiny">même identité canonique dans le test</div></div>
-    <div class="arrow">→</div>
-    <div class="box"><div class="tiny">BIBLIOTHÈQUE</div><div class="big">1 canonique</div><div class="tiny">244 999 répétitions absorbées · 37 chemins conservés</div></div>
-  </div>
-  <p class="note">Ceci est un résultat du prototype isolé, pas un compteur du VPS live.</p>
-</section>
-
-<div class="footer">BRUTUS COLONNE 37 · LABORATOIRE ISOLÉ · AUCUNE COMMANDE LIVE</div>
+<section class="panel"><div class="eyebrow">Porte d’entrée</div><h2>Brutus entre les deux premières roues</h2><div class="cortexflow"><div class="node"><b>C1 · Entrée</b><span>Normalise explicitement la matière brute. Aucune transformation cachée.</span></div><div class="arrow">→</div><div class="node cortex"><b>Cortex Brutus / Pinéale</b><span>Référence la Constante Brutus, fabrique le Z-ID canonique et sépare la lignée/provenance de l’identité.</span><span class="zstamp">Z-STAMP</span></div><div class="arrow">→</div><div class="node"><b>C2 · Empreinte Z</b><span>Calcule l’empreinte technique de la matière déjà estampée.</span></div></div><p class="note">Même matière + chemins différents = même Z-ID, provenances différentes. Ainsi la fusion des poussières reste possible sans effacer leur histoire.</p></section>
+<section class="panel"><div class="eyebrow">4 organes maîtres</div><h2>Ce qui entoure la colonne</h2><div class="organs"><div class="organ"><b>34 · Cortex Brutus / Pinéale</b><span>Constante Brutus + sceau Z entre C1 et C2</span></div><div class="organ"><b>35 · Papillon</b><span>routage, rareté, 144 routes</span></div><div class="organ"><b>36 · Bibliothèque 37</b><span>index rapide, canonique, compteurs</span></div><div class="organ"><b>37 · Reine / Fourmis</b><span>tri, fusion, recyclage, entretien</span></div></div></section>
+<section class="panel"><div class="eyebrow">33 vertèbres</div><h2>Parcours officiel</h2><div class="note">Le Cortex Z est inséré entre les boutons 1 et 2 mais ne compte pas comme vertèbre supplémentaire.</div><div id="spine" class="spine"></div><div class="detail"><strong id="dName">1. C1 · Entrée</strong><p id="dRole">Reçoit et normalise la matière brute, puis la remet au Cortex Brutus.</p></div></section>
+<section class="panel"><div class="eyebrow">Boucle complète</div><h2>Trajet d’une matière</h2><div class="flow"><div>C1 Entrée</div><div class="zf">Cortex Brutus</div><div class="zf">Z-STAMP</div><div>C2 Empreinte</div><div>C3 Bibliothèque</div><div>Rareté</div><div>Papillon</div><div>Fourmis</div><div>Retour mémoire</div></div></section>
+<section class="panel"><div class="eyebrow">Test prototype</div><h2>Fusion sans perte de provenance</h2><div class="dust"><div class="box"><div class="tiny">POUSSIÈRES</div><div class="big">245 000</div><div class="tiny">une même matière</div></div><div class="arrow">→</div><div class="box"><div class="tiny">RÉSULTAT</div><div class="big">1 Z canonique</div><div class="tiny">244 999 répétitions absorbées · 37 chemins/provenances conservés</div></div></div><p class="note">Résultat du banc d’essai du prototype; ce nombre n’est pas un compteur live du VPS.</p></section>
+<div class="footer">BRUTUS COLONNE 37 · CORTEX Z · PROTOTYPE ISOLÉ · AUCUNE COMMANDE LIVE</div>
 </div>
 <script>
-const instruments=[
-['C1','Entrée','Reçoit et normalise la matière brute.'],['C2','Empreinte','Fabrique une identité canonique et rapide.'],['C3','Bibliothèque','Vérifie si l’objet est déjà connu.'],['C4','Nouveauté','Mesure connu, voisin ou nouveau.'],['C5','Rareté','Attribue davantage de budget aux objets rares.'],['C6','Provenance','Conserve et compare les chemins d’origine.'],['C7','Routeur','Décide vers quelle branche envoyer la matière.'],
-['T1','Famille','Classe la famille de transformation ou formule.'],['T2','Doublon exact','Détecte les copies strictement identiques.'],['T3','Voisinage','Cherche quasi-doublons et formes proches.'],['T4','Convergence','Détecte plusieurs chemins vers le même objet.'],['T5','Indépendance','Vérifie si ces chemins sont réellement indépendants.'],['T6','Papillon','Distribue le travail suivant rareté et intérêt.'],['T7','Calcul','Exécute la transformation mathématique désignée.'],['T8','Contre-test','Essaie activement de casser le résultat.'],['T9','Stabilité','Teste la résistance sous répétition contrôlée.'],['T10','Replay','Décide combien de recalculs sont mérités.'],['T11','Budget','Arbitre CPU, mémoire, stockage et temps.'],['T12','Candidat','Prépare la matière à la cristallisation.'],
-['L1','Score cristal','Évalue rareté, convergence et robustesse.'],['L2','Seuil','Décide si une promotion de niveau est permise.'],['L3','Presse','Condense les grosses quantités de poussière.'],['L4','Canon','Fabrique le cristal canonique de référence.'],['L5','Placement','Choisit mémoire HOT, WARM ou COLD.'],
-['S1','Agrégateur','Regroupe les occurrences d’une même famille.'],['S2','Index lignée','Retrouve parents, enfants et histoire du cristal.'],['S3','Index route','Indexe les parcours Papillon.'],['S4','Index formule','Indexe les résultats par formule.'],['S5','Index rapide','Fournit l’accès ultra-rapide à la bibliothèque.'],
-['Co1','Archive','Sort l’ancien du circuit chaud sans le perdre.'],['Co2','Chaîne de preuve','Conserve continuité et provenance.'],['Co3','Checkpoint','Fige un état récupérable.'],['Co4','Reprise','Restaure et redémarre depuis un checkpoint vérifié.']
-];
-const spine=document.getElementById('spine'), dn=document.getElementById('dName'), dr=document.getElementById('dRole');
-instruments.forEach((x,i)=>{const b=document.createElement('button');b.className='v'+(i===0?' active':'');b.type='button';b.innerHTML=`<b>${i+1}. ${x[0]}</b><span>${x[1]}</span>`;b.onclick=()=>{[...spine.children].forEach(n=>n.classList.remove('active'));b.classList.add('active');dn.textContent=`${i+1}. ${x[0]} · ${x[1]}`;dr.textContent=x[2]};spine.appendChild(b)});
+const instruments=[['C1','Entrée','Reçoit et normalise la matière brute, puis la remet au Cortex Brutus.'],['C2','Empreinte Z','Empreinte technique de la matière déjà estampée.'],['C3','Bibliothèque','Vérifie si le Z canonique est déjà connu.'],['C4','Nouveauté','Mesure connu, voisin ou nouveau.'],['C5','Rareté','Attribue davantage de budget aux objets rares.'],['C6','Provenance','Conserve les chemins et lignées Z.'],['C7','Routeur','Décide vers quelle branche envoyer la matière.'],['T1','Famille','Classe la famille de transformation ou formule.'],['T2','Doublon exact','Détecte les copies identiques.'],['T3','Voisinage','Cherche les formes proches.'],['T4','Convergence','Détecte plusieurs chemins vers le même objet.'],['T5','Indépendance','Vérifie l’indépendance des chemins.'],['T6','Papillon','Distribue le travail suivant rareté et intérêt.'],['T7','Calcul','Exécute la transformation mathématique désignée.'],['T8','Contre-test','Essaie de casser le résultat.'],['T9','Stabilité','Teste la résistance sous répétition.'],['T10','Replay','Décide combien de recalculs sont mérités.'],['T11','Budget','Arbitre CPU, mémoire, stockage et temps.'],['T12','Candidat','Prépare la matière à la cristallisation.'],['L1','Score cristal','Évalue rareté, convergence et robustesse.'],['L2','Seuil','Décide si une promotion est permise.'],['L3','Presse','Condense la poussière.'],['L4','Canon','Fabrique le cristal canonique.'],['L5','Placement','Choisit HOT, WARM ou COLD.'],['S1','Agrégateur','Regroupe les occurrences d’une famille.'],['S2','Index lignée','Retrouve parents, enfants et histoire Z.'],['S3','Index route','Indexe les parcours Papillon.'],['S4','Index formule','Indexe les résultats par formule.'],['S5','Index rapide','Accès ultra-rapide à la bibliothèque.'],['Co1','Archive','Sort l’ancien du circuit chaud sans le perdre.'],['Co2','Chaîne de preuve','Conserve continuité et provenance.'],['Co3','Checkpoint','Fige un état récupérable.'],['Co4','Reprise','Restaure depuis un checkpoint vérifié.']];
+const spine=document.getElementById('spine'),dn=document.getElementById('dName'),dr=document.getElementById('dRole');instruments.forEach((x,i)=>{const b=document.createElement('button');b.className='v'+(i===0?' active':'');b.type='button';b.innerHTML=`<b>${i+1}. ${x[0]}</b><span>${x[1]}</span>`;b.onclick=()=>{[...spine.children].forEach(n=>n.classList.remove('active'));b.classList.add('active');dn.textContent=`${i+1}. ${x[0]} · ${x[1]}`;dr.textContent=x[2]};spine.appendChild(b)});
 </script>
 </body></html>
