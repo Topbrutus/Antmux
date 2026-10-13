@@ -1,0 +1,41 @@
+name: QA Brotoculateur Co1 PR
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/vps-co1/**'
+      - '.github/workflows/deploy-brotoculateur-co1-vps.yml'
+      - '.github/workflows/qa-brotoculateur-co1-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            deploy/vps-co1/co1_archive.py \
+            deploy/vps-co1/patch_brotoculateur_co1_archive.py \
+            deploy/vps-co1/test_co1_archive.py
+          echo CO1_PR_PYCOMPILE=PASS
+      - name: Static contract guards
+        run: |
+          set -euo pipefail
+          f=deploy/vps-co1/co1_archive.py
+          grep -Fq '"authority": "PERSISTENCE_ONLY"' "$f"
+          grep -Fq '"append_only": True' "$f"
+          grep -Fq '"fsync_on_new_record": True' "$f"
+          grep -Fq '"rewrites_existing_records": False' "$f"
+          grep -Fq '"age_policy_defined": False' "$f"
+          grep -Fq '"hot_removal_enabled": False' "$f"
+          grep -Fq '"hash_chain_enabled": False' "$f"
+          grep -Fq '"co2_owns_hash_chain": True' "$f"
+          grep -Fq '"proof_promotion": False' "$f"
+          grep -Fq '"validation_state_mutated": False' "$f"
+          echo CO1_PR_STATIC_GUARDS=PASS
