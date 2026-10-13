@@ -1,10 +1,10 @@
-name: Disable public /carrou/ route
+name: Deploy disabled /carrou/ landing page
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type DISABLE-CARROU'
+        description: 'Type CARROU-LANDING'
         required: true
         default: ''
 
@@ -16,18 +16,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  disable:
-    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'DISABLE-CARROU'
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'CARROU-LANDING'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate disabled source
+      - name: Validate disabled landing source
         run: |
           set -euo pipefail
-          grep -Fq '/carrou/ est désactivé' carrou/index.html
+          test -f carrou/index.html
+          test -f carrou/brutus-papillon-144.jpg
+          grep -Fq "brutus-papillon-144.jpg" carrou/index.html
+          grep -Fq '← Retour' carrou/index.html
+          grep -Fq 'Carrou · en pause' carrou/index.html
           ! grep -Fq 'src="./app.js"' carrou/index.html
+          ! grep -Fq 'type="module"' carrou/index.html
           ! grep -Fq '../carrou/' generator/index.html
 
       - name: Configure pinned VPS SSH
@@ -42,7 +47,17 @@ jobs:
           printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Disable route on VPS with rollback backup
+      - name: Stage landing page
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            carrou/index.html carrou/brutus-papillon-144.jpg \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Install disabled landing with rollback backup
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -53,56 +68,47 @@ jobs:
           test "$(hostname)" = 'server1.antmux.com'
           ROOT='/var/www/antmux.com/public_html'
           CAR="$ROOT/carrou"
-          HOME_INDEX="$ROOT/index.html"
-          GEN_INDEX="$ROOT/generator/index.html"
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-          BACKUP="$HOME/static-backups/carrou-disabled-$STAMP"
+          BACKUP="$HOME/static-backups/carrou-landing-$STAMP"
           mkdir -p "$BACKUP"
 
           if [ -e "$CAR" ] || [ -L "$CAR" ]; then
-            cp -a "$CAR" "$BACKUP/carrou-before"
-          fi
-          [ ! -f "$HOME_INDEX" ] || cp -a "$HOME_INDEX" "$BACKUP/home-index-before.html"
-          [ ! -f "$GEN_INDEX" ] || cp -a "$GEN_INDEX" "$BACKUP/generator-index-before.html"
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          for raw in ['/var/www/antmux.com/public_html/index.html','/var/www/antmux.com/public_html/generator/index.html']:
-              p=Path(raw)
-              if not p.is_file():
-                  continue
-              text=p.read_text(encoding='utf-8')
-              text=re.sub(r'\s*<a\b[^>]*href=["\'](?:/carrou/?|\.\./carrou/?|carrou/?)["\'][^>]*>.*?</a>', '', text, flags=re.I|re.S)
-              p.write_text(text, encoding='utf-8')
-          PY
-
-          if [ -e "$CAR" ] || [ -L "$CAR" ]; then
-            chmod -R u+rwX "$CAR" 2>/dev/null || true
+            chmod u+rwx "$CAR" 2>/dev/null || true
+            cp -a "$CAR" "$BACKUP/carrou-before" 2>/dev/null || true
             rm -rf "$CAR"
           fi
-          mkdir "$CAR"
-          chmod 000 "$CAR"
+
+          mkdir -p "$CAR"
+          install -m 0644 /tmp/index.html "$CAR/index.html"
+          install -m 0644 /tmp/brutus-papillon-144.jpg "$CAR/brutus-papillon-144.jpg"
+          chmod 0755 "$CAR"
+          rm -f /tmp/index.html /tmp/brutus-papillon-144.jpg
 
           echo "BACKUP=$BACKUP"
-          echo 'CARROU_FILESYSTEM_GUARD=PASS'
-          test "$(stat -c '%a' "$CAR")" = '0'
-          ! grep -Fq '/carrou/' "$HOME_INDEX"
-          if [ -f "$GEN_INDEX" ]; then ! grep -Fq '../carrou/' "$GEN_INDEX"; fi
-          echo 'CARROU_LINK_REMOVAL=PASS'
+          sha256sum "$CAR/index.html" "$CAR/brutus-papillon-144.jpg" | tee "$BACKUP/deployed.sha256"
+          echo 'CARROU_DISABLED_LANDING_INSTALL=PASS'
           REMOTE
 
-      - name: Verify public route is closed
+      - name: Verify public disabled landing
         run: |
           set -euo pipefail
-          ok=0
           for _ in $(seq 1 20); do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 https://antmux.com/carrou/ || true)
+            code=$(curl -sS -o /tmp/carrou.html -w '%{http_code}' --max-time 8 https://antmux.com/carrou/ || true)
             echo "CARROU_HTTP=$code"
-            case "$code" in 403|404|410) ok=1; break;; esac
+            if [ "$code" = '200' ] \
+              && grep -Fq 'brutus-papillon-144.jpg' /tmp/carrou.html \
+              && grep -Fq '← Retour' /tmp/carrou.html \
+              && grep -Fq 'Carrou · en pause' /tmp/carrou.html \
+              && ! grep -Fq 'src="./app.js"' /tmp/carrou.html; then
+              image_code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 https://antmux.com/carrou/brutus-papillon-144.jpg || true)
+              echo "CARROU_BG_HTTP=$image_code"
+              test "$image_code" = '200'
+              curl -fsSL --max-time 8 https://antmux.com/ -o /tmp/antmux-home.html
+              ! grep -Fq 'href="/carrou/"' /tmp/antmux-home.html
+              echo 'CARROU_DISABLED_LANDING=PASS'
+              exit 0
+            fi
             sleep 2
           done
-          test "$ok" = 1
-          curl -fsSL --max-time 8 https://antmux.com/ -o /tmp/antmux-home.html
-          ! grep -Fq 'href="/carrou/"' /tmp/antmux-home.html
-          echo 'CARROU_DISABLED=PASS'
+          echo 'CARROU_DISABLED_LANDING=FAIL' >&2
+          exit 1
