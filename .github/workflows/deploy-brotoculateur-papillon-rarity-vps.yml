@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Audit, 10 percent canary, full rollout, or disable
+        description: Audit, measure, 10 percent canary, 10 percent canary + start, full rollout, or disable
         required: true
         default: audit
         type: choice
@@ -12,6 +12,7 @@ on:
           - audit
           - measure
           - canary
+          - canary_start
           - full
           - disable
       confirm:
@@ -48,7 +49,7 @@ jobs:
             MODE="$DISPATCH_MODE"
             CONFIRM="$DISPATCH_CONFIRM"
           fi
-          case "$MODE" in audit|measure|canary|full|disable) ;; *) exit 2 ;; esac
+          case "$MODE" in audit|measure|canary|canary_start|full|disable) ;; *) exit 2 ;; esac
           if [ "$MODE" != audit ]; then
             test "$CONFIRM" = 'PAPILLON-RARITY-VPS'
           fi
@@ -68,7 +69,7 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
 
       - name: Stage patcher
-        if: steps.request.outputs.mode == 'canary' || steps.request.outputs.mode == 'full' || steps.request.outputs.mode == 'disable'
+        if: steps.request.outputs.mode == 'canary' || steps.request.outputs.mode == 'canary_start' || steps.request.outputs.mode == 'full' || steps.request.outputs.mode == 'disable'
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -237,7 +238,7 @@ jobs:
           mkdir -p "$HOME/.config/systemd/user/brotoculateur.service.d"
           DROPIN="$HOME/.config/systemd/user/brotoculateur.service.d/30-papillon-rarity.conf"
           case "$MODE" in
-            canary)
+            canary|canary_start)
               RARITY_ENABLED=1; RARITY_PERCENT=10; MASTER_ENABLED=1; MASTER_PERCENT=10 ;;
             full)
               RARITY_ENABLED=1; RARITY_PERCENT=100; MASTER_ENABLED=1; MASTER_PERCENT=100 ;;
@@ -270,7 +271,7 @@ jobs:
           r=d.get('hierarchical_rarity') or {}
           p=d.get('papillon') or {}
           mode=os.environ['MODE']
-          expected={'canary':(True,10,True,10),'full':(True,100,True,100),'disable':(False,0,False,0)}[mode]
+          expected={'canary':(True,10,True,10),'canary_start':(True,10,True,10),'full':(True,100,True,100),'disable':(False,0,False,0)}[mode]
           actual=(bool(r.get('enabled')), int(r.get('rollout_percent') or 0), bool(p.get('master_enabled')), int(p.get('master_rollout_percent') or 0))
           assert actual == expected, (actual, expected)
           assert r.get('mode') == 'PAPILLON_HIERARCHICAL_RARITY_V1'
@@ -285,4 +286,46 @@ jobs:
           print('PAPILLON_MASTER_PERCENT=' + str(p.get('master_rollout_percent')))
           print('DEPLOY_VERIFY=PASS')
           PY
+
+          if [ "$MODE" = canary_start ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' \
+              http://127.0.0.1:8781/api/start >/tmp/broto-rarity-start.json
+            running=0
+            for _ in $(seq 1 20); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/broto-rarity-running.json || true
+              if python3 - <<'PY'
+          import json, sys
+          try:
+              d=json.load(open('/tmp/broto-rarity-running.json', encoding='utf-8'))
+          except Exception:
+              sys.exit(1)
+          sys.exit(0 if d.get('state') == 'RUNNING' else 1)
+          PY
+              then
+                running=1
+                break
+              fi
+              sleep 1
+            done
+            test "$running" = 1
+            sleep 2
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/broto-rarity-running.json
+            python3 - <<'PY'
+          import json
+          p='/tmp/broto-rarity-running.json'
+          d=json.load(open(p, encoding='utf-8'))
+          r=d.get('hierarchical_rarity') or {}
+          pap=d.get('papillon') or {}
+          assert d.get('state') == 'RUNNING', d.get('state')
+          assert r.get('enabled') is True and int(r.get('rollout_percent') or 0) == 10
+          assert pap.get('master_enabled') is True and int(pap.get('master_rollout_percent') or 0) == 10
+          assert not d.get('worker_error'), d.get('worker_error')
+          print('LIVE_STATE=' + str(d.get('state')))
+          print('LIVE_PROCESSED=' + str(d.get('processed_packets')))
+          print('LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('LIVE_RARITY_PERCENT=' + str(r.get('rollout_percent')))
+          print('LIVE_PAPILLON_MASTER_PERCENT=' + str(pap.get('master_rollout_percent')))
+          print('LIVE_START_VERIFY=PASS')
+          PY
+          fi
           REMOTE
