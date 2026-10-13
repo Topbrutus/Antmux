@@ -1,0 +1,109 @@
+name: Deploy Brotoculateur S1 Aggregator VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: brotoculateur-s1-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-S1-VPS'; fi
+          python3 -m py_compile deploy/vps-s1/s1_aggregator.py deploy/vps-s1/patch_brotoculateur_s1_aggregator.py deploy/vps-s1/test_s1_aggregator.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage S1 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-s1/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy S1
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; L5="$PKG/l5_placement.py"; S1="$PKG/s1_aggregator.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='f2854516dcff8ff606870c101f6517fda091bf24fb3d9273d4891c59c2533192'; L5SHA='cd1d0fa824ddf753c5471d7c8c2d04211f364a3b411ae55a57dc25a653e0e55d'; S1SHA='7c08763dc64d7ce7122885b6afc1bc63b9f43a8f90699f5286bf4a6042afe357'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$L5")" = "$L5SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/s1-before.json
+          dh=$(sha "$DASH"); shash=ABSENT; [ ! -f "$S1" ] || shash=$(sha "$S1")
+          if [ "$dh" = "$PRE" ] && [ "$shash" = ABSENT ]; then state=PRE_S1; elif [ "$shash" = "$S1SHA" ]; then state=POST_S1; else exit 3; fi
+          echo "S1_SOURCE_STATE=$state"; echo "S1_DASHBOARD_SHA256=$dh"; echo "S1_MODULE_SHA256=$shash"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/s1-before.json')); t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; t10=d.get('t10_replay') or {}; t11=d.get('t11_budget') or {}; t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}; l3=d.get('l3_press') or {}; l4=d.get('l4_canon') or {}; l5=d.get('l5_placement') or {}; s1=d.get('s1_aggregator') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('L5_OBSERVATIONS',l5.get('observations')),('L5_PLACED',l5.get('placed')),('L5_BLOCKED_L4_OTHER',l5.get('blocked_l4_other')),('L5_BLOCKED_MISSING_Z',l5.get('blocked_missing_z')),('L5_UNIQUE_PLACED_Z',l5.get('unique_placed_z')),('S1_OBSERVATIONS',s1.get('observations')),('S1_AGGREGATED',s1.get('aggregated')),('S1_UNIQUE_AGGREGATE_Z',s1.get('unique_aggregate_z')),('S1_REPEATED_AGGREGATE_Z',s1.get('repeated_aggregate_z')),('S1_MAX_AGGREGATE_COUNT',s1.get('max_aggregate_count'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          assert int(t8.get('observations') or 0)==int(t9.get('observations') or 0)==int(t10.get('observations') or 0)==int(t11.get('observations') or 0)==int(t12.get('observations') or 0)==int(l1.get('observations') or 0)==int(l2.get('observations') or 0)==int(l3.get('observations') or 0)==int(l4.get('observations') or 0)==int(l5.get('observations') or 0)
+          l5o=int(l5.get('observations') or 0); l5p=int(l5.get('placed') or 0); l5b4=int(l5.get('blocked_l4_other') or 0); l5bz=int(l5.get('blocked_missing_z') or 0); assert l5o==l5p+l5b4+l5bz
+          if os.environ['SOURCE_STATE']=='POST_S1' and s1.get('enabled') is True:
+              assert s1.get('authority')=='SHADOW_ONLY'; assert s1.get('aggregate_z_is_output_z_id') is True; assert s1.get('aggregate_z_is_l5_canonical_z') is True
+              assert s1.get('merges_distinct_z') is False and s1.get('creates_new_identity') is False and s1.get('counts_multiplicity_only') is True and s1.get('s2_lineage_index_input') is True
+              assert s1.get('scientific_proof_claim') is False and s1.get('proof_promotion') is False
+              s1o=int(s1.get('observations') or 0); s1a=int(s1.get('aggregated') or 0); s1b5=int(s1.get('blocked_l5_other') or 0); s1bz=int(s1.get('blocked_missing_z') or 0)
+              assert s1o==l5o and s1a==l5p and s1b5==l5b4+l5bz and s1bz==0 and s1o==s1a+s1b5+s1bz
+              assert int(s1.get('unique_aggregate_z') or 0)==int(l5.get('unique_placed_z') or 0)
+          print('S1_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_S1
+          STAGE="/tmp/s1-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_s1_aggregator.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/s1_aggregator.py")" = "$S1SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_S1_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_s1_aggregator.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "S1_STAGE_DASHBOARD_SHA256=$sd"; echo S1_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/s1-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/s1-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$L5" "$B/"; cp -a /tmp/s1-before.json "$B/status-before.json"; echo "S1_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-s1.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$S1" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/s1_aggregator.py" "$S1"; printf '[Service]\nEnvironment="BROTO_S1_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/s1-zero.json
+          b5=$(python3 -c "import json;print(int((json.load(open('/tmp/s1-zero.json')).get('l5_placement') or {}).get('observations') or 0))"); b1=$(python3 -c "import json;print(int((json.load(open('/tmp/s1-zero.json')).get('s1_aggregator') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/s1-live.json; if B5="$b5" B1="$b1" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/s1-live.json')); l5=d.get('l5_placement') or {}; s1=d.get('s1_aggregator') or {}; a=int(l5.get('observations') or 0)-int(os.environ['B5']); b=int(s1.get('observations') or 0)-int(os.environ['B1']); l5o=int(l5.get('observations') or 0); l5p=int(l5.get('placed') or 0); l5b=int(l5.get('blocked_l4_other') or 0)+int(l5.get('blocked_missing_z') or 0); s1o=int(s1.get('observations') or 0); s1a=int(s1.get('aggregated') or 0); s1b=int(s1.get('blocked_l5_other') or 0)+int(s1.get('blocked_missing_z') or 0); good=d.get('state')=='RUNNING' and b>0 and a==b and s1o==l5o and s1a==l5p and s1b==l5b and int(s1.get('unique_aggregate_z') or 0)==int(l5.get('unique_placed_z') or 0); sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/s1-live.json')); l5=d.get('l5_placement') or {}; s1=d.get('s1_aggregator') or {}; print('S1_LIVE_STATE='+str(d.get('state'))); print('S1_LIVE_L5_OBSERVATIONS='+str(l5.get('observations'))); print('S1_LIVE_L5_PLACED='+str(l5.get('placed'))); print('S1_LIVE_OBSERVATIONS='+str(s1.get('observations'))); print('S1_LIVE_AGGREGATED='+str(s1.get('aggregated'))); print('S1_LIVE_UNIQUE_AGGREGATE_Z='+str(s1.get('unique_aggregate_z'))); print('S1_LIVE_REPEATED_AGGREGATE_Z='+str(s1.get('repeated_aggregate_z'))); print('S1_LIVE_MAX_AGGREGATE_COUNT='+str(s1.get('max_aggregate_count'))); print('S1_LIVE_REFERENCE_SIDES='+str(s1.get('reference_sides'))); print('S1_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$S1")" = "$S1SHA"; echo "S1_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo S1_WORKFLOW=PASS
+          REMOTE
