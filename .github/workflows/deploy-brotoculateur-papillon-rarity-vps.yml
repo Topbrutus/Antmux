@@ -355,27 +355,31 @@ jobs:
           python3 --version > "$SNAP/meta/python-version.txt" 2>&1
           cat > "$SNAP/meta/EXCLUSIONS.txt" <<'EOF'
           Excluded intentionally from rollback source snapshot:
-          - .brotoculateur* runtime/state stores (large, mutable data)
-          - backups/
+          Whitelist snapshot: executable/source paths only. Runtime/state stores and backups are not traversed.
           - .secrets, .ssh, .env*, *.pem and *.key private configuration
           - __pycache__, .pytest_cache, logs
           This archive is for CODE rollback of the live VPS version before Brutus Colonne 37 / Z-STAMP deployment.
           EOF
           cd "$BROTO_ROOT"
-          find . -type f \
-            ! -path './.brotoculateur*' ! -path './.brotoculateur*/*' \
-            ! -path './backups/*' ! -path './.secrets' ! -path './.secrets/*' ! -path './.ssh' ! -path './.ssh/*' \
-            ! -name '.env' ! -name '.env.*' ! -name '*.pem' ! -name '*.key' \
+          ITEMS=()
+          for item in src scripts brutomagique brutomagique.py crystal_separator structureur39 docs tools; do
+            test -e "$item" && ITEMS+=("$item")
+          done
+          while IFS= read -r -d '' f; do ITEMS+=("${f#./}"); done < <(
+            find . -maxdepth 1 -type f \
+              \( -name '*.py' -o -name '*.md' -o -name '*.txt' -o -name '*.toml' -o -name '*.yaml' -o -name '*.yml' -o -name 'requirements*' -o -name 'setup.cfg' -o -name 'setup.py' \) \
+              ! -name '.env' ! -name '.env.*' ! -name '*.pem' ! -name '*.key' -print0
+          )
+          test "${#ITEMS[@]}" -gt 0
+          printf '%s\n' "${ITEMS[@]}" | sort -u > "$SNAP/meta/WHITELIST_ITEMS.txt"
+          find "${ITEMS[@]}" -type f \
             ! -path '*/__pycache__/*' ! -path '*/.pytest_cache/*' \
-            ! -name '*.log' -print0 | sort -z | xargs -0 sha256sum > "$SNAP/meta/SOURCE_SHA256_MANIFEST.txt"
+            ! -name '.env' ! -name '.env.*' ! -name '*.pem' ! -name '*.key' ! -name '*.log' \
+            -print0 | sort -z | xargs -0 sha256sum > "$SNAP/meta/SOURCE_SHA256_MANIFEST.txt"
           tar -czf "$SNAP/brotoculateur-source-pre-colonne37.tar.gz" \
-            --exclude='./.brotoculateur*' \
-            --exclude='./backups' \
-            --exclude='./.secrets' --exclude='./.ssh' \
-            --exclude='./.env' --exclude='./.env.*' --exclude='*.pem' --exclude='*.key' \
             --exclude='*/__pycache__' --exclude='*/.pytest_cache' \
-            --exclude='*.log' \
-            .
+            --exclude='.env' --exclude='.env.*' --exclude='*.pem' --exclude='*.key' --exclude='*.log' \
+            "${ITEMS[@]}"
           sha256sum "$SNAP/brotoculateur-source-pre-colonne37.tar.gz" > "$SNAP/meta/ARCHIVE_SHA256.txt"
           du -h "$SNAP/brotoculateur-source-pre-colonne37.tar.gz" > "$SNAP/meta/archive-size.txt"
           printf 'SOURCE_ROOT=%s\n' "$BROTO_ROOT" > "$SNAP/meta/RESTORE_INFO.txt"
