@@ -95,3 +95,44 @@ Le workflow `deploy-brotoculateur-t4-vps.yml` impose:
 7. verification T3=T4 en observations;
 8. conflits T2/T3 a zero;
 9. aucun pouvoir moteur accorde a T4.
+
+## Validation live VPS
+
+Deploiement canary T4:
+
+- run GitHub Actions: `38365159476`;
+- resultat: `SUCCESS`;
+- source avant mutation: `PRE_T4`;
+- backup rollback: `/home/rob/brotoculateur/backups/t4-20261013T074949Z`;
+- premier battement live: 11 observations, 1 convergence structurelle;
+- conflits T2: 0;
+- conflits T3: 0;
+- moteur: RUNNING.
+
+Audit independant POST-T4:
+
+- run GitHub Actions: `38366667192`;
+- resultat: `SUCCESS` / `T4_AUDIT_ONLY=PASS`;
+- source: `POST_T4`;
+- moteur: `RUNNING`;
+- paquets traites: 101 622;
+- cristaux: 1 709 917;
+- C2/T3/T4: 129 666 observations synchronisees;
+- T2 doublons exacts: 105 849;
+- T3: 105 849 EXACT_REFERENCE, 22 314 NEAR, 1 449 ADJACENT, 49 DISTANT, 5 ISOLATED;
+- T4 convergences structurelles: 3 643;
+- T4 cibles Z convergentes: 627;
+- disque racine: 58 % utilise, 49 474 132 KB libres.
+
+L'audit POST-T4 impose et a valide:
+
+- `exact_duplicate_counts_as_convergence = false`;
+- `hash_distance_used = false`;
+- `scientific_convergence_claim = false`;
+- `t2_consistency_conflicts = 0`;
+- `t3_consistency_conflicts = 0`;
+- `packets_collapsed = 0`;
+- `compute_skips = 0`;
+- `proof_promotion = false`.
+
+Statut: T4 est LIVE en `SHADOW_ONLY`. Ces convergences sont des convergences operationnelles de traces vers une cible Z canonique; elles ne constituent pas a elles seules une preuve scientifique.
