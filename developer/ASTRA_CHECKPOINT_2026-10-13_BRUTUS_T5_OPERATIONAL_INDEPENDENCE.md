@@ -101,3 +101,62 @@ Le workflow `deploy-brotoculateur-t5-vps.yml` impose:
 8. preuve live T4=T5 en observations;
 9. conflits T4 à zéro;
 10. aucun pouvoir moteur accordé à T5.
+
+## Validation live VPS
+
+Déploiement T5:
+
+- feature PR: #281;
+- merge commit: `f22176a2e69e4001d9db0b02d9f868b77c927ae0`;
+- canary run: `38367696890` — SUCCESS;
+- rollback backup: `/home/rob/brotoculateur/backups/t5-20261013T081244Z`;
+- source après déploiement: `POST_T5`;
+- moteur revenu `RUNNING`.
+
+Premier battement live:
+
+- T4 observations: 67;
+- T5 observations: 67;
+- niveaux cibles: 17 NOT_CONVERGENT, 9 CONVERGENT_SAME_LINEAGE, 2 DIVERSE_1_AXIS, 2 DIVERSE_2_AXES_REVIEW, 0 INDEPENDENCE_CANDIDATE;
+- conflits T4: 0;
+- cristaux: 1 715 558;
+- disque racine: 58%.
+
+Premier audit indépendant:
+
+- run `38367790578` — PASS;
+- 39 688 observations T4=T5;
+- 1 677 convergences T4;
+- 286 cibles T4 convergentes;
+- 1 cible T5 `INDEPENDENCE_CANDIDATE`;
+- source `POST_T5`;
+- moteur `RUNNING`.
+
+Deuxième audit indépendant:
+
+- run `38367899451` — PASS;
+- processed packets: 15 900;
+- cristaux: 1 717 434;
+- C2/T3/T4/T5: 90 148 observations synchronisées;
+- T2 doublons exacts: 73 091;
+- T4 convergences structurelles: 2 681;
+- T4 cibles convergentes: 450;
+- T5 `INDEPENDENCE_CANDIDATE`: 1 cible;
+- source: `POST_T5`;
+- disque racine: 58%, 49 381 212 KB libres.
+
+Le candidat T5 est resté présent pendant que les observations sont passées de 39 688 à 90 148 dans la même session. Cette persistance est une mesure opérationnelle, pas une validation scientifique.
+
+Les audits imposent et ont validé:
+
+- `t4_consistency_conflicts = 0`;
+- `scientific_independence_claim = false`;
+- `operational_candidate_only = true`;
+- `authority = SHADOW_ONLY`;
+- `packets_collapsed = 0`;
+- `compute_skips = 0`;
+- `controls_routing = false`;
+- `controls_scheduling = false`;
+- `proof_promotion = false`.
+
+Statut final de ce checkpoint: **T5 LIVE VALIDATED**.
