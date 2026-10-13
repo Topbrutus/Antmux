@@ -1,0 +1,109 @@
+name: Deploy Brotoculateur L1 Crystal Score VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: brotoculateur-l1-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-L1-VPS'; fi
+          python3 -m py_compile deploy/vps-l1/l1_crystal_score.py deploy/vps-l1/patch_brotoculateur_l1_crystal_score.py deploy/vps-l1/test_l1_crystal_score.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage L1 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-l1/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy L1
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; T12="$PKG/t12_candidate.py"; L1="$PKG/l1_crystal_score.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='6f717f1af70e0ccc5da67221cced408106a95100c185ed17afecd06d47eff1f0'; T12SHA='582566a439ce1fdb9665237a81398f52476e4a85b715ee855d310ed7d407a4f9'; L1SHA='2f5d674410d284e0e274a2ef347666d3cd18aa4a0235a4cc5fdabcb37469bca4'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$T12")" = "$T12SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/l1-before.json
+          dh=$(sha "$DASH"); lh=ABSENT; [ ! -f "$L1" ] || lh=$(sha "$L1")
+          if [ "$dh" = "$PRE" ] && [ "$lh" = ABSENT ]; then state=PRE_L1; elif [ "$lh" = "$L1SHA" ]; then state=POST_L1; else exit 3; fi
+          echo "L1_SOURCE_STATE=$state"; echo "L1_DASHBOARD_SHA256=$dh"; echo "L1_MODULE_SHA256=$lh"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/l1-before.json')); t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; t10=d.get('t10_replay') or {}; t11=d.get('t11_budget') or {}; t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; bm=d.get('brutomagique') or {}
+          print('STATE='+str(d.get('state'))); print('PROCESSED='+str(d.get('processed_packets'))); print('CRYSTALS='+str(bm.get('total_crystals'))); print('T12_OBSERVATIONS='+str(t12.get('observations'))); print('L1_OBSERVATIONS='+str(l1.get('observations'))); print('L1_SCORED='+str(l1.get('scored'))); print('L1_SCORE_AVERAGE='+str(l1.get('score_average'))); print('L1_SCORE_MIN='+str(l1.get('score_min'))); print('L1_SCORE_MAX='+str(l1.get('score_max')))
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          assert int(t8.get('observations') or 0)==int(t9.get('observations') or 0)==int(t10.get('observations') or 0)==int(t11.get('observations') or 0)==int(t12.get('observations') or 0)
+          assert t12.get('enabled') is True and t12.get('assigns_score') is False and int(t12.get('blocked_t11_other') or 0)==0
+          if os.environ['SOURCE_STATE']=='POST_L1' and l1.get('enabled') is True:
+              assert l1.get('authority')=='SHADOW_ONLY' and l1.get('engineering_score_only') is True and l1.get('scientific_score_claim') is False
+              assert l1.get('l2_threshold_input') is True and l1.get('applies_threshold') is False and l1.get('threshold_value') is None
+              assert l1.get('accepts_candidate') is False and l1.get('rejects_candidate') is False and l1.get('proof_promotion') is False
+              assert int(l1.get('observations') or 0)==int(t12.get('observations') or 0)==int(l1.get('scored') or 0)
+              assert int(l1.get('blocked_t12_other') or 0)==0 and int(l1.get('blocked_component_invalid') or 0)==0
+          print('L1_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_L1
+          STAGE="/tmp/l1-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_l1_crystal_score.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/l1_crystal_score.py")" = "$L1SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_l1_crystal_score.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "L1_STAGE_DASHBOARD_SHA256=$sd"; echo L1_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/l1-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/l1-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$T12" "$B/"; cp -a /tmp/l1-before.json "$B/status-before.json"; echo "L1_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-l1.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$L1" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/l1_crystal_score.py" "$L1"; printf '[Service]\nEnvironment="BROTO_L1_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/l1-zero.json
+          b12=$(python3 -c "import json;print(int((json.load(open('/tmp/l1-zero.json')).get('t12_candidate') or {}).get('observations') or 0))"); bl1=$(python3 -c "import json;print(int((json.load(open('/tmp/l1-zero.json')).get('l1_crystal_score') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/l1-live.json; if B12="$b12" BL1="$bl1" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/l1-live.json')); t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; a=int(t12.get('observations') or 0)-int(os.environ['B12']); b=int(l1.get('observations') or 0)-int(os.environ['BL1']); sys.exit(0 if d.get('state')=='RUNNING' and b>0 and a==b and int(l1.get('scored') or 0)==int(l1.get('observations') or 0) and int(l1.get('blocked_t12_other') or 0)==0 and int(l1.get('blocked_component_invalid') or 0)==0 else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/l1-live.json')); l1=d.get('l1_crystal_score') or {}; t12=d.get('t12_candidate') or {}
+          print('L1_LIVE_STATE='+str(d.get('state'))); print('L1_LIVE_T12_OBSERVATIONS='+str(t12.get('observations'))); print('L1_LIVE_OBSERVATIONS='+str(l1.get('observations'))); print('L1_LIVE_SCORED='+str(l1.get('scored'))); print('L1_LIVE_SCORE_AVERAGE='+str(l1.get('score_average'))); print('L1_LIVE_SCORE_MIN='+str(l1.get('score_min'))); print('L1_LIVE_SCORE_MAX='+str(l1.get('score_max'))); print('L1_LIVE_COMPONENT_AVERAGES='+str(l1.get('component_averages'))); print('L1_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$L1")" = "$L1SHA"; echo "L1_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo L1_WORKFLOW=PASS
+          REMOTE
