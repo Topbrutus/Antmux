@@ -1,0 +1,112 @@
+name: Deploy Brotoculateur S4 Formula Index VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-s4-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-S4-VPS'; fi
+          python3 -m py_compile deploy/vps-s4/s4_formula_index.py deploy/vps-s4/patch_brotoculateur_s4_formula_index.py deploy/vps-s4/test_s4_formula_index.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage S4 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-s4/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy S4
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; S3="$PKG/s3_route_index.py"; S4="$PKG/s4_formula_index.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='b39265fedc454b0187d7ec3a2d2e29dba2840716590db52960b89b6300e3e3ea'; S3SHA='35b76679778254e179dcb2df8b2415aa9634319dbc511408eb23bf544f4b9ca3'; S4SHA='3c9431bbdf7fc0be33d1eae38455d1584ec87b250b4fe09e0bc849cbc117ebc9'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$S3")" = "$S3SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/s4-before.json
+          dh=$(sha "$DASH"); s4hash=ABSENT; [ ! -f "$S4" ] || s4hash=$(sha "$S4")
+          if [ "$dh" = "$PRE" ] && [ "$s4hash" = ABSENT ]; then state=PRE_S4; elif [ "$s4hash" = "$S4SHA" ]; then state=POST_S4; else exit 3; fi
+          echo "S4_SOURCE_STATE=$state"; echo "S4_DASHBOARD_SHA256=$dh"; echo "S4_MODULE_SHA256=$s4hash"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/s4-before.json')); s3=d.get('s3_route_index') or {}; s4=d.get('s4_formula_index') or {}; t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('S3_OBSERVATIONS',s3.get('observations')),('S3_INDEXED',s3.get('indexed')),('S3_BLOCKED_S2_OTHER',s3.get('blocked_s2_other')),('S3_BLOCKED_MISSING_Z',s3.get('blocked_missing_z')),('S3_BLOCKED_MISSING_PATH',s3.get('blocked_missing_path')),('S3_BLOCKED_MISSING_PAPILLON',s3.get('blocked_missing_papillon')),('S3_BLOCKED_PATH_DRIFT',s3.get('blocked_path_drift')),('S3_UNIQUE_Z',s3.get('unique_z_indexed')),('S4_OBSERVATIONS',s4.get('observations')),('S4_INDEXED',s4.get('indexed')),('S4_UNIQUE_FORMULAS',s4.get('unique_formulas')),('S4_UNIQUE_RESULT_Z',s4.get('unique_result_z')),('S4_UNIQUE_PAIRS',s4.get('unique_formula_result_pairs')),('S4_MULTI_RESULT_FORMULAS',s4.get('multi_result_formulas')),('S4_MULTI_FORMULA_Z',s4.get('multi_formula_z')),('S4_MAX_PAIR_MULTIPLICITY',s4.get('max_formula_result_multiplicity'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          s3o=int(s3.get('observations') or 0); s3i=int(s3.get('indexed') or 0); s3b=sum(int(s3.get(k) or 0) for k in ('blocked_s2_other','blocked_missing_z','blocked_missing_path','blocked_missing_papillon','blocked_path_drift')); assert s3o==s3i+s3b
+          if os.environ['SOURCE_STATE']=='POST_S4' and s4.get('enabled') is True:
+              assert s4.get('authority')=='SHADOW_ONLY'; assert s4.get('prototype_measurement_formula_id') is True; assert s4.get('indexes_results_by_formula') is True; assert s4.get('uses_callback_formula_id') is True; assert s4.get('requires_formula_chain_terminal_match') is True
+              assert s4.get('creates_formula') is False and s4.get('executes_formula') is False and s4.get('selects_formula') is False and s4.get('ranks_formula') is False and s4.get('assigns_formula_score') is False
+              assert s4.get('merges_distinct_formulas') is False and s4.get('formula_registry_mutated') is False and s4.get('route_index_mutated') is False and s4.get('z_identity_preserved') is True and s4.get('s5_fast_index_input') is True
+              assert s4.get('scientific_proof_claim') is False and s4.get('proof_promotion') is False and s4.get('controls_routing') is False and s4.get('controls_scheduling') is False and s4.get('controls_calculation') is False
+              s4o=int(s4.get('observations') or 0); s4i=int(s4.get('indexed') or 0); s4b=sum(int(s4.get(k) or 0) for k in ('blocked_s3_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch'))
+              assert s4o==s3o and s4i==s3i and s4b==s3b and s4o==s4i+s4b
+              assert int(s4.get('unique_result_z') or 0)==int(s3.get('unique_z_indexed') or 0)
+          print('S4_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_S4
+          STAGE="/tmp/s4-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_s4_formula_index.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/s4_formula_index.py")" = "$S4SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_S1_ENABLED=1 BROTO_S2_ENABLED=1 BROTO_S3_ENABLED=1 BROTO_S4_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_s4_formula_index.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "S4_STAGE_DASHBOARD_SHA256=$sd"; echo S4_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/s4-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/s4-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$S3" "$B/"; cp -a /tmp/s4-before.json "$B/status-before.json"; echo "S4_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-s4.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$S4" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/s4_formula_index.py" "$S4"; printf '[Service]\nEnvironment="BROTO_S4_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/s4-zero.json
+          b3=$(python3 -c "import json;print(int((json.load(open('/tmp/s4-zero.json')).get('s3_route_index') or {}).get('observations') or 0))"); b4=$(python3 -c "import json;print(int((json.load(open('/tmp/s4-zero.json')).get('s4_formula_index') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/s4-live.json; if B3="$b3" B4="$b4" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/s4-live.json')); s3=d.get('s3_route_index') or {}; s4=d.get('s4_formula_index') or {}; a=int(s3.get('observations') or 0)-int(os.environ['B3']); b=int(s4.get('observations') or 0)-int(os.environ['B4']); s3o=int(s3.get('observations') or 0); s3i=int(s3.get('indexed') or 0); s3b=sum(int(s3.get(k) or 0) for k in ('blocked_s2_other','blocked_missing_z','blocked_missing_path','blocked_missing_papillon','blocked_path_drift')); s4o=int(s4.get('observations') or 0); s4i=int(s4.get('indexed') or 0); s4b=sum(int(s4.get(k) or 0) for k in ('blocked_s3_other','blocked_missing_formula','blocked_missing_z','blocked_formula_mismatch')); good=d.get('state')=='RUNNING' and b>0 and a==b and s4o==s3o and s4i==s3i and s4b==s3b and int(s4.get('unique_result_z') or 0)==int(s3.get('unique_z_indexed') or 0); sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/s4-live.json')); s3=d.get('s3_route_index') or {}; s4=d.get('s4_formula_index') or {}; print('S4_LIVE_STATE='+str(d.get('state'))); print('S4_LIVE_S3_OBSERVATIONS='+str(s3.get('observations'))); print('S4_LIVE_S3_INDEXED='+str(s3.get('indexed'))); print('S4_LIVE_OBSERVATIONS='+str(s4.get('observations'))); print('S4_LIVE_INDEXED='+str(s4.get('indexed'))); print('S4_LIVE_UNIQUE_FORMULAS='+str(s4.get('unique_formulas'))); print('S4_LIVE_UNIQUE_RESULT_Z='+str(s4.get('unique_result_z'))); print('S4_LIVE_UNIQUE_PAIRS='+str(s4.get('unique_formula_result_pairs'))); print('S4_LIVE_MULTI_RESULT_FORMULAS='+str(s4.get('multi_result_formulas'))); print('S4_LIVE_MULTI_FORMULA_Z='+str(s4.get('multi_formula_z'))); print('S4_LIVE_MAX_PAIR_MULTIPLICITY='+str(s4.get('max_formula_result_multiplicity'))); print('S4_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$S4")" = "$S4SHA"; echo "S4_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo S4_WORKFLOW=PASS
+          REMOTE
