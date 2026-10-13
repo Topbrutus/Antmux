@@ -82,3 +82,35 @@ Deployment workflow must:
 10. require packets_collapsed = 0.
 
 A successful T2 observation is NOT a proof claim and does NOT authorize deduplication.
+
+## Live validation — VPS
+
+Deployment run: 38361116013 — SUCCESS
+Independent audit run: 38361213202 — PASS
+Source state: POST_T2
+Service state: RUNNING
+
+Independent live sample:
+
+- processed_packets: 11403
+- total_crystals: 1669820
+- C2/T1/T2 synchronized observations: 64189
+- exact_duplicates: 51479
+- duplicate_rate: 80.1991%
+- alternate_path_duplicates: 51320
+- alternate_path_share_of_duplicates: 99.6911%
+- cross_family_conflicts: 0
+- estimated unique exact C2 fingerprints in this retained sample: 12710
+- root disk used: 59%
+- root disk free KB: 48677832
+
+Safety invariants remained true:
+
+- deduplication_applied = false
+- packets_collapsed = 0
+- controls_routing = false
+- controls_scheduling = false
+- compute_skips = 0
+- proof_promotion = false
+
+Interpretation: T2 is successfully measuring exact structural recurrence. The high duplicate rate is an observation about the current live sample and C2 identity law; it is not yet authorization to skip or collapse computation.
