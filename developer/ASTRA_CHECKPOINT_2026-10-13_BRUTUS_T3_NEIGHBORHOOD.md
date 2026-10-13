@@ -70,3 +70,33 @@ T3_NEIGHBORHOOD=PASS
 
 Pas encore validé live au moment de ce checkpoint initial.
 Le workflow impose audit PRE-T3, copie exacte, tests, save/pause, backup, patch, restart, start et validation live; rollback automatique sur erreur.
+
+## Validation live VPS
+
+Déploiement canary:
+- workflow run: 38363721051
+- résultat: SUCCESS
+- backup: /home/rob/brotoculateur/backups/t3-20261013T073639Z
+- état après démarrage: RUNNING
+- T3 hash-distance utilisée: false
+- aucun paquet fusionné, aucun calcul sauté, aucune autorité de routage/scheduling/preuve.
+
+Audit indépendant:
+- workflow run: 38363814855
+- résultat: PASS
+- source: POST_T3
+- processed_packets: 7114
+- cristaux: 1688248
+- C2/T1/T2/T3 observations synchronisées: 40329
+- T2 exact duplicates: 32083
+- T2 cross-family conflicts: 0
+- T3 EXACT_REFERENCE: 32083
+- T3 NEAR: 7726
+- T3 ADJACENT: 493
+- T3 DISTANT: 23
+- T3 ISOLATED: 4
+- disque racine: 59%
+- espace libre: 48448024 KB
+
+Interprétation limitée:
+T3 démontre uniquement qu'avec la métrique sémantique opérationnelle définie ici, les traces distinctes peuvent être regroupées par proximité. Cela ne constitue pas une preuve de similarité scientifique, ni une justification automatique pour fusionner ou éviter des calculs.
