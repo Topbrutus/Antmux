@@ -101,24 +101,142 @@ T12 déclare explicitement :
 7. callback dashboard : delta T8 = T9 = T10 = T11 = T12 ;
 8. aucune mutation de valeur, routage, scheduling, calcul, validation ou preuve.
 
-## Déploiement prévu
+## Déploiement gardé appliqué
 
-Séquence proof-first :
+Workflow : `.github/workflows/deploy-brotoculateur-t12-vps.yml`
+
+Runner VPS versionné : `deploy/vps-t12/run_t12_vps.sh`
+
+Séquence appliquée :
 
 1. audit VPS non mutant ;
-2. exiger état exact `PRE_T12` ;
-3. copier le package live dans un stage ;
-4. appliquer T12 seulement au stage ;
-5. compiler et exécuter les tests sur cette copie exacte ;
+2. état exact `PRE_T12` exigé ;
+3. copie du package live dans un stage ;
+4. T12 appliqué seulement au stage ;
+5. compilation et tests sur cette copie exacte ;
 6. save/pause ;
 7. backup dashboard/T8/T9/T10/T11/T12/statut/drop-in ;
-8. appliquer exactement dashboard + T12 du stage ;
+8. application exacte dashboard + T12 du stage ;
 9. restart ;
 10. canary live ;
-11. rollback automatique si dérive ;
+11. rollback automatique disponible ;
 12. audit indépendant POST_T12 ;
 13. checkpoint GitHub avec hashes et mesures live.
 
-## Statut avant déploiement
+## Validation live VPS — 2026-10-13
 
-`READY_FOR_PR` — T12 n'est pas encore déployé live au moment de cette section.
+### PR et base
+
+- PR T12 : `#296`
+- merge commit : `94774e878a9d5bbba57af55d2f4ad448854a177d`
+- mode : `SHADOW_ONLY`
+- T12 module SHA-256 : `582566a439ce1fdb9665237a81398f52476e4a85b715ee855d310ed7d407a4f9`
+
+### Audit PRE_T12 non mutant
+
+Workflow : `38386139502`
+
+État observé :
+
+- source : `PRE_T12`
+- moteur : `RUNNING`
+- processed_packets : `78 926`
+- cristaux : `1 823 046`
+- T8 observations : `454 510`
+- T8 FAIL : `0`
+- T8 LIMITED : `0`
+- T9 observations : `454 510`
+- T9 drifts : `0`
+- T10 observations : `454 510`
+- T11 observations : `454 510`
+- T11 demande normalisée : `615 308`
+- T11 conseil normalisé : `615 308`
+- T11 coupé : `0`
+- T12 module : absent
+- dashboard PRE_T12 SHA-256 : `9991bbb5513101ea66d22411dfe7da8e1ba79ebc2d1bea668ef07acec3546021`
+- disque root : `60%`
+- audit : `PASS`
+
+### Tests sur copie exacte et canary
+
+Workflow : `38386214548`
+
+Avant mutation live :
+
+- dépendances T8/T9/T10/T11 saines : `PASS`
+- patch T12 : `PASS`
+- classes FULL/PARTIAL/ZERO : `PASS`
+- candidate_id stable lorsque le budget change : `PASS`
+- gate T11 inconnue : `PASS`
+- aucune promotion/score/seuil : `PASS`
+- callback T8↔T9↔T10↔T11↔T12 : `17 / 17 / 17 / 17 / 17`, `PASS`
+- suite ciblée T12 : `PASS`
+- stage exact live : `PASS`
+
+Hashes du stage exact :
+
+- dashboard POST_T12 SHA-256 : `6f717f1af70e0ccc5da67221cced408106a95100c185ed17afecd06d47eff1f0`
+- T12 module SHA-256 : `582566a439ce1fdb9665237a81398f52476e4a85b715ee855d310ed7d407a4f9`
+- backup : `brotoculateur/backups/t12-20261013T105141Z`
+
+Premier battement canary live :
+
+- état : `RUNNING`
+- processed_packets : `84`
+- T11 observations : `488`
+- T12 observations : `488`
+- candidats enregistrés : `488`
+- candidate_id uniques : `111`
+- bloqués T11 : `0`
+- classes Budget : `FULL = 488`
+- delta T11 : `488`
+- delta T12 : `488`
+- disque root : `60%`
+- workflow : `PASS`
+
+Le nombre `488` représente des observations candidates techniques pré-score. Il ne représente ni 488 preuves scientifiques, ni 488 cristaux canonisés, ni 488 promotions de ValidationState.
+
+### Audit indépendant POST_T12
+
+Workflow : `38386301767`
+
+Fenêtre runtime observée après redémarrage :
+
+- source : `POST_T12`
+- moteur : `RUNNING`
+- processed_packets : `4 638`
+- cristaux : `1 823 917`
+- T8 observations : `25 904`
+- T8 FAIL : `0`
+- T8 LIMITED : `0`
+- T9 observations : `25 904`
+- T9 drifts : `0`
+- T10 observations : `25 904`
+- T11 observations : `25 904`
+- T11 demande normalisée : `43 264`
+- T11 conseil normalisé : `43 264`
+- T11 coupé : `0`
+- T12 mode : `BRUTUS_T12_CANDIDATE_V1`
+- T12 activé : `true`
+- T12 observations : `25 904`
+- candidats enregistrés : `25 904`
+- candidate_id uniques : `731`
+- bloqués T11 : `0`
+- dashboard SHA-256 : `6f717f1af70e0ccc5da67221cced408106a95100c185ed17afecd06d47eff1f0`
+- T12 module SHA-256 : `582566a439ce1fdb9665237a81398f52476e4a85b715ee855d310ed7d407a4f9`
+- disque root : `60%`
+- audit : `PASS`
+
+L'audit indépendant confirme le lockstep complet jusqu'à T12 et l'absence de dérive upstream. T12 reste une couche de matérialisation pré-score seulement : pas de score, pas de seuil, pas de revendication scientifique, pas de canonisation, pas de contrôle de calcul et pas de promotion de preuve.
+
+## Interprétation
+
+T12 fonctionne maintenant comme la frontière explicite entre les couches d'observation/contre-test/budget et les futures couches de classement. Il produit une population de candidats techniques observables sans leur attribuer de valeur scientifique.
+
+Le nombre de `candidate_id` uniques est inférieur au nombre d'observations parce qu'un même candidat technique peut être observé plusieurs fois. Ce comportement est volontaire : l'identité est déterministe sur formule/source/sortie, tandis que les observations restent comptées séparément.
+
+Le budget ZERO reste enregistrable par conception et par test. Cela évite de transformer silencieusement une contrainte opérationnelle de ressources en rejet scientifique.
+
+## Statut final
+
+`LIVE_VALIDATED_SHADOW` — T12 actif et validé opérationnellement comme matérialiseur de candidats techniques pré-score. Prochaine vertèbre officielle : `L1 — Score cristal`.
