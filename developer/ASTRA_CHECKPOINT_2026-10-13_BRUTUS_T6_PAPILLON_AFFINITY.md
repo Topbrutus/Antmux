@@ -87,3 +87,41 @@ Le workflow `deploy-brotoculateur-t6-vps.yml` impose:
 10. zéro route Papillon appliquée par T6.
 
 T6 est une mesure de distribution/affinité. Ce n'est ni une preuve scientifique ni une autorité de routage.
+## Validation live VPS
+
+Déploiement T6:
+
+- PR moteur: #283
+- merge commit: `b7406236ccd416216964c506fdc6563b6edd15e0`
+- canary workflow: `38369030441` — SUCCESS
+- backup rollback: `/home/rob/brotoculateur/backups/t6-20261013T082436Z`
+- premier battement: T5=1, T6=1, 1 shard touché, 0 route appliquée.
+
+Audit indépendant:
+
+- workflow: `38369145511` — SUCCESS / `T6_AUDIT_ONLY=PASS`
+- source: `POST_T6`
+- moteur: `RUNNING`
+- processed packets: 9 394
+- cristaux: 1 727 361
+- C2 total: 53 047
+- T4 observations: 53 047
+- T5 observations: 53 047
+- T6 observations: 53 047
+- T5 independence candidate targets: 1
+- Papillon shards: 144
+- Papillon mode: `EXACT_SELECTIVE_MEMO_PRESERVE_TRACE`
+- T6 mode: `BRUTUS_T6_PAPILLON_AFFINITY_V1`
+- disque racine: 59%, 49 229 016 KB libres
+
+Gardes live confirmés:
+
+- `authority = SHADOW_ONLY`
+- `papillon_cache_mutated = false`
+- `papillon_policy_changed = false`
+- `actual_papillon_routes_applied = 0`
+- `controls_papillon = false`
+- `compute_skips = 0`
+- `proof_promotion = false`
+
+T6 mesure l'affinité/distribution des sorties T5 dans la géométrie Papillon144 existante. Il n'a aucun pouvoir de décision live à ce stade.
