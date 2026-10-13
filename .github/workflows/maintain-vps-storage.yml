@@ -106,8 +106,26 @@ jobs:
           du -sk "$HOME"/antmux-x72-queen-backups/* 2>/dev/null | sort -nr | head -20 || true
           echo '--- HOME TOP LEVEL ---'
           du -x -k -d 1 "$HOME" 2>/dev/null | sort -nr | head -25 || true
+          echo '--- BROTOCULATEUR BREAKDOWN ---'
+          du -x -k -d 2 "$HOME/brotoculateur" 2>/dev/null | sort -nr | head -40 || true
+          echo '--- BROTOCULATEUR LARGE FILES ---'
+          find "$HOME/brotoculateur" -xdev -type f -size +100M -printf '%s %TY-%Tm-%TdT%TH:%TM:%TS %p\n' 2>/dev/null | sort -nr | head -40 || true
           echo '--- QUEEN DATA FILES ---'
           ls -lh "$HOME"/antmux-x72-queen/data/queen.db* 2>/dev/null || true
+          echo '--- QUEEN CHECKPOINT STATS ---'
+          python3 - <<'PY'
+          import sqlite3, pathlib
+          p=pathlib.Path.home()/'antmux-x72-queen'/'data'/'queen.db'
+          if p.exists():
+              db=sqlite3.connect(f'file:{p}?mode=ro', uri=True)
+              row=db.execute('SELECT count(*), min(id), max(id), avg(length(state_json)), max(length(state_json)), sum(length(state_json)) FROM checkpoints').fetchone()
+              page_size=db.execute('PRAGMA page_size').fetchone()[0]
+              page_count=db.execute('PRAGMA page_count').fetchone()[0]
+              free_count=db.execute('PRAGMA freelist_count').fetchone()[0]
+              print('CHECKPOINTS count=%s min_id=%s max_id=%s avg_json=%s max_json=%s json_total=%s' % row)
+              print('SQLITE page_size=%s page_count=%s freelist_count=%s db_bytes=%s free_bytes=%s' % (page_size,page_count,free_count,page_size*page_count,page_size*free_count))
+              db.close()
+          PY
           echo '--- DELETED OPEN FILES ---'
           if command -v lsof >/dev/null 2>&1; then lsof +L1 2>/dev/null | sort -k7 -nr | head -20 || true; fi
           systemctl --user show brutus-public.service -p ActiveState -p SubState -p NRestarts --no-pager
