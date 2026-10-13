@@ -21,7 +21,7 @@ jobs:
   maintain:
     if: github.event_name == 'schedule' || inputs.confirm == 'CLEAN-VPS-STORAGE'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout main
@@ -68,6 +68,14 @@ jobs:
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" \
             'tmp=$(mktemp); cat > "$tmp"; python3 "$tmp" "$HOME/brotoculateur/.brotoculateur_instance_D/snapshots" --retain 512; rm -f "$tmp"' \
             < deploy/vps-storage/prune_brotoculateur_snapshots.py
+
+          # Lossless cold compression for legacy crystals; new writes are already gzip-native.
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$VPS_USER@$VPS_HOST" \
+            'tmp=$(mktemp); cat > "$tmp"; nice -n 10 python3 "$tmp" "$HOME/brotoculateur/brutomagique/crystals" --min-age-seconds 1800 --max-files 5000; rm -f "$tmp"' \
+            < deploy/vps-storage/compress_brotomagique_crystals.py
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$VPS_USER@$VPS_HOST" \
+            'tmp=$(mktemp); cat > "$tmp"; nice -n 10 python3 "$tmp" "$HOME/AppData/Local/Brotoculateur/brotoculateur-overflow/brutomagique/crystals" --min-age-seconds 1800 --max-files 5000; rm -f "$tmp"' \
+            < deploy/vps-storage/compress_brotomagique_crystals.py
 
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
           set -euo pipefail
