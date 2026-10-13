@@ -38,8 +38,10 @@ jobs:
           mkdir -p capture
           ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
             'cat "$HOME/brotoculateur/src/brotoculateur/brutomagique.py"' > capture/brutomagique.py
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            'tar -C "$HOME/brotoculateur/src" -czf - brotoculateur' > capture/brotoculateur-src.tar.gz
           python3 -m py_compile capture/brutomagique.py
-          sha256sum capture/brutomagique.py > capture/SHA256SUMS
+          sha256sum capture/brutomagique.py capture/brotoculateur-src.tar.gz > capture/SHA256SUMS
 
       - name: Upload captured source
         uses: actions/upload-artifact@v4
