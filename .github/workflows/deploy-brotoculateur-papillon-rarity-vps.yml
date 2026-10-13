@@ -17,6 +17,7 @@ on:
         type: choice
         options:
           - audit
+          - measure
           - canary
           - full
           - disable
@@ -54,7 +55,7 @@ jobs:
             MODE="$DISPATCH_MODE"
             CONFIRM="$DISPATCH_CONFIRM"
           fi
-          case "$MODE" in audit|canary|full|disable) ;; *) exit 2 ;; esac
+          case "$MODE" in audit|measure|canary|full|disable) ;; *) exit 2 ;; esac
           if [ "$MODE" != audit ]; then
             test "$CONFIRM" = 'PAPILLON-RARITY-VPS'
           fi
@@ -74,7 +75,7 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
 
       - name: Stage patcher
-        if: steps.request.outputs.mode != 'audit'
+        if: steps.request.outputs.mode == 'canary' || steps.request.outputs.mode == 'full' || steps.request.outputs.mode == 'disable'
         env:
           VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
           VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
@@ -134,6 +135,54 @@ jobs:
 
           if [ "$MODE" = audit ]; then
             echo 'AUDIT_ONLY=PASS'
+            exit 0
+          fi
+
+          if [ "$MODE" = measure ]; then
+            STATE=$(python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/broto-rarity-before.json', encoding='utf-8'))
+          print(d.get('state',''))
+          PY
+            )
+            test "$STATE" = 'PAUSED'
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/broto-rarity-before.json', encoding='utf-8'))
+          r=d.get('hierarchical_rarity') or {}
+          p=d.get('papillon') or {}
+          assert r.get('mode') == 'PAPILLON_HIERARCHICAL_RARITY_V1'
+          assert r.get('enabled') is True and int(r.get('rollout_percent') or 0) == 10
+          assert p.get('master_enabled') is True and int(p.get('master_rollout_percent') or 0) == 10
+          PY
+            curl -fsS --max-time 30 -X POST -H 'Content-Type: application/json' \
+              -d '{"count":300}' http://127.0.0.1:8781/api/step >/tmp/broto-rarity-step.json
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/broto-rarity-after.json
+            python3 - <<'PY'
+          import json
+          b=json.load(open('/tmp/broto-rarity-before.json', encoding='utf-8'))
+          a=json.load(open('/tmp/broto-rarity-after.json', encoding='utf-8'))
+          br=b.get('hierarchical_rarity') or {}; ar=a.get('hierarchical_rarity') or {}
+          bp=b.get('papillon') or {}; ap=a.get('papillon') or {}
+          def delta(obj_a,obj_b,key): return int(obj_a.get(key) or 0)-int(obj_b.get(key) or 0)
+          print('MEASURE_STATE=' + str(a.get('state')) )
+          print('MEASURE_PROCESSED_DELTA=' + str(int(a.get('processed_packets') or 0)-int(b.get('processed_packets') or 0)))
+          print('MEASURE_CRYSTALS_DELTA=' + str(int((a.get('brutomagique') or {}).get('total_crystals') or 0)-int((b.get('brutomagique') or {}).get('total_crystals') or 0)))
+          print('MEASURE_SELECTED_QUEUE_POPS_DELTA=' + str(delta(ar,br,'selected_queue_pops')))
+          print('MEASURE_PASSTHROUGH_QUEUE_POPS_DELTA=' + str(delta(ar,br,'passthrough_queue_pops')))
+          print('MEASURE_RARITY_REPLAYS_DELTA=' + str(delta(ar,br,'rarity_replays_enqueued')))
+          print('MEASURE_RARITY_SUPPRESSED_DELTA=' + str(delta(ar,br,'rarity_suppressed')))
+          print('MEASURE_CONTROL_PASSES_DELTA=' + str(delta(ar,br,'control_passes')))
+          print('MEASURE_PAPILLON_EVALS_DELTA=' + str(delta(ap,bp,'evaluations')))
+          print('MEASURE_ACTIVE_BRANCHES=' + str(a.get('active_branches')))
+          print('MEASURE_SLEEPING_BRANCHES=' + str(a.get('sleeping_branches')))
+          assert a.get('state') == 'PAUSED'
+          assert int(a.get('processed_packets') or 0) > int(b.get('processed_packets') or 0)
+          assert delta(ar,br,'selected_queue_pops') > 0
+          assert delta(ar,br,'passthrough_queue_pops') > 0
+          print('CANARY_MEASURE=PASS')
+          PY
+            df -P / | awk 'NR==2 {print "MEASURE_ROOT_DISK_USED=" $5 " MEASURE_ROOT_DISK_FREE_KB=" $4}'
             exit 0
           fi
 
