@@ -1,4 +1,4 @@
-﻿name: Deploy Brotoculateur Cortex Z VPS
+name: Deploy Brotoculateur Cortex Z VPS
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
           if [ "$MODE" != audit ]; then
             test "$CONFIRM" = 'BRUTUS-ZSTAMP-VPS'
           fi
-          python3 -m py_compile deploy/vps-zstamp/patch_brotoculateur_zstamp.py deploy/vps-zstamp/smoke_zstamp.py
+          python3 -m py_compile deploy/vps-zstamp/patch_brotoculateur_zstamp.py deploy/vps-zstamp/patch_zstamp_cumulative.py deploy/vps-zstamp/smoke_zstamp.py deploy/vps-zstamp/test_zstamp_cumulative.py
 
       - name: Configure pinned VPS SSH
         env:
@@ -65,7 +65,9 @@ jobs:
           set -euo pipefail
           scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             deploy/vps-zstamp/patch_brotoculateur_zstamp.py \
+            deploy/vps-zstamp/patch_zstamp_cumulative.py \
             deploy/vps-zstamp/smoke_zstamp.py \
+            deploy/vps-zstamp/test_zstamp_cumulative.py \
             "$VPS_USER@$VPS_HOST:/tmp/"
 
       - name: Audit or deploy Cortex Z
@@ -89,7 +91,8 @@ jobs:
           EXPECT_DASH='71e204d3ab814b27c6c98bea9f2c755f396a6625fce713b2e5568f0521d80117'
           PATCH_ENGINE='4aa5c6b9f8feed9559ded55b1db72016ebb45c00d2fbc00ff9e92b74ea677db5'
           PATCH_ORCH='8f644bbfe8bdef4a9f5ebec66b1d540fa762c8ff8524f967e523967fd78b2662'
-          PATCH_DASH='1892c2abf4b3dc535a2b1feeb08678e372bfe925bb786dadeaab1a85c49d61e9'
+          PATCH_DASH_BASE='1892c2abf4b3dc535a2b1feeb08678e372bfe925bb786dadeaab1a85c49d61e9'
+          PATCH_DASH_CUM='1c47b3f596cf8341f7a0ea54b6118f725349e41b7941e2494684a17766fd43f6'
 
           test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH"
           systemctl --user is-active --quiet brotoculateur.service
@@ -106,6 +109,8 @@ jobs:
           print('Z_MODE=' + str(z.get('mode')))
           print('Z_ENABLED=' + str(z.get('enabled')))
           print('Z_PERCENT=' + str(z.get('rollout_percent')))
+          print('Z_TOTAL_ROOT_SELECTED=' + str(z.get('total_root_selected')))
+          print('Z_TOTAL_CHILDREN_STAMPED=' + str(z.get('total_children_stamped')))
           print('RARITY_PERCENT=' + str(r.get('rollout_percent')))
           PY
           echo "ENGINE_SHA256=$(sha256sum "$ENGINE" | awk '{print $1}')"
@@ -159,9 +164,14 @@ jobs:
             fi
             test "$(sha256sum "$ENGINE" | awk '{print $1}')" = "$PATCH_ENGINE"
             test "$(sha256sum "$ORCH" | awk '{print $1}')" = "$PATCH_ORCH"
-            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$PATCH_DASH"
+            if ! grep -Fq 'total_children_stamped' "$DASH"; then
+              test "$(sha256sum "$DASH" | awk '{print $1}')" = "$PATCH_DASH_BASE"
+              python3 /tmp/patch_zstamp_cumulative.py "$BROTO_ROOT"
+            fi
+            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$PATCH_DASH_CUM"
             python3 -m py_compile "$ENGINE" "$ORCH" "$DASH"
             PYTHONPATH="$BROTO_ROOT/src" python3 /tmp/smoke_zstamp.py
+            PYTHONPATH="$BROTO_ROOT/src" python3 /tmp/test_zstamp_cumulative.py
             cat > "$DROPIN" <<'EOF'
           [Service]
           Environment="BROTO_ZSTAMP_ENABLED=1"
@@ -196,7 +206,8 @@ jobs:
               assert z.get('mode') == 'BRUTUS_CORTEX_ZSTAMP_V1', z
               assert z.get('enabled') is True, z
               assert int(z.get('rollout_percent') or 0) == 10, z
-              assert int(z.get('root_selected') or 0) >= 1, z
+              assert int(z.get('total_root_selected') or 0) >= 1, z
+              assert z.get('cumulative_across_rounds') is True, z
               assert z.get('identity_excludes_path') is True, z
               assert z.get('value_mutated') is False, z
           else:
@@ -206,6 +217,8 @@ jobs:
           print('AFTER_STATE=' + str(d.get('state')))
           print('Z_ROOT_SELECTED=' + str(z.get('root_selected')))
           print('Z_CHILDREN_STAMPED=' + str(z.get('children_stamped')))
+          print('Z_TOTAL_ROOT_SELECTED=' + str(z.get('total_root_selected')))
+          print('Z_TOTAL_CHILDREN_STAMPED=' + str(z.get('total_children_stamped')))
           print('DEPLOY_VERIFY=PASS')
           PY
 
@@ -231,12 +244,15 @@ jobs:
           assert d.get('state') == 'RUNNING', d.get('state')
           assert not d.get('worker_error'), d.get('worker_error')
           if z.get('enabled') is True:
-              assert int(z.get('children_stamped') or 0) > 0, z
+              assert int(z.get('total_root_selected') or 0) > 0, z
+              assert int(z.get('total_children_stamped') or 0) > 0, z
           print('LIVE_STATE=' + str(d.get('state')))
           print('LIVE_PROCESSED=' + str(d.get('processed_packets')))
           print('LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
           print('LIVE_Z_ROOT_SELECTED=' + str(z.get('root_selected')))
           print('LIVE_Z_CHILDREN_STAMPED=' + str(z.get('children_stamped')))
+          print('LIVE_Z_TOTAL_ROOT_SELECTED=' + str(z.get('total_root_selected')))
+          print('LIVE_Z_TOTAL_CHILDREN_STAMPED=' + str(z.get('total_children_stamped')))
           print('LIVE_START_VERIFY=PASS')
           PY
           fi

@@ -69,3 +69,20 @@ Verified Linux patched hashes from the VPS patch output:
 - `dashboard.py`: `1892c2abf4b3dc535a2b1feeb08678e372bfe925bb786dadeaab1a85c49d61e9`
 
 The workflow is corrected to require these Linux hashes before restart.
+
+## Second canary and observability correction
+
+The corrected-hash canary successfully restarted the patched service with Cortex Z at 10 percent. Live status showed root stamping active (`root_selected` increased rapidly) with no worker error, but `children_stamped` was zero at the sampled instant. Investigation showed that all three Z counters belong to the current `ExperimentRunner`, while `DashboardService._advance_round_unlocked()` replaces that runner at every completed round. The sampled zero therefore cannot serve as session-wide evidence of no propagation.
+
+For safety, Cortex Z was immediately disabled through the guarded workflow. Disable verification passed: service RUNNING, Z enabled false, rollout 0, selected 0, children 0. Patched code remains on disk, but unstamped packets retain the exact legacy state hash and behavior.
+
+A cumulative observability patch now adds session totals across runner/round replacement:
+
+- `total_root_selected`
+- `total_root_passthrough`
+- `total_children_stamped`
+- `cumulative_across_rounds = true`
+
+A deterministic DashboardService test stamps descendants, rolls the runner over, and verifies that the current counter resets while the cumulative child total survives. Local result: `ZSTAMP_CUMULATIVE=PASS 5 5`.
+
+The next canary must require `total_root_selected > 0` and `total_children_stamped > 0` before it is accepted as live lineage evidence.
