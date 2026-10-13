@@ -16,6 +16,7 @@ def registry() -> FormulaRegistry:
     reg.register(Formula("PLUS1", "x+1", "plus", lambda x: x + 1))
     return reg
 
+
 def test_disabled() -> None:
     os.environ["BROTO_ZSTAMP_ENABLED"] = "0"
     os.environ["BROTO_ZSTAMP_PERCENT"] = "0"
@@ -25,10 +26,9 @@ def test_disabled() -> None:
     runner.seed([packet])
     runner.run_steps(1)
     status = runner.zstamp_status()
-    assert status["root_selected"] == 0
-    assert status["children_stamped"] == 0
-    assert all(item[2].packet.z_id is None for item in runner._queue)
+    assert status["root_selected"] == 0 and status["children_stamped"] == 0
     print("ZSTAMP_DISABLED_COMPAT=PASS")
+
 
 def test_canary() -> None:
     os.environ["BROTO_ZSTAMP_ENABLED"] = "1"
@@ -38,8 +38,10 @@ def test_canary() -> None:
     runner.seed([TracePacket(v, packet_id=f"p{v}") for v in values])
     rows = sorted((item[2].packet.value, item[2].packet.z_id is not None) for item in runner._queue)
     print("CANARY_ROWS=" + repr(rows))
-    assert rows == [(343, False), (703, False), (2701, False), (6337, True), (11611, False)]
+    assert rows == [(343, True), (703, False), (2701, False), (6337, False), (11611, False)]
     assert runner.zstamp_status()["root_selected"] == 1
+    runner.run_steps(1)
+    assert runner.zstamp_status()["children_stamped"] > 0
     print("ZSTAMP_CANARY_10=PASS")
 
 

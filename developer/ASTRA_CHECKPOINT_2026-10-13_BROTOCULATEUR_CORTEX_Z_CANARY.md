@@ -86,3 +86,22 @@ A cumulative observability patch now adds session totals across runner/round rep
 A deterministic DashboardService test stamps descendants, rolls the runner over, and verifies that the current counter resets while the cumulative child total survives. Local result: `ZSTAMP_CUMULATIVE=PASS 5 5`.
 
 The next canary must require `total_root_selected > 0` and `total_children_stamped > 0` before it is accepted as live lineage evidence.
+
+## Root starvation and Sleeping Pool lineage fix
+
+A later live audit after 10,227 processed packets showed `total_root_selected=2` and `total_children_stamped=0`. This ruled out both a short verification delay and a per-round counter reset as the sole cause.
+
+Queue inspection identified deterministic root starvation: all initial roots enter at priority 1, but descendants of the first root receive higher priorities and can stay ahead of later roots. Under the original rollout bucket, only seed `6337` was selected at 10 percent, while `343` entered before it and generated the higher-priority subtree. Thus the selected `6337` root could remain unprocessed for a long time.
+
+The rollout decision is now separated from the canonical Z identity. Z identity remains exactly `sha256("ZSTAMP-V1|<integer>")`; only canary selection uses the fixed rollout salt `BRUTUS-Z-ROLLOUT-V1-28`. For current VPS roots the 10 percent buckets are: `343=9`, `703=70`, `2701=23`, `6337=12`, `11611=65`. Therefore `343`, the first root processed, is the sole current-seed canary.
+
+Inspection also found a separate future lineage defect: `PapillonSleepingPool` packed legacy TracePacket fields but not `z_id`, `z_parent_id`, or `z_origin_id`. A sleeping descendant could therefore wake without its Z lineage. The fix stores all three Z identifiers in the packed token and restores them exactly. Canonical `Z-<32 hex>` identifiers are packed to 16 bytes each.
+
+Strengthened local tests now verify:
+
+- Z disabled keeps the exact legacy hash.
+- At 10 percent, `343` is the only selected current VPS root and one processing step creates stamped descendants.
+- Cumulative child counts survive a runner/round replacement.
+- A stamped child forced into the Sleeping Pool wakes with identical Z ID, Z parent, and Z origin.
+
+The live canary remains disabled until this correction is merged and deployed.
