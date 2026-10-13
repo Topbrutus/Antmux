@@ -116,3 +116,98 @@ Le canary exige :
 ## Statut avant déploiement
 
 READY_FOR_PR — T9 n'est pas encore déployé live au moment de cette section.
+
+## Validation live VPS — 2026-10-13
+
+### PR et base
+
+- PR T9 : `#290`
+- merge commit : `556096940b5fd56b6581f6ea5f49183434286959`
+- mode : `SHADOW_ONLY`
+
+### Audit PRE_T9 non mutant
+
+Workflow : `38381245471`
+
+État observé avant mutation :
+
+- source : `PRE_T9`
+- moteur : `RUNNING`
+- processed_packets : `276 997`
+- cristaux : `1 789 636`
+- T8 observations : `1 596 187`
+- T8 PASS : `1 596 187`
+- T8 FAIL : `0`
+- T8 LIMITED : `0`
+- T9 module : absent
+- dashboard SHA-256 : `8a294e39869babd68ff7c5456afbbd5d740ca44aec360e60a0f5bd8a1335e94e`
+- disque root : `59%`
+- audit : `PASS`
+
+### Tests sur copie exacte et canary
+
+Workflow : `38381319702`
+
+Le package live a d'abord été copié dans un stage temporaire. T9 a été appliqué uniquement à cette copie, puis les tests suivants ont passé avant mutation live :
+
+- répétition identique : `PASS`, stabilité `1.0`
+- dérive volontaire de sortie : `DRIFT` détecté
+- gate T8 FAIL/LIMITED : `PASS`
+- bornage baseline + LRU : `PASS`
+- callback T8 ↔ T9 : lockstep `PASS`
+- suite ciblée T9 : `PASS`
+
+Hashes du stage exact :
+
+- dashboard POST_T9 SHA-256 : `c8e4e06b74d7028f6db233d21cb630a93f9f8265e287cad58916e43ffdf8a34d`
+- T8 module SHA-256 inchangé : `a93bd6cd9aaaf0fe832604de9e390e6d69de7dfb8b853e558d8c9955761cce9e`
+- T9 module SHA-256 : `c0e0309dfe6d571c1d786010f72bc6f8bf3ccdada1f5fa960ab6f428e3640dd1`
+- backup : `brotoculateur/backups/t9-20261013T100852Z`
+
+Premier battement canary live :
+
+- état : `RUNNING`
+- delta T8 : `5`
+- delta T9 : `5`
+- observations T9 : `5`
+- baselines : `5`
+- répétitions : `0`
+- drifts : `0`
+- disque root : `59%`
+- workflow : `PASS`
+
+À ce premier battement, `stability_rate = 0.0` parce qu'aucune répétition n'avait encore été observée ; il ne s'agissait donc pas d'une mesure négative de stabilité.
+
+### Audit indépendant POST_T9
+
+Workflow : `38381409128`
+
+État observé :
+
+- source : `POST_T9`
+- moteur : `RUNNING`
+- processed_packets : `5 508`
+- cristaux : `1 790 467`
+- T8 observations : `30 966`
+- T8 PASS : `30 966`
+- T8 FAIL : `0`
+- T8 LIMITED : `0`
+- T9 observations : `30 966`
+- T9 répétitions : `30 393`
+- T9 répétitions stables : `30 393`
+- T9 drifts : `0`
+- stabilité observée sur répétitions : `30 393 / 30 393 = 1.0`
+- dashboard SHA-256 : `c8e4e06b74d7028f6db233d21cb630a93f9f8265e287cad58916e43ffdf8a34d`
+- T9 module SHA-256 : `c0e0309dfe6d571c1d786010f72bc6f8bf3ccdada1f5fa960ab6f428e3640dd1`
+- disque root : `59%`
+- audit : `PASS`
+
+## Interprétation
+
+T9 a démontré le bon fonctionnement opérationnel de sa mesure de stabilité sous répétition dans la configuration live observée : les `30 393` répétitions admissibles ont reproduit la même signature sémantique et aucun drift n'a été observé dans cette fenêtre.
+
+Cela ne constitue pas une preuve scientifique générale de stabilité universelle. T9 reste une vertèbre de télémétrie `SHADOW_ONLY`, sans autorité moteur, sans mutation de `ValidationState`, sans routage, sans scheduling, sans compute skip et sans promotion de preuve.
+
+## Statut final
+
+`LIVE_VALIDATED_SHADOW` — T9 actif et validé opérationnellement. Prochaine vertèbre officielle : `T10 — Replay`.
