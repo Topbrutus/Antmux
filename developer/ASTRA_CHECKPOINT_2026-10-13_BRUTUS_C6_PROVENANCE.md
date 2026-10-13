@@ -66,3 +66,36 @@ Expected post-C6 source:
 - YAML parse: PASS
 
 No VPS mutation has occurred at the time this checkpoint was written.
+
+## Live VPS validation
+
+C6 was deployed as a bounded shadow canary after a PRE_C6 audit passed.
+
+Deployment run:
+- GitHub Actions: 38355020150
+- result: SUCCESS
+- automatic VPS backup created before mutation
+- service returned RUNNING
+- initial chain: C2=C3=C4=C5=C6 = 6 observations
+
+Independent post-deploy audit:
+- GitHub Actions: 38355108545
+- result: SUCCESS / C6_AUDIT_ONLY=PASS
+- source state: POST_C6
+- service: RUNNING
+- processed packets: 15173
+- crystals: 1618875
+- C2 fingerprints: 86614
+- C3 observations: 86614
+- C4 observations: 86614
+- C5 observations: 86614
+- C6 observations: 86614
+- C6 tracked Z targets: 758
+- C6 operational independence candidate targets: 180
+- root disk used: 59%
+- root disk free: 49299684 KB
+
+Interpretation guard:
+- the 180 targets are engineering provenance candidates only;
+- they are not proof of mathematical/scientific independence;
+- no scheduling authority, compute skip, proof promotion, or value mutation was enabled.
