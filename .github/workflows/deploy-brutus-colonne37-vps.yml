@@ -1,0 +1,94 @@
+name: Deploy Brutus Colonne 37 static page
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-brutus-colonne37-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate static page
+        run: |
+          set -euo pipefail
+          test -f laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'BRUTUS COLONNE 37 — CORTEX Z' laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'PROTOTYPE ISOLÉ' laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'Cortex Brutus / Pinéale' laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'Z-STAMP' laboratoire/brutus-colonne-37/index.html
+          grep -Fq 'AUCUNE COMMANDE LIVE' laboratoire/brutus-colonne-37/index.html
+          sha256sum laboratoire/brutus-colonne-37/index.html
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage page
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            laboratoire/brutus-colonne-37/index.html \
+            "$VPS_USER@$VPS_HOST:/tmp/brutus-colonne37-index.html"
+
+      - name: Install static page with rollback backup
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          test "$(hostname)" = 'server1.antmux.com'
+          DEST='/var/www/antmux.com/public_html/laboratoire/brutus-colonne-37'
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$HOME/static-backups/brutus-colonne37-$STAMP"
+          mkdir -p "$BACKUP"
+          if test -f "$DEST/index.html"; then
+            cp -a "$DEST/index.html" "$BACKUP/index.html"
+          fi
+          mkdir -p "$DEST"
+          install -m 0644 /tmp/brutus-colonne37-index.html "$DEST/index.html"
+          rm -f /tmp/brutus-colonne37-index.html
+          sha256sum "$DEST/index.html" | tee "$BACKUP/deployed-index.sha256"
+          echo "BACKUP=$BACKUP"
+          echo 'STATIC_INSTALL=PASS'
+          REMOTE
+
+      - name: Verify public page
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            if curl --fail --silent --show-error --location --max-time 5 \
+              https://antmux.com/laboratoire/brutus-colonne-37/ -o /tmp/brutus37.html; then
+              if grep -Fq 'BRUTUS COLONNE 37 — CORTEX Z' /tmp/brutus37.html \
+                && grep -Fq 'Cortex Brutus / Pinéale' /tmp/brutus37.html \
+                && grep -Fq 'AUCUNE COMMANDE LIVE' /tmp/brutus37.html; then
+                echo 'PUBLIC_VERIFY=PASS'
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+          echo 'PUBLIC_VERIFY=FAIL' >&2
+          exit 1
