@@ -1,0 +1,158 @@
+name: Astra Brutus Spine VPS Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - developer/ASTRA_VPS_COMMAND.json
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Scoped action'
+        required: true
+        default: status
+        type: choice
+        options: [status, co2_audit, co2_canary]
+      confirm:
+        description: 'Required only for co2_canary: BRUTUS-CO2-VPS'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astra-brutus-spine-vps
+  cancel-in-progress: false
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve scoped command
+        id: cmd
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$INPUT_ACTION" in status|co2_audit|co2_canary) ;; *) echo 'invalid action' >&2; exit 2;; esac
+            if [ "$INPUT_ACTION" = "co2_canary" ]; then test "$INPUT_CONFIRM" = 'BRUTUS-CO2-VPS'; fi
+            echo "action=$INPUT_ACTION" >> "$GITHUB_OUTPUT"
+            echo "request_id=manual-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+          else
+            python3 - <<'PY'
+          import json, os, re
+          from datetime import datetime, timezone
+          p='developer/ASTRA_VPS_COMMAND.json'
+          d=json.load(open(p, encoding='utf-8'))
+          if d.get('schema') != 'astra-brutus-spine-command/v1':
+              raise SystemExit('invalid schema')
+          action=d.get('action')
+          if action not in {'status','co2_audit','co2_canary'}:
+              raise SystemExit('action not allowed')
+          rid=str(d.get('request_id',''))
+          if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,96}', rid):
+              raise SystemExit('invalid request_id')
+          exp=str(d.get('expires_at_utc',''))
+          try:
+              deadline=datetime.fromisoformat(exp.replace('Z','+00:00'))
+          except Exception as e:
+              raise SystemExit(f'invalid expiry: {e}')
+          if deadline.tzinfo is None or datetime.now(timezone.utc) > deadline:
+              raise SystemExit('command expired')
+          confirm=str(d.get('confirm',''))
+          if action == 'co2_canary' and confirm != 'BRUTUS-CO2-VPS':
+              raise SystemExit('canary confirmation missing')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
+              f.write(f'action={action}\nrequest_id={rid}\n')
+          PY
+          fi
+          printf 'BRIDGE_ACTION=%s\nBRIDGE_REQUEST_ID=%s\n' '${{ steps.cmd.outputs.action }}' '${{ steps.cmd.outputs.request_id }}' || true
+
+      - name: Verify pinned Co2 payload
+        if: steps.cmd.outputs.action == 'co2_audit' || steps.cmd.outputs.action == 'co2_canary'
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            deploy/vps-co2/co2_proof_chain.py \
+            deploy/vps-co2/patch_brotoculateur_co2_proof_chain.py \
+            deploy/vps-co2/test_co2_proof_chain.py \
+            deploy/vps-co2/verify_co2_chain_files.py
+          printf '%s  %s\n' \
+            '2e5fe79712cf1efd5f65391c3ec9106c2934973449f7053634696f27a7ec0580' deploy/vps-co2/co2_proof_chain.py \
+            '439ba096803013cdf827b8d5692071483c98ad25428330eafa341308947a61b5' deploy/vps-co2/patch_brotoculateur_co2_proof_chain.py \
+            'c6d5602e5b9d941bdb23edaf104981c180a86de20bdcefde29f821a28cb94e0e' deploy/vps-co2/run_co2_vps.sh \
+            '1d3b58bac1143a35d2fd4f6c375895c43bb6c9e024c2d14d0c666a4a29399898' deploy/vps-co2/test_co2_proof_chain.py \
+            'ca02af68883ac134bbe50c49810c4f4418e2e13c479a79b7022e991bc9127743' deploy/vps-co2/verify_co2_chain_files.py \
+            | sha256sum -c -
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: VPS status receipt
+        if: steps.cmd.outputs.action == 'status'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p receipt
+          {
+            echo "REQUEST_ID=${{ steps.cmd.outputs.request_id }}"
+            echo "ACTION=status"
+            ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+              'systemctl --user is-active brotoculateur.service; curl -fsS http://127.0.0.1:8781/api/status'
+          } | tee receipt/bridge-receipt.txt
+
+      - name: Co2 audit or canary
+        if: steps.cmd.outputs.action == 'co2_audit' || steps.cmd.outputs.action == 'co2_canary'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          ACTION: ${{ steps.cmd.outputs.action }}
+        run: |
+          set -euo pipefail
+          mkdir -p receipt
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-co2/co2_proof_chain.py \
+            deploy/vps-co2/patch_brotoculateur_co2_proof_chain.py \
+            deploy/vps-co2/run_co2_vps.sh \
+            deploy/vps-co2/test_co2_proof_chain.py \
+            deploy/vps-co2/verify_co2_chain_files.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+          mode=audit
+          [ "$ACTION" != 'co2_canary' ] || mode=canary_start
+          {
+            echo "REQUEST_ID=${{ steps.cmd.outputs.request_id }}"
+            echo "ACTION=$ACTION"
+            echo "MODE=$mode"
+            ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+              "CO2SHA='2e5fe79712cf1efd5f65391c3ec9106c2934973449f7053634696f27a7ec0580' EXPECTED_POST='b393de960f8f0c6bfdb17b7049ab90142736491cadf86540f70a3ae6647b8e3e' MODE='$mode' bash /tmp/run_co2_vps.sh"
+          } | tee receipt/bridge-receipt.txt
+
+      - name: Upload bridge receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-vps-bridge-receipt-${{ github.run_id }}
+          path: |
+            receipt/
+            developer/ASTRA_VPS_COMMAND.json
+          if-no-files-found: ignore
+          retention-days: 7
