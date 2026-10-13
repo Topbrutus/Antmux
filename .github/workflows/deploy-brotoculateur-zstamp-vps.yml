@@ -1,0 +1,243 @@
+name: Deploy Brotoculateur Cortex Z VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start 10 percent Cortex Z canary, or disable Cortex Z
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - canary_start
+          - disable
+      confirm:
+        description: Type BRUTUS-ZSTAMP-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-cortex-z-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and patcher
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then
+            test "$CONFIRM" = 'BRUTUS-ZSTAMP-VPS'
+          fi
+          python3 -m py_compile deploy/vps-zstamp/patch_brotoculateur_zstamp.py deploy/vps-zstamp/smoke_zstamp.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage Cortex Z tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-zstamp/patch_brotoculateur_zstamp.py \
+            deploy/vps-zstamp/smoke_zstamp.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy Cortex Z
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ENGINE="$PKG/engine.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+          EXPECT_ENGINE='cb29f5df30af3e68cff933cc9ac26354ab146582d144c1b2c6174a880b8abc6b'
+          EXPECT_ORCH='90ddcc9abf82e5eec4d8b1fa50b2cef4540680bde2a5b87e8e2963e2cd0041c1'
+          EXPECT_DASH='71e204d3ab814b27c6c98bea9f2c755f396a6625fce713b2e5568f0521d80117'
+          PATCH_ENGINE='9ea4fd8baffa3544a525c96f190fc0d7f8d852d3ede76cf822eb092b1b2483c4'
+          PATCH_ORCH='5e7e9b737d04228deb7fe5f70e1eed38b2f927ca0e7e54c33c740b12d0bd9c0e'
+          PATCH_DASH='0f2150b1bb343b51f985182519300b84c0535b90edb639d56cbd44ecc7e9310f'
+
+          test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/zstamp-before.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/zstamp-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          r=d.get('hierarchical_rarity') or {}
+          print('STATE=' + str(d.get('state')))
+          print('RUN_ID=' + str(d.get('run_id')))
+          print('PROCESSED=' + str(d.get('processed_packets')))
+          print('CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('Z_MODE=' + str(z.get('mode')))
+          print('Z_ENABLED=' + str(z.get('enabled')))
+          print('Z_PERCENT=' + str(z.get('rollout_percent')))
+          print('RARITY_PERCENT=' + str(r.get('rollout_percent')))
+          PY
+          echo "ENGINE_SHA256=$(sha256sum "$ENGINE" | awk '{print $1}')"
+          echo "ORCH_SHA256=$(sha256sum "$ORCH" | awk '{print $1}')"
+          echo "DASH_SHA256=$(sha256sum "$DASH" | awk '{print $1}')"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          if [ "$MODE" = audit ]; then
+            echo 'AUDIT_ONLY=PASS'
+            exit 0
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/zstamp-before.json', encoding='utf-8')).get('state') == 'RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/zstamp-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/zstamp-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/zstamp-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/zstamp-paused.json', encoding='utf-8'))
+          assert d.get('state') == 'PAUSED', d.get('state')
+          print('PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/zstamp-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ENGINE" "$ORCH" "$DASH" "$BACKUP/"
+          cp -a /tmp/zstamp-before.json "$BACKUP/status-before.json"
+          sha256sum "$ENGINE" "$ORCH" "$DASH" > "$BACKUP/SHA256SUMS"
+          echo "BACKUP=$BACKUP"
+
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/40-brutus-zstamp.conf"
+          mkdir -p "$DROPIN_DIR"
+
+          if [ "$MODE" = canary_start ]; then
+            current_engine=$(sha256sum "$ENGINE" | awk '{print $1}')
+            current_orch=$(sha256sum "$ORCH" | awk '{print $1}')
+            current_dash=$(sha256sum "$DASH" | awk '{print $1}')
+            if ! grep -Fq 'BRUTUS_CORTEX_ZSTAMP_V1' "$ENGINE"; then
+              test "$current_engine" = "$EXPECT_ENGINE"
+              test "$current_orch" = "$EXPECT_ORCH"
+              test "$current_dash" = "$EXPECT_DASH"
+              python3 /tmp/patch_brotoculateur_zstamp.py "$BROTO_ROOT"
+            fi
+            test "$(sha256sum "$ENGINE" | awk '{print $1}')" = "$PATCH_ENGINE"
+            test "$(sha256sum "$ORCH" | awk '{print $1}')" = "$PATCH_ORCH"
+            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$PATCH_DASH"
+            python3 -m py_compile "$ENGINE" "$ORCH" "$DASH"
+            PYTHONPATH="$BROTO_ROOT/src" python3 /tmp/smoke_zstamp.py
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_ZSTAMP_ENABLED=1"
+          Environment="BROTO_ZSTAMP_PERCENT=10"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_ZSTAMP_ENABLED=0"
+          Environment="BROTO_ZSTAMP_PERCENT=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/zstamp-after.json; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/zstamp-after.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          mode=os.environ['MODE']
+          if mode == 'canary_start':
+              assert z.get('mode') == 'BRUTUS_CORTEX_ZSTAMP_V1', z
+              assert z.get('enabled') is True, z
+              assert int(z.get('rollout_percent') or 0) == 10, z
+              assert int(z.get('root_selected') or 0) >= 1, z
+              assert z.get('identity_excludes_path') is True, z
+              assert z.get('value_mutated') is False, z
+          else:
+              assert z.get('enabled') is False, z
+              assert int(z.get('rollout_percent') or 0) == 0, z
+          assert not d.get('worker_error'), d.get('worker_error')
+          print('AFTER_STATE=' + str(d.get('state')))
+          print('Z_ROOT_SELECTED=' + str(z.get('root_selected')))
+          print('Z_CHILDREN_STAMPED=' + str(z.get('children_stamped')))
+          print('DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/zstamp-start.json
+            running=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/zstamp-live.json || true
+              state=$(python3 -c "import json; print(json.load(open('/tmp/zstamp-live.json')).get('state',''))" 2>/dev/null || true)
+              if [ "$state" = RUNNING ]; then
+                running=1
+                break
+              fi
+              sleep 1
+            done
+            test "$running" = 1
+            sleep 2
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/zstamp-live.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/zstamp-live.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}
+          assert d.get('state') == 'RUNNING', d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          if z.get('enabled') is True:
+              assert int(z.get('children_stamped') or 0) > 0, z
+          print('LIVE_STATE=' + str(d.get('state')))
+          print('LIVE_PROCESSED=' + str(d.get('processed_packets')))
+          print('LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('LIVE_Z_ROOT_SELECTED=' + str(z.get('root_selected')))
+          print('LIVE_Z_CHILDREN_STAMPED=' + str(z.get('children_stamped')))
+          print('LIVE_START_VERIFY=PASS')
+          PY
+          fi
+          REMOTE
