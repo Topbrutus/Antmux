@@ -99,3 +99,24 @@ T8 contre-teste toutes les sorties des 10 formules actuellement enregistrées au
 
 ## Statut final
 LIVE_VALIDATED_SHADOW — T8 actif, aucune autorité moteur, aucune promotion de preuve.
+
+## Audit de stabilité supplémentaire — 2026-10-13 09:13 UTC
+
+Audit indépendant : `38374730730`.
+
+État observé :
+- source : `POST_T8`
+- moteur : `RUNNING`
+- processed_packets : `80 866`
+- cristaux : `1 766 110`
+- Brutomagique total_observations : `84 774 121`
+- T7 packet_observations : `80 866`
+- T8 observations : `466 856`
+- T8 PASS : `466 856`
+- T8 FAIL : `0`
+- T8 LIMITED : `0`
+- disque root : `59%`
+- espace libre root : `48 703 868 KB`
+- audit : `PASS`
+
+Ce contrôle renforce la validation de stabilité de T8 sur un échantillon beaucoup plus large que le canary initial. Il confirme le bon fonctionnement opérationnel du contre-test dans la configuration courante ; il ne transforme pas les résultats en preuve scientifique générale et ne modifie toujours pas `ValidationState.COUNTERTESTED`.
