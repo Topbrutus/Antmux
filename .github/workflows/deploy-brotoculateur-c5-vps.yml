@@ -1,0 +1,359 @@
+name: Deploy Brotoculateur C5 Structural Rarity VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit, start C5 shadow rarity, or disable C5
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start, disable]
+      confirm:
+        description: Type BRUTUS-C5-VPS for canary_start or disable
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-c5-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate request and C5 tools
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start|disable) ;; *) exit 2 ;; esac
+          if [ "$MODE" != audit ]; then test "$CONFIRM" = 'BRUTUS-C5-VPS'; fi
+          python3 -m py_compile \
+            deploy/vps-c5/c5_rarity.py \
+            deploy/vps-c5/patch_brotoculateur_c5_rarity.py \
+            deploy/vps-c5/test_c5_rarity.py
+
+      - name: Configure pinned VPS SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage C5 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            deploy/vps-c5/c5_rarity.py \
+            deploy/vps-c5/patch_brotoculateur_c5_rarity.py \
+            deploy/vps-c5/test_c5_rarity.py \
+            "$VPS_USER@$VPS_HOST:/tmp/"
+
+      - name: Audit or deploy C5
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          BROTO_ROOT="$HOME/brotoculateur"
+          PKG="$BROTO_ROOT/src/brotoculateur"
+          ENGINE="$PKG/engine.py"
+          ORCH="$PKG/orchestrator.py"
+          DASH="$PKG/dashboard.py"
+          SLEEP="$PKG/sleeping_pool.py"
+          C3MOD="$PKG/c3_library.py"
+          C4MOD="$PKG/c4_novelty.py"
+          C5MOD="$PKG/c5_rarity.py"
+          STATUS_URL='http://127.0.0.1:8781/api/status'
+
+          EXPECT_ENGINE='ac956512699ab0bb527449e08fdaeafab9c883eea3565c4abc5d8e4fcc9ac31b'
+          EXPECT_SLEEP='1fe651ff70e4cad7afc8ec216cbad5f361ff839c072408dcc0233e0a0c637124'
+          EXPECT_C3='b7970583e688488d0f9fd8a90838d9163d00b08b7e6afedd499434e79a06c434'
+          EXPECT_C4='d9669cdcdbd300529ff63a07fc088be6a9e60fdc65315015b1904f83d42e10f2'
+          PRE_ORCH='0c29aae538c5ea69a3f3a235d7fd377bddd83b339a7f6cda5b091bbd9ae2642f'
+          PRE_DASH='a55b055ee31816fda113f71d28499b1c4a697a8b123ee01dc852d86984dbc7fe'
+          POST_ORCH='0582f5c443d67015ab88286591cbca71650a574ef38859b1563223a93c53285d'
+          POST_DASH='1f571adba61d948d0e5189843e0565ebb225f20bbeed9d9159f1f719e804efe9'
+          POST_C5='d8a02ccecffddffc6db8d8810e84875184861d5446eea8304d23cc8adc483999'
+
+          test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH" -a -f "$SLEEP" -a -f "$C3MOD" -a -f "$C4MOD"
+          systemctl --user is-active --quiet brotoculateur.service
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c5-before.json
+
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c5-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}; c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}
+          print('STATE=' + str(d.get('state')))
+          print('RUN_ID=' + str(d.get('run_id')))
+          print('PROCESSED=' + str(d.get('processed_packets')))
+          print('CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('Z_PERCENT=' + str(z.get('rollout_percent')))
+          print('C2_TOTAL=' + str(c2.get('total_fingerprints')))
+          print('C3_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C4_OBSERVATIONS=' + str(c4.get('observations')))
+          print('C5_MODE=' + str(c5.get('mode')))
+          print('C5_ENABLED=' + str(c5.get('enabled')))
+          print('C5_OBSERVATIONS=' + str(c5.get('observations')))
+          print('C5_CLASSES=' + str(c5.get('class_counts')))
+          PY
+
+          engine_hash=$(sha256sum "$ENGINE" | awk '{print $1}')
+          orch_hash=$(sha256sum "$ORCH" | awk '{print $1}')
+          dash_hash=$(sha256sum "$DASH" | awk '{print $1}')
+          sleep_hash=$(sha256sum "$SLEEP" | awk '{print $1}')
+          c3_hash=$(sha256sum "$C3MOD" | awk '{print $1}')
+          c4_hash=$(sha256sum "$C4MOD" | awk '{print $1}')
+          if [ -f "$C5MOD" ]; then c5_hash=$(sha256sum "$C5MOD" | awk '{print $1}'); else c5_hash='ABSENT'; fi
+          echo "ENGINE_SHA256=$engine_hash"
+          echo "ORCH_SHA256=$orch_hash"
+          echo "DASH_SHA256=$dash_hash"
+          echo "SLEEPING_POOL_SHA256=$sleep_hash"
+          echo "C3_LIBRARY_SHA256=$c3_hash"
+          echo "C4_NOVELTY_SHA256=$c4_hash"
+          echo "C5_RARITY_SHA256=$c5_hash"
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+
+          test "$engine_hash" = "$EXPECT_ENGINE"
+          test "$sleep_hash" = "$EXPECT_SLEEP"
+          test "$c3_hash" = "$EXPECT_C3"
+          test "$c4_hash" = "$EXPECT_C4"
+          source_state='UNKNOWN'
+          if [ "$orch_hash" = "$PRE_ORCH" ] && [ "$dash_hash" = "$PRE_DASH" ] && [ "$c5_hash" = 'ABSENT' ]; then
+            source_state='PRE_C5'
+          elif [ "$orch_hash" = "$POST_ORCH" ] && [ "$dash_hash" = "$POST_DASH" ] && [ "$c5_hash" = "$POST_C5" ]; then
+            source_state='POST_C5'
+          fi
+          test "$source_state" != 'UNKNOWN'
+          echo "C5_SOURCE_STATE=$source_state"
+
+          if [ "$MODE" = audit ]; then
+            SOURCE_STATE="$source_state" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/c5-before.json', encoding='utf-8'))
+          c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert c3.get('enabled') is True, c3
+          assert c4.get('enabled') is True, c4
+          assert int(c4.get('observations') or 0) == int(c3.get('observations') or 0), (c4,c3)
+          if os.environ['SOURCE_STATE'] == 'POST_C5' and c5.get('enabled') is True:
+              obs=int(c5.get('observations') or 0)
+              classes=c5.get('class_counts') or {}
+              assert obs == int(c4.get('observations') or 0), (c5,c4)
+              assert sum(int(v or 0) for v in classes.values()) + int(c5.get('untracked_capacity') or 0) == obs, c5
+              assert c5.get('controls_scheduling') is False, c5
+              assert c5.get('reference_rights_applied') is False, c5
+              assert int(c5.get('compute_skips', -1)) == 0, c5
+              assert c5.get('scientific_rarity_claim') is False, c5
+          print('C5_AUDIT_ONLY=PASS')
+          PY
+            exit 0
+          fi
+
+          if [ "$MODE" = canary_start ]; then
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c5-before.json', encoding='utf-8'))
+          z=d.get('brutus_cortex') or {}; c2=d.get('c2_fingerprint') or {}
+          c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}
+          assert d.get('state') in {'RUNNING','PAUSED'}, d.get('state')
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert z.get('enabled') is True and int(z.get('rollout_percent') or 0) == 10, z
+          assert c2.get('enabled') is True, c2
+          assert c3.get('enabled') is True and c3.get('authority') == 'SHADOW_ONLY', c3
+          assert c4.get('enabled') is True and c4.get('authority') == 'SHADOW_ONLY', c4
+          assert int(c3.get('observations') or 0) == int(c2.get('total_fingerprints') or 0), (c3,c2)
+          assert int(c4.get('observations') or 0) == int(c3.get('observations') or 0), (c4,c3)
+          assert int(c4.get('compute_skips', -1)) == 0, c4
+          print('C5_REQUIRES_C4_C3_C2_Z10=PASS')
+          PY
+
+            STAGE="/tmp/brotoculateur-c5-stage-$$"
+            rm -rf "$STAGE"; mkdir -p "$STAGE/src"
+            cp -a "$PKG" "$STAGE/src/brotoculateur"
+            python3 /tmp/patch_brotoculateur_c5_rarity.py "$STAGE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/orchestrator.py" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/dashboard.py" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c3_library.py" | awk '{print $1}')" = "$EXPECT_C3"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c4_novelty.py" | awk '{print $1}')" = "$EXPECT_C4"
+            test "$(sha256sum "$STAGE/src/brotoculateur/c5_rarity.py" | awk '{print $1}')" = "$POST_C5"
+            test "$(sha256sum "$STAGE/src/brotoculateur/engine.py" | awk '{print $1}')" = "$EXPECT_ENGINE"
+            test "$(sha256sum "$STAGE/src/brotoculateur/sleeping_pool.py" | awk '{print $1}')" = "$EXPECT_SLEEP"
+            PYTHONPATH="$STAGE/src" python3 /tmp/test_c5_rarity.py
+            echo 'C5_EXACT_LIVE_STAGE=PASS'
+          else
+            test "$source_state" = 'POST_C5'
+          fi
+
+          WAS_RUNNING=$(python3 - <<'PY'
+          import json
+          print('1' if json.load(open('/tmp/c5-before.json', encoding='utf-8')).get('state') == 'RUNNING' else '0')
+          PY
+          )
+          if [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/tmp/c5-save.json
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/tmp/c5-pause.json
+          fi
+          curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c5-paused.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c5-paused.json', encoding='utf-8'))
+          assert d.get('state') == 'PAUSED', d.get('state')
+          print('C5_PAUSE_VERIFY=PASS')
+          PY
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          BACKUP="$BROTO_ROOT/backups/c5-$STAMP"
+          mkdir -p "$BACKUP"
+          cp -a "$ORCH" "$DASH" "$C3MOD" "$C4MOD" "$BACKUP/"
+          if [ -f "$C5MOD" ]; then cp -a "$C5MOD" "$BACKUP/"; fi
+          cp -a /tmp/c5-before.json "$BACKUP/status-before.json"
+          sha256sum "$ENGINE" "$ORCH" "$DASH" "$SLEEP" "$C3MOD" "$C4MOD" > "$BACKUP/SHA256SUMS"
+          DROPIN_DIR="$HOME/.config/systemd/user/brotoculateur.service.d"
+          DROPIN="$DROPIN_DIR/80-brutus-c5.conf"
+          mkdir -p "$DROPIN_DIR"
+          HAD_DROPIN=0; if [ -f "$DROPIN" ]; then HAD_DROPIN=1; cp -a "$DROPIN" "$BACKUP/80-brutus-c5.conf"; fi
+          HAD_C5MOD=0; if [ -f "$C5MOD" ]; then HAD_C5MOD=1; fi
+          echo "C5_BACKUP=$BACKUP"
+
+          rollback() {
+            rc=$?; set +e; echo "C5_ROLLBACK_BEGIN rc=$rc"
+            cp -a "$BACKUP/orchestrator.py" "$ORCH"
+            cp -a "$BACKUP/dashboard.py" "$DASH"
+            cp -a "$BACKUP/c3_library.py" "$C3MOD"
+            cp -a "$BACKUP/c4_novelty.py" "$C4MOD"
+            if [ "$HAD_C5MOD" = 1 ]; then cp -a "$BACKUP/c5_rarity.py" "$C5MOD"; else rm -f "$C5MOD"; fi
+            if [ "$HAD_DROPIN" = 1 ]; then cp -a "$BACKUP/80-brutus-c5.conf" "$DROPIN"; else rm -f "$DROPIN"; fi
+            systemctl --user daemon-reload
+            systemctl --user restart brotoculateur.service
+            sleep 2
+            if [ "$WAS_RUNNING" = 1 ]; then curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c5-rollback-start.json || true; fi
+            echo 'C5_ROLLBACK_DONE'; exit "$rc"
+          }
+          trap rollback ERR
+
+          if [ "$MODE" = canary_start ]; then
+            cp -a "$STAGE/src/brotoculateur/orchestrator.py" "$ORCH"
+            cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"
+            cp -a "$STAGE/src/brotoculateur/c5_rarity.py" "$C5MOD"
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C5_ENABLED=1"
+          EOF
+          else
+            cat > "$DROPIN" <<'EOF'
+          [Service]
+          Environment="BROTO_C5_ENABLED=0"
+          EOF
+          fi
+
+          systemctl --user daemon-reload
+          systemctl --user restart brotoculateur.service
+          ok=0
+          for _ in $(seq 1 20); do
+            if systemctl --user is-active --quiet brotoculateur.service && curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c5-after.json; then ok=1; break; fi
+            sleep 1
+          done
+          test "$ok" = 1
+
+          MODE="$MODE" python3 - <<'PY'
+          import json, os
+          d=json.load(open('/tmp/c5-after.json', encoding='utf-8'))
+          c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}
+          assert not d.get('worker_error'), d.get('worker_error')
+          assert c4.get('enabled') is True, c4
+          if os.environ['MODE'] == 'canary_start':
+              assert c5.get('mode') == 'BRUTUS_C5_STRUCTURAL_RARITY_V1', c5
+              assert c5.get('enabled') is True, c5
+              assert c5.get('authority') == 'SHADOW_ONLY', c5
+              assert c5.get('source_of_truth') == 'C3_EXACT_FINGERPRINT_COUNT', c5
+              assert c5.get('controls_scheduling') is False, c5
+              assert c5.get('reference_rights_applied') is False, c5
+              assert int(c5.get('compute_skips', -1)) == 0, c5
+              assert int(c5.get('observations') or 0) == int(c4.get('observations') or 0), (c5,c4)
+          else:
+              assert c5.get('enabled') is False, c5
+          print('C5_AFTER_STATE=' + str(d.get('state')))
+          print('C5_AFTER_OBSERVATIONS=' + str(c5.get('observations')))
+          print('C5_AFTER_CLASSES=' + str(c5.get('class_counts')))
+          print('C5_DEPLOY_VERIFY=PASS')
+          PY
+
+          if [ "$MODE" = canary_start ] || [ "$WAS_RUNNING" = 1 ]; then
+            curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/tmp/c5-start.json
+            live=0
+            for _ in $(seq 1 30); do
+              curl -fsS --max-time 2 "$STATUS_URL" >/tmp/c5-live.json || true
+              if MODE="$MODE" python3 - <<'PY'
+          import json, os, sys
+          try: d=json.load(open('/tmp/c5-live.json', encoding='utf-8'))
+          except Exception: sys.exit(1)
+          c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}
+          good=d.get('state') == 'RUNNING' and not d.get('worker_error')
+          if os.environ.get('MODE') == 'canary_start':
+              obs=int(c5.get('observations') or 0); classes=c5.get('class_counts') or {}
+              good = good and obs > 0 and obs == int(c4.get('observations') or 0)
+              good = good and sum(int(v or 0) for v in classes.values()) + int(c5.get('untracked_capacity') or 0) == obs
+              good = good and int(c5.get('compute_skips', -1)) == 0 and c5.get('controls_scheduling') is False
+          sys.exit(0 if good else 1)
+          PY
+              then live=1; break; fi
+              sleep 1
+            done
+            test "$live" = 1
+            curl -fsS --max-time 5 "$STATUS_URL" >/tmp/c5-live.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/c5-live.json', encoding='utf-8'))
+          c2=d.get('c2_fingerprint') or {}; c3=d.get('c3_library') or {}; c4=d.get('c4_novelty') or {}; c5=d.get('c5_rarity') or {}
+          print('C5_LIVE_STATE=' + str(d.get('state')))
+          print('C5_LIVE_PROCESSED=' + str(d.get('processed_packets')))
+          print('C5_LIVE_CRYSTALS=' + str((d.get('brutomagique') or {}).get('total_crystals')))
+          print('C5_LIVE_C2_TOTAL=' + str(c2.get('total_fingerprints')))
+          print('C5_LIVE_C3_OBSERVATIONS=' + str(c3.get('observations')))
+          print('C5_LIVE_C4_OBSERVATIONS=' + str(c4.get('observations')))
+          print('C5_LIVE_OBSERVATIONS=' + str(c5.get('observations')))
+          print('C5_LIVE_CLASSES=' + str(c5.get('class_counts')))
+          print('C5_LIVE_MAX_COUNT=' + str(c5.get('max_observation_count')))
+          print('C5_LIVE_UNTRACKED=' + str(c5.get('untracked_capacity')))
+          print('C5_LIVE_VERIFY=PASS')
+          PY
+          fi
+
+          test "$(sha256sum "$ENGINE" | awk '{print $1}')" = "$EXPECT_ENGINE"
+          test "$(sha256sum "$SLEEP" | awk '{print $1}')" = "$EXPECT_SLEEP"
+          test "$(sha256sum "$C3MOD" | awk '{print $1}')" = "$EXPECT_C3"
+          test "$(sha256sum "$C4MOD" | awk '{print $1}')" = "$EXPECT_C4"
+          if [ "$MODE" = canary_start ]; then
+            test "$(sha256sum "$ORCH" | awk '{print $1}')" = "$POST_ORCH"
+            test "$(sha256sum "$DASH" | awk '{print $1}')" = "$POST_DASH"
+            test "$(sha256sum "$C5MOD" | awk '{print $1}')" = "$POST_C5"
+          fi
+          df -P / | awk 'NR==2 {print "C5_ROOT_DISK_USED=" $5 " C5_ROOT_DISK_FREE_KB=" $4}'
+          trap - ERR
+          rm -rf "${STAGE:-}"
+          echo 'C5_WORKFLOW=PASS'
+          REMOTE
