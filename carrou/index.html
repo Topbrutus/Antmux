@@ -4,18 +4,70 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
-  <title>Antmux — page désactivée</title>
+  <meta name="theme-color" content="#06121c" />
+  <title>Antmux — Brutus Papillon 144</title>
   <style>
-    html,body{height:100%;margin:0;background:#05070d;color:#dce7f5;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    body{display:grid;place-items:center}.box{max-width:620px;margin:24px;padding:28px;border:1px solid #293747;border-radius:16px;background:#0a1119;text-align:center}.tag{font:700 12px ui-monospace,monospace;letter-spacing:.12em;color:#91a7bd}.box h1{margin:10px 0 8px;font-size:28px}.box p{margin:0;color:#9fb0c1;line-height:1.6}.box a{display:inline-block;margin-top:20px;color:#dff5ff}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      min-height:100%;
+      overflow:hidden;
+      color:#fff;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:#050b12 url('./brutus-papillon-144.jpg') center center/cover no-repeat fixed;
+    }
+    body::after{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background:linear-gradient(180deg,rgba(2,8,14,.08) 40%,rgba(2,8,14,.72) 100%);
+    }
+    .controls{
+      position:fixed;
+      z-index:2;
+      left:clamp(18px,3vw,44px);
+      bottom:clamp(18px,3vw,42px);
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .back{
+      display:inline-flex;
+      align-items:center;
+      gap:9px;
+      min-height:46px;
+      padding:0 18px;
+      border:1px solid rgba(126,221,255,.58);
+      border-radius:999px;
+      background:rgba(4,15,24,.76);
+      color:#f5fbff;
+      text-decoration:none;
+      font-weight:800;
+      letter-spacing:.04em;
+      backdrop-filter:blur(12px);
+      box-shadow:0 10px 30px rgba(0,0,0,.3),0 0 24px rgba(70,199,255,.12);
+      transition:transform .15s ease,border-color .15s ease,background .15s ease;
+    }
+    .back:hover,.back:focus-visible{transform:translateY(-1px);border-color:#9de8ff;background:rgba(5,22,34,.9);outline:none}
+    .pause{
+      padding:8px 11px;
+      border:1px solid rgba(255,218,131,.4);
+      border-radius:999px;
+      background:rgba(4,15,24,.58);
+      color:#ffe6a6;
+      font:700 10px ui-monospace,SFMono-Regular,Consolas,monospace;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      backdrop-filter:blur(10px);
+    }
+    @media(max-width:640px){body{background-attachment:scroll}.controls{right:18px;justify-content:space-between}.pause{font-size:9px}.back{min-height:44px;padding:0 16px}}
   </style>
 </head>
 <body>
-  <main class="box">
-    <div class="tag">ANTMUX · ROUTE RETIRÉE</div>
-    <h1>/carrou/ est désactivé</h1>
-    <p>Cette page n’est plus disponible. Aucun carrousel ni script d’image n’est chargé.</p>
-    <a href="/">Retour à Antmux</a>
-  </main>
+  <nav class="controls" aria-label="Navigation">
+    <a class="back" href="/" onclick="if(history.length&gt;1){event.preventDefault();history.back()}">← Retour</a>
+    <span class="pause">Carrou · en pause</span>
+  </nav>
 </body>
 </html>
