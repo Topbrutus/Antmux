@@ -1,0 +1,114 @@
+name: Deploy Brotoculateur S2 Lineage Index VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-s2-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-S2-VPS'; fi
+          python3 -m py_compile deploy/vps-s2/s2_lineage_index.py deploy/vps-s2/patch_brotoculateur_s2_lineage_index.py deploy/vps-s2/test_s2_lineage_index.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage S2 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-s2/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy S2
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; S1="$PKG/s1_aggregator.py"; S2="$PKG/s2_lineage_index.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='7f68744ad3458e77b9b8be74722943f3457318ad58a4c23bf23b793a67d13f6b'; S1SHA='7c08763dc64d7ce7122885b6afc1bc63b9f43a8f90699f5286bf4a6042afe357'; S2SHA='6fbfc62780fcacdd1b79a7feb83cdda8a56985a8ba7ba033b6835cd08b4885b6'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$S1")" = "$S1SHA"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/s2-before.json
+          dh=$(sha "$DASH"); s2hash=ABSENT; [ ! -f "$S2" ] || s2hash=$(sha "$S2")
+          if [ "$dh" = "$PRE" ] && [ "$s2hash" = ABSENT ]; then state=PRE_S2; elif [ "$s2hash" = "$S2SHA" ]; then state=POST_S2; else exit 3; fi
+          echo "S2_SOURCE_STATE=$state"; echo "S2_DASHBOARD_SHA256=$dh"; echo "S2_MODULE_SHA256=$s2hash"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/s2-before.json')); s1=d.get('s1_aggregator') or {}; s2=d.get('s2_lineage_index') or {}; t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('S1_OBSERVATIONS',s1.get('observations')),('S1_AGGREGATED',s1.get('aggregated')),('S1_BLOCKED_L5_OTHER',s1.get('blocked_l5_other')),('S1_BLOCKED_MISSING_Z',s1.get('blocked_missing_z')),('S1_UNIQUE_AGGREGATE_Z',s1.get('unique_aggregate_z')),('S2_OBSERVATIONS',s2.get('observations')),('S2_INDEXED',s2.get('indexed')),('S2_DIRECT_PARENT_EDGES',s2.get('direct_parent_edges')),('S2_MULTI_PARENT_CHILD_Z',s2.get('multi_parent_child_z')),('S2_MULTI_ORIGIN_CHILD_Z',s2.get('multi_origin_child_z')),('S2_MAX_EDGE_MULTIPLICITY',s2.get('max_parent_edge_multiplicity'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          s1o=int(s1.get('observations') or 0); s1a=int(s1.get('aggregated') or 0); s1b=int(s1.get('blocked_l5_other') or 0)+int(s1.get('blocked_missing_z') or 0); assert s1o==s1a+s1b
+          if os.environ['SOURCE_STATE']=='POST_S2' and s2.get('enabled') is True:
+              assert s2.get('authority')=='SHADOW_ONLY'; assert s2.get('prototype_measurement_parent_z') is True; assert s2.get('indexes_direct_parent_only') is True; assert s2.get('indexes_reverse_observed_children') is True; assert s2.get('indexes_observed_origin') is True
+              assert s2.get('infers_transitive_ancestry') is False and s2.get('infers_missing_parent') is False and s2.get('infers_missing_origin') is False
+              assert s2.get('creates_new_identity') is False and s2.get('merges_distinct_z') is False and s2.get('route_index_authority') is False and s2.get('formula_index_authority') is False and s2.get('s3_route_index_input') is True
+              assert s2.get('scientific_proof_claim') is False and s2.get('proof_promotion') is False
+              s2o=int(s2.get('observations') or 0); s2i=int(s2.get('indexed') or 0); s2b=int(s2.get('blocked_s1_other') or 0)+int(s2.get('blocked_missing_z') or 0)
+              assert s2o==s1o and s2i==s1a and s2b==s1b and s2o==s2i+s2b
+              assert int(s2.get('direct_parent_observations') or 0)+int(s2.get('root_observations') or 0)==s2i
+              assert int(s2.get('origin_present_observations') or 0)+int(s2.get('origin_missing_observations') or 0)==s2i
+              assert int(s2.get('unique_child_z') or 0)==int(s1.get('unique_aggregate_z') or 0)
+          print('S2_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_S2
+          STAGE="/tmp/s2-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_s2_lineage_index.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/s2_lineage_index.py")" = "$S2SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_S1_ENABLED=1 BROTO_S2_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_s2_lineage_index.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "S2_STAGE_DASHBOARD_SHA256=$sd"; echo S2_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/s2-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/s2-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$S1" "$B/"; cp -a /tmp/s2-before.json "$B/status-before.json"; echo "S2_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-s2.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$S2" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/s2_lineage_index.py" "$S2"; printf '[Service]\nEnvironment="BROTO_S2_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/s2-zero.json
+          b1=$(python3 -c "import json;print(int((json.load(open('/tmp/s2-zero.json')).get('s1_aggregator') or {}).get('observations') or 0))"); b2=$(python3 -c "import json;print(int((json.load(open('/tmp/s2-zero.json')).get('s2_lineage_index') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/s2-live.json; if B1="$b1" B2="$b2" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/s2-live.json')); s1=d.get('s1_aggregator') or {}; s2=d.get('s2_lineage_index') or {}; a=int(s1.get('observations') or 0)-int(os.environ['B1']); b=int(s2.get('observations') or 0)-int(os.environ['B2']); s1o=int(s1.get('observations') or 0); s1a=int(s1.get('aggregated') or 0); s1b=int(s1.get('blocked_l5_other') or 0)+int(s1.get('blocked_missing_z') or 0); s2o=int(s2.get('observations') or 0); s2i=int(s2.get('indexed') or 0); s2b=int(s2.get('blocked_s1_other') or 0)+int(s2.get('blocked_missing_z') or 0); good=d.get('state')=='RUNNING' and b>0 and a==b and s2o==s1o and s2i==s1a and s2b==s1b and int(s2.get('unique_child_z') or 0)==int(s1.get('unique_aggregate_z') or 0); sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/s2-live.json')); s1=d.get('s1_aggregator') or {}; s2=d.get('s2_lineage_index') or {}; print('S2_LIVE_STATE='+str(d.get('state'))); print('S2_LIVE_S1_OBSERVATIONS='+str(s1.get('observations'))); print('S2_LIVE_S1_AGGREGATED='+str(s1.get('aggregated'))); print('S2_LIVE_OBSERVATIONS='+str(s2.get('observations'))); print('S2_LIVE_INDEXED='+str(s2.get('indexed'))); print('S2_LIVE_UNIQUE_CHILD_Z='+str(s2.get('unique_child_z'))); print('S2_LIVE_UNIQUE_PARENT_Z='+str(s2.get('unique_parent_z'))); print('S2_LIVE_UNIQUE_ORIGIN_Z='+str(s2.get('unique_origin_z'))); print('S2_LIVE_DIRECT_PARENT_EDGES='+str(s2.get('direct_parent_edges'))); print('S2_LIVE_MULTI_PARENT_CHILD_Z='+str(s2.get('multi_parent_child_z'))); print('S2_LIVE_MULTI_ORIGIN_CHILD_Z='+str(s2.get('multi_origin_child_z'))); print('S2_LIVE_MAX_EDGE_MULTIPLICITY='+str(s2.get('max_parent_edge_multiplicity'))); print('S2_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$S2")" = "$S2SHA"; echo "S2_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo S2_WORKFLOW=PASS
+          REMOTE
