@@ -1,0 +1,113 @@
+name: Deploy Brotoculateur S3 Route Index VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        default: audit
+        type: choice
+        options: [audit, canary_start]
+      confirm:
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brotoculateur-s3-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$MODE" in audit|canary_start) ;; *) exit 2 ;; esac
+          if [ "$MODE" = canary_start ]; then test "$CONFIRM" = 'BRUTUS-S3-VPS'; fi
+          python3 -m py_compile deploy/vps-s3/s3_route_index.py deploy/vps-s3/patch_brotoculateur_s3_route_index.py deploy/vps-s3/test_s3_route_index.py
+      - name: Configure pinned SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANTMUX_VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' '203.161.50.201 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIICjyMojRJzylRZhOfOtCqsSD957UoglTVwIalfMBxnG' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Stage S3 tools
+        if: inputs.mode == 'canary_start'
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes deploy/vps-s3/*.py "$VPS_USER@$VPS_HOST:/tmp/"
+      - name: Audit or deploy S3
+        env:
+          VPS_HOST: ${{ secrets.ANTMUX_VPS_HOST }}
+          VPS_USER: ${{ secrets.ANTMUX_VPS_USER }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "MODE='$MODE' bash -se" <<'REMOTE'
+          set -euo pipefail
+          ROOT="$HOME/brotoculateur"; PKG="$ROOT/src/brotoculateur"; DASH="$PKG/dashboard.py"; S2="$PKG/s2_lineage_index.py"; S3="$PKG/s3_route_index.py"; PAP="$PKG/papillon_engine.py"; URL='http://127.0.0.1:8781/api/status'
+          PRE='71ab037d40892a4b815f5676e8deaa539583717f8f9df2cf7ce19befca9e914b'; S2SHA='6fbfc62780fcacdd1b79a7feb83cdda8a56985a8ba7ba033b6835cd08b4885b6'; S3SHA='35b76679778254e179dcb2df8b2415aa9634319dbc511408eb23bf544f4b9ca3'
+          sha(){ sha256sum "$1"|awk '{print $1}'; }
+          test "$(sha "$S2")" = "$S2SHA"; grep -q 'def shard_index' "$PAP"; systemctl --user is-active --quiet brotoculateur.service; curl -fsS "$URL" >/tmp/s3-before.json
+          dh=$(sha "$DASH"); s3hash=ABSENT; [ ! -f "$S3" ] || s3hash=$(sha "$S3")
+          if [ "$dh" = "$PRE" ] && [ "$s3hash" = ABSENT ]; then state=PRE_S3; elif [ "$s3hash" = "$S3SHA" ]; then state=POST_S3; else exit 3; fi
+          echo "S3_SOURCE_STATE=$state"; echo "S3_DASHBOARD_SHA256=$dh"; echo "S3_MODULE_SHA256=$s3hash"
+          SOURCE_STATE="$state" python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/s3-before.json')); s2=d.get('s2_lineage_index') or {}; s3=d.get('s3_route_index') or {}; t6=d.get('t6_papillon') or {}; t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; bm=d.get('brutomagique') or {}
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('T6_SHARDS',t6.get('shards_touched')),('S2_OBSERVATIONS',s2.get('observations')),('S2_INDEXED',s2.get('indexed')),('S2_BLOCKED_S1_OTHER',s2.get('blocked_s1_other')),('S2_BLOCKED_MISSING_Z',s2.get('blocked_missing_z')),('S2_UNIQUE_CHILD_Z',s2.get('unique_child_z')),('S3_OBSERVATIONS',s3.get('observations')),('S3_INDEXED',s3.get('indexed')),('S3_UNIQUE_ROUTES',s3.get('unique_routes')),('S3_SHARDS_TOUCHED',s3.get('papillon_shards_touched')),('S3_MULTI_ROUTE_Z',s3.get('multi_route_z')),('S3_MAX_ROUTE_MULTIPLICITY',s3.get('max_route_multiplicity'))]: print(f'{k}={v}')
+          assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
+          s2o=int(s2.get('observations') or 0); s2i=int(s2.get('indexed') or 0); s2b=int(s2.get('blocked_s1_other') or 0)+int(s2.get('blocked_missing_z') or 0); assert s2o==s2i+s2b
+          if os.environ['SOURCE_STATE']=='POST_S3' and s3.get('enabled') is True:
+              assert s3.get('authority')=='SHADOW_ONLY'; assert s3.get('prototype_measurement_route_signature') is True; assert s3.get('indexes_papillon_paths') is True; assert s3.get('uses_existing_papillon_shard_function') is True
+              assert s3.get('creates_parallel_router') is False and s3.get('chooses_route') is False and s3.get('applies_route') is False and int(s3.get('actual_routes_applied') or 0)==0
+              assert s3.get('infers_hidden_path') is False and s3.get('z_identity_preserved') is True and s3.get('lineage_mutated') is False and s3.get('formula_index_authority') is False and s3.get('s4_formula_index_input') is True
+              assert s3.get('scientific_proof_claim') is False and s3.get('proof_promotion') is False and s3.get('controls_routing') is False
+              s3o=int(s3.get('observations') or 0); s3i=int(s3.get('indexed') or 0); s3b=int(s3.get('blocked_s2_other') or 0)+int(s3.get('blocked_missing_z') or 0)+int(s3.get('blocked_missing_path') or 0)+int(s3.get('blocked_missing_papillon') or 0)+int(s3.get('blocked_path_drift') or 0)
+              assert s3o==s2o and s3i==s2i and s3b==s2b and s3o==s3i+s3b
+              assert int(s3.get('unique_z_indexed') or 0)==int(s2.get('unique_child_z') or 0)
+              assert 0 <= int(s3.get('papillon_shards_touched') or 0) <= 144
+          print('S3_AUDIT_ONLY=PASS')
+          PY
+          df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
+          [ "$MODE" = canary_start ] || exit 0
+          test "$state" = PRE_S3
+          STAGE="/tmp/s3-stage-$$"; mkdir -p "$STAGE/src"; cp -a "$PKG" "$STAGE/src/brotoculateur"; python3 /tmp/patch_brotoculateur_s3_route_index.py "$STAGE"
+          test "$(sha "$STAGE/src/brotoculateur/s3_route_index.py")" = "$S3SHA"
+          PYTHONPATH="$STAGE/src" BROTO_T8_ENABLED=1 BROTO_T9_ENABLED=1 BROTO_T10_ENABLED=1 BROTO_T11_ENABLED=1 BROTO_T12_ENABLED=1 BROTO_L1_ENABLED=1 BROTO_L2_ENABLED=1 BROTO_L3_ENABLED=1 BROTO_L4_ENABLED=1 BROTO_L5_ENABLED=1 BROTO_S1_ENABLED=1 BROTO_S2_ENABLED=1 BROTO_S3_ENABLED=1 BROTO_L2_THRESHOLD=75 BROTO_T11_CPU_SLOTS=8 BROTO_T11_MEMORY_SLOTS=8 BROTO_T11_STORAGE_SLOTS=8 BROTO_T11_TIME_SLOTS=8 python3 /tmp/test_s3_route_index.py
+          sd=$(sha "$STAGE/src/brotoculateur/dashboard.py"); echo "S3_STAGE_DASHBOARD_SHA256=$sd"; echo S3_EXACT_LIVE_STAGE=PASS
+          was=$(python3 -c "import json;print(1 if json.load(open('/tmp/s3-before.json')).get('state')=='RUNNING' else 0)")
+          [ "$was" = 0 ] || { curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/save >/dev/null; curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/pause >/dev/null; }
+          B="$ROOT/backups/s3-$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$B"; cp -a "$DASH" "$S2" "$B/"; cp -a /tmp/s3-before.json "$B/status-before.json"; echo "S3_BACKUP=$B"
+          D="$HOME/.config/systemd/user/brotoculateur.service.d"; F="$D/99-brutus-s3.conf"; mkdir -p "$D"
+          rollback(){ set +e; cp -a "$B/dashboard.py" "$DASH"; rm -f "$S3" "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; [ "$was" = 0 ] || curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null || true; exit 1; }; trap rollback ERR
+          cp -a "$STAGE/src/brotoculateur/dashboard.py" "$DASH"; cp -a "$STAGE/src/brotoculateur/s3_route_index.py" "$S3"; printf '[Service]\nEnvironment="BROTO_S3_ENABLED=1"\n' > "$F"; systemctl --user daemon-reload; systemctl --user restart brotoculateur.service; sleep 2; curl -fsS "$URL" >/tmp/s3-zero.json
+          b2=$(python3 -c "import json;print(int((json.load(open('/tmp/s3-zero.json')).get('s2_lineage_index') or {}).get('observations') or 0))"); b3=$(python3 -c "import json;print(int((json.load(open('/tmp/s3-zero.json')).get('s3_route_index') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
+          ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/s3-live.json; if B2="$b2" B3="$b3" python3 - <<'PY'
+          import json,os,sys
+          d=json.load(open('/tmp/s3-live.json')); s2=d.get('s2_lineage_index') or {}; s3=d.get('s3_route_index') or {}; a=int(s2.get('observations') or 0)-int(os.environ['B2']); b=int(s3.get('observations') or 0)-int(os.environ['B3']); s2o=int(s2.get('observations') or 0); s2i=int(s2.get('indexed') or 0); s2b=int(s2.get('blocked_s1_other') or 0)+int(s2.get('blocked_missing_z') or 0); s3o=int(s3.get('observations') or 0); s3i=int(s3.get('indexed') or 0); s3b=sum(int(s3.get(k) or 0) for k in ('blocked_s2_other','blocked_missing_z','blocked_missing_path','blocked_missing_papillon','blocked_path_drift')); good=d.get('state')=='RUNNING' and b>0 and a==b and s3o==s2o and s3i==s2i and s3b==s2b and int(s3.get('unique_z_indexed') or 0)==int(s2.get('unique_child_z') or 0); sys.exit(0 if good else 1)
+          PY
+          then ok=1; break; fi; done; test "$ok" = 1
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/s3-live.json')); s2=d.get('s2_lineage_index') or {}; s3=d.get('s3_route_index') or {}; print('S3_LIVE_STATE='+str(d.get('state'))); print('S3_LIVE_S2_OBSERVATIONS='+str(s2.get('observations'))); print('S3_LIVE_S2_INDEXED='+str(s2.get('indexed'))); print('S3_LIVE_OBSERVATIONS='+str(s3.get('observations'))); print('S3_LIVE_INDEXED='+str(s3.get('indexed'))); print('S3_LIVE_UNIQUE_ROUTES='+str(s3.get('unique_routes'))); print('S3_LIVE_SHARDS_TOUCHED='+str(s3.get('papillon_shards_touched'))); print('S3_LIVE_BRANCH_PATHS='+str(s3.get('unique_branch_paths'))); print('S3_LIVE_UNIQUE_Z='+str(s3.get('unique_z_indexed'))); print('S3_LIVE_MULTI_ROUTE_Z='+str(s3.get('multi_route_z'))); print('S3_LIVE_MULTI_Z_ROUTES='+str(s3.get('multi_z_routes'))); print('S3_LIVE_MAX_ROUTE_MULTIPLICITY='+str(s3.get('max_route_multiplicity'))); print('S3_LIVE_VERIFY=PASS')
+          PY
+          test "$(sha "$DASH")" = "$sd"; test "$(sha "$S3")" = "$S3SHA"; echo "S3_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo S3_WORKFLOW=PASS
+          REMOTE
