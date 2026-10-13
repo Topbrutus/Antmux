@@ -85,3 +85,55 @@ Le workflow `deploy-brotoculateur-t7-vps.yml` impose:
 8. reconciliation logique = native + Papillon;
 9. conflits de comptabilite a zero;
 10. aucun pouvoir moteur accorde a T7.
+
+## Validation live VPS
+
+PR moteur: #285
+Merge commit: `50ab0f95844258f612fa3caed5407e15c6696fa6`
+
+Audit PRE-T7:
+
+- run `38371324609`;
+- source `PRE_T7`;
+- moteur RUNNING;
+- 128 471 paquets traites;
+- 175 268 observations T6;
+- Papillon 144 shards;
+- T7 absent;
+- audit PASS.
+
+Canary T7:
+
+- run `38371398857`;
+- backup rollback: `/home/rob/brotoculateur/backups/t7-20261013T084519Z`;
+- workflow PASS;
+- moteur RUNNING;
+- 87 paquets T7 = 87 paquets traites;
+- 870 tentatives logiques;
+- 492 appels physiques de formule;
+- 1 262 appels physiques de predicat;
+- 68 hits memo Papillon;
+- ratio logique / appel physique de formule: 1.768293;
+- 0 pouvoir moteur accorde a T7.
+
+Audit independant POST-T7:
+
+- run `38371517373`;
+- source `POST_T7`;
+- moteur RUNNING;
+- 7 490 paquets T7 = 7 490 paquets traites;
+- 74 900 tentatives logiques;
+- 42 854 appels physiques de formule;
+- 7 309 hits memo Papillon;
+- 42 544 observations T6;
+- Papillon 144 shards;
+- 1 742 708 cristaux;
+- disque racine 59%;
+- environ 49 019 548 KB libres;
+- audit PASS.
+
+Interpretation stricte:
+
+T7 mesure une reduction du nombre d'appels physiques de fonctions de formule par rapport au nombre de tentatives logiques observees dans cette configuration. Ce ratio n'est pas un benchmark de temps CPU et ne constitue pas une preuve d'acceleration chronometrique.
+
+Les gardes restent inchanges: aucune selection de formule, aucun controle Papillon, aucun routage, aucun scheduling, aucun compute skip, aucune mutation de valeur et aucune promotion de preuve.
