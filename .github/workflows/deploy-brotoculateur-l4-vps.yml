@@ -69,16 +69,22 @@ jobs:
           SOURCE_STATE="$state" python3 - <<'PY'
           import json,os
           d=json.load(open('/tmp/l4-before.json')); t8=d.get('t8_countertest') or {}; t9=d.get('t9_stability') or {}; t10=d.get('t10_replay') or {}; t11=d.get('t11_budget') or {}; t12=d.get('t12_candidate') or {}; l1=d.get('l1_crystal_score') or {}; l2=d.get('l2_threshold') or {}; l3=d.get('l3_press') or {}; l4=d.get('l4_canon') or {}; bm=d.get('brutomagique') or {}
-          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('L3_OBSERVATIONS',l3.get('observations')),('L3_PRESSED',l3.get('pressed')),('L3_UNIQUE_DUST_KEYS',l3.get('unique_dust_keys')),('L4_OBSERVATIONS',l4.get('observations')),('L4_CANONICAL_RECORDS',l4.get('canonical_records')),('L4_UNIQUE_CANONICAL_Z',l4.get('unique_canonical_z'))]: print(f'{k}={v}')
+          for k,v in [('STATE',d.get('state')),('PROCESSED',d.get('processed_packets')),('CRYSTALS',bm.get('total_crystals')),('L3_OBSERVATIONS',l3.get('observations')),('L3_PRESSED',l3.get('pressed')),('L3_BLOCKED_L2_OTHER',l3.get('blocked_l2_other')),('L3_BLOCKED_MISSING_Z',l3.get('blocked_missing_z')),('L3_UNIQUE_DUST_KEYS',l3.get('unique_dust_keys')),('L4_OBSERVATIONS',l4.get('observations')),('L4_CANONICAL_RECORDS',l4.get('canonical_records')),('L4_BLOCKED_L3_OTHER',l4.get('blocked_l3_other')),('L4_BLOCKED_MISSING_Z',l4.get('blocked_missing_z')),('L4_UNIQUE_CANONICAL_Z',l4.get('unique_canonical_z'))]: print(f'{k}={v}')
           assert not d.get('worker_error'); assert int(t8.get('failed') or 0)==0 and int(t8.get('limited') or 0)==0; assert int(t9.get('drifts') or 0)==0
           assert int(t8.get('observations') or 0)==int(t9.get('observations') or 0)==int(t10.get('observations') or 0)==int(t11.get('observations') or 0)==int(t12.get('observations') or 0)==int(l1.get('observations') or 0)==int(l2.get('observations') or 0)==int(l3.get('observations') or 0)
-          assert int(l3.get('pressed') or 0)==int(l3.get('observations') or 0); assert int(l3.get('blocked_l2_other') or 0)==0 and int(l3.get('blocked_missing_z') or 0)==0
+          l3_obs=int(l3.get('observations') or 0); l3_pressed=int(l3.get('pressed') or 0); l3_block_l2=int(l3.get('blocked_l2_other') or 0); l3_block_z=int(l3.get('blocked_missing_z') or 0)
+          assert l3_obs == l3_pressed + l3_block_l2 + l3_block_z
           if os.environ['SOURCE_STATE']=='POST_L4' and l4.get('enabled') is True:
               assert l4.get('authority')=='SHADOW_ONLY'; assert l4.get('canonical_z_is_output_z_id') is True; assert l4.get('creates_new_identity') is False
               assert l4.get('records_both_l3_reference_sides') is True and l4.get('technical_identity_canon') is True and l4.get('l5_placement_input') is True
               assert l4.get('scientific_canon_claim') is False and l4.get('canonicalizes_scientific_proof') is False and l4.get('proof_promotion') is False
-              assert int(l4.get('observations') or 0)==int(l3.get('observations') or 0)==int(l4.get('canonical_records') or 0)
-              assert int(l4.get('blocked_l3_other') or 0)==0 and int(l4.get('blocked_missing_z') or 0)==0
+              l4_obs=int(l4.get('observations') or 0); l4_canon=int(l4.get('canonical_records') or 0); l4_block_l3=int(l4.get('blocked_l3_other') or 0); l4_block_z=int(l4.get('blocked_missing_z') or 0)
+              assert l4_obs == l3_obs
+              assert l4_canon == l3_pressed
+              assert l4_block_l3 == l3_block_l2 + l3_block_z
+              assert l4_block_z == 0
+              assert l4_obs == l4_canon + l4_block_l3 + l4_block_z
+              assert int(l4.get('unique_canonical_z') or 0) == int(l3.get('unique_dust_keys') or 0)
           print('L4_AUDIT_ONLY=PASS')
           PY
           df -P / | awk 'NR==2 {print "ROOT_DISK_USED=" $5 " ROOT_DISK_FREE_KB=" $4}'
@@ -97,13 +103,20 @@ jobs:
           b3=$(python3 -c "import json;print(int((json.load(open('/tmp/l4-zero.json')).get('l3_press') or {}).get('observations') or 0))"); b4=$(python3 -c "import json;print(int((json.load(open('/tmp/l4-zero.json')).get('l4_canon') or {}).get('observations') or 0))"); curl -fsS -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:8781/api/start >/dev/null
           ok=0; for _ in $(seq 1 30); do sleep 1; curl -fsS "$URL" >/tmp/l4-live.json; if B3="$b3" B4="$b4" python3 - <<'PY'
           import json,os,sys
-          d=json.load(open('/tmp/l4-live.json')); l3=d.get('l3_press') or {}; l4=d.get('l4_canon') or {}; a=int(l3.get('observations') or 0)-int(os.environ['B3']); b=int(l4.get('observations') or 0)-int(os.environ['B4']); sys.exit(0 if d.get('state')=='RUNNING' and b>0 and a==b and int(l4.get('canonical_records') or 0)==int(l4.get('observations') or 0) and int(l4.get('blocked_l3_other') or 0)==0 and int(l4.get('blocked_missing_z') or 0)==0 else 1)
+          d=json.load(open('/tmp/l4-live.json')); l3=d.get('l3_press') or {}; l4=d.get('l4_canon') or {}; a=int(l3.get('observations') or 0)-int(os.environ['B3']); b=int(l4.get('observations') or 0)-int(os.environ['B4'])
+          l3_obs=int(l3.get('observations') or 0); l3_pressed=int(l3.get('pressed') or 0); l3_b2=int(l3.get('blocked_l2_other') or 0); l3_bz=int(l3.get('blocked_missing_z') or 0)
+          l4_obs=int(l4.get('observations') or 0); l4_canon=int(l4.get('canonical_records') or 0); l4_b3=int(l4.get('blocked_l3_other') or 0); l4_bz=int(l4.get('blocked_missing_z') or 0)
+          good=d.get('state')=='RUNNING' and b>0 and a==b
+          good=good and l3_obs==l3_pressed+l3_b2+l3_bz
+          good=good and l4_obs==l3_obs and l4_canon==l3_pressed and l4_b3==l3_b2+l3_bz and l4_bz==0
+          good=good and l4_obs==l4_canon+l4_b3+l4_bz and int(l4.get('unique_canonical_z') or 0)==int(l3.get('unique_dust_keys') or 0)
+          sys.exit(0 if good else 1)
           PY
           then ok=1; break; fi; done; test "$ok" = 1
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/l4-live.json')); l3=d.get('l3_press') or {}; l4=d.get('l4_canon') or {}
-          print('L4_LIVE_STATE='+str(d.get('state'))); print('L4_LIVE_L3_OBSERVATIONS='+str(l3.get('observations'))); print('L4_LIVE_OBSERVATIONS='+str(l4.get('observations'))); print('L4_LIVE_CANONICAL_RECORDS='+str(l4.get('canonical_records'))); print('L4_LIVE_UNIQUE_CANONICAL_Z='+str(l4.get('unique_canonical_z'))); print('L4_LIVE_REFERENCE_SIDES='+str(l4.get('reference_sides'))); print('L4_LIVE_VERIFY=PASS')
+          print('L4_LIVE_STATE='+str(d.get('state'))); print('L4_LIVE_L3_OBSERVATIONS='+str(l3.get('observations'))); print('L4_LIVE_L3_PRESSED='+str(l3.get('pressed'))); print('L4_LIVE_L3_BLOCKED_L2_OTHER='+str(l3.get('blocked_l2_other'))); print('L4_LIVE_OBSERVATIONS='+str(l4.get('observations'))); print('L4_LIVE_CANONICAL_RECORDS='+str(l4.get('canonical_records'))); print('L4_LIVE_BLOCKED_L3_OTHER='+str(l4.get('blocked_l3_other'))); print('L4_LIVE_UNIQUE_CANONICAL_Z='+str(l4.get('unique_canonical_z'))); print('L4_LIVE_REFERENCE_SIDES='+str(l4.get('reference_sides'))); print('L4_LIVE_VERIFY=PASS')
           PY
           test "$(sha "$DASH")" = "$sd"; test "$(sha "$L4")" = "$L4SHA"; echo "L4_POST_DASHBOARD_SHA256=$sd"; trap - ERR; rm -rf "$STAGE"; echo L4_WORKFLOW=PASS
           REMOTE
