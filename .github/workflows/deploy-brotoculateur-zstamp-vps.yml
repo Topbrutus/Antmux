@@ -1,4 +1,4 @@
-name: Deploy Brotoculateur Cortex Z VPS
+﻿name: Deploy Brotoculateur Cortex Z VPS
 
 on:
   workflow_dispatch:
@@ -87,9 +87,9 @@ jobs:
           EXPECT_ENGINE='cb29f5df30af3e68cff933cc9ac26354ab146582d144c1b2c6174a880b8abc6b'
           EXPECT_ORCH='90ddcc9abf82e5eec4d8b1fa50b2cef4540680bde2a5b87e8e2963e2cd0041c1'
           EXPECT_DASH='71e204d3ab814b27c6c98bea9f2c755f396a6625fce713b2e5568f0521d80117'
-          PATCH_ENGINE='9ea4fd8baffa3544a525c96f190fc0d7f8d852d3ede76cf822eb092b1b2483c4'
-          PATCH_ORCH='5e7e9b737d04228deb7fe5f70e1eed38b2f927ca0e7e54c33c740b12d0bd9c0e'
-          PATCH_DASH='0f2150b1bb343b51f985182519300b84c0535b90edb639d56cbd44ecc7e9310f'
+          PATCH_ENGINE='4aa5c6b9f8feed9559ded55b1db72016ebb45c00d2fbc00ff9e92b74ea677db5'
+          PATCH_ORCH='8f644bbfe8bdef4a9f5ebec66b1d540fa762c8ff8524f967e523967fd78b2662'
+          PATCH_DASH='1892c2abf4b3dc535a2b1feeb08678e372bfe925bb786dadeaab1a85c49d61e9'
 
           test -f "$ENGINE" -a -f "$ORCH" -a -f "$DASH"
           systemctl --user is-active --quiet brotoculateur.service
@@ -241,3 +241,4 @@ jobs:
           PY
           fi
           REMOTE
+

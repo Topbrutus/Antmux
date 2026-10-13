@@ -57,3 +57,15 @@ SHA-256:
 - 10% current-seed canary selection: PASS (`6337` selected)
 - patcher idempotency: PASS
 - workflow YAML parse: PASS
+
+## First canary guard event
+
+The first live canary attempt paused and backed up the running engine, patched the three source files, then stopped before restart because the precomputed patched hashes had been produced on Windows with CRLF line endings. The Linux patch output used LF and therefore had different SHA-256 values. No patched process was started during that failed attempt.
+
+Verified Linux patched hashes from the VPS patch output:
+
+- `engine.py`: `4aa5c6b9f8feed9559ded55b1db72016ebb45c00d2fbc00ff9e92b74ea677db5`
+- `orchestrator.py`: `8f644bbfe8bdef4a9f5ebec66b1d540fa762c8ff8524f967e523967fd78b2662`
+- `dashboard.py`: `1892c2abf4b3dc535a2b1feeb08678e372bfe925bb786dadeaab1a85c49d61e9`
+
+The workflow is corrected to require these Linux hashes before restart.
