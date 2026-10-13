@@ -50,8 +50,8 @@ Cette mesure est opérationnelle. Elle ne constitue pas une preuve scientifique 
 
 - baselines par défaut : `32 768`
 - plafond dur : `131 072`
-- éviction : plus ancienne baseline en premier
-- compteur `evictions` exposé dans le statut
+- éviction : `LRU` — baseline la moins récemment utilisée
+- `eviction_policy = LRU` et compteur `evictions` exposés dans le statut
 
 Le bornage évite qu'une vertèbre shadow accumule une mémoire non bornée.
 
@@ -78,7 +78,7 @@ T9 ne doit pas écrire `ValidationState`, sélectionner une formule, modifier le
 1. répétitions identiques → `STABLE_REPEAT` ;
 2. corruption de la sortie répétée → `DRIFT` ;
 3. T8 FAIL/LIMITED → non admissible à la stabilité ;
-4. baselines bornées avec éviction mesurée ;
+4. baselines bornées avec éviction LRU mesurée ;
 5. callback dashboard : delta T8 = delta T9 ;
 6. T8 inchangé par le patch T9.
 
