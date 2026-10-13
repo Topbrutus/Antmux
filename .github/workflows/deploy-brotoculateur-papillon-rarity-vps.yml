@@ -355,16 +355,15 @@ jobs:
           python3 --version > "$SNAP/meta/python-version.txt" 2>&1
           cat > "$SNAP/meta/EXCLUSIONS.txt" <<'EOF'
           Excluded intentionally from rollback source snapshot:
-          Whitelist snapshot: executable/source paths only. Runtime/state stores and backups are not traversed.
+          Whitelist snapshot: src/brotoculateur + scripts/run_ui.py + safe root config/docs only. Runtime/state stores and peripheral data are not traversed.
           - .secrets, .ssh, .env*, *.pem and *.key private configuration
           - __pycache__, .pytest_cache, logs
           This archive is for CODE rollback of the live VPS version before Brutus Colonne 37 / Z-STAMP deployment.
           EOF
           cd "$BROTO_ROOT"
-          ITEMS=()
-          for item in src scripts brutomagique brutomagique.py crystal_separator structureur39 docs tools; do
-            test -e "$item" && ITEMS+=("$item")
-          done
+          ITEMS=("src/brotoculateur")
+          test -f scripts/run_ui.py && ITEMS+=("scripts/run_ui.py")
+          test -f brutomagique.py && ITEMS+=("brutomagique.py")
           while IFS= read -r -d '' f; do ITEMS+=("${f#./}"); done < <(
             find . -maxdepth 1 -type f \
               \( -name '*.py' -o -name '*.md' -o -name '*.txt' -o -name '*.toml' -o -name '*.yaml' -o -name '*.yml' -o -name 'requirements*' -o -name 'setup.cfg' -o -name 'setup.py' \) \
