@@ -1977,7 +1977,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
         <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
           <div className="flex items-center gap-1.5 text-slate-200 font-semibold text-[11px]">
             <Layers className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Mode de Vue 2.5D</span>
+            <span>Coupe 3D du volume</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
@@ -2215,7 +2215,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       </div>
 
       {/* Camera depth controls: move through the 84 sections of the volume */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-sm border border-cyan-900/70 rounded-lg px-2 py-1 shadow-lg">
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-sm border border-cyan-900/70 rounded-lg px-2 py-1 shadow-lg">
         <button
           onClick={() => setScanLayer(-1)}
           disabled={selectedZLayer === 0}
@@ -2226,7 +2226,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
         </button>
         <div className="min-w-32 text-center font-mono text-[10px] leading-tight">
           <div className="text-cyan-300 font-bold">CAMÉRA Z={selectedZLayer}/83</div>
-          <div className="text-slate-500">dans le volume · 84 sections</div>
+          <div className="text-slate-500">coupe 3D · 84 sections</div>
         </div>
         <button
           onClick={() => setScanLayer(1)}
