@@ -1,0 +1,6 @@
+{
+  "name": "BrutoBac — Terrier Multi-Étages",
+  "description": "Simulation vivante et coupe souterraine d'une fourmilière multi-étages creusable avec découverte de cristaux, chambres spécialisées et transport de ressources.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
