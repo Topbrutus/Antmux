@@ -1,6 +1,8 @@
 import { TileType, StratumInfo, ColonyRoom, RoomType, GroundItem } from '../types/colony';
 import { TerrainCell } from '../types/terrain';
 import { TerrainFragment } from '../types/fragments';
+import { VolumeTerrain } from '../types/volume';
+import { createVolumeFromGrid } from './volume3d';
 import {
   generateTerrainWorld,
   DEFAULT_WORLD_SEED,
@@ -98,6 +100,7 @@ export interface GridState {
   rooms: ColonyRoom[];
   groundItems: GroundItem[];
   terrainFragments: TerrainFragment[];
+  volume: VolumeTerrain;
   worldSeed: number;
   currentTick: number;
 }
@@ -108,7 +111,7 @@ export interface GridState {
  */
 export function generateInitialGrid(worldSeed: number = DEFAULT_WORLD_SEED): GridState {
   const world: GeneratedTerrainWorld = generateTerrainWorld(worldSeed);
-  return {
+  const grid: GridState = {
     cells: world.cells,
     tiles: world.tiles,
     revealed: world.revealed,
@@ -116,9 +119,11 @@ export function generateInitialGrid(worldSeed: number = DEFAULT_WORLD_SEED): Gri
     rooms: world.rooms,
     groundItems: world.groundItems,
     terrainFragments: [],
+    volume: createVolumeFromGrid({ tiles: world.tiles, rooms: world.rooms }),
     worldSeed: world.worldSeed,
     currentTick: world.currentTick,
   };
+  return grid;
 }
 
 /**
@@ -239,9 +244,11 @@ export {
 };
 
 export function loadTerrain(saveData: Parameters<typeof loadTerrainInternal>[0]): GridState {
+  const loaded = loadTerrainInternal(saveData);
   return {
-    ...loadTerrainInternal(saveData),
+    ...loaded,
     terrainFragments: [],
+    volume: createVolumeFromGrid({ tiles: loaded.tiles, rooms: loaded.rooms }),
   };
 }
 

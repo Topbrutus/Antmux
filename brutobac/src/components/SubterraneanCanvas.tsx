@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ColonyEngineState, colonyEngine } from '../simulation/colonyEngine';
 import { GRID_WIDTH, GRID_HEIGHT, TILE_SIZE, STRATA, ROOM_PRESETS, getStratumAtRow } from '../simulation/grid';
+import { getVolumeSliceTiles } from '../simulation/volume3d';
 import { ActiveTool, Ant, RoomType } from '../types/colony';
 import { Layers, Box, Eye, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { TerrainShaderRenderer } from '../rendering/terrainShaderRenderer';
@@ -492,6 +493,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       ctx.translate(-camera.x, -camera.y);
 
       const { grid, ants, digTasks, brood } = engineState;
+      const renderTiles = getVolumeSliceTiles(grid.volume, selectedZLayer, grid.tiles);
 
       // 1. Draw Geological Strata Background & Atmospheric Surface
       for (const stratum of STRATA) {
@@ -1135,6 +1137,20 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
         }
       }
 
+      // 3. Draw the actual cross-section: cavities close when their volume slice ends.
+      ctx.save();
+      for (let y = 7; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+          if (grid.tiles[y]?.[x] === 'AIR' && renderTiles[y]?.[x] !== 'AIR') {
+            const colors = getSoilColorsForDepth(y, y >= 85);
+            ctx.fillStyle = colors[(x * 7 + y * 11 + selectedZLayer) % colors.length];
+            ctx.globalAlpha = 0.92;
+            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          }
+        }
+      }
+      ctx.restore();
+
       // 3. Draw Room Designations & Ambient Tint (Integrated into real excavated geometry)
       if (depthViewMode === 'volume' && scanRadius > 0) {
         ctx.save();
@@ -1150,7 +1166,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
 
           for (const room of grid.rooms) {
             const validTiles = room.tiles.filter(
-              (t) => t.x >= 0 && t.x < GRID_WIDTH && t.y >= 7 && t.y < GRID_HEIGHT && grid.tiles[t.y]?.[t.x] === 'AIR'
+              (t) => t.x >= 0 && t.x < GRID_WIDTH && t.y >= 7 && t.y < GRID_HEIGHT && renderTiles[t.y]?.[t.x] === 'AIR'
             );
             if (validTiles.length === 0) continue;
             ctx.fillStyle = `${room.color}${Math.round(sliceAlpha * 255).toString(16).padStart(2, '0')}`;
@@ -1171,7 +1187,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       for (const room of grid.rooms) {
         // Only consider tiles that are genuinely excavated
         const validTiles = room.tiles.filter(
-          (t) => t.x >= 0 && t.x < GRID_WIDTH && t.y >= 7 && t.y < GRID_HEIGHT && grid.tiles[t.y]?.[t.x] === 'AIR'
+          (t) => t.x >= 0 && t.x < GRID_WIDTH && t.y >= 7 && t.y < GRID_HEIGHT && renderTiles[t.y]?.[t.x] === 'AIR'
         );
         if (validTiles.length === 0) continue;
 
