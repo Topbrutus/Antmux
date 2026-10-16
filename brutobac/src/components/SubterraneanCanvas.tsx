@@ -654,9 +654,17 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           if (sliceZ < 0 || sliceZ >= grid.volume.depth) continue;
           const sliceTiles = getVolumeSliceTiles(grid.volume, sliceZ, grid.tiles);
           const depthRatio = Math.abs(sliceOffset) / scanRadius;
+          const planeScale = 1 - depthRatio * 0.08;
           ctx.save();
           ctx.globalAlpha = 0.06 + (1 - depthRatio) * 0.12;
-          ctx.translate(sliceOffset * 3.2, sliceOffset * 1.35);
+          ctx.transform(
+            planeScale,
+            sliceOffset * 0.012,
+            -sliceOffset * 0.015,
+            planeScale,
+            sliceOffset * 8,
+            sliceOffset * 3.5
+          );
           for (let y = visibleMinY; y <= visibleMaxY; y++) {
             for (let x = visibleMinX; x <= visibleMaxX; x++) {
               if (sliceTiles[y]?.[x] !== 'AIR') continue;
