@@ -37,6 +37,7 @@ import {
   liberateMicroCells,
 } from './grid';
 import { advanceTerrainFragments, createTerrainFragment } from './fragmentGravity';
+import { excavateVolumeCell, isVolumeSolid } from './volume3d';
 import { DigFront, TunnelNode, BurrowStats } from '../types/burrow';
 import { PheromoneSignalType, LocalSignalInfo } from '../types/stigmergy';
 import { stigmergyEngine } from './stigmergyEngine';
@@ -478,9 +479,10 @@ export class ColonyEngine {
   /**
    * Direct manual excavation by player cursor
    */
-  public manualDig(centerX: number, centerY: number, radius = 1) {
+  public manualDig(centerX: number, centerY: number, radius = 1, z = 41) {
     const { grid } = this.state;
     let dugCount = 0;
+    let volumeDugCount = 0;
 
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
@@ -488,8 +490,12 @@ export class ColonyEngine {
         const y = centerY + dy;
         if (x >= 0 && x < GRID_WIDTH && y >= 7 && y < GRID_HEIGHT) {
           if (dx * dx + dy * dy <= radius * radius) {
+            if (isVolumeSolid(grid.volume, x, y, z)) {
+              excavateVolumeCell(grid.volume, x, y, z);
+              volumeDugCount++;
+            }
             const oldType = grid.tiles[y][x];
-            if (oldType !== 'AIR' && oldType !== 'SURFACE_AIR') {
+            if (z === grid.volume.centerZ && oldType !== 'AIR' && oldType !== 'SURFACE_AIR') {
               grid.tiles[y][x] = 'AIR';
               grid.hardness[y][x] = 0;
 
@@ -525,7 +531,7 @@ export class ColonyEngine {
       }
     }
 
-    if (dugCount > 0) {
+    if (volumeDugCount > 0 || dugCount > 0) {
       updateBurrowChambers(this.state.grid, this.tickCount);
       soundEngine.playDig(true);
       this.emitDig({
@@ -533,7 +539,7 @@ export class ColonyEngine {
         y: centerY,
         radius,
         isManual: true,
-        isCrystal: centerY >= 85,
+        isCrystal: centerY >= 85 && z === grid.volume.centerZ,
       });
       this.notify();
     }

@@ -139,8 +139,8 @@ export default function App() {
     setSoundEnabled(nextVal);
   };
 
-  const handleManualDig = useCallback((x: number, y: number, radius: number) => {
-    colonyEngine.manualDig(x, y, radius);
+  const handleManualDig = useCallback((x: number, y: number, radius: number, z: number) => {
+    colonyEngine.manualDig(x, y, radius, z);
   }, []);
 
   const handleDesignateDig = useCallback((x: number, y: number) => {

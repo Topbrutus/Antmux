@@ -50,7 +50,7 @@ interface SubterraneanCanvasProps {
   activeTool: ActiveTool;
   selectedRoomType: RoomType;
   brushRadius: number;
-  onManualDig: (x: number, y: number, radius: number) => void;
+  onManualDig: (x: number, y: number, radius: number, z: number) => void;
   onDesignateDig: (x: number, y: number) => void;
   onDesignateRoom: (x: number, y: number, type: RoomType) => void;
   onSelectAnt: (id: string | null) => void;
@@ -402,7 +402,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       } else if (activeTool === 'DIG_MANUAL') {
         setIsInteracting(true);
         spawnDigBurst(gridX, gridY, brushRadius);
-        onManualDig(gridX, gridY, brushRadius);
+        onManualDig(gridX, gridY, brushRadius, selectedZLayer);
       } else if (activeTool === 'DESIGNATE_DIG') {
         setIsInteracting(true);
         onDesignateDig(gridX, gridY);
@@ -428,7 +428,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
     } else if (isInteracting) {
       if (activeTool === 'DIG_MANUAL') {
         spawnDigBurst(gridX, gridY, brushRadius);
-        onManualDig(gridX, gridY, brushRadius);
+        onManualDig(gridX, gridY, brushRadius, selectedZLayer);
       } else if (activeTool === 'DESIGNATE_DIG') {
         onDesignateDig(gridX, gridY);
       }
