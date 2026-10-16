@@ -7,6 +7,12 @@ interface ColonyDashboardProps {
   rooms?: ColonyRoom[];
   storageCapacity?: number;
   queenTerminal: QueenTerminalState;
+  sharedWorld: {
+    connected: boolean;
+    crystalsProduced: number;
+    observationsProcessed: number;
+    latestCrystalCount: number;
+  };
 }
 
 export const ColonyDashboard: React.FC<ColonyDashboardProps> = ({
@@ -14,6 +20,7 @@ export const ColonyDashboard: React.FC<ColonyDashboardProps> = ({
   rooms = [],
   storageCapacity: propStorageCapacity,
   queenTerminal,
+  sharedWorld,
 }) => {
   // Réserve de poussière de cristal stockée physiquement dans le terrier
   const dustAmount = stats.crystalDust ?? 0;
@@ -43,6 +50,16 @@ export const ColonyDashboard: React.FC<ColonyDashboardProps> = ({
   return (
     <div className="bg-slate-900/95 border-b border-slate-800 px-6 py-2.5 text-xs text-slate-300">
       <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-6 max-w-7xl mx-auto">
+        <div className="w-full flex items-center gap-2 text-[10px] text-slate-400">
+          <span className={sharedWorld.connected ? 'text-emerald-300' : 'text-rose-300'}>
+            {sharedWorld.connected ? 'Univers partagé connecté' : 'Univers partagé hors ligne'}
+          </span>
+          <span>·</span>
+          <span>{sharedWorld.crystalsProduced} cristaux produits</span>
+          <span>·</span>
+          <span>{sharedWorld.observationsProcessed} observations</span>
+          {sharedWorld.latestCrystalCount > 0 && <span>· {sharedWorld.latestCrystalCount} récents</span>}
+        </div>
         <div className="w-full flex items-center gap-3 rounded-md border border-cyan-500/20 bg-slate-950/50 px-2.5 py-1.5">
           <span className="font-semibold text-cyan-300">Terminal royal</span>
           <span className={queenTerminal.connected ? 'text-emerald-300' : 'text-rose-300'}>

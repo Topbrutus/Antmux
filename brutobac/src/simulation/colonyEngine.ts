@@ -10,6 +10,7 @@ import {
   RoomType,
   QueenFormulaPriority,
   QueenTerminalState,
+  SharedWorldState,
 } from '../types/colony';
 import { TerrainCell, TerrainSaveData, TerrainBlock3D } from '../types/terrain';
 import {
@@ -63,6 +64,7 @@ export interface ColonyEngineState {
   selectedRoomId: string | null;
   speed: number; // 0 = pause, 1 = normal, 2 = fast, 4 = ultra
   queenTerminal: QueenTerminalState;
+  sharedWorld: SharedWorldState;
 }
 
 export interface DigEvent {
@@ -134,6 +136,16 @@ export class ColonyEngine {
         queued: [],
         lastSyncAt: null,
       },
+      sharedWorld: {
+        connected: false,
+        source: 'http://127.0.0.1:8788/api/brutobac/world',
+        worldId: 'brutobac-universe',
+        depth: null,
+        crystalsProduced: 0,
+        observationsProcessed: 0,
+        latestCrystalCount: 0,
+        lastSyncAt: null,
+      },
     };
 
     // Initial stigmergic guidance seeds
@@ -199,6 +211,16 @@ export class ColonyEngine {
       active: [],
       queued: [],
     };
+    this.notify();
+  }
+
+  public setSharedWorldState(world: Omit<SharedWorldState, 'lastSyncAt'>) {
+    this.state.sharedWorld = { ...world, lastSyncAt: Date.now() };
+    this.notify();
+  }
+
+  public setSharedWorldOffline() {
+    this.state.sharedWorld = { ...this.state.sharedWorld, connected: false };
     this.notify();
   }
 

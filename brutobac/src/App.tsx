@@ -44,20 +44,42 @@ export default function App() {
     let cancelled = false;
     const syncQueenTerminal = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:8788/api/queen-priorities');
+        const response = await fetch('http://127.0.0.1:8788/api/brutobac/world');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = await response.json();
-        const priorities: QueenFormulaPriority[] = Array.isArray(payload.items)
-          ? payload.items.map((item: any) => ({
+        const priorityItems = payload.formula_priorities?.items;
+        const priorities: QueenFormulaPriority[] = Array.isArray(priorityItems)
+          ? priorityItems.map((item: any) => ({
               formulaId: String(item.formula_id),
               name: String(item.name),
               slot: Number(item.slot),
               priority: Number(item.priority),
             }))
           : [];
-        if (!cancelled) colonyEngine.setQueenFormulaPriorities(priorities);
+        if (!cancelled) {
+          colonyEngine.setQueenFormulaPriorities(priorities);
+          colonyEngine.setSharedWorldState({
+            connected: true,
+            source: 'http://127.0.0.1:8788/api/brutobac/world',
+            worldId: String(payload.world_id ?? 'brutobac-universe'),
+            depth: payload.depth
+              ? {
+                  width: Number(payload.depth.width),
+                  height: Number(payload.depth.height),
+                  slices: Number(payload.depth.slices),
+                  centerZ: Number(payload.depth.center_z),
+                }
+              : null,
+            crystalsProduced: Number(payload.resources?.crystals_produced ?? 0),
+            observationsProcessed: Number(payload.resources?.observations_processed ?? 0),
+            latestCrystalCount: Array.isArray(payload.latest_crystals) ? payload.latest_crystals.length : 0,
+          });
+        }
       } catch {
-        if (!cancelled) colonyEngine.setQueenTerminalOffline();
+        if (!cancelled) {
+          colonyEngine.setQueenTerminalOffline();
+          colonyEngine.setSharedWorldOffline();
+        }
       }
     };
     syncQueenTerminal();
@@ -193,6 +215,7 @@ export default function App() {
         stats={engineState.stats}
         rooms={engineState.grid.rooms}
         queenTerminal={engineState.queenTerminal}
+        sharedWorld={engineState.sharedWorld}
       />
 
       {/* 3. Main Viewport Area */}

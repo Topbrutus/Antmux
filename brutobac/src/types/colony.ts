@@ -263,6 +263,17 @@ export interface QueenTerminalState {
   lastSyncAt: number | null;
 }
 
+export interface SharedWorldState {
+  connected: boolean;
+  source: string;
+  worldId: string;
+  depth: { width: number; height: number; slices: number; centerZ: number } | null;
+  crystalsProduced: number;
+  observationsProcessed: number;
+  latestCrystalCount: number;
+  lastSyncAt: number | null;
+}
+
 export type ActiveTool =
   | 'DIG_MANUAL'
   | 'DESIGNATE_DIG'
