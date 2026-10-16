@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ColonyEngineState, colonyEngine } from '../simulation/colonyEngine';
 import { GRID_WIDTH, GRID_HEIGHT, TILE_SIZE, STRATA, ROOM_PRESETS, getStratumAtRow } from '../simulation/grid';
-import { getVolumeSliceTiles } from '../simulation/volume3d';
+import { getVolumeSliceTiles, isVolumeSolid } from '../simulation/volume3d';
 import { ActiveTool, Ant, RoomType } from '../types/colony';
 import { Layers, Box, Eye, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { TerrainShaderRenderer } from '../rendering/terrainShaderRenderer';
@@ -43,6 +43,89 @@ function getSoilColorsForDepth(depthRow: number, isCrystal: boolean = false): st
   }
   // Deep Abyssal
   return ['#1e1b4b', '#38bdf8', '#818cf8', '#6366f1', '#0f172a'];
+}
+
+function renderVoxelVolume(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  engineState: ColonyEngineState,
+  selectedZLayer: number,
+  scanRadius: number,
+  zoom: number
+) {
+  const { volume } = engineState.grid;
+  const cellWidth = Math.max(3.4, Math.min(6.4, (width / 132) * zoom));
+  const cellHeight = cellWidth * 0.48;
+  const depthStep = cellWidth * 0.9;
+  const originX = width / 2;
+  const originY = Math.max(72, height * 0.12);
+  const minZ = Math.max(0, selectedZLayer - scanRadius);
+  const maxZ = Math.min(volume.depth - 1, selectedZLayer + scanRadius);
+
+  ctx.fillStyle = '#05070d';
+  ctx.fillRect(0, 0, width, height);
+
+  for (let z = minZ; z <= maxZ; z++) {
+    const distance = Math.abs(z - selectedZLayer);
+    const alpha = z === selectedZLayer ? 0.95 : Math.max(0.12, 0.42 - distance * 0.035);
+    const zOffset = (z - selectedZLayer) * depthStep;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    for (let y = 7; y < volume.height; y++) {
+      for (let x = 0; x < volume.width; x++) {
+        if (isVolumeSolid(volume, x, y, z)) continue;
+
+        const sx = originX + (x - y) * cellWidth + zOffset;
+        const sy = originY + (x + y) * cellHeight * 0.52 - (z - selectedZLayer) * cellHeight * 1.7;
+        if (sx < -cellWidth * 2 || sx > width + cellWidth * 2 || sy < -cellHeight * 3 || sy > height + cellHeight * 3) continue;
+
+        const top = { x: sx, y: sy };
+        const right = { x: sx + cellWidth, y: sy + cellHeight };
+        const bottom = { x: sx, y: sy + cellHeight * 2 };
+        const left = { x: sx - cellWidth, y: sy + cellHeight };
+        const wall = cellHeight * 1.4;
+        const depthColor = getSoilColorsForDepth(y, y >= 85)[0];
+
+        ctx.fillStyle = z === selectedZLayer ? '#172033' : depthColor;
+        ctx.beginPath();
+        ctx.moveTo(top.x, top.y);
+        ctx.lineTo(right.x, right.y);
+        ctx.lineTo(bottom.x, bottom.y);
+        ctx.lineTo(left.x, left.y);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = z <= selectedZLayer ? 'rgba(8, 12, 22, 0.9)' : 'rgba(30, 41, 59, 0.7)';
+        ctx.beginPath();
+        ctx.moveTo(left.x, left.y);
+        ctx.lineTo(bottom.x, bottom.y);
+        ctx.lineTo(bottom.x, bottom.y + wall);
+        ctx.lineTo(left.x, left.y + wall);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = z === selectedZLayer ? 'rgba(56, 189, 248, 0.72)' : 'rgba(148, 163, 184, 0.2)';
+        ctx.lineWidth = z === selectedZLayer ? 0.8 : 0.45;
+        ctx.beginPath();
+        ctx.moveTo(top.x, top.y);
+        ctx.lineTo(right.x, right.y);
+        ctx.lineTo(bottom.x, bottom.y);
+        ctx.lineTo(left.x, left.y);
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '600 12px JetBrains Mono, monospace';
+  ctx.fillText(`VOLUME 3D  ·  COUPE Z=${selectedZLayer}/${volume.depth - 1}`, 18, 28);
+  ctx.fillStyle = '#67e8f9';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.fillText(`84 × 125 × 84  ·  profondeur visible ±${scanRadius}`, 18, 45);
 }
 
 interface SubterraneanCanvasProps {
@@ -461,6 +544,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
 
       // 1. Render WebGL Procedural Soil Shaders on background canvas
       const shaderActive = useProceduralShaders && isShaderSupported && !!terrainShaderRef.current;
+      const renderVolume3D = depthViewMode === 'volume';
       if (shaderActive && shaderCanvasRef.current && terrainShaderRef.current) {
         terrainShaderRef.current.updateGridData(
           engineState.grid.cells || engineState.grid.tiles,
@@ -485,6 +569,13 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       } else {
         ctx.fillStyle = '#07080d';
         ctx.fillRect(0, 0, clientW, clientH);
+      }
+
+      if (renderVolume3D) {
+        renderVoxelVolume(ctx, clientW, clientH, engineState, selectedZLayer, scanRadius, camera.zoom);
+        ctx.restore();
+        animationFrameId = requestAnimationFrame(render);
+        return;
       }
 
       // Camera transformation
@@ -647,7 +738,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       const visibleMinY = Math.max(0, Math.floor((camera.y - clientH / (2 * camera.zoom)) / TILE_SIZE) - 1);
       const visibleMaxY = Math.min(GRID_HEIGHT - 1, Math.ceil((camera.y + clientH / (2 * camera.zoom)) / TILE_SIZE) + 1);
 
-      if (depthViewMode === 'volume' && scanRadius > 0) {
+      if (renderVolume3D && scanRadius > 0) {
         for (let sliceOffset = scanRadius; sliceOffset >= -scanRadius; sliceOffset--) {
           if (sliceOffset === 0) continue;
           const sliceZ = selectedZLayer + sliceOffset;
@@ -1144,7 +1235,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           }
 
           // Depth-based rendering overlay (2.5D Volume vs Single Depth Layer)
-          if (depthViewMode === 'single') {
+          if (!renderVolume3D) {
             const depthDiff = Math.abs(y - selectedZLayer);
             if (depthDiff > 0.5) {
               const dimFactor = Math.min(0.88, 0.35 + depthDiff * 0.14);
@@ -1183,7 +1274,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       ctx.restore();
 
       // 3. Draw Room Designations & Ambient Tint (Integrated into real excavated geometry)
-      if (depthViewMode === 'volume' && scanRadius > 0) {
+      if (renderVolume3D && scanRadius > 0) {
         ctx.save();
         ctx.lineWidth = 1;
         for (let sliceOffset = scanRadius; sliceOffset >= -scanRadius; sliceOffset--) {
@@ -1573,7 +1664,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       for (const ant of ants) {
         const isSelected = ant.id === engineState.selectedAntId;
         ctx.save();
-        if (depthViewMode === 'single') {
+        if (!renderVolume3D) {
           const depthDiff = Math.abs(ant.y - selectedZLayer);
           const antAlpha = Math.max(0.12, 1.0 - Math.min(0.88, depthDiff * 0.22));
           ctx.globalAlpha = antAlpha;
@@ -1875,7 +1966,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       }
 
       // 11. Volumetric depth-based opacity atmospheric overlay or Single Layer Slice Guideline
-      if (depthViewMode === 'volume') {
+      if (renderVolume3D) {
         const topY = 7 * TILE_SIZE;
         const botY = GRID_HEIGHT * TILE_SIZE;
         const grad = ctx.createLinearGradient(0, topY, 0, botY);
@@ -1892,7 +1983,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           (visibleMaxX - visibleMinX + 1) * TILE_SIZE,
           Math.min(botY, (visibleMaxY + 1) * TILE_SIZE) - Math.max(topY, visibleMinY * TILE_SIZE)
         );
-      } else if (depthViewMode === 'single' && selectedZLayer >= visibleMinY && selectedZLayer <= visibleMaxY) {
+      } else if (!renderVolume3D && selectedZLayer >= visibleMinY && selectedZLayer <= visibleMaxY) {
         // Glowing horizontal depth layer guideline
         const lineY = selectedZLayer * TILE_SIZE;
         ctx.save();
