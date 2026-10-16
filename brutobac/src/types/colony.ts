@@ -184,6 +184,7 @@ export interface ColonyRoom {
   type: RoomType;
   room_function?: RoomType; // Defaults to 'NONE' for organic chambers
   hasCommandTerminal?: boolean; // Queen command terminal anchored in this room
+  commandTerminalPosition?: { x: number; y: number };
   isDesignated?: boolean; // True for player-designed chambers (never overwritten or auto-deleted)
   name: string;
   color: string;

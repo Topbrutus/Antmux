@@ -173,7 +173,7 @@ export function createAnt(
 export function generateInitialAnts(): Ant[] {
   const ants: Ant[] = [];
 
-  // Queen in the center of Queen Chamber (x=41, y=20)
+  // Queen stays beside the command terminal in the Royal Chamber (x=41, y=20)
   ants.push(createAnt('QUEEN', 41, 20, 'Grande Reine Bruta'));
 
   return ants;
@@ -973,13 +973,18 @@ function updateQueen(
   const queenRoom = rooms.find((r) => r.type === 'QUEEN');
   if (!queenRoom) return;
 
+  const terminal = queenRoom.commandTerminalPosition ?? { x: queenRoom.center.x + 1, y: queenRoom.center.y };
+
   ant.actionTimer += delta;
 
   // Gentle wandering inside queen chamber using real pathfinding
   if (ant.actionTimer % 180 < 1 && (!ant.path || ant.path.length === 0)) {
     // 1. Choose a traversable destination strictly within the Queen's Chamber
     const validTiles = queenRoom.tiles.filter(
-      (t) => t.y >= 7 && isWalkable(tiles[t.y]?.[t.x] as any)
+      (t) =>
+        t.y >= 7 &&
+        Math.abs(t.x - terminal.x) + Math.abs(t.y - terminal.y) <= 1 &&
+        isWalkable(tiles[t.y]?.[t.x] as any)
     );
 
     if (validTiles.length > 0) {

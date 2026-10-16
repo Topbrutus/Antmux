@@ -547,6 +547,7 @@ export function generateTerrainWorld(worldSeed: number = DEFAULT_WORLD_SEED): Ge
       id: 'room_queen_1',
       type: 'QUEEN',
       hasCommandTerminal: true,
+      commandTerminalPosition: { x: 42, y: 20 },
       name: 'Chambre Royale de la Reine',
       color: '#f59e0b',
       tiles: queenTiles,

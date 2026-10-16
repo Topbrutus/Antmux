@@ -1247,6 +1247,49 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
         ctx.textAlign = 'center';
         ctx.fillText(labelText, cx, labelY - 1);
         ctx.restore();
+
+        if (room.type === 'QUEEN' && room.hasCommandTerminal) {
+          const terminalPosition = room.commandTerminalPosition ?? { x: room.center.x + 1, y: room.center.y };
+          const terminalX = terminalPosition.x * TILE_SIZE + 2;
+          const terminalY = terminalPosition.y * TILE_SIZE + 2;
+          const terminalW = TILE_SIZE - 4;
+          const terminalH = TILE_SIZE - 4;
+          const active = engineState.queenTerminal.active;
+          const queued = engineState.queenTerminal.queued;
+
+          ctx.save();
+          ctx.fillStyle = 'rgba(8, 47, 73, 0.95)';
+          ctx.strokeStyle = engineState.queenTerminal.connected ? '#22d3ee' : '#64748b';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(terminalX, terminalY, terminalW, terminalH, 3);
+          else ctx.rect(terminalX, terminalY, terminalW, terminalH);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = engineState.queenTerminal.connected ? '#67e8f9' : '#94a3b8';
+          ctx.fillRect(terminalX + 4, terminalY + 4, terminalW - 8, 3);
+          ctx.font = 'bold 7px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${active.length}/3`, terminalX + terminalW / 2, terminalY + terminalH - 4);
+          ctx.restore();
+
+          ctx.save();
+          ctx.font = 'bold 8px "JetBrains Mono", monospace';
+          ctx.textAlign = 'left';
+          ctx.fillStyle = 'rgba(8, 15, 30, 0.9)';
+          ctx.fillRect(terminalX + TILE_SIZE + 3, terminalY - 2, 58, 13 + Math.min(3, active.length + queued.length) * 7);
+          ctx.fillStyle = '#67e8f9';
+          ctx.fillText('TERMINAL ROYAL', terminalX + TILE_SIZE + 7, terminalY + 7);
+          active.slice(0, 3).forEach((item, index) => {
+            ctx.fillStyle = '#4ade80';
+            ctx.fillText(`ON ${index + 1}`, terminalX + TILE_SIZE + 7, terminalY + 16 + index * 7);
+          });
+          queued.slice(0, 3).forEach((item, index) => {
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText(`OFF ${index + 4}`, terminalX + TILE_SIZE + 7, terminalY + 16 + (active.length + index) * 7);
+          });
+          ctx.restore();
+        }
       }
 
       // 4. Draw Dig Tasks (Dotted pickaxe icons / crosshairs)
