@@ -100,7 +100,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
   // Camera viewport state (world pixel coordinates)
   const [camera, setCamera] = useState({
     x: (GRID_WIDTH * TILE_SIZE) / 2,
-    y: 22 * TILE_SIZE,
+    y: 41 * TILE_SIZE,
     zoom: 1.1,
   });
 
@@ -109,16 +109,17 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
   const [isInteracting, setIsInteracting] = useState(false);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
 
-  // 2.5D Depth visualization states: 'volume' (full volume with depth-based opacity) or 'single' (z=0 to 84)
+  // Volumetric scan: the camera starts inside the terrain at the central slice.
   const [depthViewMode, setDepthViewMode] = useState<'volume' | 'single'>('volume');
-  const [selectedZLayer, setSelectedZLayer] = useState<number>(20); // Default to Queen's level
+  const [selectedZLayer, setSelectedZLayer] = useState<number>(41);
   const [volumeOpacity, setVolumeOpacity] = useState<number>(0.75); // 0.2 to 1.0 opacity strength
   const [isDepthPanelCollapsed, setIsDepthPanelCollapsed] = useState<boolean>(false);
+  const scanRadius = Math.max(2, Math.min(14, Math.round(3 + (1.35 - camera.zoom) * 12)));
 
   // Sync depth layer with focusedDepth if provided
   useEffect(() => {
     if (focusedDepth !== undefined) {
-      setSelectedZLayer(Math.max(0, Math.min(84, Math.round(focusedDepth))));
+      setSelectedZLayer(Math.max(0, Math.min(83, Math.round(focusedDepth))));
     }
   }, [focusedDepth]);
 
@@ -1135,6 +1136,38 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       }
 
       // 3. Draw Room Designations & Ambient Tint (Integrated into real excavated geometry)
+      if (depthViewMode === 'volume' && scanRadius > 0) {
+        ctx.save();
+        ctx.lineWidth = 1;
+        for (let sliceOffset = scanRadius; sliceOffset >= -scanRadius; sliceOffset--) {
+          if (sliceOffset === 0) continue;
+          const sliceZ = selectedZLayer + sliceOffset;
+          if (sliceZ < 0 || sliceZ > 83) continue;
+          const depthRatio = Math.abs(sliceOffset) / scanRadius;
+          const offsetX = sliceOffset * 3.2;
+          const offsetY = sliceOffset * 1.35;
+          const sliceAlpha = 0.035 + (1 - depthRatio) * 0.12;
+
+          for (const room of grid.rooms) {
+            const validTiles = room.tiles.filter(
+              (t) => t.x >= 0 && t.x < GRID_WIDTH && t.y >= 7 && t.y < GRID_HEIGHT && grid.tiles[t.y]?.[t.x] === 'AIR'
+            );
+            if (validTiles.length === 0) continue;
+            ctx.fillStyle = `${room.color}${Math.round(sliceAlpha * 255).toString(16).padStart(2, '0')}`;
+            for (const tile of validTiles) {
+              ctx.fillRect(tile.x * TILE_SIZE + offsetX, tile.y * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+            }
+            ctx.strokeStyle = `${room.color}${Math.round((sliceAlpha + 0.08) * 255).toString(16).padStart(2, '0')}`;
+            const roomX = room.bounds.minX * TILE_SIZE + offsetX;
+            const roomY = room.bounds.minY * TILE_SIZE + offsetY;
+            const roomW = (room.bounds.maxX - room.bounds.minX + 1) * TILE_SIZE;
+            const roomH = (room.bounds.maxY - room.bounds.minY + 1) * TILE_SIZE;
+            ctx.strokeRect(roomX, roomY, roomW, roomH);
+          }
+        }
+        ctx.restore();
+      }
+
       for (const room of grid.rooms) {
         // Only consider tiles that are genuinely excavated
         const validTiles = room.tiles.filter(
@@ -1882,7 +1915,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           <div className="text-[9px] font-mono text-cyan-400/90 mt-0.5">
             {depthViewMode === 'single'
               ? `Mode Couche Unique (z=${selectedZLayer})`
-              : `Mode Volume 2.5D (Opacité ${Math.round(volumeOpacity * 100)}%)`}
+              : `Mode Scan volumétrique (Opacité ${Math.round(volumeOpacity * 100)}%)`}
           </div>
           <div className="text-[9px] font-mono text-emerald-400/90 mt-0.5 flex items-center gap-1">
             <span>
@@ -1904,7 +1937,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-              {depthViewMode === 'single' ? `z = ${selectedZLayer}` : 'Volume 3D'}
+              {depthViewMode === 'single' ? `z = ${selectedZLayer}` : `Scan Z=${selectedZLayer}`}
             </span>
             <button
               onClick={() => setIsDepthPanelCollapsed(!isDepthPanelCollapsed)}
@@ -1966,14 +1999,28 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
                 ? 'bg-cyan-500 text-slate-950 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
-            title="Visualiser le volume intégral avec superposition d'opacité selon la profondeur"
+            title="Scanner les tranches voisines autour de la couche centrale"
           >
             <Box className="w-3.5 h-3.5" />
-            <span>Volume Intégral</span>
+            <span>Scan volumétrique</span>
           </button>
-        </div>
+          </div>
 
-        {/* Expanded Controls based on Mode */}
+          {depthViewMode === 'volume' && !isDepthPanelCollapsed && (
+            <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/20 px-2.5 py-2 text-[10px] text-cyan-200">
+              <div className="flex items-center justify-between font-mono">
+                <span>Tranche centrale</span>
+                <span className="font-bold">Z={selectedZLayer}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-slate-400">
+                <span>Scan arrière / avant</span>
+                <span className="font-mono text-cyan-300">±{scanRadius} couches</span>
+              </div>
+              <div className="mt-1 text-[9px] text-slate-500">Le zoom arrière révèle davantage de tranches.</div>
+            </div>
+          )}
+
+          {/* Expanded Controls based on Mode */}
         {!isDepthPanelCollapsed && (
           <div className="pt-1">
             {depthViewMode === 'single' ? (
@@ -2004,7 +2051,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
                   <input
                     type="range"
                     min={0}
-                    max={84}
+                    max={83}
                     value={selectedZLayer}
                     onChange={(e) => {
                       const nextZ = Number(e.target.value);
@@ -2012,7 +2059,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
                       setCamera((prev) => ({ ...prev, y: Math.max(7, nextZ) * TILE_SIZE }));
                     }}
                     className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                    title={`Sélectionner la couche z (${selectedZLayer}/84)`}
+                    title={`Sélectionner la couche z (${selectedZLayer}/83)`}
                   />
                   <button
                     onClick={() => {
@@ -2034,7 +2081,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
                     { label: 'Reine', z: 20 },
                     { label: 'Argile', z: 40 },
                     { label: 'Cristaux', z: 70 },
-                    { label: 'Fond', z: 84 },
+                    { label: 'Fond', z: 83 },
                   ].map((preset) => (
                     <button
                       key={preset.z}
