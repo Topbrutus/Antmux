@@ -1878,6 +1878,12 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
     return () => cancelAnimationFrame(animationFrameId);
   }, [engineState, camera, activeTool, selectedRoomType, brushRadius, hoverTile, depthViewMode, selectedZLayer, volumeOpacity, useProceduralShaders, isShaderSupported]);
 
+  const setScanLayer = (delta: number) => {
+    const nextLayer = Math.max(0, Math.min(83, selectedZLayer + delta));
+    setSelectedZLayer(nextLayer);
+    setCamera((prev) => ({ ...prev, y: Math.max(7, nextLayer) * TILE_SIZE }));
+  };
+
   return (
     <div className="relative w-full h-full select-none overflow-hidden bg-slate-950">
       {/* Background WebGL Procedural Soil Shaders Layer */}
@@ -2063,7 +2069,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
                   />
                   <button
                     onClick={() => {
-                      const nextZ = Math.min(84, selectedZLayer + 1);
+                      const nextZ = Math.min(83, selectedZLayer + 1);
                       setSelectedZLayer(nextZ);
                       setCamera((prev) => ({ ...prev, y: Math.max(7, nextZ) * TILE_SIZE }));
                     }}
@@ -2124,7 +2130,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
                 />
 
                 <div className="text-[10px] text-slate-400 leading-tight">
-                  Superposition volumétrique intégrale (z=0 à 84) avec assombrissement et atténuation optique selon la profondeur.
+                  Superposition volumétrique intégrale (z=0 à 83) avec assombrissement et atténuation optique selon la profondeur.
                 </div>
               </div>
             )}
@@ -2170,6 +2176,30 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
         </button>
       </div>
 
+      {/* Scan layer controls: 84 explicit volumetric sections */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-sm border border-cyan-900/70 rounded-lg px-2 py-1 shadow-lg">
+        <button
+          onClick={() => setScanLayer(-1)}
+          disabled={selectedZLayer === 0}
+          className="w-8 h-7 rounded text-cyan-200 hover:bg-cyan-950 disabled:opacity-30 disabled:cursor-not-allowed font-bold"
+          title="Reculer d'une tranche"
+        >
+          ←
+        </button>
+        <div className="min-w-32 text-center font-mono text-[10px] leading-tight">
+          <div className="text-cyan-300 font-bold">SECTION {selectedZLayer + 1}/84</div>
+          <div className="text-slate-500">Z={selectedZLayer} · scan central</div>
+        </div>
+        <button
+          onClick={() => setScanLayer(1)}
+          disabled={selectedZLayer === 83}
+          className="w-8 h-7 rounded text-cyan-200 hover:bg-cyan-950 disabled:opacity-30 disabled:cursor-not-allowed font-bold"
+          title="Avancer d'une tranche"
+        >
+          →
+        </button>
+      </div>
+
       {/* Zoom control buttons */}
       <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-slate-900/85 backdrop-blur-sm border border-slate-800 rounded-lg p-1 shadow-lg">
         <button
@@ -2190,7 +2220,7 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           onClick={() =>
             setCamera({
               x: (GRID_WIDTH * TILE_SIZE) / 2,
-              y: 24 * TILE_SIZE,
+              y: 41 * TILE_SIZE,
               zoom: 1.1,
             })
           }
