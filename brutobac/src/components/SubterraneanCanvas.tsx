@@ -647,9 +647,32 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
       const visibleMinY = Math.max(0, Math.floor((camera.y - clientH / (2 * camera.zoom)) / TILE_SIZE) - 1);
       const visibleMaxY = Math.min(GRID_HEIGHT - 1, Math.ceil((camera.y + clientH / (2 * camera.zoom)) / TILE_SIZE) + 1);
 
+      if (depthViewMode === 'volume' && scanRadius > 0) {
+        for (let sliceOffset = scanRadius; sliceOffset >= -scanRadius; sliceOffset--) {
+          if (sliceOffset === 0) continue;
+          const sliceZ = selectedZLayer + sliceOffset;
+          if (sliceZ < 0 || sliceZ >= grid.volume.depth) continue;
+          const sliceTiles = getVolumeSliceTiles(grid.volume, sliceZ, grid.tiles);
+          const depthRatio = Math.abs(sliceOffset) / scanRadius;
+          ctx.save();
+          ctx.globalAlpha = 0.06 + (1 - depthRatio) * 0.12;
+          ctx.translate(sliceOffset * 3.2, sliceOffset * 1.35);
+          for (let y = visibleMinY; y <= visibleMaxY; y++) {
+            for (let x = visibleMinX; x <= visibleMaxX; x++) {
+              if (sliceTiles[y]?.[x] !== 'AIR') continue;
+              ctx.fillStyle = '#05070d';
+              ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+              ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
+              ctx.strokeRect(x * TILE_SIZE + 0.5, y * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+            }
+          }
+          ctx.restore();
+        }
+      }
+
       for (let y = visibleMinY; y <= visibleMaxY; y++) {
         for (let x = visibleMinX; x <= visibleMaxX; x++) {
-          const tile = grid.tiles[y][x];
+          const tile = renderTiles[y]?.[x] ?? 'DIRT_HUMUS';
           const isRevealed = grid.revealed[y][x];
           const px = x * TILE_SIZE;
           const py = y * TILE_SIZE;
