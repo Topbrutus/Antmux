@@ -1881,7 +1881,6 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
   const setScanLayer = (delta: number) => {
     const nextLayer = Math.max(0, Math.min(83, selectedZLayer + delta));
     setSelectedZLayer(nextLayer);
-    setCamera((prev) => ({ ...prev, y: Math.max(7, nextLayer) * TILE_SIZE }));
   };
 
   return (
@@ -2015,11 +2014,11 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
           {depthViewMode === 'volume' && !isDepthPanelCollapsed && (
             <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/20 px-2.5 py-2 text-[10px] text-cyan-200">
               <div className="flex items-center justify-between font-mono">
-                <span>Tranche centrale</span>
+                <span>Position caméra</span>
                 <span className="font-bold">Z={selectedZLayer}</span>
               </div>
               <div className="mt-1 flex items-center justify-between text-slate-400">
-                <span>Scan arrière / avant</span>
+                <span>Profondeur du bac</span>
                 <span className="font-mono text-cyan-300">±{scanRadius} couches</span>
               </div>
               <div className="mt-1 text-[9px] text-slate-500">Le zoom arrière révèle davantage de tranches.</div>
@@ -2176,27 +2175,27 @@ export const SubterraneanCanvas: React.FC<SubterraneanCanvasProps> = ({
         </button>
       </div>
 
-      {/* Scan layer controls: 84 explicit volumetric sections */}
+      {/* Camera depth controls: move through the 84 sections of the volume */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-sm border border-cyan-900/70 rounded-lg px-2 py-1 shadow-lg">
         <button
           onClick={() => setScanLayer(-1)}
           disabled={selectedZLayer === 0}
-          className="w-8 h-7 rounded text-cyan-200 hover:bg-cyan-950 disabled:opacity-30 disabled:cursor-not-allowed font-bold"
-          title="Reculer d'une tranche"
+          className="px-2 h-7 rounded text-cyan-200 hover:bg-cyan-950 disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[9px] font-bold"
+          title="Reculer la caméra d'une section"
         >
-          ←
+          ← RECULER
         </button>
         <div className="min-w-32 text-center font-mono text-[10px] leading-tight">
-          <div className="text-cyan-300 font-bold">SECTION {selectedZLayer + 1}/84</div>
-          <div className="text-slate-500">Z={selectedZLayer} · scan central</div>
+          <div className="text-cyan-300 font-bold">CAMÉRA Z={selectedZLayer}/83</div>
+          <div className="text-slate-500">dans le volume · 84 sections</div>
         </div>
         <button
           onClick={() => setScanLayer(1)}
           disabled={selectedZLayer === 83}
-          className="w-8 h-7 rounded text-cyan-200 hover:bg-cyan-950 disabled:opacity-30 disabled:cursor-not-allowed font-bold"
-          title="Avancer d'une tranche"
+          className="px-2 h-7 rounded text-cyan-200 hover:bg-cyan-950 disabled:opacity-30 disabled:cursor-not-allowed font-mono text-[9px] font-bold"
+          title="Entrer la caméra d'une section"
         >
-          →
+          ENTRER →
         </button>
       </div>
 
