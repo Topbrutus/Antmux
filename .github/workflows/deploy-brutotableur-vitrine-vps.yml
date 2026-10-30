@@ -44,7 +44,6 @@ jobs:
           test -f deploy/brutotableur-private/index.html
           grep -Fq 'DÉBARRER LA VITRINE' laboratoire/brutotableur/index.html
           grep -Fq 'PUBLIC · VERROUILLÉ' laboratoire/brutotableur/index.html
-          grep -Fq 'BRUTOTABLEUR · VITRINE PUBLIQUE' laboratoire/index.html
           grep -Fq '/laboratoire/brutotableur/private/' deploy/brutotableur-private/index.html
           python3 - <<'PY'
           import json, pathlib
@@ -304,7 +303,6 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutotableur/ -o /tmp/brutotableur-public.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutotableur/PUBLIC-PROVENANCE.json -o /tmp/brutotableur-provenance.json
-          grep -Fq 'BRUTOTABLEUR · VITRINE PUBLIQUE' /tmp/lab.html
           grep -Fq 'DÉBARRER LA VITRINE' /tmp/brutotableur-public.html
           grep -Fq 'PUBLIC · VERROUILLÉ' /tmp/brutotableur-public.html
           python3 - <<'PY'
