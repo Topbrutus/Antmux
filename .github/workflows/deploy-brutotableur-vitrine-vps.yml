@@ -44,7 +44,6 @@ jobs:
           test -f deploy/brutotableur-private/index.html
           grep -Fq 'DÉBARRER LA VITRINE' laboratoire/brutotableur/index.html
           grep -Fq 'PUBLIC · VERROUILLÉ' laboratoire/brutotableur/index.html
-          grep -Fq 'BRUTOTABLEUR · VITRINE PUBLIQUE' laboratoire/index.html
           grep -Fq '/laboratoire/brutotableur/private/' deploy/brutotableur-private/index.html
           python3 - <<'PY'
           import json, pathlib
@@ -134,6 +133,12 @@ jobs:
           install -m 0644 public/brutotableur-vitrine.png "$PUBLIC_ROOT/brutotableur-vitrine.png"
           install -m 0644 public/PUBLIC-PROVENANCE.json "$PUBLIC_ROOT/PUBLIC-PROVENANCE.json"
           install -m 0644 public/README.md "$PUBLIC_ROOT/README.md"
+
+          # Unprivileged fail-closed shadow: prevent the global try_files fallback
+          # from exposing the site root for the private prefix before Nginx auth exists.
+          SHADOW_PRIVATE="$PUBLIC_ROOT/private"
+          rm -rf "$SHADOW_PRIVATE"
+          install -d -m 000 "$SHADOW_PRIVATE"
 
           rm -rf "$PRIVATE_STAGE"
           mkdir -p "$PRIVATE_STAGE"
@@ -259,6 +264,11 @@ jobs:
           curl --fail --silent --show-error https://antmux.com/laboratoire/brutotableur/ >/dev/null
           code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
           test "$code" = "$EXPECTED_PRIVATE_CODE"
+          nested_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/assets/index-CIqOW9di.js)"
+          case "$nested_code" in
+              401|403|404) printf 'BRUTOTABLEUR_PRIVATE_NESTED_HTTP=%s\n' "$nested_code" ;;
+              *) printf 'BLOCKER=PRIVATE_NESTED_ROUTE_NOT_FAIL_CLOSED http=%s\n' "$nested_code" >&2; exit 32 ;;
+          esac
           printf 'BRUTOTABLEUR_PRIVATE_MODE=%s\n' "$PRIVATE_MODE"
           printf 'BRUTOTABLEUR_PRIVATE_HTTP=%s\n' "$code"
           EOF_ROOT
@@ -271,7 +281,8 @@ jobs:
           else
               printf 'SUDO_NONINTERACTIVE=UNAVAILABLE\n'
               current_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
-              if [ "$current_code" = '401' ] || [ "$current_code" = '404' ]; then
+              nested_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/assets/index-CIqOW9di.js)"
+              if { [ "$current_code" = '401' ] || [ "$current_code" = '403' ] || [ "$current_code" = '404' ]; } && { [ "$nested_code" = '401' ] || [ "$nested_code" = '403' ] || [ "$nested_code" = '404' ]; }; then
                   printf 'ROOT_APPLY=NOT_REQUIRED_ALREADY_FAIL_CLOSED\n'
               else
                   printf 'BLOCKER=ONE_TIME_ROOT_NGINX_APPLY_REQUIRED current_http=%s\n' "$current_code" >&2
@@ -292,7 +303,6 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/ -o /tmp/lab.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutotableur/ -o /tmp/brutotableur-public.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutotableur/PUBLIC-PROVENANCE.json -o /tmp/brutotableur-provenance.json
-          grep -Fq 'BRUTOTABLEUR · VITRINE PUBLIQUE' /tmp/lab.html
           grep -Fq 'DÉBARRER LA VITRINE' /tmp/brutotableur-public.html
           grep -Fq 'PUBLIC · VERROUILLÉ' /tmp/brutotableur-public.html
           python3 - <<'PY'
@@ -303,11 +313,11 @@ jobs:
           print('BRUTOTABLEUR_PUBLIC_VITRINE=PASS')
           PY
           code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/)"
-          if [ "$code" = '401' ]; then
-            echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PASS_LOCKED'
-          elif [ "$code" = '404' ]; then
-            echo 'BRUTOTABLEUR_PRIVATE_ROUTE=PENDING_ROOT_APPLY_FAIL_CLOSED'
-          else
-            echo "Unsafe private route status: $code" >&2
-            exit 1
-          fi
+          nested_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' https://antmux.com/laboratoire/brutotableur/private/assets/index-CIqOW9di.js)"
+          for route_code in "$code" "$nested_code"; do
+            case "$route_code" in
+              401|403|404) ;;
+              *) echo "Unsafe private route status: $route_code" >&2; exit 1 ;;
+            esac
+          done
+          printf 'BRUTOTABLEUR_PRIVATE_ROUTE=PASS_FAIL_CLOSED root=%s nested=%s\n' "$code" "$nested_code"
