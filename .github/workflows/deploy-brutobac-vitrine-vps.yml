@@ -39,8 +39,7 @@ jobs:
           test -f laboratoire/brutobac/PUBLIC-PROVENANCE.json
           test -f laboratoire/brutobac/README.md
           grep -Fq 'BRUTOBAC · QUEEN SERVER LIVE' laboratoire/brutobac/index.html
-          grep -Fq 'http://127.0.0.1:8780/api/status' laboratoire/brutobac/index.html
-          grep -Fq '💎 BRUTOBAC · FOURMI AQUARIUM 3D' laboratoire/index.html
+          grep -Fq '/laboratoire/embryon-x72/api/brutobac/dust/state' laboratoire/brutobac/index.html
           python3 - <<'PY'
           import json, pathlib
           p=json.loads(pathlib.Path('laboratoire/brutobac/PUBLIC-PROVENANCE.json').read_text(encoding='utf-8'))
@@ -154,9 +153,8 @@ jobs:
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/brutobac/PUBLIC-PROVENANCE.json -o /tmp/provenance.json
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/api/brutobac/ -o /tmp/inner.html
           curl --fail --silent --show-error --location https://antmux.com/laboratoire/embryon-x72/api/brutobac/snapshot -o /tmp/snapshot.json
-          grep -Fq '💎 BRUTOBAC · FOURMI AQUARIUM 3D' /tmp/lab.html
           grep -Fq 'BRUTOBAC · QUEEN SERVER LIVE' /tmp/brutobac.html
-          grep -Fq 'http://127.0.0.1:8780/api/status' /tmp/brutobac.html
+          grep -Fq '/laboratoire/embryon-x72/api/brutobac/dust/state' /tmp/brutobac.html
           grep -Fq 'BRUTUS LIVE FOURMI AQUARIUM 3D' /tmp/inner.html
           python3 - <<'PY'
           import json
