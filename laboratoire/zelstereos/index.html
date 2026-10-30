@@ -5938,7 +5938,7 @@ let gzActiveSpeechTimeout = null;
 let gzSpeechEventSource = null;
 
 function gamezelSpeakDynamicSpeech(text, language = 'fr-CA', playerId = 'P1') {
-  if (!text || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return false;
+  if (!text || soundMuted || soundVolume <= 0 || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return false;
   try {
     const utterance = new SpeechSynthesisUtterance(String(text));
     utterance.lang = String(language || 'fr-CA');
@@ -6045,7 +6045,7 @@ function receivePublicSpeech(speech) {
   // ONLY Panel 1 triggers audio playback (AUDIO MASTER).
   // Panels 2..5 display visual feedback only!
   let dynamicSpeechPlayed = false;
-  if (audioMaster === 'PANEL_1' && speech.DYNAMIC_TTS === true && text) {
+  if (audioMaster === 'PANEL_1' && zelIsAudioMasterActive() && !soundMuted && soundVolume > 0 && speech.DYNAMIC_TTS === true && text) {
     dynamicSpeechPlayed = gamezelSpeakDynamicSpeech(
       text,
       speech.LANGUAGE || speech.language || 'fr-CA',
