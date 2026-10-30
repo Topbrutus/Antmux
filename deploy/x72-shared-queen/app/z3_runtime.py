@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from .hemisphere4 import Hemisphere4Frame
 from .stereo27 import Stereo27Frame
 
 from z3_echo import (
@@ -99,6 +100,7 @@ class Z3RuntimeSnapshot:
     center_provenance_h256: str
     echo_provenance_h256: tuple[str, str, str, str]
     stereo27: Stereo27Frame
+    hemisphere4: Hemisphere4Frame
     fast_verified: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -115,6 +117,7 @@ class Z3RuntimeSnapshot:
             "center_provenance_h256": self.center_provenance_h256,
             "echo_provenance_h256": list(self.echo_provenance_h256),
             "stereo27": self.stereo27.to_dict(),
+            "hemisphere4": self.hemisphere4.to_dict(),
             "fast_verified": self.fast_verified,
         }
 
@@ -221,6 +224,11 @@ class Z3RuntimeBridge:
             coupled=coupled,
             center=center_now,
         )
+        hemisphere4 = Hemisphere4Frame.from_z3(
+            source=source,
+            coupled=coupled,
+            center=center_now,
+        )
 
         return Z3RuntimeSnapshot(
             tick=tick,
@@ -235,11 +243,13 @@ class Z3RuntimeBridge:
             center_provenance_h256=center_frame.provenance_h256,
             echo_provenance_h256=tuple(echo_hashes),  # type: ignore[arg-type]
             stereo27=stereo27,
+            hemisphere4=hemisphere4,
             fast_verified=bool(
                 echo_verified
                 and center_verified
                 and stereo27.verify()
                 and stereo27.plouf
+                and hemisphere4.verify()
             ),
         )
 
@@ -275,6 +285,7 @@ class Z3RuntimeBridge:
         latest = payload.get("latest")
         if isinstance(latest, dict):
             latest.pop("stereo27", None)
+            latest.pop("hemisphere4", None)
         payload["history_h256"] = _canonical_hash(self.history)
         return payload
 
