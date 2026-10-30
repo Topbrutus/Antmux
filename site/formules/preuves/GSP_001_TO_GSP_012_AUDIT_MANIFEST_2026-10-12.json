@@ -1,0 +1,14 @@
+{
+  "schema": "GSP-AUDIT-MANIFEST-v1",
+  "author": "Gabriel St-Pierre",
+  "date": "2026-10-12",
+  "range": "GSP-001..GSP-012",
+  "status": "AUDIT_CYCLE_COMPLETED",
+  "report_file": "GSP_001_TO_GSP_012_RAPPORT_SYNOPTIQUE_AUDIT_2026-10-12.md",
+  "report_sha256": "2132d759a6891f0f073df196eba6abd4b61765c76637005cf242afe009d67d8f",
+  "report_bytes": 3155,
+  "verified_gsp006_sha256": "a0b435c923bb0f718dad337f269ec62353082b3de8cac22f65f157a43a3ced37",
+  "modules": 12,
+  "failed_final_gates": 0,
+  "notes": "PASS signifie réussite des bancs d'essai explicitement documentés; aucune validation physique ou institutionnelle générale n'est revendiquée."
+}

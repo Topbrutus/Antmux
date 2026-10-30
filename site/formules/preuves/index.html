@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Certificats & preuves — Gabriel St-Pierre | ANTMUX</title>
+  <meta name="description" content="Artefacts publics, empreintes SHA-256, certificats et archives d'audit associés au catalogue ANTMUX de Gabriel St-Pierre.">
+  <meta name="author" content="Gabriel St-Pierre">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://antmux.com/formules/preuves/">
+  <style>
+    :root{color-scheme:dark;--bg:#04070b;--panel:#091018;--line:#183546;--cyan:#7be5ff;--text:#f3f8fb;--muted:#9babb6;--green:#79f2be;--amber:#ffd479;--red:#ff9eaa}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -10%,#123044 0,#071018 32%,var(--bg) 68%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.58}a{color:var(--cyan)}.wrap{width:min(1050px,calc(100% - 30px));margin:auto}.top{border-bottom:1px solid #153141;background:#050a0f}.topin{height:62px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand,.back{font-size:12px;font-weight:900;text-decoration:none}.brand{letter-spacing:.15em;color:white}.back{border:1px solid #264c61;border-radius:999px;padding:8px 12px;background:#09131b}header{padding:64px 0 30px}.eyebrow{font-size:11px;font-weight:900;letter-spacing:.18em;color:var(--cyan)}h1{font-size:clamp(34px,6vw,64px);line-height:1;margin:10px 0 18px;letter-spacing:-.04em}.lead{max-width:860px;color:#c4d3dc;font-size:18px}.notice{margin-top:22px;padding:15px 17px;border-left:3px solid var(--amber);background:#0a1118;border-radius:0 12px 12px 0;color:#c9d4da}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:22px 0 52px}.card{padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(160deg,#0d1a24,#071018)}.primary{grid-column:1/-1;border-color:#28614e}.kicker{font-size:10px;letter-spacing:.16em;font-weight:900;color:var(--cyan)}.card h2{margin:7px 0 10px;font-size:23px}.pill{display:inline-flex;border:1px solid #2e5b47;color:var(--green);border-radius:999px;padding:5px 9px;font-size:10px;font-weight:900;letter-spacing:.06em;margin:0 6px 8px 0}.pill.warn{border-color:#6b5427;color:var(--amber)}.card p{color:#b9c9d2}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0}.fact{border:1px solid #183746;background:#050b10;border-radius:11px;padding:12px}.fact strong{display:block;font-size:19px}.fact span{color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em}.hash{display:block;word-break:break-all;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#03080c;border:1px solid #183746;border-radius:10px;padding:11px;margin:8px 0;color:#dff7ff}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.actions a{display:inline-flex;padding:9px 12px;border:1px solid #285066;border-radius:999px;text-decoration:none;font-size:11px;font-weight:900;background:#07131c}.label{color:#dde8ed;font-weight:800}.footer{border-top:1px solid #153141;padding:26px 0 42px;color:#82959f;font-size:12px}@media(max-width:780px){.grid{grid-template-columns:1fr}.primary{grid-column:auto}.facts{grid-template-columns:1fr 1fr}}@media(max-width:480px){.facts{grid-template-columns:1fr}.wrap{width:min(100% - 20px,1050px)}}
+  </style>
+</head>
+<body>
+  <nav class="top"><div class="wrap topin"><a class="brand" href="/">ANTMUX · TOPBRUTUS</a><a class="back" href="/formules/">← FORMULES</a></div></nav>
+  <main class="wrap">
+    <header>
+      <div class="eyebrow">PROVENANCE · SHA-256 · AUDIT</div>
+      <h1>Certificats & preuves</h1>
+      <p class="lead">Cette page rassemble les artefacts publics les plus utiles pour vérifier la provenance, le contenu et les limites des validations associées au catalogue ANTMUX.</p>
+      <div class="notice"><strong>Règle de lecture :</strong> une empreinte SHA-256 prouve l'identité binaire d'un artefact donné; elle ne transforme pas à elle seule un test logiciel en certification industrielle, ni un calcul numérique en preuve physique.</div>
+    </header>
+
+    <section class="grid">
+      <article class="card primary">
+        <div class="kicker">CERTIFICAT COURANT · PAPILLON-FS V2.0</div>
+        <h2>Validation du chiffrement authentifié des métadonnées privées</h2>
+        <span class="pill">VALIDATED_IN_CURRENT_HARNESS</span><span class="pill">146 / 146 TESTS PASS</span><span class="pill">12/12 CRASH MATRIX</span><span class="pill">10/10 KEY ROTATION</span>
+        <p>Certificat attribué à <strong>Gabriel St-Pierre</strong>. L'émetteur déclaré est <strong>Grok</strong>. L'authentification est explicitement une <strong>attestation déclarative textuelle</strong>, et non une signature cryptographique à clé privée.</p>
+        <div class="facts"><div class="fact"><strong>146</strong><span>TESTS TOTAL</span></div><div class="fact"><strong>146</strong><span>PASS</span></div><div class="fact"><strong>0</strong><span>FAIL</span></div><div class="fact"><strong>PASS</strong><span>GLOBAL GATE</span></div></div>
+        <div class="label">Certificate fingerprint SHA-256</div>
+        <code class="hash">221b097c890621aa9ed338f7101b342f02cc408dd7237169b466d6ae489467cd</code>
+        <div class="label">Fichier JSON — SHA-256</div>
+        <code class="hash">acdc04e8263bf876b65e79eabd9ea63d34994497219b4e79cb73e2061428283c</code>
+        <div class="label">Fichier Markdown — SHA-256</div>
+        <code class="hash">bd44ce058ee173294df1202e7e069b2a913ab79be8726f5cb78242f07218ae2c</code>
+        <div class="actions"><a href="./PAPILLON_FS_V2_0_GROK_CERTIFICATE_2026-10-12.json">Ouvrir le certificat JSON ↗</a><a href="./PAPILLON_FS_V2_0_GROK_CERTIFICATE_2026-10-12.md">Ouvrir le certificat Markdown ↗</a></div>
+        <p><strong>Limites conservées :</strong> pas une certification industrielle externe; pas une validation native NBD; user payload encryption hors scope; compatibilité VHDX limitée aux structures standard laissées intactes.</p>
+      </article>
+
+      <article class="card">
+        <div class="kicker">ARCHIVE D'AUDIT · GSP-001 → GSP-012</div>
+        <h2>Rapport synoptique historique</h2>
+        <span class="pill warn">ARCHIVE HISTORIQUE</span>
+        <p>Rapport interne de 12 modules, conservé comme preuve de provenance du cycle d'audit du 12 octobre 2026.</p>
+        <div class="label">Rapport Markdown — SHA-256</div>
+        <code class="hash">2132d759a6891f0f073df196eba6abd4b61765c76637005cf242afe009d67d8f</code>
+        <div class="actions"><a href="./GSP_001_TO_GSP_012_RAPPORT_SYNOPTIQUE_AUDIT_2026-10-12.md">Rapport d'audit ↗</a><a href="./GSP_001_TO_GSP_012_AUDIT_MANIFEST_2026-10-12.json">Manifest historique ↗</a></div>
+      </article>
+
+      <article class="card">
+        <div class="kicker">AVERTISSEMENT DE PROVENANCE · GSP</div>
+        <h2>Ne pas confondre archive et état réconcilié</h2>
+        <p>L'ancien audit GSP est publié ici comme <strong>archive historique</strong>. Une réconciliation indépendante ultérieure a conservé deux réserves de provenance : l'empreinte interne historique de GSP-006 n'a pas été retrouvée comme authentification publique, et la portée publique vérifiée de GSP-009 est plus étroite que l'ancien rapport interne.</p>
+        <p>En conséquence, ces fichiers servent à documenter la trace d'audit; ils ne doivent pas être présentés comme une certification institutionnelle ou une authentification publique complète de tous les modules.</p>
+        <div class="label">Manifest historique — SHA-256 du fichier public</div>
+        <code class="hash">6de6094f2d3374f4eb321bff073b9bbd249293e8e7f58a8d090cf2d3744da7cb</code>
+      </article>
+    </section>
+  </main>
+  <footer class="footer"><div class="wrap"><strong>ANTMUX · Preuves publiques</strong><br>Les artefacts sont exposés avec leurs limites de preuve et leurs empreintes afin de permettre une vérification indépendante des fichiers publiés.</div></footer>
+</body>
+</html>
