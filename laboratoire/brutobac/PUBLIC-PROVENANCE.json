@@ -8,17 +8,21 @@
   "queen_stream_path": "/laboratoire/embryon-x72/api/brutobac/stream",
   "queen_authority": "QUEEN_SERVER_V0_2",
   "queen_public_schema": "BRUTUS-AQUARIUM-EVENT-v1",
-  "dust_source": "http://127.0.0.1:8780/api/status",
-  "dust_source_component": "BROTOCULATEUR_PUBLIC_CRYSTAL_BRIDGE",
-  "dust_fields_preferred": ["dust_slots", "dust_per_transit"],
-  "dust_fields_current_fallback": ["big_crystals"],
-  "dust_fallback_formula": "big_crystals * 39",
-  "dust_fallback_basis": "current Structureur39 DUST_PER_TRANSIT invariant",
+  "dust_source": "/laboratoire/embryon-x72/api/brutobac/dust/state",
+  "dust_source_component": "QUEEN_SERVER_SQLITE_STAR_DUST_RESOURCE",
   "dust_rendering": "VISUAL_OVERLAY_ONLY",
   "public_interaction": false,
   "queen_mutation_from_vitrine": false,
   "dust_mutation_from_vitrine": false,
   "password_or_secret_in_public_payload": false,
   "mathematical_proof_claim": false,
-  "fail_closed_when_dust_source_unavailable": true
+  "fail_closed_when_dust_source_unavailable": true,
+  "dust_authority": "QUEEN_SERVER_V0_2",
+  "dust_fields": [
+    "quantity",
+    "produced_total",
+    "consumed_total",
+    "source_total",
+    "dust_per_transit"
+  ]
 }
