@@ -1,0 +1,322 @@
+{
+  "version": "0.1.0",
+  "horloge": {
+    "frequence_logique_hz": 37,
+    "phases_par_tour": 2401,
+    "phase_depart": 0,
+    "reste_depart": 0
+  },
+  "roues_abz": {
+    "graines": [
+      4,
+      7,
+      9,
+      12,
+      13,
+      16
+    ]
+  },
+  "six_roues": {
+    "anneau": 273,
+    "roues": [
+      {
+        "id": "r2",
+        "vitesse": 2,
+        "depart": 0,
+        "actif": true
+      },
+      {
+        "id": "r3",
+        "vitesse": 3,
+        "depart": 0,
+        "actif": true
+      },
+      {
+        "id": "r4",
+        "vitesse": 4,
+        "depart": 0,
+        "actif": true
+      },
+      {
+        "id": "r5",
+        "vitesse": 5,
+        "depart": 0,
+        "actif": true
+      },
+      {
+        "id": "r6",
+        "vitesse": 6,
+        "depart": 0,
+        "actif": true
+      },
+      {
+        "id": "r7",
+        "vitesse": 7,
+        "depart": 0,
+        "actif": true
+      }
+    ]
+  },
+  "stonehenge": {
+    "courant_amplificateur": 40,
+    "roches": [
+      {
+        "index": 0,
+        "etat": "installee",
+        "gain": 100,
+        "delai": 0,
+        "timbre": 17
+      },
+      {
+        "index": 1,
+        "etat": "installee",
+        "gain": 101,
+        "delai": 1,
+        "timbre": 20
+      },
+      {
+        "index": 2,
+        "etat": "installee",
+        "gain": 102,
+        "delai": 2,
+        "timbre": 23
+      },
+      {
+        "index": 3,
+        "etat": "installee",
+        "gain": 103,
+        "delai": 3,
+        "timbre": 26
+      },
+      {
+        "index": 4,
+        "etat": "installee",
+        "gain": 104,
+        "delai": 4,
+        "timbre": 29
+      },
+      {
+        "index": 5,
+        "etat": "installee",
+        "gain": 105,
+        "delai": 5,
+        "timbre": 32
+      },
+      {
+        "index": 6,
+        "etat": "installee",
+        "gain": 106,
+        "delai": 6,
+        "timbre": 35
+      },
+      {
+        "index": 7,
+        "etat": "installee",
+        "gain": 107,
+        "delai": 7,
+        "timbre": 38
+      },
+      {
+        "index": 8,
+        "etat": "installee",
+        "gain": 108,
+        "delai": 8,
+        "timbre": 41
+      },
+      {
+        "index": 9,
+        "etat": "installee",
+        "gain": 109,
+        "delai": 9,
+        "timbre": 44
+      },
+      {
+        "index": 10,
+        "etat": "installee",
+        "gain": 110,
+        "delai": 10,
+        "timbre": 47
+      },
+      {
+        "index": 11,
+        "etat": "installee",
+        "gain": 111,
+        "delai": 11,
+        "timbre": 50
+      },
+      {
+        "index": 12,
+        "etat": "installee",
+        "gain": 112,
+        "delai": 12,
+        "timbre": 53
+      },
+      {
+        "index": 13,
+        "etat": "installee",
+        "gain": 113,
+        "delai": 13,
+        "timbre": 56
+      },
+      {
+        "index": 14,
+        "etat": "installee",
+        "gain": 114,
+        "delai": 14,
+        "timbre": 59
+      },
+      {
+        "index": 15,
+        "etat": "installee",
+        "gain": 115,
+        "delai": 15,
+        "timbre": 62
+      },
+      {
+        "index": 16,
+        "etat": "installee",
+        "gain": 116,
+        "delai": 16,
+        "timbre": 65
+      },
+      {
+        "index": 17,
+        "etat": "installee",
+        "gain": 117,
+        "delai": 17,
+        "timbre": 68
+      },
+      {
+        "index": 18,
+        "etat": "installee",
+        "gain": 118,
+        "delai": 18,
+        "timbre": 71
+      },
+      {
+        "index": 19,
+        "etat": "installee",
+        "gain": 119,
+        "delai": 19,
+        "timbre": 74
+      },
+      {
+        "index": 20,
+        "etat": "installee",
+        "gain": 120,
+        "delai": 20,
+        "timbre": 77
+      },
+      {
+        "index": 21,
+        "etat": "installee",
+        "gain": 121,
+        "delai": 21,
+        "timbre": 80
+      },
+      {
+        "index": 22,
+        "etat": "installee",
+        "gain": 122,
+        "delai": 22,
+        "timbre": 83
+      },
+      {
+        "index": 23,
+        "etat": "installee",
+        "gain": 123,
+        "delai": 23,
+        "timbre": 86
+      },
+      {
+        "index": 24,
+        "etat": "installee",
+        "gain": 124,
+        "delai": 24,
+        "timbre": 89
+      },
+      {
+        "index": 25,
+        "etat": "installee",
+        "gain": 125,
+        "delai": 25,
+        "timbre": 92
+      },
+      {
+        "index": 26,
+        "etat": "installee",
+        "gain": 126,
+        "delai": 26,
+        "timbre": 95
+      },
+      {
+        "index": 27,
+        "etat": "installee",
+        "gain": 127,
+        "delai": 27,
+        "timbre": 98
+      },
+      {
+        "index": 28,
+        "etat": "installee",
+        "gain": 128,
+        "delai": 28,
+        "timbre": 101
+      },
+      {
+        "index": 29,
+        "etat": "installee",
+        "gain": 129,
+        "delai": 29,
+        "timbre": 104
+      }
+    ]
+  },
+  "cadran": {
+    "visible": true
+  },
+  "polybrutus": {
+    "rotation_depart": 0
+  },
+  "temple": {
+    "cote": 12
+  },
+  "colonie": {
+    "actif": true
+  },
+  "cristallisation": {
+    "seuil": 8,
+    "promus": 7,
+    "libre": 1,
+    "niveau_max": 7
+  },
+  "capsule": {
+    "visible": true
+  },
+  "pyramide": {
+    "visible": true
+  },
+  "epitagores": {
+    "contenus": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "lecteur_structures": {
+    "actif": false
+  },
+  "canal": {
+    "frequence_hz": 2400,
+    "frequence_fourmi_brutus_hz": 2401
+  }
+}
