@@ -423,3 +423,9 @@ L’objectif est de construire un système qui puisse être testé, falsifié, c
 Cette formulation d’Antmux a été imaginée par **Topbrutus** au cours d’une exploration conceptuelle, puis structurée, recalculée, critiquée et mise en forme avec **ChatGPT**.
 
 Le dépôt sert désormais de point de départ vérifiable pour transformer l’histoire en code et le code en expérience.
+
+---
+
+## Moteur v0.1
+
+Le squelette extensible du moteur (horloge, roues, Stonehenge, Polybrutus, temple, colonie, graine) est dans [`moteur/`](moteur/README.md). La page de lecture, isolée de la façade, est [`moteur/page/index.html`](moteur/page/index.html). Elle ne modifie ni le routage ni la configuration serveur.

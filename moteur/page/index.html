@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Antmux — Moteur</title>
+  <meta name="description" content="Page de lecture du moteur Antmux. Récit du propriétaire, sans affirmation scientifique.">
+  <style>
+    :root {
+      --encre: #f4efe6;
+      --encre-douce: #d9d0c3;
+      --fond: #100e0c;
+      --terre: #3a2918;
+      --pierre: #a3988c;
+      --pierre-sombre: #5c564e;
+      --lichen: #7f9a62;
+      --or: #e4c27a;
+      --neon: #8ef6ff;
+      --danger: #ffb4a2;
+      --ok: #b7f0c8;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      min-height: 100vh;
+      color: var(--encre);
+      font: 17px/1.45 "Iowan Old Style", Palatino, Georgia, serif;
+      background:
+        radial-gradient(ellipse at 50% 0%, #243044 0%, transparent 42%),
+        radial-gradient(ellipse at 50% 100%, #3a2918 0%, transparent 46%),
+        var(--fond);
+    }
+    a { color: var(--neon); }
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid var(--or);
+      outline-offset: 2px;
+    }
+    .skip {
+      position: absolute; left: 12px; top: -40px; background: #000; color: #fff; padding: 8px;
+    }
+    .skip:focus { top: 8px; }
+    header, .barre, .audio, .bas, footer { width: min(1180px, calc(100% - 28px)); margin: 0 auto; }
+    header { padding: 22px 0 8px; }
+    .kicker { letter-spacing: .16em; text-transform: uppercase; font: 12px/1.3 ui-monospace, monospace; color: var(--or); margin: 0; }
+    h1 { font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.05; margin: 6px 0; font-weight: 600; }
+    .avertissement {
+      margin: 0;
+      max-width: 68ch;
+      color: var(--encre-douce);
+    }
+    .audio, .barre, details.reglages {
+      width: min(1180px, calc(100% - 28px));
+      margin: 12px auto;
+    }
+    .audio, details.reglages, .carte {
+      background: rgba(16, 14, 12, .78);
+      border: 1px solid rgba(228, 194, 122, .45);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+    .audio { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button, .fichier {
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid var(--or);
+      background: transparent;
+      color: var(--encre);
+      font: 700 14px/1 ui-sans-serif, system-ui, sans-serif;
+      padding: 0 14px;
+      cursor: pointer;
+    }
+    button:hover { background: rgba(228, 194, 122, .16); }
+    label.volume { display: flex; gap: 8px; align-items: center; font: 14px/1 ui-sans-serif, system-ui, sans-serif; }
+    input[type="range"] { width: 140px; }
+    .scene {
+      width: min(1180px, calc(100% - 20px));
+      margin: 8px auto 0;
+      display: grid;
+      grid-template-columns: minmax(160px, 230px) minmax(320px, 1fr) minmax(200px, 270px);
+      gap: 14px;
+      align-items: center;
+    }
+    .pyramide { text-align: center; }
+    .pyramide svg { width: min(100%, 230px); height: auto; filter: drop-shadow(0 0 12px rgba(142, 246, 255, .35)); }
+    .pyramide p { margin: 6px 0 0; color: var(--encre-douce); font-size: 14px; }
+    .cercle { position: relative; }
+    .cercle svg { width: 100%; height: auto; display: block; }
+    #capsule {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -52%);
+      width: min(250px, 42%);
+      padding: 12px 12px 10px;
+      background:
+        linear-gradient(180deg, rgba(255, 250, 240, .2), rgba(255, 250, 240, .05) 30%, rgba(10, 12, 16, .82) 30%),
+        rgba(10, 12, 18, .9);
+      color: var(--encre);
+      border: 1px solid rgba(228, 194, 122, .9);
+      box-shadow: 0 0 0 1px rgba(142, 246, 255, .45), 0 0 28px rgba(142, 246, 255, .28);
+      border-radius: 10px 10px 16px 16px;
+    }
+    #capsule h2 { margin: 0; font-size: 1.05rem; }
+    #capsule .note { margin: 4px 0 8px; font-size: 12px; color: var(--encre-douce); }
+    #capsule dl { margin: 0; display: grid; gap: 4px; }
+    #capsule div { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    #capsule dt { font: 11px/1.2 ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-douce); }
+    #capsule dd { margin: 0; font: 600 1.25rem/1 ui-monospace, monospace; }
+    #capsule .cellule { display: block; }
+    #capsule .cellule dd { margin-top: 2px; font-size: .82rem; line-height: 1.3; text-align: left; }
+    .badge, .pilule {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font: 700 11px/1.4 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .04em;
+    }
+    .badge { background: #3a2a14; color: #ffd7a3; border: 1px solid #c48a3a; }
+    .pilule.exact { background: #14352b; color: var(--ok); }
+    .pilule.candidat { background: #3a2a14; color: #ffd7a3; }
+    .pilule.decision { background: #1a2740; color: #c5dcff; }
+    .pilule.cible { background: #3a1420; color: #ffc1d0; }
+    .cote h2, .bas h2 { font-size: 1.15rem; margin: 0 0 8px; }
+    .cote .carte + .carte { margin-top: 10px; }
+    #convergence.atteint { box-shadow: 0 0 18px rgba(142, 246, 255, .45); }
+    .roue-ligne, .insecte, .slot {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: center;
+      margin: 6px 0;
+    }
+    .jauge { height: 8px; background: #2a241c; border-radius: 99px; overflow: hidden; }
+    .jauge span { display: block; height: 100%; background: linear-gradient(90deg, var(--or), var(--neon)); }
+    #graine {
+      max-height: 5.2em;
+      overflow: auto;
+      font: 12px/1.35 ui-monospace, monospace;
+      word-break: break-all;
+      background: #0c0b09;
+      color: var(--encre);
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .bas {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .insectes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .insecte { grid-template-columns: 46px 1fr; background: rgba(0,0,0,.25); border-radius: 10px; padding: 6px; }
+    .insecte svg { width: 46px; height: 36px; }
+    .insecte p { margin: 0; font-size: 13px; }
+    .insecte strong { display: block; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font: 11px/1.2 ui-monospace, monospace; }
+    th, td { border: 1px solid rgba(228, 194, 122, .28); text-align: center; padding: 2px; color: var(--encre); }
+    td.repere { background: rgba(142, 246, 255, .28); color: #fff; }
+    .slots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .slot-vide {
+      min-height: 52px;
+      border: 1px dashed rgba(228, 194, 122, .6);
+      border-radius: 8px;
+      padding: 4px;
+      font-size: 12px;
+      color: var(--encre-douce);
+    }
+    .message { min-height: 1.3em; color: var(--or); font: 14px/1.3 ui-sans-serif, system-ui, sans-serif; }
+    .champ { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+    .champ input, .champ select {
+      min-height: 36px;
+      background: #0c0b09;
+      color: var(--encre);
+      border: 1px solid rgba(228, 194, 122, .5);
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+    fieldset { border: 1px solid rgba(228, 194, 122, .3); border-radius: 10px; margin: 8px 0; }
+    legend { padding: 0 6px; color: var(--or); }
+    .roche-reservee { opacity: .45; }
+    footer { padding: 18px 0 32px; color: var(--encre-douce); font-size: 14px; }
+    @media (max-width: 900px) {
+      .scene, .bas, .insectes { grid-template-columns: 1fr; }
+      .cercle { order: -1; }
+      #capsule { width: min(260px, 70%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#cercle">Aller au cercle</a>
+  <header>
+    <p class="kicker">Antmux · page moteur · lecture locale</p>
+    <h1>Le calcul dans le rayon des trente pierres</h1>
+    <p class="avertissement">Récit du propriétaire, pas une affirmation scientifique ni archéologique. Le cercle représente un Stonehenge partiellement debout. Le moteur ne le reconstruit pas : il remplace, dans le récit, l'ancienne fréquence basse par le canal à 2400 Hz et par la fourmi et Brutus à 2401 Hz.</p>
+  </header>
+
+  <div class="audio" aria-label="Écoute">
+    <button type="button" id="ecouter">Écouter les ondes</button>
+    <button type="button" id="couper" aria-pressed="false">Couper</button>
+    <label class="volume">Volume
+      <input id="volume" type="range" min="0" max="12" value="2" aria-valuemin="0" aria-valuemax="12" aria-valuenow="2">
+    </label>
+    <span>Le son ne démarre qu'après un clic. 2400 Hz reste bas.</span>
+  </div>
+
+  <details class="reglages">
+    <summary>Réglages du moteur — local seulement</summary>
+    <p class="message" id="message-config" role="status"></p>
+    <div id="champs"></div>
+    <p>
+      <button type="button" id="reset">Réinitialiser aux valeurs par défaut</button>
+      <button type="button" id="exporter">Exporter la configuration</button>
+      <label class="fichier">Importer<input id="importer" type="file" accept="application/json,.json" hidden></label>
+    </p>
+  </details>
+
+  <div class="scene">
+    <aside class="pyramide">
+      <svg viewBox="0 0 220 260" role="img" aria-label="Pyramide de quartz, motif visuel">
+        <defs>
+          <linearGradient id="quartz" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f7fbff" stop-opacity=".9"/>
+            <stop offset=".45" stop-color="#b7e7f2" stop-opacity=".55"/>
+            <stop offset="1" stop-color="#6d8ea4" stop-opacity=".35"/>
+          </linearGradient>
+        </defs>
+        <polygon points="110,18 18,230 202,230" fill="url(#quartz)" stroke="#e4c27a" stroke-width="1.4"/>
+        <polygon points="110,18 78,120 142,120" fill="none" stroke="#8ef6ff" stroke-width="1"/>
+        <polygon points="110,48 92,96 128,96" fill="rgba(255,255,255,.35)" stroke="#f4efe6" stroke-width=".6"/>
+        <line x1="18" y1="230" x2="202" y2="230" stroke="#7f9a62" stroke-width="6"/>
+      </svg>
+      <p>Pyramide de quartz — motif, pas une matière mesurée. <span class="pilule candidat">CANDIDAT</span></p>
+    </aside>
+
+    <div class="cercle" id="cercle">
+      <svg id="scene-svg" viewBox="0 0 800 800" role="img" aria-label="Cercle de trente mégalithes">
+        <ellipse cx="400" cy="470" rx="340" ry="90" fill="#3a2918" opacity=".85"/>
+        <ellipse cx="400" cy="455" rx="250" ry="48" fill="#2a1c10"/>
+        <circle id="onde-ancienne" cx="400" cy="400" r="250" fill="none" stroke="#6a5a48" stroke-width="10" stroke-dasharray="8 14" opacity=".9"/>
+        <circle id="onde-nouvelle" cx="400" cy="400" r="268" fill="none" stroke="#8ef6ff" stroke-width="3" opacity=".4"/>
+        <g id="pierres"></g>
+        <g id="marques"></g>
+      </svg>
+      <section id="capsule" data-etiquette="CANDIDAT" data-definition="absente" aria-live="polite">
+        <p><span class="badge">CANDIDAT</span></p>
+        <h2>Capsule</h2>
+        <p class="note">Aucune définition dans les sources. Elle affiche seulement l'état courant.</p>
+        <dl>
+          <div><dt>Phase</dt><dd id="capsule-phase">0</dd></div>
+          <div><dt>Coup</dt><dd id="capsule-coup">0</dd></div>
+          <div class="cellule"><dt>Cellule Z144</dt><dd id="capsule-cellule">index 0 · ligne 1 · colonne 1</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <aside class="cote">
+      <div class="carte" id="convergence">
+        <h2>Six roues</h2>
+        <p id="texte-convergence">Convergence au tic 273.</p>
+        <div id="roues"></div>
+        <p>
+          <button type="button" id="suivant">Coup suivant</button>
+          <button type="button" id="cycle">Aller au tic de convergence</button>
+        </p>
+        <p><button type="button" id="anomalie" aria-pressed="false">Essai : anomalie</button></p>
+        <p id="resonance">Résonance harmonieuse.</p>
+        <p id="taux">Transformation : 0 cycle sain.</p>
+      </div>
+      <div class="carte">
+        <h2>Graine</h2>
+        <p>Un fragment suffit à reconstruire l'état. Vision du propriétaire, pas une graine archéologique.</p>
+        <p>Empreinte <span id="empreinte"></span></p>
+        <pre id="graine"></pre>
+        <p>
+          <button type="button" id="copier">Copier</button>
+          <button type="button" id="reconstruire">Reconstruire</button>
+        </p>
+        <p id="message-graine" class="message" role="status"></p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="bas">
+    <section class="carte">
+      <h2>Colonie — sept régimes d'une même Fourmi</h2>
+      <div class="insectes" id="insectes"></div>
+      <p>Brutus est le nom du moteur, pas un insecte. Les branchements sont <span class="pilule candidat">CANDIDAT</span>.</p>
+    </section>
+    <section class="carte">
+      <h2>Roue Z et canal</h2>
+      <p id="etages"></p>
+      <p>Canal des pierres <strong id="hz-canal">2400 Hz</strong> <span class="pilule decision">DÉCISION DU PROPRIÉTAIRE</span>. Fourmi et Brutus <strong id="hz-fourmi">2401 Hz</strong>. Battement |2401 − 2400| = 1 Hz. Les 2401 phases du tour restent un autre objet. <span class="pilule cible">CIBLE</span> V1.2 non mesurée.</p>
+      <p id="alerte-grille"></p>
+      <h2>Polybrutus</h2>
+      <p id="poly-note"></p>
+      <div id="familles"></div>
+    </section>
+    <section class="carte">
+      <h2>Temple Z144</h2>
+      <p>Formule exacte : index0 = 12×(ligne−1)+(colonne−1). Le lien avec le tic est <span class="pilule candidat">CANDIDAT</span>.</p>
+      <div id="temple"></div>
+    </section>
+    <section class="carte">
+      <h2>Douze Épitagores</h2>
+      <p>Définition introuvable. Passage 6 → 7 <span class="pilule candidat">CANDIDAT</span>. Les cases restent <span class="pilule">INCONNU</span> tant qu'elles sont vides.</p>
+      <div class="slots" id="epitagores"></div>
+      <p id="cristaux-texte"></p>
+    </section>
+  </div>
+  <footer>
+    <p>Page isolée. Elle ne remplace pas la façade (01 NodIA, 02 BuroIA…). Aucune écriture serveur : les réglages restent dans ce navigateur. Les trente cristaux de vibration, un par pierre entre la roche et le cadran, et le lecteur de structures sont prévus et vides.</p>
+  </footer>
+  <script src="client.js"></script>
+  <script>
+    const CONFIG_DEFAUT = {"version":"0.1.0","horloge":{"frequence_logique_hz":37,"phases_par_tour":2401,"phase_depart":0,"reste_depart":0},"roues_abz":{"graines":[4,7,9,12,13,16]},"six_roues":{"anneau":273,"roues":[{"id":"r2","vitesse":2,"depart":0,"actif":true},{"id":"r3","vitesse":3,"depart":0,"actif":true},{"id":"r4","vitesse":4,"depart":0,"actif":true},{"id":"r5","vitesse":5,"depart":0,"actif":true},{"id":"r6","vitesse":6,"depart":0,"actif":true},{"id":"r7","vitesse":7,"depart":0,"actif":true}]},"stonehenge":{"courant_amplificateur":40,"roches":[{"index":0,"etat":"installee","gain":100,"delai":0,"timbre":17},{"index":1,"etat":"installee","gain":101,"delai":1,"timbre":20},{"index":2,"etat":"installee","gain":102,"delai":2,"timbre":23},{"index":3,"etat":"installee","gain":103,"delai":3,"timbre":26},{"index":4,"etat":"installee","gain":104,"delai":4,"timbre":29},{"index":5,"etat":"installee","gain":105,"delai":5,"timbre":32},{"index":6,"etat":"installee","gain":106,"delai":6,"timbre":35},{"index":7,"etat":"installee","gain":107,"delai":7,"timbre":38},{"index":8,"etat":"installee","gain":108,"delai":8,"timbre":41},{"index":9,"etat":"installee","gain":109,"delai":9,"timbre":44},{"index":10,"etat":"installee","gain":110,"delai":10,"timbre":47},{"index":11,"etat":"installee","gain":111,"delai":11,"timbre":50},{"index":12,"etat":"installee","gain":112,"delai":12,"timbre":53},{"index":13,"etat":"installee","gain":113,"delai":13,"timbre":56},{"index":14,"etat":"installee","gain":114,"delai":14,"timbre":59},{"index":15,"etat":"installee","gain":115,"delai":15,"timbre":62},{"index":16,"etat":"installee","gain":116,"delai":16,"timbre":65},{"index":17,"etat":"installee","gain":117,"delai":17,"timbre":68},{"index":18,"etat":"installee","gain":118,"delai":18,"timbre":71},{"index":19,"etat":"installee","gain":119,"delai":19,"timbre":74},{"index":20,"etat":"installee","gain":120,"delai":20,"timbre":77},{"index":21,"etat":"installee","gain":121,"delai":21,"timbre":80},{"index":22,"etat":"installee","gain":122,"delai":22,"timbre":83},{"index":23,"etat":"installee","gain":123,"delai":23,"timbre":86},{"index":24,"etat":"installee","gain":124,"delai":24,"timbre":89},{"index":25,"etat":"installee","gain":125,"delai":25,"timbre":92},{"index":26,"etat":"installee","gain":126,"delai":26,"timbre":95},{"index":27,"etat":"installee","gain":127,"delai":27,"timbre":98},{"index":28,"etat":"installee","gain":128,"delai":28,"timbre":101},{"index":29,"etat":"installee","gain":129,"delai":29,"timbre":104}]},"cadran":{"visible":true},"polybrutus":{"rotation_depart":0},"temple":{"cote":12},"colonie":{"actif":true},"cristallisation":{"seuil":8,"promus":7,"libre":1,"niveau_max":7},"capsule":{"visible":true},"pyramide":{"visible":true},"epitagores":{"contenus":[null,null,null,null,null,null,null,null,null,null,null,null]},"lecteur_structures":{"actif":false},"canal":{"frequence_hz":2400,"frequence_fourmi_brutus_hz":2401}};
+    const SCHEMA = {"type":"objet","label":"Moteur","champs":{"version":{"type":"str","enum":["0.1.0"],"label":"Version"},"horloge":{"type":"objet","label":"Horloge","champs":{"frequence_logique_hz":{"type":"int","min":1,"max":100000,"label":"Fréquence logique (Hz)"},"phases_par_tour":{"type":"int","min":1,"max":1000000,"label":"Phases par tour"},"phase_depart":{"type":"int","min":0,"max":1000000,"label":"Phase de départ"},"reste_depart":{"type":"int","min":0,"max":1000000,"label":"Reste de départ"}},"regles":[{"type":"inferieur","champ":"phase_depart","borne":"phases_par_tour"},{"type":"inferieur","champ":"reste_depart","borne":"frequence_logique_hz"}]},"roues_abz":{"type":"objet","label":"Roues A et B","champs":{"graines":{"type":"liste","label":"Graines","min":1,"max":12,"item":{"type":"int","min":1,"max":80,"label":"Graine"}}}},"six_roues":{"type":"objet","label":"Six roues","champs":{"anneau":{"type":"int","min":2,"max":100000,"label":"Taille de l'anneau"},"roues":{"type":"liste","label":"Roues","min":1,"max":12,"cle_unique":"id","item":{"type":"objet","champs":{"id":{"type":"str","min_len":1,"max_len":80,"label":"Identifiant"},"vitesse":{"type":"int","min":1,"max":100000,"label":"Vitesse"},"depart":{"type":"int","min":0,"max":1000000,"label":"Position de départ"},"actif":{"type":"bool","label":"Active"}}}}},"regles":[{"type":"depart_dans_anneau","liste":"roues","anneau":"anneau"}]},"stonehenge":{"type":"objet","label":"Stonehenge","champs":{"courant_amplificateur":{"type":"int","min":0,"max":100,"label":"Courant amplificateur"},"roches":{"type":"liste","label":"Roches","min":1,"max":60,"item":{"type":"objet","champs":{"index":{"type":"int","min":0,"max":59,"label":"Index"},"etat":{"type":"str","enum":["installee","reservee"],"label":"État"},"gain":{"type":"int","min":0,"max":10000,"label":"Gain"},"delai":{"type":"int","min":0,"max":10000,"label":"Délai"},"timbre":{"type":"int","min":0,"max":10000,"label":"Timbre"}}}}},"regles":[{"type":"indices_ordonnes","liste":"roches"}]},"cadran":{"type":"objet","label":"Cadran","champs":{"visible":{"type":"bool","label":"Visible"}}},"polybrutus":{"type":"objet","label":"Polybrutus","champs":{"rotation_depart":{"type":"int","min":0,"max":29,"label":"Rotation de départ (pas de 12°)"}}},"temple":{"type":"objet","label":"Temple Z144","champs":{"cote":{"type":"int","min":1,"max":24,"label":"Côté de la grille"}}},"colonie":{"type":"objet","label":"Colonie","champs":{"actif":{"type":"bool","label":"Active"}}},"cristallisation":{"type":"objet","label":"Cristallisation","champs":{"seuil":{"type":"int","min":2,"max":64,"label":"Seuil d'observations"},"promus":{"type":"int","min":1,"max":63,"label":"Promus"},"libre":{"type":"int","min":1,"max":63,"label":"Libre"},"niveau_max":{"type":"int","min":1,"max":7,"label":"Niveau maximum"}},"regles":[{"type":"somme","a":"promus","b":"libre","egal":"seuil"}]},"capsule":{"type":"objet","label":"Capsule","champs":{"visible":{"type":"bool","label":"Visible"}}},"pyramide":{"type":"objet","label":"Pyramide de quartz","champs":{"visible":{"type":"bool","label":"Visible"}}},"epitagores":{"type":"objet","label":"Épitagores","champs":{"contenus":{"type":"liste","label":"Contenus","min":12,"max":12,"item":{"type":"null_ou_str","max_len":200,"label":"Contenu"}}}},"lecteur_structures":{"type":"objet","label":"Lecteur de structures","champs":{"actif":{"type":"bool","label":"Actif"}}},"canal":{"type":"objet","label":"Fréquences","champs":{"frequence_hz":{"type":"int","min":1,"max":20000,"label":"Canal des pierres (Hz)"},"frequence_fourmi_brutus_hz":{"type":"int","min":1,"max":20000,"label":"Fourmi et Brutus (Hz)"}}}}};
+    const GRAINE_INITIALE = ".0QXJU49W1O25M2W6WAA8SJUEQIFGQK0-Q2DDV0ZC06CS7GA6WT7CC2RPIAHWHI14EWSGWPXOA03R7QTNZ48Z.Z2UUQB02VL20HKVNWT2VRFCHTCYPZDN5W629U56WSSX8OZ0-M1R0AOUH3-C9O13FMK38V8B3GALK3ZQNONQEA-AA0UT7XJFK_Q4.SP.92RTD3TE3DR1.IN_NDDOG189PS0Q9O.Y84D.C0AF84T3FTBQS_T7KM1QZYC8ZDAQ9CU3V00-PUWHYW1ZDWZEOD9B.B8PCX0B-X6O75ZWQ4F7H4Y-P5SKK1DQOA4R414HYYAQY-12DJ0PFYGFGTYJHUZ_7QBT7M0XBDSDOKFGYFU43IH_Y9GHULS8BPK_-8Q3EF6GJDM4XWIGD7GCE7A7FGB-8YWJ4KO1OTOZK-BZHR-1OBLH_TENO2ZUSGV31EZE3-9FSK-IL.V0LG.GS-SOG1-X88-KE5E6VMA8-7W8PAB-LNBF_QGPZC09X7NNHBDM1E0VK4GTYLC2S1ZKVRE2VS7TPFO6GUQIX_GP.T.PYHD_UO-Z_9M34W-9GFYSRA63BM4OK.AEKXQVJR0TKY.225F5NO8_RHDV.XG_3FR-LF_PH1UJ9M40UTPS.J675197__TGFED-KC6370QOZ4JW_5T10WTTKO7S57E-.5XHVL7PAUCDFEV6G-F.NOIAVNIIV4PD7GS.B581C2FUQK-FZTMVNXFT1ET6P7TUPB5P78CQ1H1E2IB.NXYD3DIA5SLN5S6D2T0F_E8_PIUS5TCNKPWN4QFVMIQH7RIWH_UHSA80WW61027L9NBI1LEHT4-EIG-9ZZNG_GU4BG_3AV6GBLKLE-BEKLQOPTAC37CE4...86D0X-ER_C-FE19WM_.BP_HJLTIXR.T295YKC6ZQU1ABG33LRAF8UJMTSRSUYSL8KJEJ8FQP98A0H4YH.G6JD_8QKFIGEYUHPJOSMEF3DO5NXWTEPE.MDHYW.RJUK61RZEC-20ZCOEAAFHQXY.DREEF52J53MT2VZF35D61-QAK08E2Z2QAGYOVQNF07L1REMSGKYD5UH7MV-KGG7UUN37OE47ZW1OCYSNLEJ7GCLM_A3A8.PYAK2.C8K2_P49-_HS1JW54AMSJV24HRSK_N5WSNTS.UHMBT270ZGFX8DG.J6Z7BOYGZPH2B9O7BB9NY7XXAYAVATL5QK-O9_I7_J4-E-_TF1LFPEZ0UYF_6J_GJX9TH_JNOFSC1.CLW0XVONC1IK59JQ80RGKS887PEF7FPO8O5CI704P6SGN5QWK3481575.KNNOSCER7F2LRKNEGO23.0GJUK.NXXLQ95CUX_W-BWFGL-U_8Y69O3SFWR29XLS6DQ-Z972QC6MHK_1CFB03HV8QVDOH0VA4N2-UIDOFJYW0IH33PXIOXQ-81VBVNH4PVXQ96DNEXI.-7WZY_LE_ASQEE6BNOO8NCEEJ4Z50NDUSNVFBUU.1R63QPB8XBFXMF9N4CZPHRQY2Y-ZKYP5QXGP7KK5XJFHNW917.-WQJWCXTF9A3CSBGVI8N_7S6B2HF-YJVXS15A-WT3C1.BW1ONYGDDEZ3O6X36.1M2E6IF-FDIJOM.CYGDQJ_55E5ZYIEBX7Z7G14SEWXSEEN5BK5X4-YFPIRWSFAM-LHPON6WKMPK25GODY06XQUGY1.E0CPE4W_H97RSILR55WKIRWWWA2U5MW.IQ1BSYX_OX-63QII-GRRGIDP83BV1WSQHNF.DEO4QET1_AW6646T5X-H_13QQR636WKRX67UT472IR.2HO2404RQKE7HF4U5DOFMSR8J2_VIX6_CE9V-DAP-8R9J7SHBVATDWC-5GUORYV2SLAR_-ABQ6PVRGGGHB0B4BPCK46KCU.WNEFC1DG4KIELGST4PB8EZX6N.AXZ81YDQMJ8LI5EKDLQEXXIN291OOYHY-WJ959_URLP97S-C25A03BU0U_5YIG5N1NJRHYJHO4ROX3R9YKO67WM1R_SHABDL7CC6Z0R-1Q5FKZG6WV1-5MODRQC0L1HOECQZLYSZ-5IU97K6MQLNZ_XNKSN-ONUYXN.GHL1DIU9MB-B9R.VK3CSH-T.ZWNK8CUDL70-V59XI1G_I5U88B7O7DRSWSHWSZRRFJ1O2H3UZIWP6ZUZR_VGDKWX0.XOA5P3-X5SCYA9.RH14_KX4Y-TNU8FDYBWNJOT_BB2ZFN4P-DF40K_ZE8MWC62Z4S59_QIHYD36CH-SGQYNI-FC-D4GY3GSBUYKK.2KXRN3B8SQIKTCYABL_GL-20S_VISAAR2PRNIQH_F5.WBXM.TL4OWUBWXHLCDBXFPLTPQL736PTL.WD-R3JSXDD9I2KZQU.938JT4JTMN_8R2RNMZYL4_G789EJ.V34DLC0JRQHBU87WT0C5XB-K5AJ_.W3YN_7D-4GEG.TJJL_DQDOKNERVPVVTD9VCIGXFQRD_5J9Q._41JDT7ZYI.RLC8T6Y_LD5DBXLEJLD0NYMWW7D63Y2XQFPPVL1JYMBYF8PN8GZCE4REXC8GDV973P09H8S3TL0H13ZSDABD5M3H9WNICUHFLEZ35ZSUDW_9_F4OLM0XE9KQ62X72I3O-P.TYLYZQ0TN_0FGDRQ5PE1Z3QYE80.O30U9UQYRXL1KH9M-ZJ176RBDW887G_.LW1GXB2778GO--8KN1ZMCU.FW3PH_ULJ.IX2V4S94XHGF0BQIO_K15_.0_GVXX3JV2VW.74-P6L3W.3EX89Z536_7KRNPDENI3B739N9K40MH_9MGZF.C0QRCN9UN47DPD8V8BZYH9LQFB4O9KPJ8IWALL33X0K.OEVS-F26AI.KSB4..267NO7XQSTL-D7PFUI92GGXB3D827JGI6_P_SK1RZLQZ1620QH5.N10BLVW13IVQ8O.XPMCR-VH39HJ1WVX1OFTY_N07_P1Z9RMRWGA.7PQ66DURKLNOXX_6F_ZI24J2LF4XA28O.-WDJWE_X22R1MIUUII7GGX48UX32JE6U580DTHKVBSGD_XG1VN_355SM5ORE95M545COBABHOVZL6KKJ.P6R52SLVL0OA-AN79M_6TAD5FYRAX-QUBKHG1E3G3L7X2ZL94JOB.G5EIU5YN5K6NMEKW00EATUPJLP--1ZURIBM6NE6INWWRO9_QAEZ7RYP8AK0UMYGD67C666L3ZX8EPDFL9D7RBRJ-GFDTDCPN1SBSBKJTGQC6RF7M55X3YR1P7U4CK5LM274_4Y6SN5ZUCMXLL7WB5660_.EOAPLMC68C550B8UB8U39LKZJMOX08J-IPX2Y.Z92PV9-BN1OR_36X5O3WFV4FO5QJ0AX_7UALXWTUE6GAT746AZZV481Y-BAXC70R7JYAPE4I.IH-FCM8C1XGTB0P0FXPV6A79JJ3XXBKJUECJE1PN_GH06IUMQ3FLZ7ICE-KIYXENAE4FXJZZJ.OL97Z7WR7LNNPZ2YX9J2CQ46KZDAOA5UUYW55HKASC.3PW1.PYBWADETLVDD.YPCSB-LMS3U0EED77OQ4--3OALCIJTS9DCJZEQ-G7X16HB2MC4I_TJH926OZB7K1NP7WUOZC29225NFIA-5U85BDB0HQ6VS61CHHXEQR4DA945_9-HLXNWJGSTVHYI..PU.KZXZK3MJDZTYMO28UXJ1-EU5G0D0QCSEIETEYYXX77JXN1RCC5UD07GZMJGVOYQC0OVHZJBMK-6RPVSS.U_HQOL8--_6PNVNU1Q_N360127IEO_3_JOMDENKIFCQZFJTR5RJOX4XQS6D63HJSDK2OTWGHONNRK_Z8SS4LR6I7GBAAL2M2FPMZ.FMJREG4WHLC4DXSH8XB0TOKG_A3L._KHU84ZVR6WSSHWCR8NBWXEXP7SKZXTVXT2DKZ2I.4806OZQSXKPSN7PG-.H29_.WTDHY2EBAIPI6O6B-1MIFM8D1325M.FY5_T7VVHM5A1OBHGC2.X7SK2QRC4E0W-K74SF6L.NVNAJJ_Q36S.I1NIAEOBR5MA5N.9KOUA27FK-_1KF9NKUXBJT.RL-0XB54OZIJY.CIUY60_532XJ2T5Z3XJ26_I0FTNM8YY65CENBYH5GQ8RZKBGW31D60XXW33WVNV977G-QKH1_80MYZ5DQNR_N7NFSJ-SB4CPFJ4_-A843FJY45O..PBP_3HLV5UP183DFEFS-.AMCAWWCIF47QXDP3T0E064ELR8WDOMW8MRV5NO._V6S96BTO0KZZTPOCE4U5QG8QN5T_VK640B_QOQ.1D9T.-G0B7M6_ZN6RHTDOE0P6LFYSCE_QON5K.3QSKL52G8KL-BTBD2GE9-IN.0Z57SQ-J3ORY8IRQZT2LWCFRD5NT24Z1PVZACF18I3LCWR8YHVR7-0ED.VLL29H2V542D5APHSYOAOMXR3SRO9D.NG4Q2FWPSS1I496KQM24YUW56BRR5C7V3O_.-QI_U52-KP_-09XDZZ40LTTCBT_L7PFWBJ0RY27R5KLE-GOEFF77.V6HJPZ6WMPEF8EBPK9.CCU4I.C7UZSVM3JCSKMB.BQWPSEO0_D64420DHSG.LJGQAKG2JGXFNUQ0CBN1EBK6DBQO4A16524R3BUYPFU6CBNF5Z2WZLQJHMQ9F";
+    const ROLES = [{"id":"fourmi","phrase":"La Fourmi porte la mémoire, la stigmergie et le routage."},{"id":"abeille","phrase":"L'Abeille cherche le quorum et le consensus."},{"id":"scarabee","phrase":"Le Scarabée transporte et transforme."},{"id":"papillon","phrase":"Le Papillon explore de nouvelles représentations."},{"id":"mante","phrase":"La Mante sélectionne et inhibe."},{"id":"libellule","phrase":"La Libellule observe les anomalies."},{"id":"termite","phrase":"La Termite rend la construction persistante."}];
+    const CLE = "antmux-moteur-config-v1";
+    const client = window.MoteurClient;
+    let courant = clone(CONFIG_DEFAUT);
+    let tic = 0;
+    let anomalie = false;
+    let audio = null;
+    let volume = 0.02;
+    let coupe = false;
+    let vueCourante = null;
+
+    const stocke = lireStockage();
+    if (stocke) courant = stocke;
+
+    const ICONES = {
+      fourmi: '<svg viewBox="0 0 64 40" aria-hidden="true"><ellipse cx="18" cy="20" rx="7" ry="5" fill="#c4b8a4"/><ellipse cx="32" cy="20" rx="8" ry="6" fill="#a89880"/><ellipse cx="46" cy="20" rx="6" ry="4" fill="#c4b8a4"/><path d="M12 16 L4 8 M12 24 L4 32 M24 14 L18 6 M40 14 L48 6 M24 26 L16 34 M40 26 L50 34" stroke="#e4c27a" fill="none"/></svg>',
+      abeille: '<svg viewBox="0 0 64 40" aria-hidden="true"><ellipse cx="34" cy="22" rx="14" ry="8" fill="#e4c27a"/><path d="M26 22 H42 M30 16 H40 M30 28 H40" stroke="#1a140c" stroke-width="2"/><ellipse cx="18" cy="14" rx="8" ry="4" fill="#8ef6ff" opacity=".7"/><ellipse cx="18" cy="28" rx="8" ry="4" fill="#8ef6ff" opacity=".55"/></svg>',
+      scarabee: '<svg viewBox="0 0 64 40" aria-hidden="true"><ellipse cx="34" cy="22" rx="16" ry="10" fill="#6d7c62"/><ellipse cx="16" cy="20" rx="6" ry="5" fill="#a3988c"/><path d="M34 12 V32" stroke="#e4c27a"/></svg>',
+      papillon: '<svg viewBox="0 0 64 40" aria-hidden="true"><path d="M32 20 L14 8 L20 20 Z M32 20 L14 32 L22 20 Z M32 20 L52 6 L44 20 Z M32 20 L54 32 L42 20 Z" fill="#8ef6ff" opacity=".75"/><path d="M32 10 V32" stroke="#f4efe6"/></svg>',
+      mante: '<svg viewBox="0 0 64 40" aria-hidden="true"><path d="M30 30 L34 12 L42 8" fill="none" stroke="#7f9a62" stroke-width="3"/><path d="M34 16 L48 20 L34 22" fill="none" stroke="#e4c27a" stroke-width="2"/></svg>',
+      libellule: '<svg viewBox="0 0 64 40" aria-hidden="true"><ellipse cx="20" cy="14" rx="12" ry="4" fill="#8ef6ff" opacity=".55"/><ellipse cx="20" cy="26" rx="12" ry="4" fill="#8ef6ff" opacity=".4"/><ellipse cx="46" cy="12" rx="10" ry="3" fill="#d9d0c3" opacity=".7"/><path d="M8 20 H58" stroke="#f4efe6" stroke-width="2"/></svg>',
+      termite: '<svg viewBox="0 0 64 40" aria-hidden="true"><ellipse cx="30" cy="22" rx="12" ry="8" fill="#c4a574"/><ellipse cx="46" cy="20" rx="6" ry="5" fill="#e4c27a"/><path d="M50 18 L58 14 M50 22 L58 26" stroke="#f4efe6"/></svg>'
+    };
+
+    try {
+      monterInsectes();
+      monterReglages();
+      afficher();
+    } catch (erreur) {
+      const zone = document.getElementById("message-config");
+      if (zone) zone.textContent = "Erreur d'affichage : " + (erreur && erreur.message ? erreur.message : erreur);
+    }
+
+    document.getElementById("suivant").onclick = () => { tic += 1; afficher(); };
+    document.getElementById("cycle").onclick = () => {
+      const c = vueCourante && vueCourante.convergence;
+      if (!c) return;
+      tic = (tic % c === 0 && tic > 0) ? tic + c : tic + (c - (tic % c));
+      afficher();
+    };
+    document.getElementById("anomalie").onclick = (event) => {
+      anomalie = !anomalie;
+      event.currentTarget.setAttribute("aria-pressed", String(anomalie));
+      afficher();
+    };
+    document.getElementById("reset").onclick = () => {
+      courant = clone(CONFIG_DEFAUT);
+      try { localStorage.removeItem(CLE); } catch (e) {}
+      tic = 0;
+      anomalie = false;
+      document.getElementById("message-config").textContent = "Valeurs par défaut rétablies.";
+      monterReglages();
+      afficher();
+    };
+    document.getElementById("exporter").onclick = () => {
+      const blob = new Blob([JSON.stringify(courant, null, 2)], {type: "application/json"});
+      const lien = document.createElement("a");
+      lien.href = URL.createObjectURL(blob);
+      lien.download = "moteur.config.json";
+      lien.click();
+      URL.revokeObjectURL(lien.href);
+    };
+    document.getElementById("importer").onchange = (event) => {
+      const fichier = event.target.files && event.target.files[0];
+      if (!fichier) return;
+      const lecteur = new FileReader();
+      lecteur.onload = () => {
+        try {
+          const candidat = JSON.parse(String(lecteur.result));
+          if (!appliquerCourant(candidat)) return;
+          document.getElementById("message-config").textContent = "Configuration importée.";
+          monterReglages();
+        } catch (e) {
+          document.getElementById("message-config").textContent = "Import refusé : JSON illisible. L'ancienne configuration est conservée.";
+        }
+      };
+      lecteur.readAsText(fichier);
+    };
+    document.getElementById("ecouter").onclick = demarrerAudio;
+    document.getElementById("couper").onclick = (event) => {
+      coupe = !coupe;
+      event.currentTarget.setAttribute("aria-pressed", String(coupe));
+      event.currentTarget.textContent = coupe ? "Son coupé" : "Couper";
+      reglerAudio();
+    };
+    document.getElementById("volume").oninput = (event) => {
+      volume = Number(event.target.value) / 100;
+      event.target.setAttribute("aria-valuenow", event.target.value);
+      reglerAudio();
+    };
+    document.getElementById("copier").onclick = async () => {
+      const texte = document.getElementById("graine").textContent;
+      try {
+        await navigator.clipboard.writeText(texte);
+        document.getElementById("message-graine").textContent = "Graine copiée.";
+      } catch (e) {
+        document.getElementById("message-graine").textContent = "Copie impossible dans ce navigateur. Le texte reste sélectionnable.";
+      }
+    };
+    document.getElementById("reconstruire").onclick = () => {
+      const texte = document.getElementById("graine").textContent.trim();
+      let graine;
+      try {
+        const octets = client.decoder(texte);
+        graine = JSON.parse(new TextDecoder().decode(Uint8Array.from(octets)));
+      } catch (e) {
+        document.getElementById("message-graine").textContent = "Graine illisible. L'état courant est conservé.";
+        return;
+      }
+      const payload = {version: graine.version, tic: graine.tic, evolution: graine.evolution, config: graine.config};
+      let empreinte = "";
+      try { empreinte = client.graineDe(graine.config, {tic: graine.tic, evolution: graine.evolution}, graine.anomalies || [], Boolean(graine.anomalie_active)).empreinte; } catch (e) { empreinte = ""; }
+      if (!graine.config || empreinte !== graine.empreinte) {
+        document.getElementById("message-graine").textContent = "La Libellule signale une graine corrompue. Rien n'a été appliqué.";
+        return;
+      }
+      const erreurs = client.valider(graine.config, SCHEMA);
+      if (erreurs.length) {
+        document.getElementById("message-graine").textContent = erreurs[0];
+        return;
+      }
+      if (Math.floor(graine.tic / graine.config.six_roues.anneau) !== graine.evolution) {
+        document.getElementById("message-graine").textContent = "La Libellule signale une évolution incohérente. Rien n'a été appliqué.";
+        return;
+      }
+      courant = graine.config;
+      tic = graine.tic;
+      window.__anomaliesGraine = Array.isArray(graine.anomalies) ? graine.anomalies : [];
+      anomalie = Boolean(graine.anomalie_active);
+      document.getElementById("anomalie").setAttribute("aria-pressed", String(anomalie));
+      try { localStorage.setItem(CLE, JSON.stringify(courant)); } catch (e) {}
+      document.getElementById("message-graine").textContent = "État reconstruit depuis la graine.";
+      monterReglages();
+      afficher();
+    };
+
+    function clone(valeur) { return JSON.parse(JSON.stringify(valeur)); }
+    function lireStockage() {
+      try {
+        const brut = localStorage.getItem(CLE);
+        if (!brut) return null;
+        const objet = JSON.parse(brut);
+        const erreurs = client.valider(objet, SCHEMA);
+        if (erreurs.length) {
+          document.getElementById("message-config").textContent = "Réglage local ignoré : " + erreurs[0];
+          return null;
+        }
+        return objet;
+      } catch (e) { return null; }
+    }
+    function appliquerCourant(candidat) {
+      const erreurs = client.valider(candidat, SCHEMA);
+      if (erreurs.length) {
+        document.getElementById("message-config").textContent = erreurs[0] + " La configuration précédente est conservée.";
+        return false;
+      }
+      courant = candidat;
+      try { localStorage.setItem(CLE, JSON.stringify(courant)); } catch (e) {}
+      afficher();
+      return true;
+    }
+    function afficher() {
+      vueCourante = client.rejouer(courant, tic, anomalie ? 1 : null, anomalie ? [] : (window.__anomaliesGraine || []));
+      if (!anomalie) vueCourante.resonance = "harmonieux";
+      peindre(vueCourante);
+      reglerAudio();
+    }
+    function peindre(vue) {
+      const n = courant.stonehenge.roches.length;
+      const mix = Math.min(1, vue.cycles_sains / 8);
+      const ancienne = document.getElementById("onde-ancienne");
+      const nouvelle = document.getElementById("onde-nouvelle");
+      document.getElementById("capsule").hidden = !courant.capsule.visible;
+      document.querySelector(".pyramide").hidden = !courant.pyramide.visible;
+      ancienne.style.opacity = String(1 - mix * 0.85);
+      nouvelle.style.opacity = String(0.25 + mix * 0.75);
+      nouvelle.setAttribute("stroke", vue.resonance === "dissonant" ? "#c45b4a" : "#8ef6ff");
+      const pierres = document.getElementById("pierres");
+      const marques = document.getElementById("marques");
+      pierres.replaceChildren();
+      marques.replaceChildren();
+      const actif = vue.roche;
+      courant.stonehenge.roches.forEach((roche, i) => {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
+        const x = 400 + 300 * Math.cos(angle);
+        const y = 400 + 300 * Math.sin(angle);
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("transform", "translate(" + x + " " + y + ") rotate(" + (angle * 180 / Math.PI + 90) + ")");
+        if (roche.etat !== "installee") g.setAttribute("class", "roche-reservee");
+        const corps = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        corps.setAttribute("x", "-14");
+        corps.setAttribute("y", "-40");
+        corps.setAttribute("width", "28");
+        corps.setAttribute("height", "78");
+        corps.setAttribute("rx", "4");
+        corps.setAttribute("fill", i === actif ? "#f4efe6" : "#c9bfb2");
+        corps.setAttribute("stroke", i === actif ? "#8ef6ff" : "#e4c27a");
+        corps.setAttribute("stroke-width", i === actif ? "3" : "1");
+        if (roche.etat !== "installee") corps.setAttribute("stroke-dasharray", "4 3");
+        const lichen = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+        lichen.setAttribute("cx", String((i % 5) - 2));
+        lichen.setAttribute("cy", String(-10 + (i % 3)));
+        lichen.setAttribute("rx", "6");
+        lichen.setAttribute("ry", "3");
+        lichen.setAttribute("fill", "#7f9a62");
+        lichen.setAttribute("opacity", "0.8");
+        const titre = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        titre.textContent = "Roche " + i + " " + roche.etat;
+        g.append(titre, corps, lichen);
+        pierres.appendChild(g);
+        const numero = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        numero.setAttribute("x", String(x));
+        numero.setAttribute("y", String(y + 8));
+        numero.setAttribute("text-anchor", "middle");
+        numero.setAttribute("fill", "#f4efe6");
+        numero.setAttribute("font-size", "11");
+        numero.setAttribute("font-family", "ui-monospace, monospace");
+        numero.textContent = String(i);
+        pierres.appendChild(numero);
+      });
+      if (n === 30) {
+        const bases = {P2: 0, P3: 10, P4: 20, P6: 0, P7: 15};
+        const rotation = (vue.tic + courant.polybrutus.rotation_depart) % 30;
+        const decalage = {P2: -8, P6: 8};
+        Object.keys(bases).forEach((nom) => {
+          const index = (bases[nom] + rotation) % 30;
+          const angle = -Math.PI / 2 + (2 * Math.PI * index) / 30;
+          const extra = decalage[nom] || 0;
+          const x = 400 + (300 + extra) * Math.cos(angle);
+          const y = 400 + (300 + extra) * Math.sin(angle);
+          const point = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          point.setAttribute("cx", String(x));
+          point.setAttribute("cy", String(y));
+          point.setAttribute("r", "5");
+          point.setAttribute("fill", "#e4c27a");
+          const titre = document.createElementNS("http://www.w3.org/2000/svg", "title");
+          titre.textContent = nom + " sur la roche " + index;
+          point.appendChild(titre);
+          marques.appendChild(point);
+        });
+      }
+      document.getElementById("capsule-phase").textContent = String(vue.phase);
+      document.getElementById("capsule-coup").textContent = String(vue.tic);
+      const cote = courant.temple.cote;
+      const ligne = Math.floor(vue.index_temple / cote) + 1;
+      const colonne = (vue.index_temple % cote) + 1;
+      document.getElementById("capsule-cellule").textContent = "index " + vue.index_temple + " · ligne " + ligne + " · colonne " + colonne;
+      const carte = document.getElementById("convergence");
+      const atteint = vue.convergence && vue.tic > 0 && vue.tic % vue.convergence === 0;
+      carte.classList.toggle("atteint", Boolean(atteint));
+      const texte = document.getElementById("texte-convergence");
+      texte.textContent = vue.convergence == null
+        ? "Aucune roue active : pas de convergence."
+        : "Convergence recalculée au tic " + vue.convergence + (vue.convergence === 273 ? "." : " (ce n'est plus 273).");
+      const roues = document.getElementById("roues");
+      roues.replaceChildren();
+      courant.six_roues.roues.forEach((roue, i) => {
+        const ligneR = document.createElement("div");
+        ligneR.className = "roue-ligne";
+        const nom = document.createElement("strong");
+        nom.textContent = roue.id + " · " + vue.positions[i] + (roue.actif ? "" : " pause");
+        const jauge = document.createElement("div");
+        jauge.className = "jauge";
+        const barre = document.createElement("span");
+        barre.style.width = (100 * vue.positions[i] / courant.six_roues.anneau) + "%";
+        jauge.appendChild(barre);
+        jauge.title = "position " + vue.positions[i] + " / " + courant.six_roues.anneau;
+        ligneR.append(nom, jauge);
+        roues.appendChild(ligneR);
+      });
+      document.getElementById("resonance").textContent = vue.resonance === "dissonant"
+        ? "Résonance dissonante : le rituel est mauvais dans cet essai."
+        : "Résonance harmonieuse : aucune anomalie.";
+      document.getElementById("taux").textContent = "Transformation : " + vue.cycles_sains + " cycle" + (vue.cycles_sains > 1 ? "s" : "") + " sain" + (vue.cycles_sains > 1 ? "s" : "") + ". L'ancienne onde recule, la nouvelle traverse les pierres.";
+      document.getElementById("hz-canal").textContent = vue.canal + " Hz";
+      document.getElementById("hz-fourmi").textContent = vue.fourmi + " Hz";
+      document.getElementById("etages").textContent = "Roue Z, arithmétique exacte : 2401 → 343 → 49 → 7 → 1. Phase courante " + vue.phase + ".";
+      const alerte = document.getElementById("alerte-grille");
+      alerte.textContent = n === 30 ? "Grille idéale de 30 × 12°." : "La grille n'a plus 30 positions. L'emboîtement du Polybrutus et les cycles 2730 / 936390 ne s'appliquent plus tels quels.";
+      document.getElementById("poly-note").textContent = n === 30
+        ? "Le rotor se pose sur les roches 0, 10, 15 et 20, puis tourne avec le tic. Un heptagone régulier ne s'emboîterait pas : pgcd(7, 30) = 1. Coïncidence géométrique, pas une preuve physique."
+        : "Projection non dessinée : elle suppose 30 roches.";
+      const familles = document.getElementById("familles");
+      if (!familles.childElementCount) {
+        familles.textContent = "Familles k : 4×6, 7×2, 9×3, 12×6, 13×2, 16×2. Σk = 195. 12/21 = 4/7.";
+      }
+      peindreTemple(cote, vue.index_temple);
+      peindreEpitagores();
+      document.getElementById("cristaux-texte").textContent = "Cristallisation 8 → 7 + 1 : " + vue.cristaux + " cristal" + (vue.cristaux > 1 ? "aux" : "") + " (CANDIDAT pour l'accumulation).";
+      peindreInsectes(vue);
+      const anomaliesGraine = anomalie
+        ? Array.from({length: vue.tic}, function (_, i) { return i + 1; })
+        : (window.__anomaliesGraine || []);
+      const graine = client.graineDe(courant, vue, anomaliesGraine, anomalie);
+      document.getElementById("empreinte").textContent = graine.empreinte;
+      document.getElementById("graine").textContent = graine.base39;
+    }
+    function peindreTemple(cote, index) {
+      const zone = document.getElementById("temple");
+      const table = document.createElement("table");
+      const legende = document.createElement("caption");
+      legende.textContent = "Grille " + cote + "×" + cote;
+      table.appendChild(legende);
+      for (let ligne = 0; ligne < cote; ligne += 1) {
+        const tr = document.createElement("tr");
+        for (let colonne = 0; colonne < cote; colonne += 1) {
+          const td = document.createElement("td");
+          const valeur = ligne * cote + colonne;
+          td.textContent = String(valeur);
+          if (valeur === index) td.className = "repere";
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+      zone.replaceChildren(table);
+    }
+    function peindreEpitagores() {
+      const zone = document.getElementById("epitagores");
+      zone.replaceChildren();
+      courant.epitagores.contenus.forEach((contenu, i) => {
+        const p = document.createElement("div");
+        p.className = "slot-vide";
+        p.textContent = (i + 1) + ". " + (contenu || "non précisé");
+        zone.appendChild(p);
+      });
+    }
+    function monterInsectes() {
+      const zone = document.getElementById("insectes");
+      ROLES.forEach((role) => {
+        const article = document.createElement("article");
+        article.className = "insecte";
+        article.innerHTML = (ICONES[role.id] || "") + "<p><strong></strong><span></span></p>";
+        article.querySelector("strong").textContent = role.phrase;
+        article.dataset.id = role.id;
+        zone.appendChild(article);
+      });
+    }
+    function peindreInsectes(vue) {
+      const n = courant.stonehenge.roches.length;
+      const textes = {
+        fourmi: "route phase " + vue.phase + " vers la roche " + vue.roche + " à " + vue.fourmi + " Hz",
+        abeille: vue.quorum ? "quorum : les roues actives sont alignées" : "pas de quorum à ce tic",
+        scarabee: "porte l'onde " + vue.canal + " Hz vers la roche " + vue.roche,
+        papillon: "lemniscate r = " + (vue.tic % courant.six_roues.anneau) + ", q = " + vue.evolution,
+        mante: vue.resonance === "dissonant" ? "inhibe l'état" : "laisse passer l'état",
+        libellule: vue.resonance === "dissonant" ? "anomalie signalée" : "aucune anomalie",
+        termite: "évolution persistée : " + vue.evolution
+      };
+      document.querySelectorAll(".insecte").forEach((article) => {
+        article.querySelector("span").textContent = textes[article.dataset.id] || "";
+      });
+    }
+    function monterReglages() {
+      const zone = document.getElementById("champs");
+      zone.replaceChildren();
+      Object.keys(SCHEMA.champs).forEach((cle) => {
+        zone.appendChild(controle(SCHEMA.champs[cle], courant[cle], [cle]));
+      });
+    }
+    function blocObjet(regle, valeur, chemin) {
+      const champ = document.createElement("fieldset");
+      const legende = document.createElement("legend");
+      legende.textContent = regle.label || chemin[chemin.length - 1];
+      champ.appendChild(legende);
+      Object.keys(regle.champs).forEach((cle) => {
+        champ.appendChild(controle(regle.champs[cle], valeur[cle], chemin.concat(cle)));
+      });
+      return champ;
+    }
+    function controle(regle, valeur, chemin) {
+      if (regle.type === "objet") return blocObjet(regle, valeur, chemin);
+      if (regle.type === "liste") return blocListe(regle, valeur, chemin);
+      const ligne = document.createElement("label");
+      ligne.className = "champ";
+      ligne.append(document.createTextNode((regle.label || chemin[chemin.length - 1]) + " "));
+      let entree;
+      if (regle.type === "bool") {
+        entree = document.createElement("input");
+        entree.type = "checkbox";
+        entree.checked = Boolean(valeur);
+        entree.onchange = () => ecrire(chemin, entree.checked, entree);
+      } else if (regle.type === "str" && regle.enum) {
+        entree = document.createElement("select");
+        regle.enum.forEach((option) => {
+          const o = document.createElement("option");
+          o.value = option;
+          o.textContent = option;
+          entree.appendChild(o);
+        });
+        entree.value = valeur;
+        entree.onchange = () => ecrire(chemin, entree.value, entree);
+      } else if (regle.type === "int") {
+        entree = document.createElement("input");
+        entree.type = "number";
+        entree.value = String(valeur);
+        entree.onchange = () => ecrire(chemin, Number(entree.value), entree);
+      } else {
+        entree = document.createElement("input");
+        entree.type = "text";
+        entree.value = valeur == null ? "" : String(valeur);
+        entree.onchange = () => ecrire(chemin, entree.value === "" ? null : entree.value, entree);
+      }
+      ligne.appendChild(entree);
+      return ligne;
+    }
+    function blocListe(regle, valeur, chemin) {
+      const enveloppe = document.createElement("div");
+      const titre = document.createElement("p");
+      titre.textContent = regle.label || "Liste";
+      enveloppe.appendChild(titre);
+      valeur.forEach((element, index) => {
+        const rang = document.createElement("div");
+        rang.className = "carte";
+        if (regle.item.type === "objet") rang.appendChild(blocObjet(regle.item, element, chemin.concat(index)));
+        else rang.appendChild(controle(regle.item, element, chemin.concat(index)));
+        if (chemin[0] === "six_roues" || chemin[0] === "stonehenge") {
+          const retirer = document.createElement("button");
+          retirer.type = "button";
+          retirer.textContent = "Retirer";
+          retirer.onclick = () => retirerElement(chemin, index);
+          rang.appendChild(retirer);
+        }
+        enveloppe.appendChild(rang);
+      });
+      if (chemin.join(".") === "six_roues.roues") {
+        const ajouter = document.createElement("button");
+        ajouter.type = "button";
+        ajouter.textContent = "Ajouter une roue";
+        ajouter.onclick = ajouterRoue;
+        enveloppe.appendChild(ajouter);
+      }
+      if (chemin.join(".") === "stonehenge.roches") {
+        const ajouter = document.createElement("button");
+        ajouter.type = "button";
+        ajouter.textContent = "Ajouter un emplacement réservé";
+        ajouter.onclick = ajouterRoche;
+        enveloppe.appendChild(ajouter);
+      }
+      return enveloppe;
+    }
+    function ecrire(chemin, valeur, entree) {
+      const essai = clone(courant);
+      let cible = essai;
+      for (let i = 0; i < chemin.length - 1; i += 1) cible = cible[chemin[i]];
+      cible[chemin[chemin.length - 1]] = valeur;
+      if (chemin[0] === "cristallisation" && chemin.length === 2) {
+        essai.cristallisation = client.ajusterCristallisation(courant.cristallisation, chemin[1], valeur);
+      }
+      const erreurs = client.valider(essai, SCHEMA);
+      if (erreurs.length) {
+        document.getElementById("message-config").textContent = erreurs[0] + " La configuration précédente est conservée.";
+        monterReglages();
+        return;
+      }
+      courant = essai;
+      try { localStorage.setItem(CLE, JSON.stringify(courant)); } catch (e) {}
+      document.getElementById("message-config").textContent = "Configuration appliquée. Convergence : " + (client.convergence(courant.six_roues.roues, courant.six_roues.anneau) ?? "aucune") + ".";
+      if (chemin[0] === "cristallisation") monterReglages();
+      afficher();
+    }
+    function retirerElement(chemin, index) {
+      const essai = clone(courant);
+      let liste = essai;
+      chemin.forEach((cle) => { liste = liste[cle]; });
+      if (liste.length <= 1) {
+        document.getElementById("message-config").textContent = "Il doit rester au moins un élément.";
+        return;
+      }
+      liste.splice(index, 1);
+      if (chemin[0] === "stonehenge") liste.forEach((roche, i) => { roche.index = i; });
+      if (!appliquerCourant(essai)) return;
+      document.getElementById("message-config").textContent = "Élément retiré.";
+      monterReglages();
+    }
+    function ajouterRoue() {
+      const essai = clone(courant);
+      const n = essai.six_roues.roues.length;
+      essai.six_roues.roues.push({id: client.identifiantLibre(essai.six_roues.roues), vitesse: 2, depart: 0, actif: true});
+      if (!appliquerCourant(essai)) return;
+      document.getElementById("message-config").textContent = "Roue ajoutée. Nouveau tic de convergence : " + client.convergence(courant.six_roues.roues, courant.six_roues.anneau) + ".";
+      monterReglages();
+    }
+    function ajouterRoche() {
+      const essai = clone(courant);
+      const index = essai.stonehenge.roches.length;
+      essai.stonehenge.roches.push({index: index, etat: "reservee", gain: 100 + index, delai: index, timbre: 17 + index * 3});
+      if (!appliquerCourant(essai)) return;
+      document.getElementById("message-config").textContent = "Emplacement réservé ajouté. Il n'amplifie pas.";
+      monterReglages();
+    }
+    function demarrerAudio() {
+      if (!audio) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const master = ctx.createGain();
+        master.gain.value = coupe ? 0 : volume;
+        master.connect(ctx.destination);
+        const oscA = ctx.createOscillator();
+        const oscB = ctx.createOscillator();
+        oscA.type = "sine";
+        oscB.type = "sine";
+        const gainA = ctx.createGain();
+        const gainB = ctx.createGain();
+        gainA.gain.value = 0.55;
+        gainB.gain.value = 0.4;
+        const delay = ctx.createDelay(1.0);
+        const retour = ctx.createGain();
+        retour.gain.value = 0.15;
+        delay.connect(retour);
+        retour.connect(delay);
+        const pan = ctx.createStereoPanner();
+        oscA.connect(gainA);
+        oscB.connect(gainB);
+        gainA.connect(delay);
+        gainB.connect(delay);
+        delay.connect(pan);
+        gainA.connect(pan);
+        gainB.connect(pan);
+        pan.connect(master);
+        oscA.start();
+        oscB.start();
+        audio = {ctx, master, oscA, oscB, delay, retour, pan};
+      }
+      audio.ctx.resume();
+      reglerAudio();
+    }
+    function reglerAudio() {
+      if (!audio || !vueCourante) return;
+      const vue = vueCourante;
+      const roche = courant.stonehenge.roches[vue.roche];
+      audio.oscA.frequency.value = vue.canal;
+      audio.oscB.frequency.value = vue.resonance === "dissonant" ? vue.fourmi + 36 : vue.fourmi;
+      const angle = (vue.roche / courant.stonehenge.roches.length) * Math.PI * 2;
+      audio.pan.pan.value = Math.cos(angle);
+      audio.delay.delayTime.value = Math.min(0.45, 0.012 + ((roche.delai % 30) / 30) * 0.08);
+      audio.retour.gain.value = roche.etat === "installee" ? 0.08 + courant.stonehenge.courant_amplificateur / 800 : 0.01;
+      audio.master.gain.value = coupe ? 0 : volume;
+    }
+  </script>
+  <noscript>Cette page a besoin de JavaScript pour calculer l'état. Aucun serveur n'est contacté.</noscript>
+</body>
+</html>
