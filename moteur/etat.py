@@ -16,6 +16,7 @@ class Etat:
     graine_corrompue: bool = False
     piles: list[list[str]] = field(default_factory=list)
     cristaux: list[dict] = field(default_factory=list)
+    anomalies_tics: list[int] = field(default_factory=list)
 
     def sain(self) -> bool:
         return not self.force_anomalie and not self.graine_corrompue

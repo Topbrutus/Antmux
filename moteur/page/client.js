@@ -58,7 +58,10 @@
     while (file.length >= regle.seuil) {
       const lot = file.slice(0, regle.seuil);
       const gardes = lot.slice(0, regle.promus);
-      if (new Set(gardes).size !== 1) break;
+      if (new Set(gardes).size !== 1) {
+        file.shift();
+        continue;
+      }
       file.splice(0, regle.seuil, ...lot.slice(regle.promus));
       etat.piles[niveau + 1].push(gardes[0]);
       etat.cristaux += 1;
@@ -80,10 +83,12 @@
     const anneau = etat.config.six_roues.anneau;
     if (etat.tic % anneau === 0 && !etat.anomalie) etat.cycles += 1;
   }
-  function rejouer(config, tics, anomalieDes) {
+  function rejouer(config, tics, anomalieDes, anomalies) {
     const etat = creer(config);
+    const ensemble = new Set(anomalies || []);
     for (let i = 0; i < tics; i += 1) {
-      etat.anomalie = anomalieDes != null && etat.tic + 1 >= anomalieDes;
+      const prochain = etat.tic + 1;
+      etat.anomalie = ensemble.has(prochain) || (anomalieDes != null && prochain >= anomalieDes);
       pas(etat);
     }
     return vue(etat);
@@ -322,8 +327,10 @@
   function empreinteDe(payload) {
     return encoder(sha256(octetsUtf8(canonique(payload))));
   }
-  function graineDe(config, vue) {
+  function graineDe(config, vue, anomalies, anomalieActive) {
     const payload = {
+      anomalies: anomalies || [],
+      anomalie_active: Boolean(anomalieActive),
       version: config.version,
       tic: vue.tic,
       evolution: vue.evolution,
@@ -331,6 +338,8 @@
     };
     const empreinte = empreinteDe(payload);
     const graine = {
+      anomalies: payload.anomalies,
+      anomalie_active: payload.anomalie_active,
       version: payload.version,
       tic: payload.tic,
       evolution: payload.evolution,
@@ -355,5 +364,42 @@
     libelles: libelles,
     sha256: sha256,
     canonique: canonique,
+    ajusterCristallisation: ajusterCristallisation,
+    identifiantLibre: identifiantLibre,
   };
+  function ajusterCristallisation(bloc, champ, valeur) {
+    const suivant = Object.assign({}, bloc);
+    suivant[champ] = valeur;
+    const borne = (n, bas, haut) => Math.min(haut, Math.max(bas, n));
+    if (champ === "seuil") {
+      suivant.seuil = borne(valeur, 2, 64);
+      if (suivant.promus >= suivant.seuil) suivant.promus = suivant.seuil - 1;
+      suivant.libre = suivant.seuil - suivant.promus;
+    } else if (champ === "promus") {
+      suivant.promus = borne(valeur, 1, 63);
+      if (suivant.promus >= suivant.seuil) suivant.seuil = Math.min(64, suivant.promus + Math.max(1, suivant.libre));
+      if (suivant.promus >= suivant.seuil) suivant.promus = suivant.seuil - 1;
+      suivant.libre = suivant.seuil - suivant.promus;
+    } else if (champ === "libre") {
+      suivant.libre = borne(valeur, 1, 63);
+      if (suivant.libre >= suivant.seuil) suivant.seuil = Math.min(64, suivant.promus + suivant.libre);
+      suivant.promus = suivant.seuil - suivant.libre;
+      if (suivant.promus < 1) {
+        suivant.promus = 1;
+        suivant.seuil = Math.min(64, suivant.promus + suivant.libre);
+        suivant.libre = suivant.seuil - suivant.promus;
+      }
+    }
+    return suivant;
+  }
+  function identifiantLibre(roues) {
+    const pris = new Set(roues.map((roue) => roue.id));
+    let n = 1;
+    let id = "extra-" + n;
+    while (pris.has(id)) {
+      n += 1;
+      id = "extra-" + n;
+    }
+    return id;
+  }
 });

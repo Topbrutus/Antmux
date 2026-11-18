@@ -367,7 +367,11 @@ def appliquer(moteur, candidat: dict) -> dict:
     erreurs = valider(candidat, moteur.schema())
     if erreurs:
         return {"ok": False, "erreurs": erreurs}
+    tic = moteur.etat.tic
+    anomalies = list(getattr(moteur.etat, "anomalies_tics", []))
+    actif = bool(moteur.etat.force_anomalie)
     moteur.config = copy.deepcopy(candidat)
+    moteur.rejouer(tic, anomalies, actif)
     return {"ok": True, "erreurs": []}
 
 

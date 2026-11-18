@@ -30,6 +30,11 @@ if (client.convergence(payload.config.six_roues.roues, 273) !== 273) erreurs.pus
 const vite = JSON.parse(JSON.stringify(payload.config));
 vite.six_roues.roues.forEach((roue) => { roue.vitesse = 7; });
 if (client.convergence(vite.six_roues.roues, 273) !== 39) erreurs.push("convergence 39");
+const regle = client.ajusterCristallisation({seuil: 8, promus: 7, libre: 1}, "seuil", 9);
+if (regle.seuil !== 9 || regle.promus !== 7 || regle.libre !== 2) erreurs.push("cristallisation " + JSON.stringify(regle));
+const roues = [{id: "extra-7"}, {id: "r2"}];
+if (client.identifiantLibre(roues) !== "extra-1") erreurs.push("id " + client.identifiantLibre(roues));
+if (client.identifiantLibre([{id: "extra-1"}]) !== "extra-2") erreurs.push("id suivant");
 if (payload.empreinte) {
   const vue0 = client.rejouer(payload.config, 0, null);
   const graine = client.graineDe(payload.config, vue0);

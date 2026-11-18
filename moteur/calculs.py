@@ -306,7 +306,9 @@ def observer_cristal(etat, cle: str, seuil: int, promus: int, niveau_max: int) -
 
     Quand `seuil` observations de même clé sont en tête, `promus` d'entre
     elles forment un cristal du niveau suivant et `seuil - promus` restent.
-    Étiquette d'usage : CANDIDAT pour l'accumulation, DOCUMENTÉ pour 8 → 7 + 1.
+    Si ce préfixe est mélangé, la plus ancienne observation est écartée
+    pour ne pas bloquer la file. Étiquette d'usage : CANDIDAT pour
+    l'accumulation, DOCUMENTÉ pour 8 → 7 + 1.
     """
     if seuil < 2 or not 1 <= promus < seuil:
         raise ValueError("règle de cristallisation invalide")
@@ -324,7 +326,10 @@ def _reduire(etat, niveau: int, seuil: int, promus: int, niveau_max: int) -> Non
         lot = file[:seuil]
         gardes = lot[:promus]
         if len(set(gardes)) != 1:
-            break
+            # La plus ancienne observation bloque le lot. On l'écarte
+            # pour que la file puisse avancer. Règle d'accumulation CANDIDAT.
+            file.pop(0)
+            continue
         file[:seuil] = lot[promus:]
         etat.piles[niveau + 1].append(gardes[0])
         etat.cristaux.append({

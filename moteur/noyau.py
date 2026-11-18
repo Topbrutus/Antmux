@@ -45,7 +45,7 @@ class Moteur:
         """Enregistre un composant sans modifier les autres."""
         if any(item.identifiant == composant.identifiant for item in self.composants):
             raise ValueError(f"composant déjà présent : {composant.identifiant}")
-        config = fusion_fragment(self.config, composant)
+        config = fusion_fragment(self.config, composant, self.composants)
         self.composants.append(composant)
         self.composants.sort(key=lambda c: c.ordre)
         self.config = config
@@ -74,6 +74,8 @@ class Moteur:
             raise ValueError("tic négatif")
         for _ in range(n):
             self.etat.tic += 1
+            if self.etat.force_anomalie and self.etat.tic not in self.etat.anomalies_tics:
+                self.etat.anomalies_tics.append(self.etat.tic)
             for composant in self.composants:
                 composant.au_tic(self.etat, self.config)
             anneau = int(self.config["six_roues"]["anneau"])
@@ -105,12 +107,30 @@ class Moteur:
             reste=self.config["horloge"]["reste_depart"],
         )
 
+    def rejouer(self, tic: int, anomalies: list[int] | None = None, anomalie_active: bool = False) -> None:
+        """Rejoue `tic` coups. Les tics listés sont anomaux.
+
+        Après un changement de configuration, l'état affiché redevient
+        exactement celui que la graine reconstruirait.
+        """
+        ensemble = set(anomalies or [])
+        self.etat = Etat(
+            phase=self.config["horloge"]["phase_depart"],
+            reste=self.config["horloge"]["reste_depart"],
+        )
+        for numero in range(1, tic + 1):
+            self.etat.force_anomalie = numero in ensemble
+            self.avancer(1)
+        self.etat.force_anomalie = anomalie_active
+
     def exporter_graine(self) -> dict:
         payload = {
             "version": VERSION,
             "tic": self.etat.tic,
             "evolution": self.evolution(),
             "config": self.config,
+            "anomalies": list(self.etat.anomalies_tics),
+            "anomalie_active": self.etat.force_anomalie,
         }
         graine = dict(payload)
         graine["empreinte"] = _empreinte(payload)
@@ -130,16 +150,13 @@ def schema_depuis(composants: list, config: dict | None = None) -> dict:
     return schema
 
 
-def fusion_fragment(config: dict, composant) -> dict:
+def fusion_fragment(config: dict, composant, existants: list | None = None) -> dict:
     if composant.identifiant in config or not hasattr(composant, "fragment"):
         return config
     sortie = copy.deepcopy(config)
     sortie[composant.identifiant] = copy.deepcopy(composant.fragment())
-    erreurs = valider(sortie, schema_depuis([composant], sortie))
-    # schema_depuis starts from default and adds unknown components only.
-    # Validate the new key with a targeted schema if the full one fails
-    # because other keys exist. The default schema plus the new fragment
-    # accepts the merged document when the fragment is valid.
+    connus = list(existants or [])
+    erreurs = valider(sortie, schema_depuis(connus + [composant], sortie))
     if erreurs:
         raise ValueError(" ; ".join(erreurs))
     return sortie
@@ -162,27 +179,39 @@ def verifier_graine(graine: dict, composants: list) -> list[str]:
 def reconstruire_depuis_graine(graine: dict, composants: list) -> Moteur:
     _controler_graine(graine, composants)
     moteur = Moteur(graine["config"], composants)
-    moteur.avancer(int(graine["tic"]))
+    moteur.rejouer(
+        int(graine["tic"]),
+        list(graine.get("anomalies", [])),
+        bool(graine.get("anomalie_active", False)),
+    )
     if moteur.evolution() != graine["evolution"]:
         raise ValueError("graine corrompue : l'évolution ne correspond pas au tic")
+    if list(moteur.etat.anomalies_tics) != list(graine.get("anomalies", [])):
+        raise ValueError("graine corrompue : l'historique d'anomalies ne se rejoue pas")
     return moteur
 
 
 def _controler_graine(graine: dict, composants: list) -> None:
     if not isinstance(graine, dict):
         raise ValueError("graine corrompue : objet attendu")
-    for cle in ("version", "tic", "evolution", "config", "empreinte"):
+    for cle in ("version", "tic", "evolution", "config", "empreinte", "anomalies", "anomalie_active"):
         if cle not in graine:
             raise ValueError(f"graine corrompue : champ manquant ({cle})")
     if type(graine["tic"]) is not int or not 0 <= graine["tic"] <= TIC_MAX_GRAINE:
         raise ValueError("graine corrompue : tic hors bornes")
     if type(graine["evolution"]) is not int or graine["evolution"] < 0:
         raise ValueError("graine corrompue : évolution invalide")
+    if not isinstance(graine["anomalies"], list) or any(type(item) is not int for item in graine["anomalies"]):
+        raise ValueError("graine corrompue : anomalies illisibles")
+    if type(graine["anomalie_active"]) is not bool:
+        raise ValueError("graine corrompue : anomalie active illisible")
     payload = {
         "version": graine["version"],
         "tic": graine["tic"],
         "evolution": graine["evolution"],
         "config": graine["config"],
+        "anomalies": graine["anomalies"],
+        "anomalie_active": graine["anomalie_active"],
     }
     if graine["empreinte"] != _empreinte(payload):
         raise ValueError("graine corrompue : empreinte invalide")

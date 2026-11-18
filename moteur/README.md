@@ -109,7 +109,7 @@ Le compteur d'évolution est le quotient entier du tic par l'anneau. Avec l'anne
 
 ## Cristallisation
 
-La spec documente 8 → 7 + 1, à ne pas confondre avec l'ancienne règle 50 → 49 + 1. Ici, huit observations de même clé produisent un cristal de sept et laissent la huitième libre. La même règle remonte les niveaux jusqu'à L7. L'enrichissement continu est CANDIDAT.
+La spec documente 8 → 7 + 1, à ne pas confondre avec l'ancienne règle 50 → 49 + 1. Ici, huit observations de même clé produisent un cristal de sept et laissent la huitième libre. Si le lot est mélangé, la plus ancienne observation est écartée et le lot est repris, pour que la file ne se bloque pas. La même règle remonte les niveaux jusqu'à L7. L'enrichissement continu est CANDIDAT. Dans le panneau, modifier le seuil, le nombre promu ou le nombre libre ajuste les deux autres pour garder la somme.
 
 ## Capsule et Épitagores
 
@@ -121,7 +121,7 @@ Les douze Épitagores sont douze emplacements vides. `configurer` n'existe pas c
 
 ## Graine et base 39
 
-`exporter_graine()` rend la version, le tic, l'évolution, la configuration et une empreinte. `reconstruire_depuis_graine()` rejoue le tic et retrouve le même instantané. Une empreinte fausse, ou une évolution qui ne correspond pas au tic, est refusée. La Libellule peut signaler la graine corrompue.
+`exporter_graine()` rend la version, le tic, l'évolution, la configuration, les tics qui ont été anomaux, l'état actuel de l'anomalie et une empreinte. `reconstruire_depuis_graine()` rejoue cet historique et retrouve le même instantané. Changer la configuration rejoue le même nombre de tics avec la nouvelle valeur : la graine qui suit décrit l'état affiché, pas un passé devenu inaccessible. Une empreinte fausse, ou une évolution qui ne correspond pas au tic, est refusée. La Libellule peut signaler la graine corrompue.
 
 Recherche de `base39`, `base 39`, `b39` et `BASE39` : aucun encodeur. Les chaînes « b39… » du dépôt sont des empreintes hexadécimales. L'alphabet par défaut, à confirmer par le propriétaire, est `0-9`, `A-Z`, puis `-`, `_` et `.`. L'empreinte et la graine sérialisée s'affichent en base 39. Une signature base 39 est plus courte que la même valeur en hexadécimal. Observation, sans conclusion : 39 = 3 × 13.
 

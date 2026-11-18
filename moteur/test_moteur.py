@@ -287,6 +287,16 @@ class CapsuleEpitagoresColonie(unittest.TestCase):
         self.assertEqual(moteur.etat.cristaux[0]["niveau"], 1)
         self.assertEqual(moteur.etat.piles[0], ["sain"])
 
+    def test_melange_ne_bloque_pas_la_file(self):
+        moteur = moteur_nu()
+        moteur.avancer(3)
+        moteur.etat.force_anomalie = True
+        moteur.avancer(1)
+        moteur.etat.force_anomalie = False
+        moteur.avancer(24)
+        self.assertGreaterEqual(len(moteur.etat.cristaux), 1)
+        self.assertLess(len(moteur.etat.piles[0]), 20)
+
 
 class Configuration(unittest.TestCase):
     def test_valide_invalide_et_reset(self):
@@ -371,6 +381,32 @@ class Configuration(unittest.TestCase):
         self.assertFalse(appliquer(moteur, mauvais)["ok"])
         self.assertEqual(moteur.config["factice"]["note"], "essai")
 
+        class Autre:
+            identifiant = "autre"
+            ordre = 210
+
+            def fragment(self):
+                return {"note": "deux"}
+
+            def schema_fragment(self):
+                return {
+                    "type": "objet",
+                    "label": "Autre",
+                    "champs": {
+                        "note": {"type": "str", "min_len": 0, "max_len": 80, "label": "Note autre"}
+                    },
+                }
+
+            def au_tic(self, etat, config):
+                return None
+
+            def instantane(self, etat, config):
+                return {"note": config["autre"]["note"]}
+
+        moteur.enregistrer(Autre())
+        self.assertEqual(moteur.instantane()["composants"]["autre"]["note"], "deux")
+        self.assertEqual(moteur.instantane()["composants"]["factice"]["note"], "essai")
+
 
 class GraineEtBase39(unittest.TestCase):
     def test_reconstruction_et_taille(self):
@@ -382,7 +418,31 @@ class GraineEtBase39(unittest.TestCase):
         texte_graine = json.dumps(graine, ensure_ascii=False, separators=(",", ":"))
         texte_etat = json.dumps(moteur.instantane(), ensure_ascii=False, separators=(",", ":"))
         self.assertLess(len(texte_graine) * 2, len(texte_etat))
+        self.assertEqual(graine["anomalies"], [])
         self.assertLess(len(moteur.exporter_graine_base39()), len(texte_graine.encode().hex()))
+
+    def test_anomalie_puis_reconstruction(self):
+        moteur = moteur_nu()
+        moteur.etat.force_anomalie = True
+        moteur.avancer(273)
+        moteur.etat.force_anomalie = False
+        self.assertEqual(moteur.etat.cycles_sains, 0)
+        autre = reconstruire_depuis_graine(moteur.exporter_graine(), moteur.composants)
+        self.assertEqual(autre.etat.cycles_sains, 0)
+        self.assertEqual(autre.etat.phase, moteur.etat.phase)
+        self.assertEqual(autre.etat.anomalies_tics, list(range(1, 274)))
+        self.assertFalse(autre.etat.force_anomalie)
+
+    def test_changement_de_config_reste_reconstructible(self):
+        moteur = moteur_nu()
+        moteur.avancer(10)
+        config = copy.deepcopy(moteur.config)
+        config["horloge"]["phase_depart"] = 5
+        self.assertTrue(appliquer(moteur, config)["ok"])
+        autre = reconstruire_depuis_graine(moteur.exporter_graine(), moteur.composants)
+        self.assertEqual(autre.etat.phase, moteur.etat.phase)
+        self.assertEqual(autre.etat.tic, moteur.etat.tic)
+        self.assertEqual(autre.instantane(), moteur.instantane())
 
     def test_graine_alteree(self):
         moteur = moteur_nu()
@@ -403,6 +463,8 @@ class GraineEtBase39(unittest.TestCase):
             "tic": menteuse["tic"],
             "evolution": menteuse["evolution"],
             "config": menteuse["config"],
+            "anomalies": menteuse["anomalies"],
+            "anomalie_active": menteuse["anomalie_active"],
         })
         with self.assertRaises(ValueError):
             reconstruire_depuis_graine(menteuse, moteur.composants)
@@ -490,6 +552,10 @@ class Page(unittest.TestCase):
         self.assertNotIn("fetch(", html)
         self.assertIn("Note factice", html) if False else None
         self.assertIn("ancienne fréquence", html)
+        self.assertIn("capsule.visible", html)
+        self.assertIn("pyramide.visible", html)
+        self.assertIn("identifiantLibre", html)
+        self.assertIn("ajusterCristallisation", html)
         self.assertIn("Récit du propriétaire", html)
         chemin = RACINE / "page" / "index.html"
         self.assertEqual(chemin.read_text(encoding="utf-8"), html)

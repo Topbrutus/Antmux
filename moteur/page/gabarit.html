@@ -430,7 +430,7 @@
       }
       const payload = {version: graine.version, tic: graine.tic, evolution: graine.evolution, config: graine.config};
       let empreinte = "";
-      try { empreinte = client.graineDe(graine.config, {tic: graine.tic, evolution: graine.evolution}).empreinte; } catch (e) { empreinte = ""; }
+      try { empreinte = client.graineDe(graine.config, {tic: graine.tic, evolution: graine.evolution}, graine.anomalies || [], Boolean(graine.anomalie_active)).empreinte; } catch (e) { empreinte = ""; }
       if (!graine.config || empreinte !== graine.empreinte) {
         document.getElementById("message-graine").textContent = "La Libellule signale une graine corrompue. Rien n'a été appliqué.";
         return;
@@ -446,6 +446,9 @@
       }
       courant = graine.config;
       tic = graine.tic;
+      window.__anomaliesGraine = Array.isArray(graine.anomalies) ? graine.anomalies : [];
+      anomalie = Boolean(graine.anomalie_active);
+      document.getElementById("anomalie").setAttribute("aria-pressed", String(anomalie));
       try { localStorage.setItem(CLE, JSON.stringify(courant)); } catch (e) {}
       document.getElementById("message-graine").textContent = "État reconstruit depuis la graine.";
       monterReglages();
@@ -478,7 +481,8 @@
       return true;
     }
     function afficher() {
-      vueCourante = client.rejouer(courant, tic, anomalie ? 1 : null);
+      vueCourante = client.rejouer(courant, tic, anomalie ? 1 : null, anomalie ? [] : (window.__anomaliesGraine || []));
+      if (!anomalie) vueCourante.resonance = "harmonieux";
       peindre(vueCourante);
       reglerAudio();
     }
@@ -487,6 +491,8 @@
       const mix = Math.min(1, vue.cycles_sains / 8);
       const ancienne = document.getElementById("onde-ancienne");
       const nouvelle = document.getElementById("onde-nouvelle");
+      document.getElementById("capsule").hidden = !courant.capsule.visible;
+      document.querySelector(".pyramide").hidden = !courant.pyramide.visible;
       ancienne.style.opacity = String(1 - mix * 0.85);
       nouvelle.style.opacity = String(0.25 + mix * 0.75);
       nouvelle.setAttribute("stroke", vue.resonance === "dissonant" ? "#c45b4a" : "#8ef6ff");
@@ -603,7 +609,10 @@
       peindreEpitagores();
       document.getElementById("cristaux-texte").textContent = "Cristallisation 8 → 7 + 1 : " + vue.cristaux + " cristal" + (vue.cristaux > 1 ? "aux" : "") + " (CANDIDAT pour l'accumulation).";
       peindreInsectes(vue);
-      const graine = client.graineDe(courant, vue);
+      const anomaliesGraine = anomalie
+        ? Array.from({length: vue.tic}, function (_, i) { return i + 1; })
+        : (window.__anomaliesGraine || []);
+      const graine = client.graineDe(courant, vue, anomaliesGraine, anomalie);
       document.getElementById("empreinte").textContent = graine.empreinte;
       document.getElementById("graine").textContent = graine.base39;
     }
@@ -755,6 +764,9 @@
       let cible = essai;
       for (let i = 0; i < chemin.length - 1; i += 1) cible = cible[chemin[i]];
       cible[chemin[chemin.length - 1]] = valeur;
+      if (chemin[0] === "cristallisation" && chemin.length === 2) {
+        essai.cristallisation = client.ajusterCristallisation(courant.cristallisation, chemin[1], valeur);
+      }
       const erreurs = client.valider(essai, SCHEMA);
       if (erreurs.length) {
         document.getElementById("message-config").textContent = erreurs[0] + " La configuration précédente est conservée.";
@@ -764,6 +776,7 @@
       courant = essai;
       try { localStorage.setItem(CLE, JSON.stringify(courant)); } catch (e) {}
       document.getElementById("message-config").textContent = "Configuration appliquée. Convergence : " + (client.convergence(courant.six_roues.roues, courant.six_roues.anneau) ?? "aucune") + ".";
+      if (chemin[0] === "cristallisation") monterReglages();
       afficher();
     }
     function retirerElement(chemin, index) {
@@ -783,7 +796,7 @@
     function ajouterRoue() {
       const essai = clone(courant);
       const n = essai.six_roues.roues.length;
-      essai.six_roues.roues.push({id: "extra-" + n, vitesse: 2, depart: 0, actif: true});
+      essai.six_roues.roues.push({id: client.identifiantLibre(essai.six_roues.roues), vitesse: 2, depart: 0, actif: true});
       if (!appliquerCourant(essai)) return;
       document.getElementById("message-config").textContent = "Roue ajoutée. Nouveau tic de convergence : " + client.convergence(courant.six_roues.roues, courant.six_roues.anneau) + ".";
       monterReglages();
